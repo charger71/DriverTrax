@@ -2,7 +2,7 @@
 
 > A free mobile app for rental car lot drivers — built for Enterprise drivers at Louisville Muhammad Ali International Airport (SDF), useful at any airport.
 
-**[Open the app →](https://charger71.github.io/drivertrax)**
+**[Open the app →](https://charger71.github.io/DriverTrax)**
 
 ---
 

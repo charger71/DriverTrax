@@ -1,4 +1,4 @@
-# DriverTraxxx
+# DriverTrax
 
 > A free mobile app for rental car lot drivers — built for Enterprise drivers at Louisville Muhammad Ali International Airport (SDF), useful at any airport.
 

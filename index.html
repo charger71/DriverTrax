@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="DriverTraxxx" />
+<meta name="theme-color" content="#13161a" />
+<title>DriverTraxxx</title>
+<link rel="apple-touch-icon" sizes="180x180" href="icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icon.png">
+<link rel="manifest" href="manifest.json">
+
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <h1><svg width="26" height="26" viewBox="0 0 100 100" fill="#00a651" style="vertical-align:middle;margin-right:8px;margin-bottom:3px" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="46" stroke="#00a651" stroke-width="8" fill="none"/><circle cx="50" cy="50" r="10" fill="#00a651"/><line x1="50" y1="4" x2="50" y2="40" stroke="#00a651" stroke-width="8" stroke-linecap="round"/><line x1="50" y1="60" x2="50" y2="96" stroke="#00a651" stroke-width="8" stroke-linecap="round"/><line x1="4" y1="50" x2="40" y2="50" stroke="#00a651" stroke-width="8" stroke-linecap="round"/><line x1="60" y1="50" x2="96" y2="50" stroke="#00a651" stroke-width="8" stroke-linecap="round"/></svg>DRIVERTRAXXX</h1>
+    <button class="btn-hamburger" onclick="openMenu()">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('entry')">NEW ENTRY</div>
+    <div class="tab" onclick="showTab('records')">RECORDS</div>
+    <div class="tab" onclick="showTab('dashboard')">DASHBOARD</div>
+  </div>
+</header>
+
+<div id="weatherAlert">
+  <div class="weather-alert-inner">
+    <div class="weather-alert-text">
+      <div class="weather-alert-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+      <div class="weather-alert-msg" id="weatherAlertMsg"></div>
+    </div>
+    <button class="weather-alert-close" onclick="dismissWeatherAlert()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+</div>
+
+<div id="avgBanner" style="display:none">
+  <div class="avg-banner-stats">
+    <div class="avg-banner-stat">
+      <div class="avg-banner-label">AVG TRIP TIME</div>
+      <div class="avg-banner-time" id="avgBannerTime">—</div>
+    </div>
+    <div class="avg-banner-divider"></div>
+    <div class="avg-banner-stat">
+      <div class="avg-banner-label">CARS / HOUR</div>
+      <div class="avg-banner-time" id="avgBannerCph">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE-OUT MENU -->
+<div id="menuOverlay" class="menu-overlay" onclick="closeMenu()"></div>
+<div id="slideMenu" class="slide-menu">
+  <div class="menu-header">
+    <span class="menu-title">MENU</span>
+    <button class="menu-close" onclick="closeMenu()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <nav class="menu-nav">
+    <a class="menu-item" onclick="showTab('entry'); closeMenu()">
+      <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><rect x="2" y="2" width="20" height="20" rx="2"/><rect x="7" y="2" width="10" height="7"/><rect x="8" y="14" width="8" height="8"/></svg></span> New Entry
+    </a>
+    <a class="menu-item" onclick="showTab('records'); closeMenu()">
+      <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/></svg></span> Records
+    </a>
+    <a class="menu-item" onclick="showTab('dashboard'); closeMenu()">
+      <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span> Dashboard
+    </a>
+    <a class="menu-item" onclick="showTab('training'); closeMenu()">
+      <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span> Training
+    </a>
+    <a class="menu-item" onclick="showTab('data'); closeMenu()">
+      <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></span> Data & Backup
+    </a>
+    <a class="menu-item" onclick="showTab('profile'); closeMenu()">
+      <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span> Profile
+    </a>
+  </nav>
+  <div class="menu-footer">
+    <div class="menu-version">DriverTraxxx v2.1</div>
+    <div class="menu-sync-status" id="menuSyncStatus"></div>
+  </div>
+</div>
+
+<!-- ==================== TRAINING PANEL ==================== -->
+<div class="panel" id="panel-training">
+  <div class="training-header">
+    <div class="dash-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg> Training</div>
+  </div>
+  <div class="training-placeholder">
+    <h3 style="color:var(--accent);font-size:16px;margin-bottom:12px">Clean Car Notes</h3>
+    <p style="color:var(--text2);font-size:14px;margin-bottom:16px;line-height:1.7">If you are unsure of current needs, ask a CXR or Manager.</p>
+    <ul style="list-style:none;padding:0;display:flex;flex-direction:column;gap:12px">
+      <li style="background:var(--card2);border-radius:0 var(--radius) var(--radius) 0;padding:12px 16px;border-left:5px solid var(--accent)">
+        <strong style="color:var(--text);font-size:14px">Executive</strong>
+        <p style="color:var(--text2);font-size:13px;margin-top:4px">0 – 10,000 miles ONLY &mdash; No Trax, Sentra, Spark, etc.</p>
+      </li>
+      <li style="background:var(--card2);border-radius:0 var(--radius) var(--radius) 0;padding:12px 16px;border-left:5px solid var(--accent)">
+        <strong style="color:var(--text);font-size:14px">Emerald</strong>
+        <p style="color:var(--text2);font-size:13px;margin-top:4px">10,000 – 20,000 miles ONLY</p>
+      </li>
+      <li style="background:var(--card2);border-radius:0 var(--radius) var(--radius) 0;padding:12px 16px;border-left:5px solid var(--accent)">
+        <strong style="color:var(--text);font-size:14px">Enterprise</strong>
+        <p style="color:var(--text2);font-size:13px;margin-top:4px">20,000 miles and ABOVE</p>
+      </li>
+      <li style="background:var(--card2);border-radius:0 var(--radius) var(--radius) 0;padding:12px 16px;border-left:5px solid var(--accent)">
+        <strong style="color:var(--text);font-size:14px">Alamo</strong>
+        <p style="color:var(--text2);font-size:13px;margin-top:4px">Overflow of 20,000 miles and ABOVE</p>
+      </li>
+      <li style="background:var(--card2);border-radius:0 var(--radius) var(--radius) 0;padding:12px 16px;border-left:5px solid var(--accent)">
+        <strong style="color:var(--text);font-size:14px">Luxuries</strong>
+        <p style="color:var(--text2);font-size:13px;margin-top:4px">~20,000 or UNDER in Premiere spots, rest on WALL or Enterprise/Alamo</p>
+      </li>
+    </ul>
+  </div>
+
+  <div class="training-placeholder" style="margin-top:16px">
+    <h3 style="color:var(--accent);font-size:16px;margin-bottom:4px">Car SIPP Codes</h3>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:14px;font-style:italic">* Certain car categories are not available at all locations.</p>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:2px solid var(--accent)">
+            <th style="text-align:left;padding:8px 10px;color:var(--accent);font-size:11px;text-transform:uppercase;letter-spacing:1px;white-space:nowrap">Code</th>
+            <th style="text-align:left;padding:8px 10px;color:var(--accent);font-size:11px;text-transform:uppercase;letter-spacing:1px">Category</th>
+            <th style="text-align:left;padding:8px 10px;color:var(--accent);font-size:11px;text-transform:uppercase;letter-spacing:1px">Example</th>
+            <th style="text-align:center;padding:8px 10px;color:var(--accent);font-size:11px;text-transform:uppercase;letter-spacing:1px;white-space:nowrap">Seats</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:9px 10px;font-weight:800;color:var(--text);white-space:nowrap">CCAR</td>
+            <td style="padding:9px 10px;color:var(--text2)">Compact</td>
+            <td style="padding:9px 10px;color:var(--muted);font-size:12px">Nissan Versa or similar</td>
+            <td style="padding:9px 10px;color:var(--text2);text-align:center">5</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:var(--card2)">
+            <td style="padding:9px 10px;font-weight:800;color:var(--text);white-space:nowrap">ECAR</td>
+            <td style="padding:9px 10px;color:var(--text2)">Economy</td>
+            <td style="padding:9px 10px;color:var(--muted);font-size:12px">Mitsubishi Mirage or similar</td>
+            <td style="padding:9px 10px;color:var(--text2);text-align:center">4</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:9px 10px;font-weight:800;color:var(--text);white-space:nowrap">FCAR</td>
+            <td style="padding:9px 10px;color:var(--text2)">Full Size</td>
+            <td style="padding:9px 10px;color:var(--muted);font-size:12px">Chevrolet Malibu or similar</td>
+            <td style="padding:9px 10px;color:var(--text2);text-align:center">5</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:var(--card2)">
+            <td style="padding:9px 10px;font-weight:800;color:var(--text);white-space:nowrap">FJAR</td>
+            <td style="padding:9px 10px;color:var(--text2)">Full Size All-Terrain 4 Door</td>
+            <td style="padding:9px 10px;color:var(--muted);font-size:12px">Jeep Wrangler Unlimited or similar</td>
+            <td style="padding:9px 10px;color:var(--text2);text-align:center">5</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:9px 10px;font-weight:800;color:var(--text);white-space:nowrap">GCAR</td>
+            <td style="padding:9px 10px;color:var(--text2)">Minivan (Grand Caravan)</td>
+            <td style="padding:9px 10px;color:var(--muted);font-size:12px">Dodge Grand Caravan</td>
+            <td style="padding:9px 10px;color:var(--text2);text-align:center">7</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:var(--card2)">
+            <td style="padding:9px 10px;font-weight:800;color:var(--text);white-space:nowrap">ICAR</td>
+            <td style="padding:9px 10px;color:var(--text2)">Intermediate / Midsize</td>
+            <td style="padding:9px 10px;color:var(--muted);font-size:12px">Toyota Corolla or similar</td>
+            <td style="padding:9px 10px;color:var(--text2);text-align:center">5</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:9px 10px;font-weight:800;color:var(--text);white-space:nowrap">IFAR</td>
+            <td style="padding:9px 10px;color:var(--text2)">Midsize SUV</td>
+            <td style="padding:9px 10px;color:var(--muted);font-size:12px">Nissan Rogue or similar</td>
+            <td style="padding:9px 10px;color:var(--text2);text-align:center">5</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:var(--card2)">
+            <td style="padding:9px 10px;font-weight:800;color:var(--text);white-space:nowrap">IJAR</td>
+            <td style="padding:9px 10px;color:var(--text2)">Intermediate All-Terrain 2 Door</td>
+            <td style="padding:9px 10px;color:var(--muted);font-size:12px">Jeep Wrangler or similar</td>
+            <td style="padding:9px 10px;color:var(--text2);text-align:center">5</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:9px 10px;font-weight:800;color:var(--text);white-space:nowrap">LCAR / LDAR</td>
+            <td style="padding:9px 10px;color:var(--text2)">Luxury</td>
+            <td style="padding:9px 10px;color:var(--muted);font-size:12px">Audi A4, BMW 3 Series or similar</td>
+            <td style="padding:9px 10px;color:var(--text2);text-align:center">5</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:var(--card2)">
+            <td style="padding:9px 10px;font-weight:800;color:var(--text);white-space:nowrap">MVAR</td>
+            <td style="padding:9px 10px;color:var(--text2)">Minivan</td>
+            <td style="padding:9px 10px;color:var(--muted);font-size:12px">Chrysler Pacifica or similar</td>
+            <td style="padding:9px 10px;color:var(--text2);text-align:center">7</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:9px 10px;font-weight:800;color:var(--text);white-space:nowrap">PCAR</td>
+            <td style="padding:9px 10px;color:var(--text2)">Premium</td>
+            <td style="padding:9px 10px;color:var(--muted);font-size:12px">Nissan Altima or similar</td>
+            <td style="padding:9px 10px;color:var(--text2);text-align:center">5</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:var(--card2)">
+            <td style="padding:9px 10px;font-weight:800;color:var(--text);white-space:nowrap">SCAR</td>
+            <td style="padding:9px 10px;color:var(--text2)">Standard</td>
+            <td style="padding:9px 10px;color:var(--muted);font-size:12px">&mdash;</td>
+            <td style="padding:9px 10px;color:var(--text2);text-align:center">5</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:9px 10px;font-weight:800;color:var(--text);white-space:nowrap">SFAR</td>
+            <td style="padding:9px 10px;color:var(--text2)">SUV</td>
+            <td style="padding:9px 10px;color:var(--muted);font-size:12px">Ford Edge or similar</td>
+            <td style="padding:9px 10px;color:var(--text2);text-align:center">5</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:var(--card2)">
+            <td style="padding:9px 10px;font-weight:800;color:var(--text);white-space:nowrap">STAR</td>
+            <td style="padding:9px 10px;color:var(--text2)">Convertible</td>
+            <td style="padding:9px 10px;color:var(--muted);font-size:12px">Ford Mustang or similar</td>
+            <td style="padding:9px 10px;color:var(--text2);text-align:center">4</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:9px 10px;font-weight:800;color:var(--text);white-space:nowrap">XPAR</td>
+            <td style="padding:9px 10px;color:var(--text2)">Sport Utility</td>
+            <td style="padding:9px 10px;color:var(--muted);font-size:12px">&mdash;</td>
+            <td style="padding:9px 10px;color:var(--text2);text-align:center">5</td>
+          </tr>
+          <tr style="background:var(--card2)">
+            <td style="padding:9px 10px;font-weight:800;color:var(--text);white-space:nowrap">XVARP</td>
+            <td style="padding:9px 10px;color:var(--text2)">15 Person Van</td>
+            <td style="padding:9px 10px;color:var(--muted);font-size:12px">&mdash;</td>
+            <td style="padding:9px 10px;color:var(--text2);text-align:center">15</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<div class="panel" id="panel-data">
+  <div class="dash-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg> Data & Backup</div>
+
+  <div class="data-section">
+    <div class="data-section-title">Auto Backup</div>
+    <div class="data-section-desc">A snapshot of all records is automatically saved every 30 minutes.</div>
+    <div class="data-status-row">
+      <span class="data-label">Last backup:</span>
+      <span id="lastBackupTime" class="data-value">—</span>
+    </div>
+    <div class="data-status-row">
+      <span class="data-label">Records in backup:</span>
+      <span id="backupRecordCount" class="data-value">—</span>
+    </div>
+    <button class="btn btn-secondary" onclick="runBackup(true)"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><rect x="2" y="2" width="20" height="20" rx="2"/><rect x="7" y="2" width="10" height="7"/><rect x="8" y="14" width="8" height="8"/></svg> Back Up Now</button>
+  </div>
+
+  <div class="data-section">
+    <div class="data-section-title">Export & Import</div>
+    <div class="data-section-desc">Export all records as a JSON file to save or transfer to another device. Import a previously exported file to restore records.</div>
+    <button class="btn btn-primary" onclick="exportJSON()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M12 5v14"/><path d="M5 12l7 7 7-7"/></svg> Export All Data</button>
+    <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg> Import Data</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)">
+    <div id="importStatus" class="data-import-status"></div>
+  </div>
+
+  <div class="data-section data-section-danger">
+    <div class="data-section-title" style="color:var(--danger)">Restore from Backup</div>
+    <div class="data-section-desc">If something goes wrong, restore from the last auto backup. This will overwrite current records.</div>
+    <button class="btn btn-danger" style="width:100%;margin-top:10px" onclick="restoreBackup()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Restore from Last Backup</button>
+  </div>
+</div>
+
+<!-- ==================== PROFILE PANEL ==================== -->
+<div class="panel" id="panel-profile">
+  <div class="dash-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Profile</div>
+
+  <div class="data-section">
+    <div class="data-section-title">Driver Name</div>
+    <div class="data-section-desc">Your name will appear in the dashboard and in exported file names.</div>
+    <input type="text" id="profileName" placeholder="Enter your name" autocomplete="off"
+      style="text-transform:none; margin-bottom:0"
+      oninput="previewProfileName()">
+  </div>
+
+  <div class="data-section">
+    <div class="data-section-title">Home Airport / Branch</div>
+    <div class="data-section-desc">Your primary airport or branch location.</div>
+    <select id="profileLocation" style="margin-bottom:0">
+      <option value="">-- SELECT LOCATION --</option>
+      <option>Austin-Bergstrom (AUS)</option>
+      <option>Boston Logan (BOS)</option>
+      <option>Charlotte Douglas (CLT)</option>
+      <option>Chicago O'Hare (ORD)</option>
+      <option>Dallas/Fort Worth (DFW)</option>
+      <option>Denver (DEN)</option>
+      <option>Fort Lauderdale-Hollywood (FLL)</option>
+      <option>Hartsfield-Jackson Atlanta (ATL)</option>
+      <option>Harry Reid Las Vegas (LAS)</option>
+      <option>Honolulu (HNL)</option>
+      <option>John F. Kennedy (JFK)</option>
+      <option>Los Angeles (LAX)</option>
+      <option>Louisville Muhammad Ali (SDF)</option>
+      <option>Miami (MIA)</option>
+      <option>Minneapolis-St. Paul (MSP)</option>
+      <option>Nashville (BNA)</option>
+      <option>Newark Liberty (EWR)</option>
+      <option>Orlando (MCO)</option>
+      <option>Phoenix Sky Harbor (PHX)</option>
+      <option>Salt Lake City (SLC)</option>
+      <option>San Diego (SAN)</option>
+      <option>San Francisco (SFO)</option>
+      <option>Seattle-Tacoma (SEA)</option>
+      <option>Tampa (TPA)</option>
+      <option>Washington Reagan (DCA)</option>
+    </select>
+  </div>
+
+  <button class="btn btn-primary" onclick="saveProfile()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><rect x="2" y="2" width="20" height="20" rx="2"/><rect x="7" y="2" width="10" height="7"/><rect x="8" y="14" width="8" height="8"/></svg> Save Profile</button>
+</div>
+
+<div class="panel active" id="panel-entry">
+
+  <button class="btn-scan-primary" onclick="openScanner()">
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="4" height="4"/><rect x="17" y="3" width="4" height="4"/><rect x="3" y="17" width="4" height="4"/><line x1="7" y1="5" x2="17" y2="5"/><line x1="19" y1="7" x2="19" y2="17"/><line x1="7" y1="19" x2="17" y2="19"/><line x1="5" y1="7" x2="5" y2="17"/><line x1="10" y1="12" x2="14" y2="12"/><line x1="12" y1="10" x2="12" y2="14"/></svg>
+    SCAN BARCODE
+  </button>
+
+  <button class="btn-manual-toggle" onclick="toggleManualEntry()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Enter Manually</button>
+
+  <div id="manualEntrySection" style="display:none">
+    <div class="field-label">Serial ID</div>
+    <div class="input-with-clear">
+      <input type="text" id="serial" placeholder="Type Serial ID"
+        autocomplete="off" autocorrect="off" spellcheck="false"
+        readonly
+        onfocus="openVinKeypad()"
+        onclick="openVinKeypad()">
+      <button type="button" class="input-clear-btn" id="serialClearBtn"
+        onclick="clearSerial()" aria-label="Clear">&times;</button>
+    </div>
+    <div class="vin-charcount" id="vinCharCount">0 / 17</div>
+  </div>
+
+  <!-- VIN KEYPAD -->
+  <div id="vinKeypadOverlay" class="vin-keypad-overlay" onclick="closeVinKeypad(event)">
+    <div class="vin-keypad" onclick="event.stopPropagation()">
+      <div class="vin-keypad-header">
+        <div class="vin-keypad-display" id="vinKeypadDisplay"></div>
+        <div class="vin-keypad-count" id="vinKeypadCount">0 / 17</div>
+      </div>
+      <div class="vin-keypad-grid" id="vinKeypadGrid"></div>
+    </div>
+  </div>
+
+  <!-- TIRE SELECTOR - shown when TI is selected -->
+  <div id="tireSelectorSection" style="display:none">
+    <div class="field-label">Select Affected Tire(s)</div>
+    <div class="tire-diagram">
+      <div class="car-body">
+        <div class="car-roof"></div>
+        <div class="car-hood-front"></div>
+        <div class="car-hood-rear"></div>
+        <div class="car-label">FRONT</div>
+        <div class="car-label-rear">REAR</div>
+      </div>
+      <div class="tire-btn" id="tire-FL" onclick="toggleTire('FL')">
+        <span>FL</span>
+      </div>
+      <div class="tire-btn" id="tire-FR" onclick="toggleTire('FR')">
+        <span>FR</span>
+      </div>
+      <div class="tire-btn" id="tire-RL" onclick="toggleTire('RL')">
+        <span>RL</span>
+      </div>
+      <div class="tire-btn" id="tire-RR" onclick="toggleTire('RR')">
+        <span>RR</span>
+      </div>
+    </div>
+    <div class="tire-selected-label" id="tireSelectedLabel">No tires selected</div>
+  </div>
+
+  <div style="display:flex;gap:10px;margin-top:20px">
+    <div style="flex:1">
+      <div class="field-label" style="margin-top:0">Status</div>
+      <select id="status" onchange="handleStatusChange()" style="margin-bottom:0">
+        <option value="">-- SELECT STATUS --</option>
+        <option>CLEAN</option>
+        <option>DIRTY</option>
+        <option>REWASH</option>
+        <option>TOP OFF FLUID</option>
+        <option>PM</option>
+        <option>MK</option>
+        <option>MR</option>
+        <option>OM</option>
+        <option>AUDIT FAIL</option>
+        <option>WI/DELETE</option>
+        <option>GLASS</option>
+        <option>TI</option>
+        <option>OTHER</option>
+      </select>
+    </div>
+    <div style="flex:1">
+      <div class="field-label" style="margin-top:0">Destination</div>
+      <select id="destination" style="margin-bottom:0">
+        <option value="">-- SELECT DESTINATION --</option>
+        <option>GARAGE</option>
+        <option>QTA</option>
+        <option>BACKLOT</option>
+        <option>ATLANTIC</option>
+        <option>BRANCH</option>
+        <option>OTHER</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="field-label">Options</div>
+  <div class="checkbox-row" style="display:flex;gap:10px;margin-top:0">
+    <div class="notag-row" id="noTagRow" style="flex:1;margin-top:0" onclick="document.getElementById('noTag').checked=!document.getElementById('noTag').checked; toggleNoTagStyle()">
+      <input type="checkbox" id="noTag" style="pointer-events:none">
+      <label for="noTag">No Tag</label>
+    </div>
+    <div class="notag-row shuttle-row" id="shuttleRow" style="flex:1;margin-top:0" onclick="document.getElementById('shuttle').checked=!document.getElementById('shuttle').checked; toggleShuttleStyle()">
+      <input type="checkbox" id="shuttle" style="pointer-events:none">
+      <label for="shuttle">Shuttle</label>
+    </div>
+    <div class="notag-row transport-row" id="transportRow" style="flex:1;margin-top:0" onclick="document.getElementById('transport').checked=!document.getElementById('transport').checked; toggleTransportStyle()">
+      <input type="checkbox" id="transport" style="pointer-events:none">
+      <label for="transport">Transport</label>
+    </div>
+  </div>
+
+  <div class="field-label">Notes</div>
+  <textarea id="notes" placeholder="Optional notes..."></textarea>
+
+  <button id="saveBtn" class="btn btn-primary" onclick="saveRecord()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><rect x="2" y="2" width="20" height="20" rx="2"/><rect x="7" y="2" width="10" height="7"/><rect x="8" y="14" width="8" height="8"/></svg> SAVE RECORD</button>
+  <div id="gpsStatus" class="gps-status"></div>
+
+  <!-- TODAY'S ENTRIES -->
+  <div class="today-header">
+    <span class="today-title">Today's Entries</span>
+    <span class="today-count" id="todayCount">0</span>
+  </div>
+  <div id="todayRecords"></div>
+</div>
+
+<!-- ==================== RECORDS PANEL ==================== -->
+<div class="panel" id="panel-records">
+
+  <div class="filter-bar">
+    <div class="filter-row">
+      <input type="text" id="fSearch" placeholder="Search serial..."
+        oninput="this.value=this.value.toUpperCase(); debouncedSearchUpdate()">
+      <select id="fStatus" onchange="resetRecordsPage(); renderRecords()">
+        <option value="">All Statuses</option>
+        <option>CLEAN</option><option>DIRTY</option>
+        <option>REWASH</option><option>TOP OFF FLUID</option>
+        <option>PM</option><option>MK</option><option>MR</option><option>OM</option>
+        <option>AUDIT FAIL</option><option>WI/DELETE</option><option>GLASS</option><option>TI</option><option>OTHER</option>
+      </select>
+    </div>
+    <div class="filter-row">
+      <select id="fNoTag" onchange="resetRecordsPage(); renderRecords()">
+        <option value="">All Records</option>
+        <option value="yes">No Tag Only</option>
+        <option value="no">Has Tag Only</option>
+      </select>
+      <select id="fDest" onchange="resetRecordsPage(); renderRecords()">
+        <option value="">All Destinations</option>
+        <option>GARAGE</option><option>QTA</option><option>BACKLOT</option>
+        <option>ATLANTIC</option><option>BRANCH</option><option>OTHER</option>
+      </select>
+    </div>
+    <div class="filter-row">
+      <input type="date" id="fDateFrom" onchange="resetRecordsPage(); renderRecords()">
+      <input type="date" id="fDateTo" onchange="resetRecordsPage(); renderRecords()">
+    </div>
+    <button class="btn btn-secondary" style="margin-top:6px" onclick="clearFilters()">Clear Filters</button>
+    <button class="btn btn-primary" style="margin-top:4px" onclick="exportCSV()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> EXPORT CSV</button>
+  </div>
+
+  <div class="results-count" id="resultsCount"></div>
+
+  <div class="dash-section" style="margin-bottom:0;padding-bottom:0">
+    <div class="dash-range-tab active" onclick="toggleRecordsMap()" id="tab-recordsMap">
+      <span><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Map View</span>
+      <span class="range-chevron" id="chev-recordsMap">&#9660;</span>
+    </div>
+    <div id="body-recordsMap" style="display:block">
+      <div id="recordsMapContainer" class="shift-map-container" style="margin-top:0;border-radius:0 0 var(--radius) var(--radius)">
+        <div id="recordsMap" class="shift-map"></div>
+        <div id="recordsMapEmpty" class="shift-map-empty">No GPS entries in current results</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dash-title" id="recordsHeading" style="margin-top:20px">Records</div>
+  <div id="records"></div>
+</div>
+
+<!-- ==================== DASHBOARD PANEL ==================== -->
+<div class="panel" id="panel-dashboard">
+
+  <div id="dashQuote" class="dash-quote"></div>
+
+  <div id="dashDriverName" style="display:none;margin-bottom:20px">
+    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700">Driver</div>
+    <div id="dashDriverNameText" style="font-size:22px;font-weight:900;color:var(--text);letter-spacing:1px"></div>
+    <div id="dashDriverLocation" style="font-size:13px;color:var(--muted);margin-top:3px"></div>
+  </div>
+
+  <div class="dash-section">
+    <div class="dash-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Overview</div>
+    <div class="stat-grid" id="dashOverview"></div>
+  </div>
+
+  <div class="dash-section">
+    <div class="dash-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/></svg> By Status</div>
+    <div class="bar-chart" id="dashStatus"></div>
+  </div>
+
+  <div class="dash-section">
+    <div class="dash-title">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      Shift Map
+      <span style="font-size:11px;font-weight:normal"> (tap a dot to view record)</span>
+    </div>
+    <div class="shift-map-controls" id="shiftMapControls"></div>
+    <div id="shiftMapContainer" class="shift-map-container">
+      <div id="shiftMap" class="shift-map"></div>
+      <div id="shiftMapEmpty" class="shift-map-empty">No GPS entries for this shift</div>
+      <div id="shiftMapLegend" class="map-legend"></div>
+    </div>
+  </div>
+
+  <!-- TIME RANGE SECTIONS -->
+  <div class="dash-section">
+    <div class="dash-range-tab active" onclick="toggleRange('7days')" id="tab-7days">
+      <span>Last 7 Days</span>
+      <span class="range-chevron" id="chev-7days">&#9660;</span>
+    </div>
+    <div class="dash-range-body" id="body-7days">
+      <div id="dashDays"></div>
+    </div>
+  </div>
+
+  <div class="dash-section">
+    <div class="dash-range-tab" onclick="toggleRange('30days')" id="tab-30days">
+      <span>Last 30 Days</span>
+      <span class="range-chevron" id="chev-30days">&#9654;</span>
+    </div>
+    <div class="dash-range-body" id="body-30days" style="display:none">
+      <div id="dash30days"></div>
+    </div>
+  </div>
+
+  <div class="dash-section">
+    <div class="dash-range-tab" onclick="toggleRange('3months')" id="tab-3months">
+      <span>Last 3 Months</span>
+      <span class="range-chevron" id="chev-3months">&#9654;</span>
+    </div>
+    <div class="dash-range-body" id="body-3months" style="display:none">
+      <div id="dash3months"></div>
+    </div>
+  </div>
+
+  <div class="dash-section">
+    <div class="dash-range-tab" onclick="toggleRange('6months')" id="tab-6months">
+      <span>Last 6 Months</span>
+      <span class="range-chevron" id="chev-6months">&#9654;</span>
+    </div>
+    <div class="dash-range-body" id="body-6months" style="display:none">
+      <div id="dash6months"></div>
+    </div>
+  </div>
+
+  <div class="dash-section">
+    <div class="dash-range-tab" onclick="toggleRange('1year')" id="tab-1year">
+      <span>Last 12 Months</span>
+      <span class="range-chevron" id="chev-1year">&#9654;</span>
+    </div>
+    <div class="dash-range-body" id="body-1year" style="display:none">
+      <div id="dash1year"></div>
+    </div>
+  </div>
+
+  <div class="dash-section">
+    <div class="dash-range-tab" onclick="toggleRange('alltime')" id="tab-alltime">
+      <span>All Time</span>
+      <span class="range-chevron" id="chev-alltime">&#9654;</span>
+    </div>
+    <div class="dash-range-body" id="body-alltime" style="display:none">
+      <div id="dashAlltime"></div>
+    </div>
+  </div>
+
+  <div class="dash-section">
+    <div class="dash-title">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      Personal Records
+    </div>
+    <div id="dashPersonalRecords"></div>
+  </div>
+
+  <div class="dash-section">
+    <div class="dash-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/></svg> This Week vs Last Week</div>
+    <div class="stat-grid" id="dashWeeks"></div>
+  </div>
+
+</div><!-- end panel-dashboard -->
+
+<div id="toast" class="toast"></div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js"></script>
+
+<!-- RECORD DETAIL OVERLAY -->
+<div id="detailOverlay" class="detail-overlay" onclick="if(event.target===this)closeDetail()">
+  <div class="detail-sheet" id="detailSheet">
+    <div class="detail-handle"></div>
+    <div class="detail-header">
+      <div>
+        <div class="detail-serial" id="detailSerial"></div>
+        <div class="detail-time" id="detailTime"></div>
+      </div>
+      <button class="detail-close" onclick="closeDetail()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="detail-badges" id="detailBadges"></div>
+    <div id="detailVinSection" style="display:none" class="detail-vin-section">
+      <div class="detail-vin-icon" id="detailVinIcon"></div>
+      <div class="detail-vin-info">
+        <div class="detail-vin-name" id="detailVinName"></div>
+        <div class="detail-vin-specs" id="detailVinSpecs"></div>
+      </div>
+    </div>
+    <div class="detail-body">
+      <div class="detail-row" id="detailTiresRow" style="display:none">
+        <span class="detail-label">Tires</span>
+        <span class="detail-val" id="detailTires"></span>
+      </div>
+      <div class="detail-row" id="detailDestRow" style="display:none">
+        <span class="detail-label">Destination</span>
+        <span class="detail-val" id="detailDest"></span>
+      </div>
+      <div class="detail-row" id="detailNotesRow" style="display:none">
+        <span class="detail-label">Notes</span>
+        <span class="detail-val" id="detailNotes"></span>
+      </div>
+      <div class="detail-row" id="detailShiftRow">
+        <span class="detail-label">Shift</span>
+        <span class="detail-val" id="detailShift"></span>
+      </div>
+    </div>
+    <div class="detail-map-section">
+      <div class="detail-map-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Location</div>
+      <div id="detailMapContainer">
+        <div id="detailMapFrame" class="detail-map" style="display:none"></div>
+        <div id="detailNoGps" class="detail-no-gps" style="display:none">No GPS data available</div>
+      </div>
+    </div>
+    <div class="detail-actions">
+      <button class="btn btn-danger" id="detailDeleteBtn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg> Delete Record</button>
+    </div>
+  </div>
+</div>
+
+<!-- BARCODE SCANNER OVERLAY -->
+<div id="scannerOverlay" class="scanner-overlay">
+  <div class="scanner-header">
+    <span class="scanner-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> SCAN BARCODE</span>
+    <button class="scanner-close" onclick="closeScanner()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="scanner-viewport">
+    <video id="scannerVideo" autoplay playsinline muted></video>
+    <div class="scanner-mask">
+      <div class="reticle-corner tl"></div>
+      <div class="reticle-corner tr"></div>
+      <div class="reticle-corner bl"></div>
+      <div class="reticle-corner br"></div>
+      <div class="reticle-line"></div>
+      <div class="scanner-tip">Hold tag horizontal · 6-8 inches away</div>
+    </div>
+    <div class="scanner-flash" id="scannerFlash"></div>
+  </div>
+  <div class="scanner-bottom">
+    <div class="scanner-status scanning" id="scannerHint">
+      <span class="scanner-dot"><svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8" style="vertical-align:middle;display:inline-block"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg></span> Scanning...
+    </div>
+    <div class="scanner-actions">
+      <button class="btn-torch" id="torchBtn" onclick="toggleTorch()" title="Flashlight"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M8 16l-1.5 4.5h7L12 16"/><rect x="8" y="8" width="8" height="9" rx="1"/><path d="M9 8V5a3 3 0 0 1 6 0v3"/><line x1="10" y1="12" x2="14" y2="12"/></svg></button>
+      <button class="btn-cancel" onclick="closeScanner()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

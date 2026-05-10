@@ -107,7 +107,7 @@ We're working on:
 - **Push notifications** for weather, shift reminders, and "extra drivers needed" requests
 - **Manager dashboard** with fleet-wide stats
 
-See [ROADMAP.md](ROADMAP.md) for the full list.
+See ROADMAP.md (*coming soon*) for the full list.
 
 ---
 

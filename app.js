@@ -1,11 +1,11 @@
 // ============================================================
-// DRIVERTRAXXX v2.0
+// DRIVERTRAX v2.0
 // Single-file PWA for rental car lot operations
 // ============================================================
 
 const APP_VERSION = "2.1";
 const SCHEMA_VERSION = 2;
-const SCHEMA_KEY = "drivertraxxx_schema_version";
+const SCHEMA_KEY = "drivertrax_schema_version";
 
 // ============================
 // SERVICE WORKER REGISTRATION
@@ -25,12 +25,37 @@ if ("serviceWorker" in navigator) {
 // ============================
 // SCHEMA MIGRATION
 // ============================
+function migrateLocalStorageKeys() {
+  // One-time migration: rename old "drivertraxxx_*" keys to "drivertrax_*"
+  // (App was renamed from DriverTraxxx -> DriverTrax)
+  const oldNewPairs = [
+    ["drivertraxxx_records", "drivertrax_records"],
+    ["drivertraxxx_schema_version", "drivertrax_schema_version"],
+    ["drivertraxxx_shuttle", "drivertrax_shuttle"],
+    ["drivertraxxx_transport", "drivertrax_transport"],
+    ["drivertraxxx_profile", "drivertrax_profile"],
+    ["drivertraxxx_backup", "drivertrax_backup"],
+    ["drivertraxxx_backup_time", "drivertrax_backup_time"]
+  ];
+  let migrated = 0;
+  oldNewPairs.forEach(([oldKey, newKey]) => {
+    const oldVal = localStorage.getItem(oldKey);
+    if (oldVal !== null && localStorage.getItem(newKey) === null) {
+      localStorage.setItem(newKey, oldVal);
+      localStorage.removeItem(oldKey);
+      migrated++;
+    }
+  });
+  if (migrated > 0) console.log(`Migrated ${migrated} key(s) to new naming scheme`);
+}
+migrateLocalStorageKeys();
+
 function migrateSchema() {
   const stored = parseInt(localStorage.getItem(SCHEMA_KEY) || "1");
   if (stored === SCHEMA_VERSION) return;
 
   try {
-    const records = JSON.parse(localStorage.getItem("drivertraxxx_records") || "[]");
+    const records = JSON.parse(localStorage.getItem("drivertrax_records") || "[]");
 
     if (stored < 2) {
       // v1 -> v2: ensure every record has version field, default missing fields
@@ -39,7 +64,7 @@ function migrateSchema() {
         if (r.transport === undefined) r.transport = false;
         if (r.tires === undefined) r.tires = [];
       });
-      localStorage.setItem("drivertraxxx_records", JSON.stringify(records));
+      localStorage.setItem("drivertrax_records", JSON.stringify(records));
     }
 
     localStorage.setItem(SCHEMA_KEY, SCHEMA_VERSION.toString());
@@ -117,7 +142,7 @@ function recordPopupHTML(r) {
     </div>`;
 }
 
-const DB_KEY = "drivertraxxx_records";
+const DB_KEY = "drivertrax_records";
 // Cached records - invalidated on every setRecords() call
 let _recordsCache = null;
 function getRecords() {
@@ -564,9 +589,23 @@ function clearSerial() {
   input.focus();
 }
 
+function clearEditSerial() {
+  const input = document.getElementById("editSerial");
+  input.value = "";
+  toggleEditClearBtn();
+  updateEditVinCount();
+  input.focus();
+}
+
 function toggleClearBtn() {
   const input = document.getElementById("serial");
   const btn = document.getElementById("serialClearBtn");
+  if (btn) btn.style.display = input.value.length > 0 ? "flex" : "none";
+}
+
+function toggleEditClearBtn() {
+  const input = document.getElementById("editSerial");
+  const btn = document.getElementById("editSerialClearBtn");
   if (btn) btn.style.display = input.value.length > 0 ? "flex" : "none";
 }
 
@@ -583,6 +622,9 @@ const VIN_KEYS = [
   'X','Y','Z'
 ];
 
+// Tracks which input the keypad is currently typing into
+let _vinKeypadTargetId = "serial";
+
 function buildVinKeypad() {
   const grid = document.getElementById("vinKeypadGrid");
   if (!grid) return;
@@ -592,27 +634,25 @@ function buildVinKeypad() {
     const typeClass = /[0-9]/.test(k) ? "vin-key-num" : "vin-key-alpha";
     return `<button class="vin-key ${typeClass}" type="button" onclick="vinKeypadType('${k}')">${k}</button>`;
   }).join("");
-  // Backspace and Done on the last row
   html += `<button class="vin-key vin-key-back" type="button" onclick="vinKeypadBackspace()">&#9003;</button>`;
   html += `<button class="vin-key vin-key-done" type="button" onclick="closeVinKeypad()">DONE</button>`;
   grid.innerHTML = html;
   grid.dataset.built = "1";
 }
 
-function openVinKeypad() {
+function openVinKeypad(targetId) {
+  _vinKeypadTargetId = targetId || "serial";
   buildVinKeypad();
   const overlay = document.getElementById("vinKeypadOverlay");
   if (!overlay) return;
   overlay.classList.add("open");
   syncKeypadDisplay();
 
-  // Blur the input to dismiss any iOS keyboard that might pop up
-  const input = document.getElementById("serial");
+  const input = document.getElementById(_vinKeypadTargetId);
   if (input) input.blur();
 }
 
 function closeVinKeypad(event) {
-  // If event passed (clicked overlay backdrop), only close if target is overlay itself
   if (event && event.target && event.target.id !== "vinKeypadOverlay") {
     if (event.currentTarget && event.target !== event.currentTarget) return;
   }
@@ -620,29 +660,78 @@ function closeVinKeypad(event) {
 }
 
 function vinKeypadType(ch) {
-  const input = document.getElementById("serial");
+  const input = document.getElementById(_vinKeypadTargetId);
+  if (!input) return;
   if (input.value.length >= 30) return;
   input.value = (input.value + ch).toUpperCase();
   syncKeypadDisplay();
-  toggleClearBtn();
-  updateVinCount();
-  // Light haptic
+  if (_vinKeypadTargetId === "serial") { toggleClearBtn(); updateVinCount(); }
+  else { toggleEditClearBtn(); updateEditVinCount(); }
   if (navigator.vibrate) navigator.vibrate(8);
 }
 
 function vinKeypadBackspace() {
-  const input = document.getElementById("serial");
+  const input = document.getElementById(_vinKeypadTargetId);
+  if (!input) return;
   input.value = input.value.slice(0, -1);
   syncKeypadDisplay();
-  toggleClearBtn();
-  updateVinCount();
+  if (_vinKeypadTargetId === "serial") { toggleClearBtn(); updateVinCount(); }
+  else { toggleEditClearBtn(); updateEditVinCount(); }
   if (navigator.vibrate) navigator.vibrate(8);
 }
 
+function vinKeypadPaste() {
+  const input = document.getElementById(_vinKeypadTargetId);
+  if (!input) return;
+
+  // Use the Clipboard API where available
+  if (navigator.clipboard && navigator.clipboard.readText) {
+    navigator.clipboard.readText().then(text => {
+      applyPastedVin(text);
+    }).catch(() => {
+      showToast("Couldn't access clipboard - try long-pressing the input", "warn");
+    });
+  } else {
+    showToast("Clipboard not available on this browser", "warn");
+  }
+}
+
+function applyPastedVin(text) {
+  const input = document.getElementById(_vinKeypadTargetId);
+  if (!input) return;
+
+  // Filter to only valid VIN chars (uppercase letters except I/O/Q + digits)
+  // and truncate at 30 chars (input maxlength)
+  const cleaned = text
+    .toUpperCase()
+    .replace(/[^A-HJ-NPR-Z0-9]/g, "")
+    .slice(0, 30);
+
+  if (!cleaned) {
+    showToast("Clipboard had no valid VIN characters", "warn");
+    return;
+  }
+
+  input.value = cleaned;
+  syncKeypadDisplay();
+  if (_vinKeypadTargetId === "serial") { toggleClearBtn(); updateVinCount(); }
+  else { toggleEditClearBtn(); updateEditVinCount(); }
+  if (navigator.vibrate) navigator.vibrate(8);
+
+  if (cleaned.length === 17) {
+    showToast("Pasted VIN", "success");
+  } else if (cleaned.length < text.length) {
+    showToast(`Pasted ${cleaned.length} chars (invalid chars removed)`, "warn");
+  } else {
+    showToast(`Pasted ${cleaned.length} characters`, "success");
+  }
+}
+
 function syncKeypadDisplay() {
-  const input = document.getElementById("serial");
+  const input = document.getElementById(_vinKeypadTargetId);
   const display = document.getElementById("vinKeypadDisplay");
   const count = document.getElementById("vinKeypadCount");
+  if (!input) return;
   if (display) display.textContent = input.value || "...";
   if (count) {
     const len = input.value.length;
@@ -654,7 +743,16 @@ function syncKeypadDisplay() {
 function updateVinCount() {
   const input = document.getElementById("serial");
   const c = document.getElementById("vinCharCount");
-  if (!c) return;
+  if (!c || !input) return;
+  const len = input.value.length;
+  c.textContent = `${len} / 17`;
+  c.classList.toggle("valid", len === 17);
+}
+
+function updateEditVinCount() {
+  const input = document.getElementById("editSerial");
+  const c = document.getElementById("editVinCharCount");
+  if (!c || !input) return;
   const len = input.value.length;
   c.textContent = `${len} / 17`;
   c.classList.toggle("valid", len === 17);
@@ -664,8 +762,8 @@ function toggleNoTagStyle() {
   document.getElementById("noTagRow").classList.toggle("checked", checked);
 }
 
-const SHUTTLE_KEY = "drivertraxxx_shuttle";
-const TRANSPORT_KEY = "drivertraxxx_transport";
+const SHUTTLE_KEY = "drivertrax_shuttle";
+const TRANSPORT_KEY = "drivertrax_transport";
 
 function toggleShuttleStyle() {
   const checked = document.getElementById("shuttle").checked;
@@ -887,11 +985,14 @@ function renderPaginationControls(current, total) {
 // RECORD DETAIL OVERLAY
 // ============================
 let _detailDeleteFn = null;
+let _currentDetailRecordId = null;
 
 function openDetail(id, onDelete) {
   const records = getRecords();
   const r = records.find(rec => rec.id === id);
   if (!r) return;
+
+  _currentDetailRecordId = id;
 
   document.getElementById("detailSerial").textContent = r.serialId || "";
   document.getElementById("detailTime").textContent =
@@ -1004,6 +1105,110 @@ function closeDetail() {
 }
 
 // ============================
+// EDIT RECORD
+// ============================
+function openEdit() {
+  if (!_currentDetailRecordId) return;
+  const records = getRecords();
+  const r = records.find(rec => rec.id === _currentDetailRecordId);
+  if (!r) return;
+
+  document.getElementById("editSerial").value = r.serialId || "";
+  document.getElementById("editNotes").value = r.notes || "";
+  document.getElementById("editTime").textContent =
+    new Date(r.timestamp).toLocaleString("en-US", {
+      weekday:"short", month:"short", day:"numeric",
+      hour:"numeric", minute:"2-digit", timeZone:"America/New_York"
+    });
+
+  toggleEditClearBtn();
+  updateEditVinCount();
+
+  // Hide any leftover status message
+  const status = document.getElementById("editVinStatus");
+  status.style.display = "none";
+  status.textContent = "";
+
+  // Close the detail overlay underneath so we don't stack
+  document.getElementById("detailOverlay").classList.remove("open");
+  document.getElementById("editOverlay").classList.add("open");
+}
+
+function closeEdit() {
+  document.getElementById("editOverlay").classList.remove("open");
+}
+
+function saveEdit() {
+  if (!_currentDetailRecordId) return;
+  const records = getRecords();
+  const idx = records.findIndex(rec => rec.id === _currentDetailRecordId);
+  if (idx === -1) {
+    showToast("Record not found", "error");
+    return;
+  }
+
+  const newSerial = sanitizeSerial(
+    document.getElementById("editSerial").value.trim().toUpperCase()
+  );
+  const newNotes = sanitizeNotes(document.getElementById("editNotes").value);
+
+  if (!newSerial) {
+    showToast("Serial ID cannot be empty", "warn");
+    return;
+  }
+
+  const oldSerial = records[idx].serialId;
+  const serialChanged = oldSerial !== newSerial;
+
+  // Apply text changes immediately
+  records[idx].serialId = newSerial;
+  records[idx].notes = newNotes;
+
+  // If VIN changed, clear stale vinData so the new lookup replaces it
+  if (serialChanged) {
+    records[idx].vinData = null;
+  }
+
+  setRecords(records);
+
+  const saveBtn = document.getElementById("editSaveBtn");
+
+  if (serialChanged && isValidVIN(newSerial)) {
+    // Re-fetch NHTSA data for the new VIN
+    const status = document.getElementById("editVinStatus");
+    status.style.display = "block";
+    status.className = "gps-status";
+    status.textContent = "Looking up vehicle info...";
+    saveBtn.disabled = true;
+
+    decodeVIN(newSerial).then(vinData => {
+      const recs = getRecords();
+      const rec = recs.find(rr => rr.id === _currentDetailRecordId);
+      if (rec) {
+        rec.vinData = vinData || null;
+        setRecords(recs);
+      }
+      showToast("Record updated - VIN refreshed", "success");
+      saveBtn.disabled = false;
+      closeEdit();
+      renderRecords();
+      renderTodayEntries();
+    }).catch(() => {
+      showToast("Record saved (VIN lookup failed)", "warn");
+      saveBtn.disabled = false;
+      closeEdit();
+      renderRecords();
+      renderTodayEntries();
+    });
+  } else {
+    showToast("Record updated", "success");
+    closeEdit();
+    renderRecords();
+    renderTodayEntries();
+  }
+}
+
+// ============================
 // EXPORT CSV
 // ============================
 function exportCSV() {
@@ -1030,7 +1235,7 @@ function exportCSV() {
   const blob = new Blob([csv], {type:"text/csv"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = getDriverFileName("drivertraxxx", "csv");
+  a.download = getDriverFileName("drivertrax", "csv");
   a.click();
 }
 
@@ -1952,7 +2157,7 @@ function toggleTorch() {
 // ============================
 // PROFILE
 // ============================
-const PROFILE_KEY = "drivertraxxx_profile";
+const PROFILE_KEY = "drivertrax_profile";
 
 function getProfile() {
   try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || "{}"); } catch(e) { return {}; }
@@ -2001,8 +2206,8 @@ function getDriverFileName(base, ext) {
   const date = new Date().toISOString().slice(0,10);
   return `${base}${name}_${date}.${ext}`;
 }
-const BACKUP_KEY = "drivertraxxx_backup";
-const BACKUP_TIME_KEY = "drivertraxxx_backup_time";
+const BACKUP_KEY = "drivertrax_backup";
+const BACKUP_TIME_KEY = "drivertrax_backup_time";
 const BACKUP_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
 function runBackup(manual = false) {
@@ -2066,7 +2271,7 @@ function exportJSON() {
   const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = getDriverFileName("drivertraxxx_backup", "json");
+  a.download = getDriverFileName("drivertrax_backup", "json");
   a.click();
   showToast(`Exported ${records.length} records`, "success");
 }
@@ -2122,7 +2327,7 @@ const EXTREME_CODES = {
   95:"Thunderstorm", 96:"Thunderstorm + Hail", 99:"Thunderstorm + Heavy Hail"
 };
 
-const ALERT_DISMISSED_KEY = "drivertraxxx_alert_dismissed";
+const ALERT_DISMISSED_KEY = "drivertrax_alert_dismissed";
 
 function dismissWeatherAlert() {
   document.getElementById("weatherAlert").style.display = "none";
@@ -2143,7 +2348,7 @@ async function checkWeatherAlert() {
   // NWS official alerts for SDF area
   try {
     const nwsRes = await fetch("https://api.weather.gov/alerts/active?point=38.1741,-85.7368", {
-      headers: { "Accept": "application/geo+json", "User-Agent": "DriverTraxxx/1.0 (louisville-airport-ops)" }
+      headers: { "Accept": "application/geo+json", "User-Agent": "DriverTrax/1.0 (louisville-airport-ops)" }
     });
     if (nwsRes.ok) {
       const nwsData = await nwsRes.json();

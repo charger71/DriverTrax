@@ -102,6 +102,16 @@
     letter-spacing: 0.5px;
   }
   .vin-keypad-count.valid { color: var(--accent); }
+  .vin-keypad-paste {
+    background: var(--card2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 10px; font-size: 11px; font-weight: 800;
+    letter-spacing: 1px; cursor: pointer;
+    display: flex; align-items: center; gap: 4px;
+    transition: background 0.1s;
+    flex-shrink: 0;
+  }
+  .vin-keypad-paste:active { background: var(--accent); color: #000; }
   .vin-keypad-grid {
     display: grid; grid-template-columns: repeat(5, 1fr);
     gap: 6px;
@@ -352,7 +362,11 @@
   .detail-map-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
   .detail-map { width: 100%; height: 220px; border-radius: var(--radius); border: 1px solid var(--border); }
   .detail-no-gps { background: var(--card2); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; text-align: center; font-size: 13px; color: var(--muted); }
-  .detail-actions { padding: 16px 20px 0; }
+  .detail-actions {
+    padding: 16px 20px 0;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  }
+  .detail-actions .btn { margin: 0; width: 100%; }
 
   /* RECORD DETAIL - card tap cursor */
   .record { cursor: pointer; transition: border-color 0.15s; }

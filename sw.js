@@ -1,6 +1,6 @@
-// DriverTraxxx Service Worker
+// DriverTrax Service Worker
 // Provides offline support and caches app assets
-const CACHE_VERSION = "drivertraxxx-v2.1";
+const CACHE_VERSION = "drivertrax-v2.1";
 const APP_SHELL = [
   "./",
   "./index.html",

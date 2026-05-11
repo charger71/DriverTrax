@@ -1,6 +1,6 @@
 {
-  "name": "DriverTraxxx",
-  "short_name": "DriverTraxxx",
+  "name": "DriverTrax",
+  "short_name": "DriverTrax",
   "description": "Mobile-first lot operations app for Enterprise Rental Car",
   "start_url": "./",
   "scope": "./",

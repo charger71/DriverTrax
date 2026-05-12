@@ -1,4 +1,4 @@
-# DriverTraxxx — Mobile Setup & User Guide
+# DriverTrax — Mobile Setup & User Guide
 
 > **Version 1.0** | iOS & Android | Louisville Muhammad Ali International Airport (SDF)
 
@@ -17,7 +17,7 @@
 
 ## iOS Setup (iPhone)
 
-DriverTraxxx is a Progressive Web App — **no App Store download needed**. Follow these steps to install it on your iPhone home screen so it opens like a native app.
+DriverTrax is a Progressive Web App — **no App Store download needed**. Follow these steps to install it on your iPhone home screen so it opens like a native app.
 
 ---
 
@@ -28,7 +28,7 @@ DriverTraxxx is a Progressive Web App — **no App Store download needed**. Foll
 Open Safari and go to:
 
 ```
-https://charger71.github.io/drivertraxxx
+https://charger71.github.io/drivertrax
 ```
 
 ---
@@ -39,7 +39,7 @@ At the **bottom center** of Safari, tap the Share button — a box with an arrow
 
 ```
 ┌─────────────────────────────────┐
-│  DriverTraxxx                   │
+│  DriverTrax                   │
 │  charger71.github.io/drivertrax │
 │─────────────────────────────────│
 │         [app content]           │
@@ -73,7 +73,7 @@ Scroll down in the Share Sheet and tap **Add to Home Screen**.
 
 ### Step 4 — Confirm & Tap Add
 
-Leave the name as **DriverTraxxx** and tap **Add** in the top right corner.
+Leave the name as **DriverTrax** and tap **Add** in the top right corner.
 
 ```
 ┌─────────────────────────────────┐
@@ -82,7 +82,7 @@ Leave the name as **DriverTraxxx** and tap **Add** in the top right corner.
 │  Add to Home Screen             │
 │                                 │
 │    ┌───────┐                    │
-│    │ icon  │  DriverTraxxx      │
+│    │ icon  │  DriverTrax      │
 │    └───────┘  ─────────────     │
 │                                 │
 │  An icon will be added to your  │
@@ -98,7 +98,7 @@ On your first Save, iOS will ask for location permission.
 
 ```
 ┌─────────────────────────────────┐
-│  Allow "DriverTraxxx" to use   │
+│  Allow "DriverTrax" to use   │
 │  your location?                 │
 │                                 │
 │  Used to tag vehicle entries    │
@@ -118,7 +118,7 @@ Tap **Allow While Using App**.
 
 ## Android Setup
 
-DriverTraxxx works on Android using **Google Chrome**. Chrome may prompt you to install automatically, or you can do it manually.
+DriverTrax works on Android using **Google Chrome**. Chrome may prompt you to install automatically, or you can do it manually.
 
 ---
 
@@ -127,7 +127,7 @@ DriverTraxxx works on Android using **Google Chrome**. Chrome may prompt you to 
 Open Google Chrome and navigate to:
 
 ```
-https://charger71.github.io/drivertraxxx
+https://charger71.github.io/drivertrax
 ```
 
 > ⚠️ Use **Google Chrome** for best results. Samsung Browser may also work.
@@ -144,7 +144,7 @@ Chrome may show an install banner at the bottom automatically. Tap **Install**.
 │         [app content]           │
 │                                 │
 │─────────────────────────────────│
-│  [icon]  DriverTraxxx          │
+│  [icon]  DriverTrax          │
 │          charger71.github.io    │
 │  [ Not Now ]     [ Install ] ◀─│
 └─────────────────────────────────┘
@@ -179,7 +179,7 @@ Tap **Add** on the confirmation dialog.
 ┌─────────────────────────────────┐
 │  Add to Home screen             │
 │                                 │
-│   ┌───────┐  DriverTraxxx      │
+│   ┌───────┐  DriverTrax      │
 │   │ icon  │  ──────────────    │
 │   └───────┘                    │
 │                                 │
@@ -195,14 +195,14 @@ On your first Save, Chrome will ask for location access. Tap **Allow**.
 
 ```
 ┌─────────────────────────────────┐
-│  Allow DriverTraxxx to access  │
+│  Allow DriverTrax to access  │
 │  your device's location?        │
 │                                 │
 │  [ Block ]      [ Allow ]  ◀── │
 └─────────────────────────────────┘
 ```
 
-> 💡 Tap the DriverTraxxx icon on your home screen. It opens full-screen without the Chrome browser bar.
+> 💡 Tap the DriverTrax icon on your home screen. It opens full-screen without the Chrome browser bar.
 
 ---
 
@@ -218,7 +218,7 @@ Tap the **menu icon** (three horizontal lines) in the top right corner of the ap
 
 ```
 ┌─────────────────────────────────┐
-│  DRIVERTRAXXX            [ ☰ ] │
+│  DRIVERTRAX            [ ☰ ] │
 │  NEW ENTRY  RECORDS  DASHBOARD  │
 │═════════════════════════════════│
 │  [📋] New Entry                 │
@@ -480,5 +480,5 @@ Check your internet connection. The app works **offline** once loaded — your r
 
 ---
 
-*DriverTraxxx — Built for Enterprise Rental Car Operations at SDF Louisville Airport*  
+*DriverTrax — Built for Enterprise Rental Car Operations at SDF Louisville Airport*  
 *Version 1.0 | Confidential*

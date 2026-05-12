@@ -225,21 +225,6 @@
     <div class="vin-charcount" id="vinCharCount">0 / 17</div>
   </div>
 
-  <!-- VIN KEYPAD -->
-  <div id="vinKeypadOverlay" class="vin-keypad-overlay" onclick="closeVinKeypad(event)">
-    <div class="vin-keypad" onclick="event.stopPropagation()">
-      <div class="vin-keypad-header">
-        <div class="vin-keypad-display" id="vinKeypadDisplay"></div>
-        <div class="vin-keypad-count" id="vinKeypadCount">0 / 17</div>
-        <button class="vin-keypad-paste" type="button" onclick="vinKeypadPaste()" title="Paste from clipboard">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
-          PASTE
-        </button>
-      </div>
-      <div class="vin-keypad-grid" id="vinKeypadGrid"></div>
-    </div>
-  </div>
-
   <div id="tireSelectorSection" style="display:none">
     <div class="field-label">Select Affected Tire(s)</div>
     <div class="tire-diagram">
@@ -433,6 +418,21 @@
         <button class="btn btn-primary" id="editSaveBtn" onclick="saveEdit()">Save Changes</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- VIN KEYPAD OVERLAY (top-level so it works from any panel/overlay) -->
+<div id="vinKeypadOverlay" class="vin-keypad-overlay" onclick="closeVinKeypad(event)">
+  <div class="vin-keypad" onclick="event.stopPropagation()">
+    <div class="vin-keypad-header">
+      <div class="vin-keypad-display" id="vinKeypadDisplay"></div>
+      <div class="vin-keypad-count" id="vinKeypadCount">0 / 17</div>
+      <button class="vin-keypad-paste" type="button" onclick="vinKeypadPaste()" title="Paste from clipboard">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+        PASTE
+      </button>
+    </div>
+    <div class="vin-keypad-grid" id="vinKeypadGrid"></div>
   </div>
 </div>
 

@@ -2,13 +2,13 @@
 
 > A free mobile app for rental car lot drivers — built for Enterprise drivers at Louisville Muhammad Ali International Airport (SDF), useful at any airport.
 
-**[Open the app →](https://charger71.github.io/DriverTrax)**
+**[Open the app →](https://charger71.github.io/drivertrax)**
 
 ---
 
 ## What is it?
 
-DriverTraxxx is a tool that helps rental car lot drivers track every vehicle they handle during a shift. Instead of writing things down on paper or trying to remember later, you scan the barcode on the car's tag, pick a status, and tap save. Done in about 5 seconds.
+DriverTrax is a tool that helps rental car lot drivers track every vehicle they handle during a shift. Instead of writing things down on paper or trying to remember later, you scan the barcode on the car's tag, pick a status, and tap save. Done in about 5 seconds.
 
 It runs on your phone — iPhone or Android — without needing the App Store. You just open a link in your browser and add it to your home screen, like a regular app.
 
@@ -68,7 +68,7 @@ You're done. Repeat for the next car.
 
 ## Things to know
 
-- **Your data stays on your phone.** Nothing gets sent to a server. This means if you lose or replace your phone, your records go with it — so **export your data weekly** to be safe (Menu → Data & Backup → Export All Data).
+- **Your data stays on your phone.** Nothing gets sent to a server. Even Anthropic doesn't see it. This means if you lose or replace your phone, your records go with it — so **export your data weekly** to be safe (Menu → Data & Backup → Export All Data).
 
 - **GPS only works once you give permission.** The first time you save a record, your phone will ask if the app can use your location. Tap **Allow**. If you tap Block by mistake, you can fix it in your phone's Settings.
 
@@ -107,7 +107,7 @@ We're working on:
 - **Push notifications** for weather, shift reminders, and "extra drivers needed" requests
 - **Manager dashboard** with fleet-wide stats
 
-See ROADMAP.md (*coming soon*) for the full list.
+See [ROADMAP.md](ROADMAP.md) for the full list.
 
 ---
 

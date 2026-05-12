@@ -143,11 +143,28 @@
     font-size: 24px;
   }
   .vin-key.vin-key-back:active { background: var(--danger) !important; color: #fff !important; }
+  .vin-key.vin-key-arrow {
+    background: #1e2a36; color: #6aadff;
+    font-size: 20px;
+  }
+  .vin-key.vin-key-arrow:active { background: #6aadff !important; color: #000 !important; }
   .vin-key.vin-key-done {
     background: var(--accent); color: #000;
     font-size: 14px; letter-spacing: 1px;
+    grid-column: span 4;
   }
   .vin-key.vin-key-done:active { background: var(--accent-dark) !important; }
+
+  /* Blinking cursor inside keypad display */
+  .vin-cursor {
+    color: var(--accent);
+    font-weight: 900;
+    animation: vinCursorBlink 1s steps(2, start) infinite;
+    margin: 0 -2px;
+  }
+  @keyframes vinCursorBlink {
+    to { visibility: hidden; }
+  }
 
   .notag-row {
     display: flex; align-items: center; gap: 14px;

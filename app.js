@@ -625,6 +625,10 @@ const VIN_KEYS = [
 // Tracks which input the keypad is currently typing into
 let _vinKeypadTargetId = "serial";
 
+// Tracks cursor position within the input value (insertion point)
+// -1 means "end of string"
+let _vinKeypadCursor = -1;
+
 function buildVinKeypad() {
   const grid = document.getElementById("vinKeypadGrid");
   if (!grid) return;
@@ -634,6 +638,10 @@ function buildVinKeypad() {
     const typeClass = /[0-9]/.test(k) ? "vin-key-num" : "vin-key-alpha";
     return `<button class="vin-key ${typeClass}" type="button" onclick="vinKeypadType('${k}')">${k}</button>`;
   }).join("");
+  // Arrow keys after X/Y/Z to fill row 7 (5 cols)
+  html += `<button class="vin-key vin-key-arrow" type="button" onclick="vinKeypadArrow(-1)" aria-label="Move left">&#9664;</button>`;
+  html += `<button class="vin-key vin-key-arrow" type="button" onclick="vinKeypadArrow(1)" aria-label="Move right">&#9654;</button>`;
+  // Row 8: backspace (1 col) + DONE (4 cols wide)
   html += `<button class="vin-key vin-key-back" type="button" onclick="vinKeypadBackspace()">&#9003;</button>`;
   html += `<button class="vin-key vin-key-done" type="button" onclick="closeVinKeypad()">DONE</button>`;
   grid.innerHTML = html;
@@ -646,9 +654,12 @@ function openVinKeypad(targetId) {
   const overlay = document.getElementById("vinKeypadOverlay");
   if (!overlay) return;
   overlay.classList.add("open");
-  syncKeypadDisplay();
 
+  // Start with cursor at end of existing value
   const input = document.getElementById(_vinKeypadTargetId);
+  _vinKeypadCursor = input ? input.value.length : 0;
+
+  syncKeypadDisplay();
   if (input) input.blur();
 }
 
@@ -663,7 +674,13 @@ function vinKeypadType(ch) {
   const input = document.getElementById(_vinKeypadTargetId);
   if (!input) return;
   if (input.value.length >= 30) return;
-  input.value = (input.value + ch).toUpperCase();
+
+  const pos = _vinKeypadCursor;
+  const before = input.value.slice(0, pos);
+  const after = input.value.slice(pos);
+  input.value = (before + ch + after).toUpperCase();
+  _vinKeypadCursor = pos + 1;
+
   syncKeypadDisplay();
   if (_vinKeypadTargetId === "serial") { toggleClearBtn(); updateVinCount(); }
   else { toggleEditClearBtn(); updateEditVinCount(); }
@@ -673,11 +690,27 @@ function vinKeypadType(ch) {
 function vinKeypadBackspace() {
   const input = document.getElementById(_vinKeypadTargetId);
   if (!input) return;
-  input.value = input.value.slice(0, -1);
+  if (_vinKeypadCursor <= 0) return; // nothing to delete
+
+  const pos = _vinKeypadCursor;
+  const before = input.value.slice(0, pos - 1);
+  const after = input.value.slice(pos);
+  input.value = before + after;
+  _vinKeypadCursor = pos - 1;
+
   syncKeypadDisplay();
   if (_vinKeypadTargetId === "serial") { toggleClearBtn(); updateVinCount(); }
   else { toggleEditClearBtn(); updateEditVinCount(); }
   if (navigator.vibrate) navigator.vibrate(8);
+}
+
+function vinKeypadArrow(direction) {
+  const input = document.getElementById(_vinKeypadTargetId);
+  if (!input) return;
+  const len = input.value.length;
+  _vinKeypadCursor = Math.max(0, Math.min(len, _vinKeypadCursor + direction));
+  syncKeypadDisplay();
+  if (navigator.vibrate) navigator.vibrate(5);
 }
 
 function vinKeypadPaste() {
@@ -713,6 +746,7 @@ function applyPastedVin(text) {
   }
 
   input.value = cleaned;
+  _vinKeypadCursor = cleaned.length; // cursor at end after paste
   syncKeypadDisplay();
   if (_vinKeypadTargetId === "serial") { toggleClearBtn(); updateVinCount(); }
   else { toggleEditClearBtn(); updateEditVinCount(); }
@@ -732,12 +766,32 @@ function syncKeypadDisplay() {
   const display = document.getElementById("vinKeypadDisplay");
   const count = document.getElementById("vinKeypadCount");
   if (!input) return;
-  if (display) display.textContent = input.value || "...";
+
+  if (display) {
+    const val = input.value;
+    if (val.length === 0) {
+      display.innerHTML = '<span class="vin-cursor">|</span>';
+    } else {
+      const pos = Math.max(0, Math.min(val.length, _vinKeypadCursor));
+      const before = val.slice(0, pos);
+      const after = val.slice(pos);
+      display.innerHTML =
+        escapeHtml(before) +
+        '<span class="vin-cursor">|</span>' +
+        escapeHtml(after);
+    }
+  }
   if (count) {
     const len = input.value.length;
     count.textContent = `${len} / 17`;
     count.classList.toggle("valid", len === 17);
   }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
 }
 
 function updateVinCount() {

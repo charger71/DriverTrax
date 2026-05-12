@@ -2041,14 +2041,39 @@ function renderDashboard() {
 }
 
 // ============================
-// BARCODE SCANNER (ZXing)
+// BARCODE SCANNER
+// Uses native BarcodeDetector when available (fast path),
+// falls back to ZXing-JS for iOS Safari and older browsers.
 // ============================
-let codeReader = null;
+
+// --- Scanner state ---
 let scannerActive = false;
 let torchOn = false;
 let activeStream = null;
+let codeReader = null;          // ZXing reader (fallback path only)
+let detectionLoopId = null;     // requestAnimationFrame id (native path)
+let roiCanvas = null;           // offscreen canvas for ROI cropping
+let roiCtx = null;
 let lastDecodeTime = 0;
-const DECODE_THROTTLE_MS = 200;
+let lastCandidate = null;       // for double-confirm on 1D reads
+let lastCandidateAt = 0;
+let hardModeTimer = null;       // delayed TRY_HARDER fallback (ZXing path)
+let hardModeOn = false;
+
+// --- Tuning ---
+const DECODE_THROTTLE_MS = 80;         // min ms between native-path decode attempts
+const CONFIRM_WINDOW_MS = 800;         // 1D codes must repeat within this window
+const HARD_MODE_DELAY_MS = 1500;       // wait this long before flipping ZXing to TRY_HARDER
+const TARGET_WIDTH = 1280;             // camera width (sweet spot for speed vs. distance)
+const TARGET_HEIGHT = 720;             // camera height
+
+// ROI crop matches the visible scan strip in CSS:
+// horizontal band from 33%–67% vertically, 4%–96% horizontally.
+const ROI = { xPct: 0.04, yPct: 0.33, wPct: 0.92, hPct: 0.34 };
+
+// Formats we accept. 1D = the actual lot tags. 2D = VIN-bearing codes.
+const ALLOWED_1D = new Set(["code_39", "code_128"]);
+const ALLOWED_2D = new Set(["qr_code", "data_matrix", "pdf417", "aztec"]);
 
 function playScanBeep() {
   try {
@@ -2066,118 +2091,315 @@ function playScanBeep() {
   } catch(e) {}
 }
 
-function openScanner() {
-  const overlay = document.getElementById("scannerOverlay");
-  const hint = document.getElementById("scannerHint");
-  const dotSvg = '<span class="scanner-dot"><svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8" style="vertical-align:middle;display:inline-block"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg></span>';
-  overlay.classList.add("open");
+// ---------- Result handling ----------
 
-  // Lock to portrait orientation while scanning
-  if (screen.orientation && screen.orientation.lock) {
-    screen.orientation.lock("portrait").catch(() => {});
+// Try to extract a 17-char VIN from arbitrary 2D payload (may be URL etc.)
+function extractVinFromText(text) {
+  const t = (text || "").trim().toUpperCase();
+  if (isValidVIN(t)) return t;
+  const m = t.match(/[A-HJ-NPR-Z0-9]{17}/);
+  return (m && isValidVIN(m[0])) ? m[0] : null;
+}
+
+// Common success path. Returns true if accepted (caller should stop scanning).
+// is2D codes only accepted when they carry a valid VIN.
+function acceptScanResult(rawText, is2D) {
+  const code = (rawText || "").trim().toUpperCase();
+  if (!code) return false;
+
+  let finalCode = code;
+  if (is2D) {
+    const vin = extractVinFromText(code);
+    if (!vin) return false; // ignore non-VIN 2D codes
+    finalCode = vin;
+  } else {
+    // 1D double-confirm: require the same read twice within CONFIRM_WINDOW_MS.
+    const now = performance.now();
+    if (lastCandidate === code && (now - lastCandidateAt) < CONFIRM_WINDOW_MS) {
+      // confirmed
+      lastCandidate = null;
+    } else {
+      lastCandidate = code;
+      lastCandidateAt = now;
+      return false; // wait for confirmation
+    }
   }
-  hint.className = "scanner-status scanning";
-  hint.innerHTML = dotSvg + " Starting camera...";
-  torchOn = false;
-  lastDecodeTime = 0;
-  document.getElementById("torchBtn").classList.remove("on");
 
+  const flash = document.getElementById("scannerFlash");
+  if (flash) {
+    flash.classList.remove("flash");
+    void flash.offsetWidth;
+    flash.classList.add("flash");
+  }
+  navigator.vibrate && navigator.vibrate([80, 40, 80]);
+  playScanBeep();
+
+  const hint = document.getElementById("scannerHint");
+  hint.className = "scanner-status success";
+  hint.textContent = finalCode;
+  document.getElementById("serial").value = finalCode;
+  toggleClearBtn();
+  updateVinCount();
+  showManualEntry();
+  setTimeout(() => closeScanner(), 600);
+  return true;
+}
+
+// ---------- Camera setup ----------
+
+async function startCameraStream() {
+  // Prefer environment-facing camera at the target resolution with continuous AF.
+  const constraints = {
+    audio: false,
+    video: {
+      facingMode: { ideal: "environment" },
+      width:  { ideal: TARGET_WIDTH },
+      height: { ideal: TARGET_HEIGHT },
+      // Hints; ignored by browsers that don't support them.
+      focusMode: "continuous",
+      advanced: [{ focusMode: "continuous" }]
+    }
+  };
+
+  try {
+    return await navigator.mediaDevices.getUserMedia(constraints);
+  } catch (e) {
+    // Fallback: drop the resolution/focus hints if the device rejected them.
+    return await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: { ideal: "environment" } }
+    });
+  }
+}
+
+function attachStreamToVideo(stream) {
+  const video = document.getElementById("scannerVideo");
+  video.srcObject = stream;
+  video.setAttribute("playsinline", "true");
+  video.muted = true;
+  return new Promise((resolve) => {
+    if (video.readyState >= 2) return resolve(video);
+    video.onloadedmetadata = () => resolve(video);
+  });
+}
+
+// ---------- Native BarcodeDetector path ----------
+
+function nativeDetectorSupported() {
+  if (!("BarcodeDetector" in window)) return false;
+  return true;
+}
+
+async function runNativeDetector(video) {
+  // Only request formats we actually accept; this is much faster than "all".
+  const formats = ["code_39", "code_128", "qr_code", "data_matrix", "pdf417", "aztec"];
+  let detector;
+  try {
+    // Some browsers expose getSupportedFormats; intersect when available.
+    if (typeof BarcodeDetector.getSupportedFormats === "function") {
+      const supported = await BarcodeDetector.getSupportedFormats();
+      const filtered = formats.filter(f => supported.includes(f));
+      detector = new BarcodeDetector({ formats: filtered.length ? filtered : formats });
+    } else {
+      detector = new BarcodeDetector({ formats });
+    }
+  } catch (e) {
+    return false; // signal caller to try fallback
+  }
+
+  // Prepare offscreen canvas sized to the ROI of the video.
+  roiCanvas = document.createElement("canvas");
+  roiCtx = roiCanvas.getContext("2d", { willReadFrequently: true });
+
+  const tick = async () => {
+    if (!scannerActive) return;
+    const now = performance.now();
+    if (now - lastDecodeTime < DECODE_THROTTLE_MS) {
+      detectionLoopId = requestAnimationFrame(tick);
+      return;
+    }
+    lastDecodeTime = now;
+
+    const vw = video.videoWidth, vh = video.videoHeight;
+    if (!vw || !vh) {
+      detectionLoopId = requestAnimationFrame(tick);
+      return;
+    }
+
+    // Crop ROI from the video frame so the detector only sees the scan strip.
+    const sx = Math.floor(vw * ROI.xPct);
+    const sy = Math.floor(vh * ROI.yPct);
+    const sw = Math.floor(vw * ROI.wPct);
+    const sh = Math.floor(vh * ROI.hPct);
+    if (roiCanvas.width !== sw || roiCanvas.height !== sh) {
+      roiCanvas.width = sw;
+      roiCanvas.height = sh;
+    }
+    try {
+      roiCtx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+    } catch (e) {
+      detectionLoopId = requestAnimationFrame(tick);
+      return;
+    }
+
+    try {
+      const results = await detector.detect(roiCanvas);
+      if (results && results.length && scannerActive) {
+        // Pick the largest detected code (most likely the one user is aiming at).
+        let best = results[0];
+        let bestArea = 0;
+        for (const r of results) {
+          const b = r.boundingBox;
+          const a = b ? (b.width * b.height) : 0;
+          if (a > bestArea) { bestArea = a; best = r; }
+        }
+        const fmt = (best.format || "").toLowerCase();
+        const is2D = ALLOWED_2D.has(fmt);
+        const is1D = ALLOWED_1D.has(fmt);
+        if (is2D || is1D) {
+          const accepted = acceptScanResult(best.rawValue, is2D);
+          if (accepted) return; // closeScanner cleans up the loop
+        }
+      }
+    } catch (e) {
+      // Detector hiccuped on this frame; keep going.
+    }
+
+    detectionLoopId = requestAnimationFrame(tick);
+  };
+
+  detectionLoopId = requestAnimationFrame(tick);
+  return true;
+}
+
+// ---------- ZXing fallback path ----------
+
+function buildZxingHints(tryHarder) {
+  const hints = new Map();
+  // Restrict formats — this is the single biggest ZXing speed win.
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+    ZXing.BarcodeFormat.CODE_39,
+    ZXing.BarcodeFormat.CODE_128,
+    ZXing.BarcodeFormat.QR_CODE,
+    ZXing.BarcodeFormat.DATA_MATRIX,
+    ZXing.BarcodeFormat.PDF_417,
+    ZXing.BarcodeFormat.AZTEC
+  ]);
+  if (tryHarder) hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+  return hints;
+}
+
+function runZxingFallback() {
   if (!window.ZXing) {
+    const hint = document.getElementById("scannerHint");
     hint.className = "scanner-status error";
     hint.textContent = "Scanner library not loaded. Check internet and reload.";
     return;
   }
 
-  try {
-    const hints = new Map();
-    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-    codeReader = new ZXing.BrowserMultiFormatReader(hints);
-    scannerActive = true;
+  // Start in fast mode (no TRY_HARDER); escalate after HARD_MODE_DELAY_MS.
+  hardModeOn = false;
+  codeReader = new ZXing.BrowserMultiFormatReader(buildZxingHints(false));
 
-    // Let ZXing enumerate and pick rear camera - it manages the video element
-    codeReader.listVideoInputDevices().then(devices => {
-      const rear = devices.find(d => /back|rear|environment/i.test(d.label))
-                || devices[devices.length - 1];
-      const deviceId = rear ? rear.deviceId : undefined;
+  const startDecode = () => {
+    codeReader.decodeFromVideoDevice(null, "scannerVideo", (result, err) => {
+      if (!scannerActive) return;
 
-      hint.innerHTML = dotSvg + " Scanning...";
+      // Capture stream for torch the first time it appears.
+      const video = document.getElementById("scannerVideo");
+      if (video.srcObject && !activeStream) {
+        activeStream = video.srcObject;
+      }
 
-      codeReader.decodeFromVideoDevice(deviceId, "scannerVideo", (result, err) => {
-        if (!scannerActive) return;
-
-        // Grab stream reference for torch after ZXing sets it up
-        const video = document.getElementById("scannerVideo");
-        if (video.srcObject && !activeStream) {
-          activeStream = video.srcObject;
-        }
-
-        if (result) {
-          const fmt = result.getBarcodeFormat();
-          const code = result.getText().trim().toUpperCase();
-          const is2D = fmt === ZXing.BarcodeFormat.QR_CODE ||
-                       fmt === ZXing.BarcodeFormat.DATA_MATRIX ||
-                       fmt === ZXing.BarcodeFormat.AZTEC ||
-                       fmt === ZXing.BarcodeFormat.PDF_417;
-
-          if (is2D) {
-            // 2D codes are only allowed if they encode a valid VIN
-            // Some 2D codes contain URLs with the VIN embedded - try to extract it
-            let extractedVin = null;
-            if (isValidVIN(code)) {
-              extractedVin = code;
-            } else {
-              // Look for a 17-char VIN substring inside the decoded text
-              const match = code.match(/[A-HJ-NPR-Z0-9]{17}/);
-              if (match && isValidVIN(match[0])) {
-                extractedVin = match[0];
-              }
-            }
-            if (!extractedVin) return; // not a VIN-bearing QR, ignore
-            // Use the extracted VIN as the code
-            const flash = document.getElementById("scannerFlash");
-            flash.classList.remove("flash");
-            void flash.offsetWidth;
-            flash.classList.add("flash");
-            navigator.vibrate && navigator.vibrate([80, 40, 80]);
-            playScanBeep();
-            hint.className = "scanner-status success";
-            hint.textContent = extractedVin;
-            document.getElementById("serial").value = extractedVin;
-            toggleClearBtn();
-            updateVinCount();
-            showManualEntry();
-            setTimeout(() => closeScanner(), 600);
-            return;
-          }
-          const flash = document.getElementById("scannerFlash");
-          flash.classList.remove("flash");
-          void flash.offsetWidth;
-          flash.classList.add("flash");
-          navigator.vibrate && navigator.vibrate([80, 40, 80]);
-          playScanBeep();
-          hint.className = "scanner-status success";
-          hint.textContent = code;
-          document.getElementById("serial").value = code;
-          showManualEntry();
-          setTimeout(() => closeScanner(), 600);
-        }
-      });
-
-    }).catch(() => {
-      hint.className = "scanner-status error";
-      hint.textContent = "Camera access denied. Check permissions.";
+      if (result) {
+        const fmt = result.getBarcodeFormat();
+        const is2D = fmt === ZXing.BarcodeFormat.QR_CODE ||
+                     fmt === ZXing.BarcodeFormat.DATA_MATRIX ||
+                     fmt === ZXing.BarcodeFormat.AZTEC ||
+                     fmt === ZXing.BarcodeFormat.PDF_417;
+        acceptScanResult(result.getText(), is2D);
+      }
     });
+  };
 
-  } catch(e) {
+  startDecode();
+
+  // If we still haven't decoded after HARD_MODE_DELAY_MS, re-init with TRY_HARDER.
+  hardModeTimer = setTimeout(() => {
+    if (!scannerActive || hardModeOn) return;
+    hardModeOn = true;
+    try { codeReader.reset(); } catch(e) {}
+    codeReader = new ZXing.BrowserMultiFormatReader(buildZxingHints(true));
+    startDecode();
+  }, HARD_MODE_DELAY_MS);
+}
+
+// ---------- Public API ----------
+
+async function openScanner() {
+  const overlay = document.getElementById("scannerOverlay");
+  const hint = document.getElementById("scannerHint");
+  const dotSvg = '<span class="scanner-dot"><svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8" style="vertical-align:middle;display:inline-block"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg></span>';
+  overlay.classList.add("open");
+
+  if (screen.orientation && screen.orientation.lock) {
+    screen.orientation.lock("portrait").catch(() => {});
+  }
+  hint.className = "scanner-status scanning";
+  hint.innerHTML = dotSvg + " Starting camera...";
+
+  torchOn = false;
+  scannerActive = true;
+  lastDecodeTime = 0;
+  lastCandidate = null;
+  lastCandidateAt = 0;
+  document.getElementById("torchBtn").classList.remove("on");
+
+  try {
+    const stream = await startCameraStream();
+    activeStream = stream;
+    const video = await attachStreamToVideo(stream);
+
+    // Some Androids need an explicit play() after metadata loads.
+    try { await video.play(); } catch(e) {}
+
+    hint.innerHTML = dotSvg + " Scanning...";
+
+    if (nativeDetectorSupported()) {
+      const ok = await runNativeDetector(video);
+      if (!ok) {
+        // BarcodeDetector constructor failed — fall through to ZXing on the same stream.
+        runZxingFallback();
+      }
+    } else {
+      // No native detector (iOS Safari, older Chrome). ZXing will reuse the video element,
+      // but it manages its own stream — release ours first so it doesn't double-acquire.
+      if (activeStream) {
+        activeStream.getTracks().forEach(t => t.stop());
+        activeStream = null;
+      }
+      const v = document.getElementById("scannerVideo");
+      v.srcObject = null;
+      runZxingFallback();
+    }
+  } catch (e) {
     hint.className = "scanner-status error";
-    hint.textContent = "Scanner unavailable. Use manual entry.";
+    hint.textContent = "Camera access denied. Check permissions.";
+    scannerActive = false;
   }
 }
 
 function closeScanner() {
   scannerActive = false;
 
-  // Unlock orientation
+  if (detectionLoopId) {
+    cancelAnimationFrame(detectionLoopId);
+    detectionLoopId = null;
+  }
+  if (hardModeTimer) {
+    clearTimeout(hardModeTimer);
+    hardModeTimer = null;
+  }
   if (screen.orientation && screen.orientation.unlock) {
     try { screen.orientation.unlock(); } catch(e) {}
   }
@@ -2189,11 +2411,25 @@ function closeScanner() {
     activeStream.getTracks().forEach(t => t.stop());
     activeStream = null;
   }
+  const video = document.getElementById("scannerVideo");
+  if (video) {
+    try { video.pause(); } catch(e) {}
+    video.srcObject = null;
+  }
+  roiCanvas = null;
+  roiCtx = null;
   torchOn = false;
+  hardModeOn = false;
+  lastCandidate = null;
   document.getElementById("scannerOverlay").classList.remove("open");
 }
 
 function toggleTorch() {
+  // ZXing path may not have populated activeStream yet — grab from the video element.
+  if (!activeStream) {
+    const v = document.getElementById("scannerVideo");
+    if (v && v.srcObject) activeStream = v.srcObject;
+  }
   if (!activeStream) return;
   const track = activeStream.getVideoTracks()[0];
   if (!track || !track.getCapabilities) return;

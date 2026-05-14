@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=1280">
 <title>Backlot — Manager Dashboard</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
 <style>
   :root {
     --bg: #0f1216;
@@ -106,38 +112,40 @@
                     text-transform: none; letter-spacing: 0; font-weight: 600; }
   .card .body { padding: 14px 16px; }
 
-  /* ---- live lot — SDF aerial-style site plan ---- */
+  /* ---- live lot — real map (Leaflet + OSM/Carto) ---- */
   .lot {
-    position: relative; height: 380px; margin: 14px 16px 16px;
-    background:
-      radial-gradient(circle at 30% 20%, #1c2128 0%, #11141a 60%, #0c0f13 100%);
-    border: 1px solid var(--line); border-radius: 8px;
-    overflow: hidden;
+    position: relative; height: 420px; margin: 14px 16px 16px;
+    border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
   }
-  .lot svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .lot .label {
-    position: absolute; color: var(--text2); font-size: 10px; font-weight: 800;
-    letter-spacing: 1px; text-transform: uppercase; pointer-events: none;
+  #lot-map { position: absolute; inset: 0; background: #11141a; }
+  .leaflet-container { background: #11141a; font: inherit; }
+  .leaflet-control-attribution { font-size: 9px !important; background: rgba(0,0,0,.55) !important; color: #b0b8c1 !important; }
+  .leaflet-control-attribution a { color: var(--accent) !important; }
+  .lot-pin {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--accent); border: 2px solid #000;
+    box-shadow: 0 0 0 2px var(--accent), 0 1px 3px rgba(0,0,0,.6);
+    display: grid; place-items: center; font: 900 9px/1 -apple-system, sans-serif;
+    color: #000;
   }
-  .lot .row-tag {
-    position: absolute; color: #000; background: rgba(255,255,255,.82);
-    font-size: 9px; font-weight: 900; padding: 1px 5px; border-radius: 3px;
-    letter-spacing: 1px;
+  .lot-pin.dirty { background: var(--warn);   box-shadow: 0 0 0 2px var(--warn), 0 1px 3px rgba(0,0,0,.6); }
+  .lot-pin.pm    { background: var(--danger); box-shadow: 0 0 0 2px var(--danger), 0 1px 3px rgba(0,0,0,.6); color: #fff; }
+  .lot-pin.shut  { background: var(--info);   box-shadow: 0 0 0 2px var(--info),   0 1px 3px rgba(0,0,0,.6); color: #fff; }
+  .map-badge {
+    position: absolute; z-index: 500; top: 10px; left: 10px;
+    background: rgba(0,0,0,.7); border: 1px solid var(--line);
+    color: var(--text); font-size: 11px; font-weight: 700; letter-spacing: .5px;
+    padding: 6px 10px; border-radius: 6px;
   }
-  .lot .compass {
-    position: absolute; top: 10px; right: 12px; width: 38px; height: 38px;
-    border: 1px solid var(--line); border-radius: 50%; background: rgba(0,0,0,.4);
-    color: var(--text2); font-size: 9px; font-weight: 800;
-    display: grid; place-items: center; letter-spacing: 1px;
+  .map-badge small { color: var(--muted); font-weight: 600; margin-left: 4px; }
+  .map-tools {
+    position: absolute; z-index: 500; top: 10px; right: 10px; display: flex; gap: 6px;
   }
-  .lot .compass::before {
-    content: "N"; position: absolute; top: 2px; color: var(--accent);
+  .map-tools button {
+    background: rgba(0,0,0,.7); border: 1px solid var(--line); color: var(--text);
+    font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 6px; cursor: pointer;
   }
-  .lot .scale {
-    position: absolute; bottom: 10px; right: 12px; color: var(--muted); font-size: 10px;
-    display: flex; align-items: center; gap: 6px;
-  }
-  .lot .scale i { display: inline-block; width: 60px; height: 3px; background: var(--text2); }
+  .map-tools button.on { background: var(--accent); color: #000; border-color: var(--accent); }
   .pin {
     position: absolute; width: 18px; height: 18px; border-radius: 50%;
     background: var(--accent); border: 2px solid #000;
@@ -304,6 +312,16 @@
       <div class="card">
         <h3>Live Lot Map — SDF Enterprise <span class="right">Louisville Muhammad Ali Intl · Updated 8s ago</span></h3>
         <div class="lot">
+          <div class="map-badge">SDF Enterprise Lot <small>38.1861° N, 85.7423° W</small></div>
+          <div class="map-tools">
+            <button class="on" id="lyr-sat">Satellite</button>
+            <button id="lyr-street">Street</button>
+            <button id="lyr-dark">Dark</button>
+          </div>
+          <div id="lot-map"></div>
+        </div>
+        <!-- legacy SVG hidden below, ignored -->
+        <div style="display:none">
           <svg viewBox="0 0 600 380" preserveAspectRatio="none">
             <!-- runway hint / airport boundary (top edge) -->
             <rect x="0" y="0" width="600" height="22" fill="#0a0d11"/>
@@ -686,5 +704,90 @@
 
     <footer>Backlot v0.4 mockup · companion to DriverTrax · data shown is illustrative</footer>
   </main>
+
+  <script>
+    // SDF Enterprise rental car lot (approximate center, north of the terminal)
+    const SDF_LOT = [38.1860797, -85.7422692];
+
+    const map = L.map('lot-map', {
+      center: SDF_LOT, zoom: 17.5, zoomSnap: 0.5, zoomControl: true,
+      attributionControl: true, scrollWheelZoom: false,
+    });
+
+    const layers = {
+      sat: L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        { maxZoom: 20, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' }
+      ),
+      street: L.tileLayer(
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        { maxZoom: 19, attribution: '© OpenStreetMap contributors' }
+      ),
+      dark: L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        { maxZoom: 20, attribution: '© OpenStreetMap, © CARTO' }
+      ),
+    };
+    layers.sat.addTo(map);
+
+    function setLayer(key) {
+      Object.values(layers).forEach(l => map.removeLayer(l));
+      layers[key].addTo(map);
+      document.querySelectorAll('.map-tools button').forEach(b => b.classList.remove('on'));
+      document.getElementById('lyr-' + key).classList.add('on');
+    }
+    document.getElementById('lyr-sat').onclick    = () => setLayer('sat');
+    document.getElementById('lyr-street').onclick = () => setLayer('street');
+    document.getElementById('lyr-dark').onclick   = () => setLayer('dark');
+
+    // Illustrative live pins scattered across the lot
+    const pins = [
+      { kind: 'clean', label: 'A1', d: [ 0.00018, -0.00040] },
+      { kind: 'clean', label: 'A2', d: [ 0.00018, -0.00025] },
+      { kind: 'dirty', label: 'D',  d: [ 0.00018, -0.00010] },
+      { kind: 'clean', label: 'A4', d: [ 0.00018,  0.00005] },
+      { kind: 'pm',    label: 'P',  d: [ 0.00018,  0.00020] },
+      { kind: 'clean', label: 'A6', d: [ 0.00018,  0.00035] },
+      { kind: 'shut',  label: 'S',  d: [ 0.00018,  0.00050] },
+
+      { kind: 'clean', label: 'B1', d: [ 0.00008, -0.00040] },
+      { kind: 'dirty', label: 'D',  d: [ 0.00008, -0.00020] },
+      { kind: 'clean', label: 'B3', d: [ 0.00008,  0.00000] },
+      { kind: 'clean', label: 'B4', d: [ 0.00008,  0.00020] },
+      { kind: 'dirty', label: 'D',  d: [ 0.00008,  0.00040] },
+
+      { kind: 'clean', label: 'C1', d: [-0.00002, -0.00045] },
+      { kind: 'clean', label: 'C2', d: [-0.00002, -0.00025] },
+      { kind: 'pm',    label: 'P',  d: [-0.00002, -0.00005] },
+      { kind: 'clean', label: 'C4', d: [-0.00002,  0.00020] },
+      { kind: 'clean', label: 'C5', d: [-0.00002,  0.00045] },
+
+      { kind: 'clean', label: 'D1', d: [-0.00012, -0.00040] },
+      { kind: 'shut',  label: 'S',  d: [-0.00012, -0.00015] },
+      { kind: 'clean', label: 'D3', d: [-0.00012,  0.00015] },
+      { kind: 'dirty', label: 'D',  d: [-0.00012,  0.00040] },
+
+      { kind: 'clean', label: 'E1', d: [-0.00022, -0.00035] },
+      { kind: 'clean', label: 'E2', d: [-0.00022, -0.00010] },
+      { kind: 'shut',  label: 'S',  d: [-0.00022,  0.00015] },
+      { kind: 'pm',    label: 'P',  d: [-0.00022,  0.00040] },
+
+      { kind: 'clean', label: 'F1', d: [-0.00032, -0.00025] },
+      { kind: 'dirty', label: 'D',  d: [-0.00032,  0.00000] },
+      { kind: 'clean', label: 'F3', d: [-0.00032,  0.00025] },
+    ];
+
+    pins.forEach(p => {
+      const cls = p.kind === 'clean' ? '' : ' ' + p.kind;
+      const icon = L.divIcon({
+        className: '',
+        html: `<div class="lot-pin${cls}">${p.label}</div>`,
+        iconSize: [18, 18], iconAnchor: [9, 9],
+      });
+      L.marker([SDF_LOT[0] + p.d[0], SDF_LOT[1] + p.d[1]], { icon })
+        .addTo(map)
+        .bindPopup(`<b>${p.label}</b><br>Status: ${p.kind}<br>Logged 2m ago by M. Alvarez`);
+    });
+  </script>
 </body>
 </html>

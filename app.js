@@ -1265,6 +1265,15 @@ function saveEdit() {
 // ============================
 // EXPORT CSV
 // ============================
+function csvEscape(v) {
+  let s = v === undefined || v === null ? "" : String(v);
+  // Defuse spreadsheet formula injection: leading =, +, -, @, tab, CR
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  // Quote any field containing a quote, comma, or newline; escape quotes by doubling
+  if (/[",\r\n]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
 function exportCSV() {
   const records = getFiltered();
   if (records.length === 0) { showToast("No records to export.", "error"); return; }
@@ -1280,12 +1289,12 @@ function exportCSV() {
     r.shuttle ? "YES" : "NO",
     r.transport ? "YES" : "NO",
     r.noTag ? "YES" : "NO",
-    (r.notes || "").replace(/,/g,";"),
+    r.notes || "",
     r.lat !== undefined ? r.lat.toFixed(6) : "",
     r.lng !== undefined ? r.lng.toFixed(6) : "",
     new Date(r.timestamp).toLocaleString()
   ]));
-  const csv = rows.map(r => r.join(",")).join("\n");
+  const csv = rows.map(row => row.map(csvEscape).join(",")).join("\r\n");
   const blob = new Blob([csv], {type:"text/csv"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -2502,6 +2511,22 @@ const BACKUP_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
 function runBackup(manual = false) {
   const records = getRecords();
+  // Guard: don't auto-clobber a good backup with a smaller/empty one.
+  // If records were just wiped by a bug, the prior backup is the only
+  // recovery path — preserve it unless the user explicitly confirms.
+  if (!manual) {
+    try {
+      const prevRaw = localStorage.getItem(BACKUP_KEY);
+      if (prevRaw) {
+        const prev = JSON.parse(prevRaw);
+        const prevCount = prev && prev.records ? prev.records.length : 0;
+        if (records.length < prevCount) {
+          updateBackupStatus();
+          return;
+        }
+      }
+    } catch(e) { /* fall through and overwrite a corrupt backup */ }
+  }
   const backupData = { records, timestamp: Date.now(), version: 1 };
   try {
     localStorage.setItem(BACKUP_KEY, JSON.stringify(backupData));
@@ -2578,13 +2603,26 @@ function importJSON(event) {
       const parsed = JSON.parse(e.target.result);
       if (!parsed.records || !Array.isArray(parsed.records)) throw new Error("Invalid format");
 
+      // Validate/coerce id on every record. ids flow into inline onclick
+      // strings elsewhere, so untrusted values would be an XSS vector.
+      const cleanRecords = [];
+      let rejected = 0;
+      for (const r of parsed.records) {
+        if (!r || typeof r !== "object") { rejected++; continue; }
+        const idStr = String(r.id);
+        if (!/^\d+$/.test(idStr)) { rejected++; continue; }
+        cleanRecords.push({ ...r, id: idStr });
+      }
+
       const existing = getRecords();
       // Merge - avoid duplicates by id
       const existingIds = new Set(existing.map(r => r.id));
-      const newRecords = parsed.records.filter(r => !existingIds.has(r.id));
+      const newRecords = cleanRecords.filter(r => !existingIds.has(r.id));
       const merged = [...existing, ...newRecords].sort((a,b) => b.timestamp - a.timestamp);
 
-      if (!confirm(`Import ${newRecords.length} new records? (${parsed.records.length - newRecords.length} duplicates skipped)`)) {
+      const dupCount = cleanRecords.length - newRecords.length;
+      const msg = `Import ${newRecords.length} new records? (${dupCount} duplicates skipped${rejected ? `, ${rejected} invalid rejected` : ""})`;
+      if (!confirm(msg)) {
         statusEl.textContent = "";
         event.target.value = "";
         return;

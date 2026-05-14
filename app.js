@@ -509,6 +509,97 @@ function showTab(name) {
   if (name === "records") renderRecords();
   if (name === "dashboard") { applyProfile(); renderDashboard(); }
   if (name === "profile") applyProfile();
+  if (name === "keyup") loadKeyUp();
+}
+
+// ============================
+// KEY UP (closing shift count)
+// ============================
+const KEYUP_KEY = "drivertrax_keyup";
+
+function loadKeyUp() {
+  let data = {};
+  try { data = JSON.parse(localStorage.getItem(KEYUP_KEY) || "{}"); } catch(e) {}
+  document.getElementById("keyupClean").value = data.clean ?? "";
+  document.getElementById("keyupDirty").value = data.dirty ?? "";
+  document.getElementById("keyupRail").value = data.rail ?? "";
+  document.getElementById("keyupOther").value = data.other ?? "";
+  document.getElementById("keyupNotes").value = data.notes ?? "";
+  updateKeyUpTotal();
+}
+
+function readKeyUp() {
+  const n = id => {
+    const v = parseInt(document.getElementById(id).value, 10);
+    return Number.isFinite(v) && v >= 0 ? v : 0;
+  };
+  return {
+    clean: n("keyupClean"),
+    dirty: n("keyupDirty"),
+    rail:  n("keyupRail"),
+    other: n("keyupOther"),
+    notes: (document.getElementById("keyupNotes").value || "").slice(0, 1000),
+  };
+}
+
+function updateKeyUpTotal() {
+  const d = readKeyUp();
+  document.getElementById("keyupTotal").textContent = d.clean + d.dirty + d.rail + d.other;
+}
+
+function saveKeyUp() {
+  const d = readKeyUp();
+  localStorage.setItem(KEYUP_KEY, JSON.stringify(d));
+  updateKeyUpTotal();
+}
+
+function resetKeyUp() {
+  if (!confirm("Reset all Key Up counts and notes?")) return;
+  ["keyupClean","keyupDirty","keyupRail","keyupOther","keyupNotes"].forEach(id => {
+    document.getElementById(id).value = "";
+  });
+  localStorage.removeItem(KEYUP_KEY);
+  updateKeyUpTotal();
+  showToast("Key Up reset", "success");
+}
+
+function buildKeyUpMessage() {
+  const d = readKeyUp();
+  const total = d.clean + d.dirty + d.rail + d.other;
+  const dateStr = new Date().toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  const lines = [
+    `Key Up — ${dateStr}`,
+    `Clean: ${d.clean}`,
+    `Dirty: ${d.dirty}`,
+    `Rail: ${d.rail}`,
+    `Other: ${d.other}`,
+    `Total: ${total}`,
+  ];
+  if (d.notes.trim()) {
+    lines.push("", `Notes: ${d.notes.trim()}`);
+  }
+  return lines.join("\n");
+}
+
+async function shareKeyUp() {
+  const text = buildKeyUpMessage();
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: "Key Up", text });
+      return;
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+    }
+  }
+  // Fallback: SMS link, then clipboard
+  const sms = "sms:?&body=" + encodeURIComponent(text);
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast("Copied — opening Messages", "success");
+  } catch(e) {
+    showToast("Opening Messages", "success");
+  }
+  window.location.href = sms;
 }
 
 // ============================

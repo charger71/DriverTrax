@@ -3,7 +3,7 @@
 // Single-file PWA for rental car lot operations
 // ============================================================
 
-const APP_VERSION = "2.1";
+const APP_VERSION = "2.2";
 const SCHEMA_VERSION = 2;
 const SCHEMA_KEY = "drivertrax_schema_version";
 
@@ -2072,9 +2072,15 @@ let hardModeOn = false;
 // --- Tuning ---
 const DECODE_THROTTLE_MS = 80;         // min ms between native-path decode attempts
 const CONFIRM_WINDOW_MS = 800;         // 1D codes must repeat within this window
-const HARD_MODE_DELAY_MS = 1500;       // wait this long before flipping ZXing to TRY_HARDER
+const HARD_MODE_DELAY_MS = 700;        // wait this long before flipping ZXing to TRY_HARDER
 const TARGET_WIDTH = 1280;             // camera width (sweet spot for speed vs. distance)
 const TARGET_HEIGHT = 720;             // camera height
+
+// Scanner escalation: when a scan is taking too long, progressively offer help
+// rather than auto-closing silently. Hard cap at the end protects battery.
+const SCAN_TIMEOUT_MS = 45000;         // hard cap: auto-close after this
+let scannerEscalationTimers = [];
+let scannerStartedAt = 0;
 
 // ROI crop matches the visible scan strip in CSS:
 // horizontal band from 33%–67% vertically, 4%–96% horizontally.
@@ -2343,6 +2349,83 @@ function runZxingFallback() {
   }, HARD_MODE_DELAY_MS);
 }
 
+// ---------- Escalation ----------
+
+function setScannerHint(text, cls) {
+  const hint = document.getElementById("scannerHint");
+  if (!hint) return;
+  hint.className = "scanner-status " + (cls || "scanning");
+  const dotSvg = '<span class="scanner-dot"><svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8" style="vertical-align:middle;display:inline-block"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg></span>';
+  hint.innerHTML = dotSvg + " " + text;
+}
+
+function startScannerEscalation() {
+  clearScannerEscalation();
+  scannerStartedAt = performance.now();
+  const manualBtn = document.getElementById("scannerManualBtn");
+  if (manualBtn) manualBtn.style.display = "none";
+
+  // 3s: hold-steady hint
+  scannerEscalationTimers.push(setTimeout(() => {
+    if (!scannerActive) return;
+    setScannerHint("Hold steady &middot; fill the box with the barcode");
+  }, 3000));
+
+  // 6s: torch nudge (and auto-suggest if off)
+  scannerEscalationTimers.push(setTimeout(() => {
+    if (!scannerActive) return;
+    const torchHint = torchOn ? "Try a different angle" : "Try the torch →";
+    setScannerHint(torchHint);
+    const torchBtn = document.getElementById("torchBtn");
+    if (torchBtn && !torchOn) torchBtn.classList.add("pulse");
+  }, 6000));
+
+  // 10s: surface inline manual-entry button so the user can bail in one tap
+  scannerEscalationTimers.push(setTimeout(() => {
+    if (!scannerActive) return;
+    const manualBtn = document.getElementById("scannerManualBtn");
+    if (manualBtn) manualBtn.style.display = "block";
+    setScannerHint("Trouble reading? Try moving closer or use Manual Entry");
+  }, 10000));
+
+  // 20s: stronger warning
+  scannerEscalationTimers.push(setTimeout(() => {
+    if (!scannerActive) return;
+    setScannerHint("Tag may be damaged &mdash; manual entry recommended", "error");
+  }, 20000));
+
+  // 45s: hard cap, close scanner
+  scannerEscalationTimers.push(setTimeout(() => {
+    if (!scannerActive) return;
+    setScannerHint("Scanner timed out", "error");
+    showToast("Scanner timed out - try again or enter manually", "error");
+    setTimeout(() => closeScanner(), 800);
+  }, SCAN_TIMEOUT_MS));
+}
+
+function clearScannerEscalation() {
+  scannerEscalationTimers.forEach(t => clearTimeout(t));
+  scannerEscalationTimers = [];
+  const torchBtn = document.getElementById("torchBtn");
+  if (torchBtn) torchBtn.classList.remove("pulse");
+  const manualBtn = document.getElementById("scannerManualBtn");
+  if (manualBtn) manualBtn.style.display = "none";
+}
+
+// Tap "Enter Manually" from inside the scanner overlay
+function openScannerManualEntry() {
+  closeScanner();
+  showManualEntry();
+  const serial = document.getElementById("serial");
+  if (serial) {
+    serial.focus();
+    // VIN keypad takes over on tap; trigger it so the user can start typing immediately
+    if (typeof openVinKeypad === "function") {
+      try { openVinKeypad("serial"); } catch(e) {}
+    }
+  }
+}
+
 // ---------- Public API ----------
 
 async function openScanner() {
@@ -2373,6 +2456,7 @@ async function openScanner() {
     try { await video.play(); } catch(e) {}
 
     hint.innerHTML = dotSvg + " Scanning...";
+    startScannerEscalation();
 
     if (nativeDetectorSupported()) {
       const ok = await runNativeDetector(video);
@@ -2400,6 +2484,7 @@ async function openScanner() {
 
 function closeScanner() {
   scannerActive = false;
+  clearScannerEscalation();
 
   if (detectionLoopId) {
     cancelAnimationFrame(detectionLoopId);

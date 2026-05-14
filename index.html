@@ -459,6 +459,7 @@
     <div class="scanner-status scanning" id="scannerHint">
       <span class="scanner-dot"><svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8" style="vertical-align:middle;display:inline-block"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg></span> Scanning...
     </div>
+    <button class="btn-cancel" id="scannerManualBtn" onclick="openScannerManualEntry()" style="display:none;margin-top:6px;background:#00a651;color:#fff;border-color:#00a651">Enter Manually</button>
     <div class="scanner-actions">
       <button class="btn-torch" id="torchBtn" onclick="toggleTorch()" title="Flashlight"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 16l-1.5 4.5h7L12 16"/><rect x="8" y="8" width="8" height="9" rx="1"/><path d="M9 8V5a3 3 0 0 1 6 0v3"/><line x1="10" y1="12" x2="14" y2="12"/></svg></button>
       <button class="btn-cancel" onclick="closeScanner()">Cancel</button>

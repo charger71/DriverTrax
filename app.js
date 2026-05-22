@@ -510,7 +510,152 @@ function showTab(name) {
   if (name === "dashboard") { applyProfile(); renderDashboard(); }
   if (name === "profile") applyProfile();
   if (name === "keyup") loadKeyUp();
+  if (name === "garage") loadGarage();
 }
+
+function bumpKeyUp(id, delta) {
+  const el = document.getElementById(id);
+  const cur = parseInt(el.value, 10);
+  const next = Math.max(0, (Number.isFinite(cur) ? cur : 0) + delta);
+  el.value = next === 0 && delta < 0 && !Number.isFinite(cur) ? "" : next;
+  saveKeyUp();
+}
+
+// ============================
+// GARAGE COUNTER
+// ============================
+const GARAGE_KEY = "drivertrax_garage";
+const GARAGE_DEFAULT_CATS = ["Clean", "Dirty", "PM", "MK", "MR", "OM", "Other"];
+
+function loadGarageData() {
+  let data = {};
+  try { data = JSON.parse(localStorage.getItem(GARAGE_KEY) || "{}"); } catch(e) {}
+  if (!Array.isArray(data.categories) || data.categories.length === 0) {
+    data.categories = GARAGE_DEFAULT_CATS.slice();
+  }
+  if (!data.counts || typeof data.counts !== "object") data.counts = {};
+  if (typeof data.notes !== "string") data.notes = "";
+  return data;
+}
+
+function saveGarageData(data) {
+  localStorage.setItem(GARAGE_KEY, JSON.stringify(data));
+}
+
+function loadGarage() {
+  const data = loadGarageData();
+  const grid = document.getElementById("garageGrid");
+  grid.innerHTML = "";
+  data.categories.forEach((cat, i) => {
+    const count = data.counts[cat] || 0;
+    const tile = document.createElement("div");
+    tile.className = "keyup-tile";
+    tile.innerHTML = `
+      <div class="keyup-label">${escapeHtml(cat)}</div>
+      <div class="tally-controls">
+        <button type="button" class="tally-btn" data-action="dec" data-cat="${escapeAttr(cat)}">&minus;</button>
+        <input type="number" inputmode="numeric" min="0" value="${count || ""}" placeholder="0" data-cat="${escapeAttr(cat)}">
+        <button type="button" class="tally-btn" data-action="inc" data-cat="${escapeAttr(cat)}">+</button>
+      </div>`;
+    grid.appendChild(tile);
+  });
+  grid.querySelectorAll("button[data-action]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const cat = btn.dataset.cat;
+      const delta = btn.dataset.action === "inc" ? 1 : -1;
+      bumpGarage(cat, delta);
+    });
+  });
+  grid.querySelectorAll("input[type='number']").forEach(inp => {
+    inp.addEventListener("input", () => {
+      const cat = inp.dataset.cat;
+      const v = parseInt(inp.value, 10);
+      const d = loadGarageData();
+      d.counts[cat] = Number.isFinite(v) && v >= 0 ? v : 0;
+      saveGarageData(d);
+      updateGarageTotal();
+    });
+  });
+  document.getElementById("garageNotes").value = data.notes;
+  updateGarageTotal();
+}
+
+function bumpGarage(cat, delta) {
+  const d = loadGarageData();
+  const cur = d.counts[cat] || 0;
+  d.counts[cat] = Math.max(0, cur + delta);
+  saveGarageData(d);
+  const inp = document.querySelector(`#garageGrid input[data-cat="${escapeAttr(cat)}"]`);
+  if (inp) inp.value = d.counts[cat] || "";
+  updateGarageTotal();
+}
+
+function updateGarageTotal() {
+  const d = loadGarageData();
+  const total = d.categories.reduce((sum, c) => sum + (d.counts[c] || 0), 0);
+  document.getElementById("garageTotal").textContent = total;
+}
+
+function saveGarage() {
+  const d = loadGarageData();
+  d.notes = (document.getElementById("garageNotes").value || "").slice(0, 1000);
+  saveGarageData(d);
+}
+
+function resetGarage() {
+  if (!confirm("Reset all Garage counts and notes?")) return;
+  const d = loadGarageData();
+  d.counts = {};
+  d.notes = "";
+  saveGarageData(d);
+  loadGarage();
+  showToast("Garage reset", "success");
+}
+
+function editGarageCategories() {
+  const d = loadGarageData();
+  const input = prompt(
+    "Edit categories (comma-separated). Counts for removed categories will be deleted.",
+    d.categories.join(", ")
+  );
+  if (input === null) return;
+  const cats = input.split(",").map(s => s.trim()).filter(Boolean);
+  if (cats.length === 0) {
+    alert("Need at least one category.");
+    return;
+  }
+  const newCounts = {};
+  cats.forEach(c => { if (d.counts[c] != null) newCounts[c] = d.counts[c]; });
+  d.categories = cats;
+  d.counts = newCounts;
+  saveGarageData(d);
+  loadGarage();
+}
+
+function buildGarageMessage() {
+  const d = loadGarageData();
+  const total = d.categories.reduce((sum, c) => sum + (d.counts[c] || 0), 0);
+  const dateStr = new Date().toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  const lines = [`Garage Count — ${dateStr}`];
+  d.categories.forEach(c => lines.push(`${c}: ${d.counts[c] || 0}`));
+  lines.push(`Total: ${total}`);
+  if (d.notes.trim()) lines.push("", `Notes: ${d.notes.trim()}`);
+  return lines.join("\n");
+}
+
+async function shareGarage() {
+  const text = buildGarageMessage();
+  if (navigator.share) {
+    try { await navigator.share({ title: "Garage Count", text }); return; }
+    catch (e) { if (e && e.name === "AbortError") return; }
+  }
+  const sms = "sms:?&body=" + encodeURIComponent(text);
+  try { await navigator.clipboard.writeText(text); showToast("Copied — opening Messages", "success"); }
+  catch(e) { showToast("Opening Messages", "success"); }
+  window.location.href = sms;
+}
+
+function escapeAttr(s) { return escapeHtml(s); }
 
 // ============================
 // KEY UP (closing shift count)

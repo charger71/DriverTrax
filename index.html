@@ -72,7 +72,10 @@
       <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span> Dashboard
     </a>
     <a class="menu-item" onclick="showTab('keyup'); closeMenu()">
-      <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></span> Key Up
+      <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></span> Key Up (QTA)
+    </a>
+    <a class="menu-item" onclick="showTab('garage'); closeMenu()">
+      <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10l9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M7 21V12h10v9"/><line x1="7" y1="15" x2="17" y2="15"/></svg></span> Garage Counter
     </a>
     <a class="menu-item" onclick="showTab('training'); closeMenu()">
       <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span> Training
@@ -165,25 +168,41 @@
 
 <!-- ==================== KEY UP PANEL ==================== -->
 <div class="panel" id="panel-keyup">
-  <div class="dash-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><circle cx="8" cy="15" r="4"/><path d="M10.85 12.15L19 4"/><path d="M18 5l2 2"/><path d="M15 8l2 2"/></svg> Key Up</div>
-  <p style="color:var(--text2);font-size:13px;margin:0 0 16px;line-height:1.5">End-of-shift vehicle count by key type.</p>
+  <div class="dash-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><circle cx="8" cy="15" r="4"/><path d="M10.85 12.15L19 4"/><path d="M18 5l2 2"/><path d="M15 8l2 2"/></svg> Key Up (QTA)</div>
+  <p style="color:var(--text2);font-size:13px;margin:0 0 16px;line-height:1.5">End-of-shift QTA vehicle count by key type. Tap +/&minus; or type a number.</p>
 
   <div class="keyup-grid">
     <div class="keyup-tile">
       <div class="keyup-label">Clean</div>
-      <input type="number" inputmode="numeric" min="0" id="keyupClean" placeholder="0" oninput="saveKeyUp()">
+      <div class="tally-controls">
+        <button type="button" class="tally-btn" onclick="bumpKeyUp('keyupClean',-1)">&minus;</button>
+        <input type="number" inputmode="numeric" min="0" id="keyupClean" placeholder="0" oninput="saveKeyUp()">
+        <button type="button" class="tally-btn" onclick="bumpKeyUp('keyupClean',1)">+</button>
+      </div>
     </div>
     <div class="keyup-tile">
       <div class="keyup-label">Dirty</div>
-      <input type="number" inputmode="numeric" min="0" id="keyupDirty" placeholder="0" oninput="saveKeyUp()">
+      <div class="tally-controls">
+        <button type="button" class="tally-btn" onclick="bumpKeyUp('keyupDirty',-1)">&minus;</button>
+        <input type="number" inputmode="numeric" min="0" id="keyupDirty" placeholder="0" oninput="saveKeyUp()">
+        <button type="button" class="tally-btn" onclick="bumpKeyUp('keyupDirty',1)">+</button>
+      </div>
     </div>
     <div class="keyup-tile">
       <div class="keyup-label">Rail</div>
-      <input type="number" inputmode="numeric" min="0" id="keyupRail" placeholder="0" oninput="saveKeyUp()">
+      <div class="tally-controls">
+        <button type="button" class="tally-btn" onclick="bumpKeyUp('keyupRail',-1)">&minus;</button>
+        <input type="number" inputmode="numeric" min="0" id="keyupRail" placeholder="0" oninput="saveKeyUp()">
+        <button type="button" class="tally-btn" onclick="bumpKeyUp('keyupRail',1)">+</button>
+      </div>
     </div>
     <div class="keyup-tile">
       <div class="keyup-label">Other</div>
-      <input type="number" inputmode="numeric" min="0" id="keyupOther" placeholder="0" oninput="saveKeyUp()">
+      <div class="tally-controls">
+        <button type="button" class="tally-btn" onclick="bumpKeyUp('keyupOther',-1)">&minus;</button>
+        <input type="number" inputmode="numeric" min="0" id="keyupOther" placeholder="0" oninput="saveKeyUp()">
+        <button type="button" class="tally-btn" onclick="bumpKeyUp('keyupOther',1)">+</button>
+      </div>
     </div>
   </div>
 
@@ -200,6 +219,29 @@
     SHARE TO MANAGER
   </button>
   <button class="btn btn-secondary" onclick="resetKeyUp()">Reset Counts</button>
+</div>
+
+<!-- ==================== GARAGE COUNTER PANEL ==================== -->
+<div class="panel" id="panel-garage">
+  <div class="dash-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M3 10l9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M7 21V12h10v9"/><line x1="7" y1="15" x2="17" y2="15"/></svg> Garage Counter</div>
+  <p style="color:var(--text2);font-size:13px;margin:0 0 16px;line-height:1.5">Tally cars in the garage by category. Tap +/&minus; to count.</p>
+
+  <div class="keyup-grid" id="garageGrid"></div>
+
+  <div class="keyup-total-row">
+    <span class="keyup-total-label">TOTAL</span>
+    <span class="keyup-total-val" id="garageTotal">0</span>
+  </div>
+
+  <div class="field-label">Notes</div>
+  <textarea id="garageNotes" placeholder="Notes for the closing manager..." oninput="saveGarage()"></textarea>
+
+  <button class="btn btn-primary" onclick="shareGarage()">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:6px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+    SHARE TO MANAGER
+  </button>
+  <button class="btn btn-secondary" onclick="editGarageCategories()">Edit Categories</button>
+  <button class="btn btn-secondary" onclick="resetGarage()">Reset Counts</button>
 </div>
 
 <div class="panel" id="panel-data">

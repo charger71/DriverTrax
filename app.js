@@ -3134,7 +3134,24 @@ function closeScanner() {
 const SCANBOT_VERSION = "5";                                       // major version pin
 const SCANBOT_SDK_URL = "https://cdn.jsdelivr.net/npm/scanbot-web-sdk@5/bundle/ScanbotSDK.min.js";
 const SCANBOT_ENGINE_PATH = "https://cdn.jsdelivr.net/npm/scanbot-web-sdk@5/bundle/bin/complete/";
-const SCANBOT_LICENSE = "";                                        // empty = 60s trial mode
+// Trial license — domain-bound to localhost + charger71.github.io.
+// 60 s/session cap; reload to reset. Replace with paid key for production.
+const SCANBOT_LICENSE =
+  "NjjTlYeSixImSvtv5335FNErBi9QzY" +
+  "RLrrQNaCnBWaGIzd/dbODAsYTo2k8Z" +
+  "gIBu60QGxPToXE3AmtBOQcyGtlO6qj" +
+  "YvHNtow6oj/x01FRSEaN9woeZWDvsD" +
+  "Bp1/Pj5F/OLCkiuVz1NmDtLAbJmNlQ" +
+  "dxINZlosBPptzPejGK8MYHsnZO2NT1" +
+  "bFzXApSifJYD1QRHtwqVo0imZ/cCkI" +
+  "Swv82n112ZxlYoSpOiQpsgJxPUQOC1" +
+  "b2V0+di2amPZaTQOBkBGt/mvW7XwlW" +
+  "N0CYBqAUlafw16SPkh+ELuoeeULP+b" +
+  "lLM0eTG9yfL1QkKv0xoGu9d1/RSrhN" +
+  "x2CuEEeO2A2w==\nU2NhbmJvdFNESw" +
+  "psb2NhbGhvc3R8Y2hhcmdlcjcxLmdp" +
+  "dGh1Yi5pbwoxNzgwMTg1NTk5CjgzOD" +
+  "g2MDcKOA==\n";
 let _scanbotSDK = null;          // resolved SDK instance after init
 let _scanbotLoading = null;      // Promise so concurrent taps don't race
 let _scanbotScanner = null;      // active scanner instance (for cleanup)

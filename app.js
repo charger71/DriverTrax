@@ -2542,10 +2542,29 @@ let hardModeOn = false;
 
 // --- Tuning ---
 const DECODE_THROTTLE_MS = 80;         // min ms between native-path decode attempts
-const CONFIRM_WINDOW_MS = 800;         // 1D codes must repeat within this window
+const CONFIRM_WINDOW_MS = 800;         // 1D codes must repeat within this window (default)
 const HARD_MODE_DELAY_MS = 700;        // wait this long before flipping ZXing to TRY_HARDER
 const TARGET_WIDTH = 1280;             // camera width (sweet spot for speed vs. distance)
 const TARGET_HEIGHT = 720;             // camera height
+
+// iOS gets the slow ZXing-JS path (no BarcodeDetector on Safari) so we tune
+// more aggressively for it: bigger frame, immediate TRY_HARDER, ROI cropping,
+// shorter 1D confirm window, and we prefer the 1× wide camera.
+function isIOS() {
+  const ua = navigator.userAgent || "";
+  return /iPad|iPhone|iPod/.test(ua) ||
+         (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); // iPadOS posing as Mac
+}
+const IS_IOS = isIOS();
+const IOS_TARGET_WIDTH = 1920;
+const IOS_TARGET_HEIGHT = 1080;
+const IOS_CONFIRM_WINDOW_MS = 500;
+const ROI_DECODE_INTERVAL_MS = 90;     // ZXing ROI decode tick on iOS path
+
+let confirmWindowMs = IS_IOS ? IOS_CONFIRM_WINDOW_MS : CONFIRM_WINDOW_MS;
+let zxingRoiLoopId = null;             // RAF id for the iOS ROI decode loop
+let zxingRoiCanvas = null;
+let zxingRoiCtx = null;
 
 // Scanner escalation: when a scan is taking too long, progressively offer help
 // rather than auto-closing silently. Hard cap at the end protects battery.
@@ -2601,7 +2620,7 @@ function acceptScanResult(rawText, is2D) {
   } else {
     // 1D double-confirm: require the same read twice within CONFIRM_WINDOW_MS.
     const now = performance.now();
-    if (lastCandidate === code && (now - lastCandidateAt) < CONFIRM_WINDOW_MS) {
+    if (lastCandidate === code && (now - lastCandidateAt) < confirmWindowMs) {
       // confirmed
       lastCandidate = null;
     } else {
@@ -2633,28 +2652,67 @@ function acceptScanResult(rawText, is2D) {
 
 // ---------- Camera setup ----------
 
+async function pickIOSBackCameraDeviceId() {
+  // iPhone exposes labels like:
+  //   "Back Camera"           (the standard 1× wide — what we want)
+  //   "Back Dual Camera"      (wide + telephoto composite — also OK)
+  //   "Back Triple Camera"    (composite — usually defaults to wide, OK)
+  //   "Back Ultra Wide Camera" (0.5× — softer, bad close-focus → avoid)
+  //   "Back Telephoto Camera" (zoomed in — bad close-focus → avoid)
+  // We pick the first plain/dual/triple, never the ultra-wide or telephoto.
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return null;
+    // Labels are blank until permission is granted at least once. Trigger a
+    // throw-away getUserMedia first to unlock the labels.
+    let primed = null;
+    try {
+      primed = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
+    } catch(e) {}
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    if (primed) { try { primed.getTracks().forEach(t => t.stop()); } catch(e) {} }
+
+    const cams = devices.filter(d => d.kind === "videoinput");
+    const isBad = (label) => /ultra ?wide|telephoto/i.test(label);
+    const isPreferred = (label) => /back/i.test(label) && !isBad(label);
+    const preferred = cams.find(c => isPreferred(c.label));
+    if (preferred) return preferred.deviceId;
+    // Fallback: any non-bad back camera; else first back camera; else first.
+    const anyBack = cams.find(c => /back|rear|environment/i.test(c.label) && !isBad(c.label));
+    return (anyBack || cams[0] || null)?.deviceId || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function startCameraStream() {
-  // Prefer environment-facing camera at the target resolution with continuous AF.
-  const constraints = {
-    audio: false,
-    video: {
-      facingMode: { ideal: "environment" },
-      width:  { ideal: TARGET_WIDTH },
-      height: { ideal: TARGET_HEIGHT },
-      // Hints; ignored by browsers that don't support them.
-      focusMode: "continuous",
-      advanced: [{ focusMode: "continuous" }]
-    }
-  };
+  const targetW = IS_IOS ? IOS_TARGET_WIDTH : TARGET_WIDTH;
+  const targetH = IS_IOS ? IOS_TARGET_HEIGHT : TARGET_HEIGHT;
+
+  // On iOS, try to lock to the 1× wide back camera. iPhone's "facingMode: environment"
+  // often picks the ultrawide which softens the image and ruins close-focus on barcodes.
+  let deviceId = null;
+  if (IS_IOS) deviceId = await pickIOSBackCameraDeviceId();
+
+  const videoConstraints = deviceId
+    ? { deviceId: { exact: deviceId }, width: { ideal: targetW }, height: { ideal: targetH }, focusMode: "continuous", advanced: [{ focusMode: "continuous" }] }
+    : { facingMode: { ideal: "environment" }, width: { ideal: targetW }, height: { ideal: targetH }, focusMode: "continuous", advanced: [{ focusMode: "continuous" }] };
 
   try {
-    return await navigator.mediaDevices.getUserMedia(constraints);
+    return await navigator.mediaDevices.getUserMedia({ audio: false, video: videoConstraints });
   } catch (e) {
-    // Fallback: drop the resolution/focus hints if the device rejected them.
-    return await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: { facingMode: { ideal: "environment" } }
-    });
+    // Fallback 1: drop deviceId pinning (some iOS builds reject `exact`).
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: "environment" }, width: { ideal: targetW }, height: { ideal: targetH } }
+      });
+    } catch (e2) {
+      // Fallback 2: drop resolution hints entirely.
+      return await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: "environment" } }
+      });
+    }
   }
 }
 
@@ -2783,20 +2841,22 @@ function runZxingFallback() {
     return;
   }
 
-  // Start in fast mode (no TRY_HARDER); escalate after HARD_MODE_DELAY_MS.
+  // iOS: keep OUR stream alive, decode an ROI crop of the center band ourselves.
+  // This avoids letting ZXing reacquire (which would re-trigger camera selection
+  // and lose the wide-camera pick) and dramatically speeds up 1D decoding by
+  // shrinking the search space.
+  if (IS_IOS && tryRunZxingWithROI()) return;
+
+  // Non-iOS fallback (rare — Android Chrome uses BarcodeDetector path): original
+  // ZXing flow that auto-acquires its own stream.
   hardModeOn = false;
   codeReader = new ZXing.BrowserMultiFormatReader(buildZxingHints(false));
 
   const startDecode = () => {
     codeReader.decodeFromVideoDevice(null, "scannerVideo", (result, err) => {
       if (!scannerActive) return;
-
-      // Capture stream for torch the first time it appears.
       const video = document.getElementById("scannerVideo");
-      if (video.srcObject && !activeStream) {
-        activeStream = video.srcObject;
-      }
-
+      if (video.srcObject && !activeStream) activeStream = video.srcObject;
       if (result) {
         const fmt = result.getBarcodeFormat();
         const is2D = fmt === ZXing.BarcodeFormat.QR_CODE ||
@@ -2807,10 +2867,7 @@ function runZxingFallback() {
       }
     });
   };
-
   startDecode();
-
-  // If we still haven't decoded after HARD_MODE_DELAY_MS, re-init with TRY_HARDER.
   hardModeTimer = setTimeout(() => {
     if (!scannerActive || hardModeOn) return;
     hardModeOn = true;
@@ -2818,6 +2875,68 @@ function runZxingFallback() {
     codeReader = new ZXing.BrowserMultiFormatReader(buildZxingHints(true));
     startDecode();
   }, HARD_MODE_DELAY_MS);
+}
+
+// iOS-tuned ZXing loop: TRY_HARDER from the start, ROI-cropped frames.
+// Returns true if the loop started; false if ZXing API surface didn't match.
+function tryRunZxingWithROI() {
+  try {
+    hardModeOn = true; // we ARE try-harder mode from tick 0 on iOS
+    codeReader = new ZXing.BrowserMultiFormatReader(buildZxingHints(true));
+    const video = document.getElementById("scannerVideo");
+    if (!video || !video.srcObject) return false;
+
+    // Reuse one offscreen canvas for the ROI crop.
+    if (!zxingRoiCanvas) {
+      zxingRoiCanvas = document.createElement("canvas");
+      zxingRoiCtx = zxingRoiCanvas.getContext("2d", { willReadFrequently: true });
+    }
+
+    let lastTick = 0;
+    const tick = (ts) => {
+      if (!scannerActive) return;
+      if (ts - lastTick >= ROI_DECODE_INTERVAL_MS && video.readyState >= 2) {
+        lastTick = ts;
+        const vw = video.videoWidth, vh = video.videoHeight;
+        if (vw && vh) {
+          const sx = Math.floor(vw * ROI.xPct);
+          const sy = Math.floor(vh * ROI.yPct);
+          const sw = Math.floor(vw * ROI.wPct);
+          const sh = Math.floor(vh * ROI.hPct);
+          if (zxingRoiCanvas.width !== sw) zxingRoiCanvas.width = sw;
+          if (zxingRoiCanvas.height !== sh) zxingRoiCanvas.height = sh;
+          zxingRoiCtx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+          try {
+            const result = codeReader.decodeFromCanvas
+              ? codeReader.decodeFromCanvas(zxingRoiCanvas)
+              : null;
+            if (result) {
+              const fmt = result.getBarcodeFormat();
+              const is2D = fmt === ZXing.BarcodeFormat.QR_CODE ||
+                           fmt === ZXing.BarcodeFormat.DATA_MATRIX ||
+                           fmt === ZXing.BarcodeFormat.AZTEC ||
+                           fmt === ZXing.BarcodeFormat.PDF_417;
+              acceptScanResult(result.getText(), is2D);
+            }
+          } catch (e) {
+            // NotFoundException is expected on most ticks — ignore.
+            // If decodeFromCanvas itself is missing, bail to the regular path.
+            if (!codeReader.decodeFromCanvas) {
+              cancelAnimationFrame(zxingRoiLoopId);
+              zxingRoiLoopId = null;
+              return;
+            }
+          }
+        }
+      }
+      zxingRoiLoopId = requestAnimationFrame(tick);
+    };
+    zxingRoiLoopId = requestAnimationFrame(tick);
+    return true;
+  } catch (e) {
+    console.warn("ROI ZXing loop failed to start:", e && e.message);
+    return false;
+  }
 }
 
 // ---------- Escalation ----------
@@ -2911,6 +3030,15 @@ async function openScanner() {
   hint.className = "scanner-status scanning";
   hint.innerHTML = dotSvg + " Starting camera...";
 
+  // iOS users get a closer-distance tip — Safari's softer pipeline reads
+  // small barcodes more reliably at 4-6" than 6-8".
+  const tipEl = document.getElementById("scannerTip");
+  if (tipEl) {
+    tipEl.innerHTML = IS_IOS
+      ? "Hold tag horizontal &middot; 4-6 inches away"
+      : "Hold tag horizontal &middot; 6-8 inches away";
+  }
+
   torchOn = false;
   scannerActive = true;
   lastDecodeTime = 0;
@@ -2936,14 +3064,17 @@ async function openScanner() {
         runZxingFallback();
       }
     } else {
-      // No native detector (iOS Safari, older Chrome). ZXing will reuse the video element,
-      // but it manages its own stream — release ours first so it doesn't double-acquire.
-      if (activeStream) {
-        activeStream.getTracks().forEach(t => t.stop());
-        activeStream = null;
+      // No native detector (iOS Safari, older Chrome).
+      // On iOS we keep OUR stream + run a custom ROI decode loop. On other browsers
+      // we let ZXing manage its own stream (release ours first to avoid double-acquire).
+      if (!IS_IOS) {
+        if (activeStream) {
+          activeStream.getTracks().forEach(t => t.stop());
+          activeStream = null;
+        }
+        const v = document.getElementById("scannerVideo");
+        v.srcObject = null;
       }
-      const v = document.getElementById("scannerVideo");
-      v.srcObject = null;
       runZxingFallback();
     }
   } catch (e) {
@@ -2960,6 +3091,10 @@ function closeScanner() {
   if (detectionLoopId) {
     cancelAnimationFrame(detectionLoopId);
     detectionLoopId = null;
+  }
+  if (zxingRoiLoopId) {
+    cancelAnimationFrame(zxingRoiLoopId);
+    zxingRoiLoopId = null;
   }
   if (hardModeTimer) {
     clearTimeout(hardModeTimer);

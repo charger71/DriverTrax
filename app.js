@@ -399,8 +399,15 @@ async function decodeVIN(vin) {
 // SAVE RECORD
 // ============================
 function saveRecord() {
-  const serial = sanitizeSerial(document.getElementById("serial").value.trim().toUpperCase());
-  if (!serial) { showToast("Please enter or scan a Serial ID.", "error"); return; }
+  const noTagChecked = document.getElementById("noTag").checked;
+  let serial = sanitizeSerial(document.getElementById("serial").value.trim().toUpperCase());
+  if (!serial) {
+    if (noTagChecked) {
+      serial = "XXXXXXXXXXXXXXXXX"; // 17 X's placeholder for No Tag entries
+    } else {
+      showToast("Please enter or scan a Serial ID.", "error"); return;
+    }
+  }
   const statusVal = document.getElementById("status").value;
   if (!statusVal) { showToast("Please select a status.", "error"); return; }
 
@@ -460,7 +467,8 @@ function saveRecord() {
     else { showToast("Saved with GPS", "success"); }
 
     // VIN decode runs AFTER record is saved so the lookup finds it
-    if (isValidVIN(recordData.serialId)) {
+    // Skip decoding for No Tag placeholder serials (17 X's)
+    if (!recordData.noTag && isValidVIN(recordData.serialId)) {
       decodeVIN(recordData.serialId).then(vinData => {
         if (vinData) {
           const recs = getRecords();

@@ -3214,9 +3214,18 @@ async function openScanbotScanner() {
   showToast("Loading Scanbot…", "success");
   try {
     const sdk = await ensureScanbotSDK();
+    // Scanbot Web SDK has renamed the format-restriction key across versions:
+    //   v3 / v4: `barcodeFormats: [...]`
+    //   v5+:     `acceptedFormats: [...]`
+    //   some builds also accept: `barcodeFormatConfigurations: [{ formats: [...] }]`
+    // Pass under all of them — unknown keys are ignored.
+    const FORMATS = ["CODE_39", "CODE_128", "QR_CODE", "DATA_MATRIX", "PDF_417", "AZTEC", "EAN_13", "EAN_8", "UPC_A", "UPC_E", "ITF"];
     const config = {
       containerId: hostId,
-      barcodeFormats: ["CODE_39", "CODE_128", "QR_CODE", "DATA_MATRIX", "PDF_417", "AZTEC"],
+      barcodeFormats: FORMATS,
+      acceptedFormats: FORMATS,
+      barcodeFormatConfigurations: [{ formats: FORMATS }],
+      preferredCamera: "back",
       onBarcodesDetected: (result) => {
         try {
           const list = (result && (result.barcodes || result.results)) || [];
@@ -3224,7 +3233,10 @@ async function openScanbotScanner() {
           if (!first) return;
           const raw = (first.text || first.textWithExtension || first.rawText || "").trim().toUpperCase();
           if (!raw) return;
-          const is2D = /QR|DATA_?MATRIX|PDF_?417|AZTEC/i.test(first.format || first.symbology || "");
+          const fmt = first.format || first.symbology || first.barcodeFormat || "";
+          // Diagnostic: log what Scanbot detected so we know its format strings
+          console.log("[Scanbot] detected", { format: fmt, text: raw });
+          const is2D = /QR|DATA_?MATRIX|PDF_?417|AZTEC/i.test(fmt);
           // Reuse the existing acceptance path: it handles VIN extraction,
           // beep/haptic, populating the Serial input, and closing.
           const accepted = acceptScanResult(raw, is2D);

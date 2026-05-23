@@ -327,7 +327,19 @@
       <div class="field-label" style="margin-top:0">Status</div>
       <select id="status" onchange="handleStatusChange()" style="margin-bottom:0">
         <option value="">-- STATUS --</option>
-        <option>CLEAN</option><option>DIRTY</option><option>REWASH/FLUIDS</option><option>BODY DAMAGE</option><option>PM (MAINT.)</option><option>MK (MECH.)</option><option>MR (RECALL)</option><option>OM (OVER MILES)</option><option>AUDIT FAIL</option><option>WI/DELETE</option><option>GLASS</option><option value="TI">TI(TIRE)</option><option>OTHER</option>
+        <option value="CLEAN">CLEAN</option>
+        <option value="DIRTY">DIRTY</option>
+        <option value="REWASH">REWASH/FLUIDS</option>
+        <option value="BODY">BODY DAMAGE</option>
+        <option value="PM">PM (MAINT.)</option>
+        <option value="MK">MK (MECH.)</option>
+        <option value="MR">MR (RECALL)</option>
+        <option value="OM">OM (OVER MILES)</option>
+        <option value="AUDIT FAIL">AUDIT FAIL</option>
+        <option value="WI/DELETE">WI/DELETE</option>
+        <option value="GLASS">GLASS</option>
+        <option value="TI">TI(TIRE)</option>
+        <option value="OTHER">OTHER</option>
       </select>
       <input type="text" id="statusOther" class="other-input" placeholder="Specify other status..." maxlength="40" autocomplete="off" style="display:none">
     </div>
@@ -371,9 +383,19 @@
       <input type="text" id="fSearch" placeholder="Search serial..." oninput="this.value=this.value.toUpperCase(); debouncedSearchUpdate()">
       <select id="fStatus" onchange="resetRecordsPage(); renderRecords()">
         <option value="">All Statuses</option>
-        <option>CLEAN</option><option>DIRTY</option><option>REWASH</option><option>TOP OFF FLUID</option>
-        <option>PM</option><option>MK</option><option>MR</option><option>OM</option>
-        <option>AUDIT FAIL</option><option>WI/DELETE</option><option>GLASS</option><option>TI</option><option>OTHER</option>
+        <option value="CLEAN">CLEAN</option>
+        <option value="DIRTY">DIRTY</option>
+        <option value="REWASH">REWASH/FLUIDS</option>
+        <option value="BODY">BODY DAMAGE</option>
+        <option value="PM">PM (MAINT.)</option>
+        <option value="MK">MK (MECH.)</option>
+        <option value="MR">MR (RECALL)</option>
+        <option value="OM">OM (OVER MILES)</option>
+        <option value="AUDIT FAIL">AUDIT FAIL</option>
+        <option value="WI/DELETE">WI/DELETE</option>
+        <option value="GLASS">GLASS</option>
+        <option value="TI">TI(TIRE)</option>
+        <option value="OTHER">OTHER</option>
       </select>
     </div>
     <div class="filter-row">

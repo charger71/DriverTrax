@@ -5,6 +5,20 @@
 
 const APP_VERSION = "2.2";
 const SCHEMA_VERSION = 2;
+
+// Canonical short status code -> visible label shown in record cards / detail.
+// Stored value (canonical) stays short; only the displayed text is descriptive.
+const STATUS_LABELS = {
+  "REWASH": "REWASH/FLUIDS",
+  "BODY": "BODY DAMAGE",
+  "PM": "PM (MAINT.)",
+  "MK": "MK (MECH.)",
+  "MR": "MR (RECALL)",
+  "OM": "OM (OVER MILES)",
+  "TI": "TI(TIRE)"
+};
+function statusLabel(s) { return STATUS_LABELS[s] || s || ""; }
+
 const SCHEMA_KEY = "drivertrax_schema_version";
 
 // ============================
@@ -136,7 +150,7 @@ function recordPopupHTML(r) {
   return `
     <div style="font-family:Arial,sans-serif;min-width:140px">
       <div style="font-weight:800;font-size:14px;margin-bottom:4px">${sanitizeText(r.serialId)}</div>
-      <div style="font-size:12px;color:#555;margin-bottom:6px">${sanitizeText(r.status)}${r.destination ? " &middot; " + sanitizeText(r.destination) : ""}</div>
+      <div style="font-size:12px;color:#555;margin-bottom:6px">${sanitizeText(statusLabel(r.status))}${r.destination ? " &middot; " + sanitizeText(r.destination) : ""}</div>
       <div style="font-size:11px;color:#888;margin-bottom:8px">${time}</div>
       <button onclick="openDetail('${r.id}', 'deleteRecord')" style="background:#00a651;color:#fff;border:none;padding:5px 12px;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;width:100%">View Record</button>
     </div>`;
@@ -1152,10 +1166,10 @@ function recordCard(r, onDelete) {
     vinInfo = `<div class="record-vin" style="display:flex;align-items:center;gap:6px">${icons.vehicle}${icons.fuel}<span><b>${name}</b>${trim}</span></div>`;
   }
   const safeSerial = sanitizeText(r.serialId || "");
-  const statusLabel = r.status === "OTHER" && r.statusOther ? `OTHER: ${r.statusOther}` : (r.status || "");
-  const destLabel = r.destination === "OTHER" && r.destinationOther ? `OTHER: ${r.destinationOther}` : (r.destination || "");
-  const safeStatus = sanitizeText(statusLabel);
-  const safeDest = destLabel ? sanitizeText(destLabel) : "";
+  const statusDisplay = r.status === "OTHER" && r.statusOther ? `OTHER: ${r.statusOther}` : statusLabel(r.status);
+  const destDisplay = r.destination === "OTHER" && r.destinationOther ? `OTHER: ${r.destinationOther}` : (r.destination || "");
+  const safeStatus = sanitizeText(statusDisplay);
+  const safeDest = destDisplay ? sanitizeText(destDisplay) : "";
   const safeNotes = r.notes ? sanitizeText(r.notes) : "";
   const safeTires = r.tires && r.tires.length > 0 ? r.tires.map(sanitizeText).join(", ") : "";
 
@@ -1322,7 +1336,7 @@ function openDetail(id, onDelete) {
       hour:"numeric", minute:"2-digit", timeZone:"America/New_York"
     });
 
-  const detailStatusLabel = r.status === "OTHER" && r.statusOther ? `OTHER: ${r.statusOther}` : (r.status || "");
+  const detailStatusLabel = r.status === "OTHER" && r.statusOther ? `OTHER: ${r.statusOther}` : statusLabel(r.status);
   const detailDestLabel = r.destination === "OTHER" && r.destinationOther ? `OTHER: ${r.destinationOther}` : (r.destination || "");
   document.getElementById("detailBadges").innerHTML = `
     <span class="record-status ${statusClass(r.status)}">${sanitizeText(detailStatusLabel)}</span>
@@ -1980,7 +1994,7 @@ function renderRecordsMap() {
         .bindPopup(`
           <div style="font-family:Arial,sans-serif;min-width:140px">
             <div style="font-weight:800;font-size:14px;margin-bottom:4px">${sanitizeText(r.serialId)}</div>
-            <div style="font-size:12px;color:#555;margin-bottom:4px">${sanitizeText(r.status)}${r.destination ? ' · ' + sanitizeText(r.destination) : ''}</div>
+            <div style="font-size:12px;color:#555;margin-bottom:4px">${sanitizeText(statusLabel(r.status))}${r.destination ? ' · ' + sanitizeText(r.destination) : ''}</div>
             <div style="font-size:11px;color:#888;margin-bottom:8px">${time}</div>
             <button onclick="document.getElementById('recordsMap')._openDetail('${r.id}')"
               style="background:#00a651;color:#fff;border:none;padding:5px 12px;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;width:100%">
@@ -2082,7 +2096,7 @@ function renderShiftMap(shiftIndex) {
       .bindPopup(`
         <div style="font-family:Arial,sans-serif;min-width:140px">
           <div style="font-weight:800;font-size:14px;margin-bottom:4px">${sanitizeText(r.serialId)}</div>
-          <div style="font-size:12px;color:#555;margin-bottom:6px">${sanitizeText(r.status)}${r.destination ? " · " + sanitizeText(r.destination) : ""}</div>
+          <div style="font-size:12px;color:#555;margin-bottom:6px">${sanitizeText(statusLabel(r.status))}${r.destination ? " · " + sanitizeText(r.destination) : ""}</div>
           <div style="font-size:11px;color:#888;margin-bottom:8px">${time}</div>
           <button onclick="document.getElementById('shiftMap')._openDetail('${r.id}')"
             style="background:#00a651;color:#fff;border:none;padding:5px 12px;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;width:100%">
@@ -2118,7 +2132,7 @@ function renderShiftMap(shiftIndex) {
       return `<div class="map-legend-row" onclick="openDetail('${r.id}', 'deleteRecord')">
         <span class="map-legend-num" style="background:#${color}">${i+1}</span>
         <span class="map-legend-serial">${sanitizeText(r.serialId)}</span>
-        <span class="record-status ${statusClass(r.status)}" style="font-size:10px">${sanitizeText(r.status)}</span>
+        <span class="record-status ${statusClass(r.status)}" style="font-size:10px">${sanitizeText(statusLabel(r.status))}</span>
         <span class="map-legend-time">${time}</span>
         <span class="map-legend-arrow">&#8594;</span>
       </div>`;
@@ -2217,7 +2231,7 @@ function renderDashboard() {
     <div class="stat-card"><div class="stat-num" style="color:var(--danger)">${noTagCount}</div><div class="stat-label">No Tag</div></div>
   `;
 
-  const statuses = ["CLEAN","DIRTY","PM","MK","MR","AUDIT","WI/DELETE","GLASS","OTHER"];
+  const statuses = ["CLEAN","DIRTY","REWASH","BODY","PM","MK","MR","OM","AUDIT FAIL","WI/DELETE","GLASS","TI","OTHER"];
   const sc = {};
   statuses.forEach(s => sc[s] = 0);
   all.forEach(r => { sc[r.status] !== undefined ? sc[r.status]++ : sc["OTHER"]++; });
@@ -2226,7 +2240,7 @@ function renderDashboard() {
     .filter(s => sc[s] > 0)
     .map(s => `
       <div class="bar-row">
-        <div class="bar-key">${s}</div>
+        <div class="bar-key">${sanitizeText(statusLabel(s))}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${Math.round(sc[s]/maxS*100)}%"></div></div>
         <div class="bar-val">${sc[s]}</div>
       </div>

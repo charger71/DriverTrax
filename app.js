@@ -24,6 +24,27 @@ const SCHEMA_KEY = "drivertrax_schema_version";
 // ============================
 // SERVICE WORKER REGISTRATION
 // ============================
+// ============================
+// SPLASH SCREEN
+// ============================
+const _splashStart = Date.now();
+function hideSplash() {
+  const el = document.getElementById("splash");
+  if (!el) return;
+  const minDwellMs = 700; // keep splash visible at least this long so it doesn't flash
+  const elapsed = Date.now() - _splashStart;
+  const wait = Math.max(0, minDwellMs - elapsed);
+  setTimeout(() => {
+    el.classList.add("hide");
+    // Remove from DOM after the fade completes so it doesn't trap pointer events
+    setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 500);
+  }, wait);
+}
+if (document.readyState === "complete") hideSplash();
+else window.addEventListener("load", hideSplash);
+// Safety fallback so a stuck page can never block the UI forever
+setTimeout(hideSplash, 5000);
+
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("./sw.js")

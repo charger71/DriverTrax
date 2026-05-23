@@ -609,6 +609,7 @@ function loadGarage() {
   });
   document.getElementById("garageNotes").value = data.notes;
   updateGarageTotal();
+  renderGarageHistory();
 }
 
 function bumpGarage(cat, delta) {
@@ -634,13 +635,90 @@ function saveGarage() {
 }
 
 function resetGarage() {
-  if (!confirm("Reset all Garage counts and notes?")) return;
+  if (!confirm("Reset all Garage counts and notes? (Current totals will be saved to History first.)")) return;
+  archiveGarage("reset");
   const d = loadGarageData();
   d.counts = {};
   d.notes = "";
   saveGarageData(d);
   loadGarage();
-  showToast("Garage reset", "success");
+  showToast("Garage reset (archived to History)", "success");
+}
+
+// ----- HISTORY (shared helpers) -----
+const HISTORY_MAX = 200;
+
+function loadHistory(key) {
+  try {
+    const arr = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(arr) ? arr : [];
+  } catch(e) { return []; }
+}
+function saveHistory(key, arr) {
+  if (arr.length > HISTORY_MAX) arr = arr.slice(0, HISTORY_MAX);
+  localStorage.setItem(key, JSON.stringify(arr));
+}
+function deleteHistoryEntry(key, id, rerender) {
+  if (!confirm("Delete this archived entry?")) return;
+  const arr = loadHistory(key).filter(e => e.id !== id);
+  saveHistory(key, arr);
+  rerender();
+  showToast("Entry deleted", "success");
+}
+function formatHistoryDate(ts) {
+  return new Date(ts).toLocaleString(undefined, {
+    weekday: "short", month: "short", day: "numeric",
+    hour: "numeric", minute: "2-digit"
+  });
+}
+
+// ----- GARAGE HISTORY -----
+const GARAGE_HISTORY_KEY = "drivertrax_garage_history";
+
+function archiveGarage(trigger) {
+  const d = loadGarageData();
+  const total = d.categories.reduce((sum, c) => sum + (d.counts[c] || 0), 0);
+  if (total === 0 && !d.notes.trim()) return; // nothing to save
+  const entry = {
+    id: Date.now().toString(),
+    timestamp: Date.now(),
+    trigger: trigger || "manual",
+    categories: d.categories.slice(),
+    counts: { ...d.counts },
+    notes: d.notes,
+    total
+  };
+  const hist = loadHistory(GARAGE_HISTORY_KEY);
+  hist.unshift(entry);
+  saveHistory(GARAGE_HISTORY_KEY, hist);
+}
+
+function renderGarageHistory() {
+  const container = document.getElementById("garageHistory");
+  if (!container) return;
+  const hist = loadHistory(GARAGE_HISTORY_KEY);
+  if (hist.length === 0) {
+    container.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:8px 0">No archived entries yet. Share or Reset to save a snapshot here.</p>';
+    return;
+  }
+  container.innerHTML = hist.map(e => {
+    const rows = e.categories.map(c => `<div class="history-line"><span>${escapeHtml(c)}</span><b>${e.counts[c] || 0}</b></div>`).join("");
+    const notes = e.notes && e.notes.trim()
+      ? `<div class="history-notes">${escapeHtml(e.notes)}</div>` : "";
+    return `
+      <div class="history-entry">
+        <div class="history-head">
+          <div>
+            <div class="history-date">${escapeHtml(formatHistoryDate(e.timestamp))}</div>
+            <div class="history-trigger">${escapeHtml(e.trigger)}</div>
+          </div>
+          <div class="history-total">${e.total}</div>
+        </div>
+        <div class="history-body">${rows}</div>
+        ${notes}
+        <button class="history-del" onclick="deleteHistoryEntry('${GARAGE_HISTORY_KEY}','${e.id}',renderGarageHistory)">Delete</button>
+      </div>`;
+  }).join("");
 }
 
 function editGarageCategories() {
@@ -676,6 +754,8 @@ function buildGarageMessage() {
 
 async function shareGarage() {
   const text = buildGarageMessage();
+  archiveGarage("share");
+  renderGarageHistory();
   if (navigator.share) {
     try { await navigator.share({ title: "Garage Count", text }); return; }
     catch (e) { if (e && e.name === "AbortError") return; }
@@ -702,6 +782,7 @@ function loadKeyUp() {
   document.getElementById("keyupOther").value = data.other ?? "";
   document.getElementById("keyupNotes").value = data.notes ?? "";
   updateKeyUpTotal();
+  renderKeyUpHistory();
 }
 
 function readKeyUp() {
@@ -730,13 +811,71 @@ function saveKeyUp() {
 }
 
 function resetKeyUp() {
-  if (!confirm("Reset all Key Up counts and notes?")) return;
+  if (!confirm("Reset all Key Up counts and notes? (Current totals will be saved to History first.)")) return;
+  archiveKeyUp("reset");
   ["keyupClean","keyupDirty","keyupRail","keyupOther","keyupNotes"].forEach(id => {
     document.getElementById(id).value = "";
   });
   localStorage.removeItem(KEYUP_KEY);
   updateKeyUpTotal();
-  showToast("Key Up reset", "success");
+  renderKeyUpHistory();
+  showToast("Key Up reset (archived to History)", "success");
+}
+
+// ----- KEY UP HISTORY -----
+const KEYUP_HISTORY_KEY = "drivertrax_keyup_history";
+const KEYUP_FIELDS = [
+  { key: "clean", label: "Clean" },
+  { key: "dirty", label: "Dirty" },
+  { key: "rail",  label: "Rail"  },
+  { key: "other", label: "Other" },
+];
+
+function archiveKeyUp(trigger) {
+  const d = readKeyUp();
+  const total = d.clean + d.dirty + d.rail + d.other;
+  if (total === 0 && !d.notes.trim()) return;
+  const entry = {
+    id: Date.now().toString(),
+    timestamp: Date.now(),
+    trigger: trigger || "manual",
+    clean: d.clean, dirty: d.dirty, rail: d.rail, other: d.other,
+    notes: d.notes,
+    total
+  };
+  const hist = loadHistory(KEYUP_HISTORY_KEY);
+  hist.unshift(entry);
+  saveHistory(KEYUP_HISTORY_KEY, hist);
+}
+
+function renderKeyUpHistory() {
+  const container = document.getElementById("keyupHistory");
+  if (!container) return;
+  const hist = loadHistory(KEYUP_HISTORY_KEY);
+  if (hist.length === 0) {
+    container.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:8px 0">No archived entries yet. Share or Reset to save a snapshot here.</p>';
+    return;
+  }
+  container.innerHTML = hist.map(e => {
+    const rows = KEYUP_FIELDS.map(f =>
+      `<div class="history-line"><span>${f.label}</span><b>${e[f.key] || 0}</b></div>`
+    ).join("");
+    const notes = e.notes && e.notes.trim()
+      ? `<div class="history-notes">${escapeHtml(e.notes)}</div>` : "";
+    return `
+      <div class="history-entry">
+        <div class="history-head">
+          <div>
+            <div class="history-date">${escapeHtml(formatHistoryDate(e.timestamp))}</div>
+            <div class="history-trigger">${escapeHtml(e.trigger)}</div>
+          </div>
+          <div class="history-total">${e.total}</div>
+        </div>
+        <div class="history-body">${rows}</div>
+        ${notes}
+        <button class="history-del" onclick="deleteHistoryEntry('${KEYUP_HISTORY_KEY}','${e.id}',renderKeyUpHistory)">Delete</button>
+      </div>`;
+  }).join("");
 }
 
 function buildKeyUpMessage() {
@@ -759,6 +898,8 @@ function buildKeyUpMessage() {
 
 async function shareKeyUp() {
   const text = buildKeyUpMessage();
+  archiveKeyUp("share");
+  renderKeyUpHistory();
   if (navigator.share) {
     try {
       await navigator.share({ title: "Key Up", text });

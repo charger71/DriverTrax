@@ -909,3 +909,10 @@
     font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 6px;
   }
   .keyup-tile { position: relative; }
+
+  /* "Specify other" inline text field that appears under a dropdown */
+  .other-input {
+    margin-top: 6px !important;
+    margin-bottom: 0 !important;
+    text-transform: none;
+  }

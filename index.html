@@ -329,13 +329,15 @@
         <option value="">-- STATUS --</option>
         <option>CLEAN</option><option>DIRTY</option><option>REWASH/FLUIDS</option><option>BODY DAMAGE</option><option>PM (MAINT.)</option><option>MK (MECH.)</option><option>MR (RECALL)</option><option>OM (OVER MILES)</option><option>AUDIT FAIL</option><option>WI/DELETE</option><option>GLASS</option><option value="TI">TI(TIRE)</option><option>OTHER</option>
       </select>
+      <input type="text" id="statusOther" class="other-input" placeholder="Specify other status..." maxlength="40" autocomplete="off" style="display:none">
     </div>
     <div style="flex:1">
       <div class="field-label" style="margin-top:0">Destination</div>
-      <select id="destination" style="margin-bottom:0">
+      <select id="destination" onchange="toggleOtherField('destination')" style="margin-bottom:0">
         <option value="">-- DESTINATION --</option>
         <option>GARAGE</option><option>QTA</option><option>BACKLOT</option><option>ATLANTIC</option><option>BRANCH</option><option>OTHER</option>
       </select>
+      <input type="text" id="destinationOther" class="other-input" placeholder="Specify other destination..." maxlength="40" autocomplete="off" style="display:none">
     </div>
   </div>
 

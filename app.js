@@ -424,12 +424,17 @@ function saveRecord() {
   const isNewShift = !lastTs || (Date.now() - lastTs >= SHIFT_GAP_MS);
   const currentShiftNum = isNewShift ? allShifts.length + 1 : allShifts.length || 1;
 
+  const destVal = document.getElementById("destination").value;
+  const statusOtherText = sanitizeNotes((document.getElementById("statusOther").value || "").trim()).slice(0, 40);
+  const destOtherText = sanitizeNotes((document.getElementById("destinationOther").value || "").trim()).slice(0, 40);
   const recordData = {
     id: Date.now().toString(),
     serialId: serial,
     status: statusVal,
+    statusOther: statusVal === "OTHER" ? statusOtherText : "",
     tires: statusVal === "TI" ? [...selectedTires] : [],
-    destination: document.getElementById("destination").value,
+    destination: destVal,
+    destinationOther: destVal === "OTHER" ? destOtherText : "",
     noTag: document.getElementById("noTag").checked,
     shuttle: document.getElementById("shuttle").checked,
     transport: document.getElementById("transport").checked,
@@ -452,6 +457,10 @@ function saveRecord() {
     document.getElementById("tireSelectorSection").style.display = "none";
     resetTires();
     document.getElementById("destination").selectedIndex = 0;
+    document.getElementById("statusOther").value = "";
+    document.getElementById("statusOther").style.display = "none";
+    document.getElementById("destinationOther").value = "";
+    document.getElementById("destinationOther").style.display = "none";
     document.getElementById("noTag").checked = false;
     toggleNoTagStyle();
     document.getElementById("transport").checked = false;
@@ -769,6 +778,18 @@ function handleStatusChange() {
     section.style.display = "none";
     resetTires();
   }
+  toggleOtherField("status");
+}
+
+// Generic: when a <select id="X"> is set to "OTHER", show <input id="XOther">
+function toggleOtherField(selectId) {
+  const sel = document.getElementById(selectId);
+  const inp = document.getElementById(selectId + "Other");
+  if (!sel || !inp) return;
+  const isOther = (sel.value || "").toUpperCase() === "OTHER";
+  inp.style.display = isOther ? "block" : "none";
+  if (!isOther) inp.value = "";
+  else setTimeout(() => inp.focus(), 50);
 }
 
 function toggleTire(tire) {
@@ -1131,8 +1152,10 @@ function recordCard(r, onDelete) {
     vinInfo = `<div class="record-vin" style="display:flex;align-items:center;gap:6px">${icons.vehicle}${icons.fuel}<span><b>${name}</b>${trim}</span></div>`;
   }
   const safeSerial = sanitizeText(r.serialId || "");
-  const safeStatus = sanitizeText(r.status || "");
-  const safeDest = r.destination ? sanitizeText(r.destination) : "";
+  const statusLabel = r.status === "OTHER" && r.statusOther ? `OTHER: ${r.statusOther}` : (r.status || "");
+  const destLabel = r.destination === "OTHER" && r.destinationOther ? `OTHER: ${r.destinationOther}` : (r.destination || "");
+  const safeStatus = sanitizeText(statusLabel);
+  const safeDest = destLabel ? sanitizeText(destLabel) : "";
   const safeNotes = r.notes ? sanitizeText(r.notes) : "";
   const safeTires = r.tires && r.tires.length > 0 ? r.tires.map(sanitizeText).join(", ") : "";
 
@@ -1299,9 +1322,11 @@ function openDetail(id, onDelete) {
       hour:"numeric", minute:"2-digit", timeZone:"America/New_York"
     });
 
+  const detailStatusLabel = r.status === "OTHER" && r.statusOther ? `OTHER: ${r.statusOther}` : (r.status || "");
+  const detailDestLabel = r.destination === "OTHER" && r.destinationOther ? `OTHER: ${r.destinationOther}` : (r.destination || "");
   document.getElementById("detailBadges").innerHTML = `
-    <span class="record-status ${statusClass(r.status)}">${sanitizeText(r.status)}</span>
-    ${r.destination ? `<span class="badge-dest">${sanitizeText(r.destination)}</span>` : ""}
+    <span class="record-status ${statusClass(r.status)}">${sanitizeText(detailStatusLabel)}</span>
+    ${r.destination ? `<span class="badge-dest">${sanitizeText(detailDestLabel)}</span>` : ""}
     ${r.shuttle ? '<span class="badge-shuttle">SHUTTLE</span>' : ""}
     ${r.transport ? '<span class="badge-transport">TRANSPORT</span>' : ""}
     ${r.noTag ? '<span class="badge-notag">NO TAG</span>' : ""}
@@ -1332,7 +1357,7 @@ function openDetail(id, onDelete) {
   // Destination row
   const destRow = document.getElementById("detailDestRow");
   if (r.destination) {
-    document.getElementById("detailDest").textContent = r.destination;
+    document.getElementById("detailDest").textContent = detailDestLabel;
     destRow.style.display = "flex";
   } else { destRow.style.display = "none"; }
 

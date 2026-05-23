@@ -373,6 +373,17 @@
   }
   .btn-scan-primary:active { background: var(--accent-dark); }
 
+  /* Beta secondary scan button (Scanbot SDK) */
+  .btn-scan-beta {
+    width: 100%; padding: var(--space-3); margin-top: var(--space-3);
+    background: transparent; color: var(--accent);
+    border: 1px dashed var(--accent);
+    border-radius: var(--radius); font-size: 13px; font-weight: 800;
+    letter-spacing: 1.5px; cursor: pointer; text-transform: uppercase;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .btn-scan-beta:active { background: rgba(0,166,81,0.1); }
+
   .btn-manual-toggle {
     width: 50%; padding: var(--space-3); margin-top: var(--space-4);
     display: block; margin-left: auto; margin-right: auto;

@@ -3124,6 +3124,128 @@ function closeScanner() {
   document.getElementById("scannerOverlay").classList.remove("open");
 }
 
+// ============================
+// SCANBOT SDK (experimental / beta)
+// ============================
+// Loads on first tap of the "Scan with Scanbot (beta)" button. Runs in
+// license-free trial mode (~60s per session) — enough to evaluate read
+// reliability on iPhone vs. the existing ZXing path. To go production
+// we'd need a paid license key set in SCANBOT_LICENSE.
+const SCANBOT_VERSION = "5";                                       // major version pin
+const SCANBOT_SDK_URL = "https://cdn.jsdelivr.net/npm/scanbot-web-sdk@5/bundle/ScanbotSDK.min.js";
+const SCANBOT_ENGINE_PATH = "https://cdn.jsdelivr.net/npm/scanbot-web-sdk@5/bundle/bin/complete/";
+const SCANBOT_LICENSE = "";                                        // empty = 60s trial mode
+let _scanbotSDK = null;          // resolved SDK instance after init
+let _scanbotLoading = null;      // Promise so concurrent taps don't race
+let _scanbotScanner = null;      // active scanner instance (for cleanup)
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-src="${src}"]`);
+    if (existing) { existing.dataset.loaded === "1" ? resolve() : existing.addEventListener("load", resolve); return; }
+    const s = document.createElement("script");
+    s.src = src;
+    s.async = true;
+    s.dataset.src = src;
+    s.onload = () => { s.dataset.loaded = "1"; resolve(); };
+    s.onerror = () => reject(new Error("Failed to load " + src));
+    document.head.appendChild(s);
+  });
+}
+
+async function ensureScanbotSDK() {
+  if (_scanbotSDK) return _scanbotSDK;
+  if (_scanbotLoading) return _scanbotLoading;
+  _scanbotLoading = (async () => {
+    if (!window.ScanbotSDK) {
+      await loadScript(SCANBOT_SDK_URL);
+    }
+    if (!window.ScanbotSDK || typeof window.ScanbotSDK.initialize !== "function") {
+      throw new Error("ScanbotSDK global not available after script load (CDN path or API may have changed)");
+    }
+    _scanbotSDK = await window.ScanbotSDK.initialize({
+      licenseKey: SCANBOT_LICENSE,
+      enginePath: SCANBOT_ENGINE_PATH
+    });
+    return _scanbotSDK;
+  })();
+  try { return await _scanbotLoading; }
+  finally { _scanbotLoading = null; }
+}
+
+async function openScanbotScanner() {
+  const hostId = "scanbotHost";
+  // Lazily inject a host container the first time
+  let host = document.getElementById(hostId);
+  if (!host) {
+    host = document.createElement("div");
+    host.id = hostId;
+    host.style.cssText = "position:fixed;inset:0;z-index:1500;background:#000;display:none";
+    document.body.appendChild(host);
+  }
+  host.style.display = "block";
+  // Add a small close button overlay since the SDK UI may or may not include one
+  if (!host.querySelector(".scanbot-close")) {
+    const btn = document.createElement("button");
+    btn.className = "scanbot-close";
+    btn.textContent = "Close";
+    btn.style.cssText = "position:absolute;top:env(safe-area-inset-top,12px);right:12px;z-index:2;padding:8px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.3);background:rgba(0,0,0,0.6);color:#fff;font-weight:800;letter-spacing:1px";
+    btn.onclick = closeScanbotScanner;
+    host.appendChild(btn);
+  }
+
+  showToast("Loading Scanbot…", "success");
+  try {
+    const sdk = await ensureScanbotSDK();
+    const config = {
+      containerId: hostId,
+      barcodeFormats: ["CODE_39", "CODE_128", "QR_CODE", "DATA_MATRIX", "PDF_417", "AZTEC"],
+      onBarcodesDetected: (result) => {
+        try {
+          const list = (result && (result.barcodes || result.results)) || [];
+          const first = list[0];
+          if (!first) return;
+          const raw = (first.text || first.textWithExtension || first.rawText || "").trim().toUpperCase();
+          if (!raw) return;
+          const is2D = /QR|DATA_?MATRIX|PDF_?417|AZTEC/i.test(first.format || first.symbology || "");
+          // Reuse the existing acceptance path: it handles VIN extraction,
+          // beep/haptic, populating the Serial input, and closing.
+          const accepted = acceptScanResult(raw, is2D);
+          if (accepted) closeScanbotScanner();
+        } catch (e) {
+          console.warn("Scanbot result handling failed:", e);
+        }
+      },
+      onError: (err) => {
+        console.error("Scanbot error:", err);
+        showToast("Scanbot error: " + (err && err.message ? err.message : "see console"), "error");
+      }
+    };
+    // Different Scanbot Web SDK versions expose this under different names.
+    // Try the most likely ones in order.
+    const factory = sdk.createBarcodeScanner || sdk.createBarcodeScannerView || sdk.UI && sdk.UI.createBarcodeScanner;
+    if (!factory) throw new Error("createBarcodeScanner not found on SDK (API may have moved)");
+    _scanbotScanner = await factory.call(sdk, config);
+  } catch (e) {
+    console.error(e);
+    showToast("Couldn't start Scanbot: " + (e && e.message ? e.message : "unknown"), "error");
+    host.style.display = "none";
+  }
+}
+
+async function closeScanbotScanner() {
+  const host = document.getElementById("scanbotHost");
+  try {
+    if (_scanbotScanner) {
+      if (typeof _scanbotScanner.dispose === "function") await _scanbotScanner.dispose();
+      else if (typeof _scanbotScanner.destroy === "function") await _scanbotScanner.destroy();
+      else if (typeof _scanbotScanner.close === "function") await _scanbotScanner.close();
+    }
+  } catch (e) { /* ignore */ }
+  _scanbotScanner = null;
+  if (host) host.style.display = "none";
+}
+
 async function toggleTorch() {
   // ZXing path may not have populated activeStream yet — grab from the video element.
   if (!activeStream) {

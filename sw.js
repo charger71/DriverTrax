@@ -11,7 +11,6 @@ const APP_SHELL = [
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
   "https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js"
 ];
-
 // Install: pre-cache the app shell
 self.addEventListener("install", (event) => {
   event.waitUntil(

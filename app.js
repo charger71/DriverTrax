@@ -223,6 +223,27 @@ function sanitizeName(str) {
 }
 
 // ============================
+// HAPTICS
+// ============================
+// Web Vibration API: works on Android Chrome reliably and on iOS 18+ in
+// installed PWAs (best-effort). Silently no-ops on desktop / unsupported
+// browsers. Must be called from within a user-gesture handler.
+const HAPTIC_PATTERNS = {
+  tap:     10,                       // light single click (counter +/-)
+  scan:    [80, 40, 80],             // brisk double-pulse on successful scan
+  success: 30,                       // record saved
+  warn:    [40, 30, 40],             // toast warning
+  error:   [60, 40, 60, 40, 60]      // toast error
+};
+function haptic(type = "tap") {
+  try {
+    if (!navigator.vibrate) return;
+    const pattern = HAPTIC_PATTERNS[type] ?? HAPTIC_PATTERNS.tap;
+    navigator.vibrate(pattern);
+  } catch (e) { /* ignore */ }
+}
+
+// ============================
 // TOAST
 // ============================
 function showToast(msg, type = "success") {
@@ -236,6 +257,9 @@ function showToast(msg, type = "success") {
   toast.className = "toast toast-" + type + " toast-show";
   clearTimeout(toast._timer);
   toast._timer = setTimeout(() => { toast.className = "toast"; }, 2800);
+  // Couple haptic feedback to toast type so callers don't have to remember
+  if (type === "warn") haptic("warn");
+  else if (type === "error") haptic("error");
 }
 
 // ============================
@@ -508,7 +532,7 @@ function saveRecord() {
     gpsEl.textContent = "";
     renderTodayEntries();
     if (gpsError) { showToast("Saved - no GPS location", "warn"); }
-    else { showToast("Saved with GPS", "success"); }
+    else { showToast("Saved with GPS", "success"); haptic("success"); }
 
     // VIN decode runs AFTER record is saved so the lookup finds it
     // Skip decoding for No Tag placeholder serials (17 X's)
@@ -571,6 +595,7 @@ function bumpKeyUp(id, delta) {
   const next = Math.max(0, (Number.isFinite(cur) ? cur : 0) + delta);
   el.value = next === 0 && delta < 0 && !Number.isFinite(cur) ? "" : next;
   saveKeyUp();
+  haptic("tap");
 }
 
 // ============================
@@ -641,6 +666,7 @@ function bumpGarage(cat, delta) {
   const inp = document.querySelector(`#garageGrid input[data-cat="${escapeAttr(cat)}"]`);
   if (inp) inp.value = d.counts[cat] || "";
   updateGarageTotal();
+  haptic("tap");
 }
 
 function updateGarageTotal() {
@@ -2591,7 +2617,7 @@ function acceptScanResult(rawText, is2D) {
     void flash.offsetWidth;
     flash.classList.add("flash");
   }
-  navigator.vibrate && navigator.vibrate([80, 40, 80]);
+  haptic("scan");
   playScanBeep();
 
   const hint = document.getElementById("scannerHint");
@@ -2819,7 +2845,7 @@ function startScannerEscalation() {
   // 6s: torch nudge (and auto-suggest if off)
   scannerEscalationTimers.push(setTimeout(() => {
     if (!scannerActive) return;
-    const torchHint = torchOn ? "Try a different angle" : "Try the torch →";
+    const torchHint = torchOn ? "Try a different angle" : "Try the flashlight →";
     setScannerHint(torchHint);
     const torchBtn = document.getElementById("torchBtn");
     if (torchBtn && !torchOn) torchBtn.classList.add("pulse");
@@ -2963,23 +2989,64 @@ function closeScanner() {
   document.getElementById("scannerOverlay").classList.remove("open");
 }
 
-function toggleTorch() {
+async function toggleTorch() {
   // ZXing path may not have populated activeStream yet — grab from the video element.
   if (!activeStream) {
     const v = document.getElementById("scannerVideo");
     if (v && v.srcObject) activeStream = v.srcObject;
   }
-  if (!activeStream) return;
-  const track = activeStream.getVideoTracks()[0];
-  if (!track || !track.getCapabilities) return;
-  const caps = track.getCapabilities();
-  if (!caps.torch) {
-    showToast("Torch not available on this device", "warn");
+  if (!activeStream) {
+    showToast("Camera not ready yet — try again in a moment", "warn");
     return;
   }
-  torchOn = !torchOn;
-  track.applyConstraints({ advanced: [{ torch: torchOn }] });
-  document.getElementById("torchBtn").classList.toggle("on", torchOn);
+  const track = activeStream.getVideoTracks()[0];
+  if (!track || track.readyState !== "live") {
+    showToast("Camera not ready yet — try again in a moment", "warn");
+    return;
+  }
+
+  // Probe capabilities (some browsers don't expose this at all).
+  const caps = (typeof track.getCapabilities === "function") ? track.getCapabilities() : {};
+  const settings = (typeof track.getSettings === "function") ? track.getSettings() : {};
+  const torchSupported = ("torch" in caps) || ("torch" in settings);
+  if (!torchSupported) {
+    showToast("Flashlight not available on this device", "warn");
+    return;
+  }
+
+  const desired = !torchOn;
+  const btn = document.getElementById("torchBtn");
+
+  // Try 1: standard applyConstraints({advanced:[{torch}]}). Works on most Android Chromium.
+  try {
+    await track.applyConstraints({ advanced: [{ torch: desired }] });
+    torchOn = desired;
+    if (btn) btn.classList.toggle("on", torchOn);
+    return;
+  } catch (e1) {
+    // Fall through to ImageCapture fallback.
+    console.warn("Torch applyConstraints failed:", e1 && e1.message);
+  }
+
+  // Try 2: ImageCapture.setOptions / track.applyConstraints with constraints style.
+  try {
+    if (typeof window.ImageCapture === "function") {
+      const ic = new ImageCapture(track);
+      const photoCaps = await ic.getPhotoCapabilities();
+      if (photoCaps && photoCaps.fillLightMode &&
+          photoCaps.fillLightMode.indexOf(desired ? "flash" : "off") !== -1) {
+        // Some browsers expose torch via fillLightMode on the photo settings.
+        await ic.setOptions({ fillLightMode: desired ? "flash" : "off" });
+        torchOn = desired;
+        if (btn) btn.classList.toggle("on", torchOn);
+        return;
+      }
+    }
+  } catch (e2) {
+    console.warn("Torch ImageCapture fallback failed:", e2 && e2.message);
+  }
+
+  showToast("Couldn't toggle flashlight on this device", "error");
 }
 
 

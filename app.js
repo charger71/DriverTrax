@@ -3137,21 +3137,23 @@ const SCANBOT_ENGINE_PATH = "https://cdn.jsdelivr.net/npm/scanbot-web-sdk@5/bund
 // Trial license — domain-bound to localhost + charger71.github.io.
 // 60 s/session cap; reload to reset. Replace with paid key for production.
 const SCANBOT_LICENSE =
-  "f2Yh86o52zJs6D1Jl14ut/Fium5Edn" +
-  "u+jQ3wppzpIEV6PRymotGAZp+rWM7Y" +
-  "TKbkayS2LlFN3ThGkuiR9k1KoEUzNE" +
-  "fz9WGJbs3FCrgJwKf8PWLoc0ZpWxnC" +
-  "XjzDUF7VZJF90JVn5L8+Pg/7G8fr9N" +
-  "XfZ2omimEFfYmlc59JMhpR2sU5Pzok" +
-  "ZBeXhQZlke2KdeJ0dUyPlPzdGTbBM5" +
-  "2F+VXh+6N20irYfVPXF+T5Ihx2eD8Y" +
-  "S8mqjVYvKAOBq4PoZrQZcUr1fWj5p/" +
-  "6nFsFraHUr6PZzDT8kCRkVGhIwSYsQ" +
-  "4qowfk6ApODr5uosSosb2wEdEdvDeO" +
-  "olFfGrvn2YbQ==\nU2NhbmJvdFNESw" +
-  "psb2NhbGhvc3R8ZHJpdmVydHJheC5z" +
-  "aXRlCjE3ODAyNzE5OTkKODM4ODYwNw" +
-  "o4\n";
+  "LFW8qn0iYWUSo8e8LxKhsic8cXJA+6" +
+  "Ym6onxKt8obw2IYbyK614CLXO6hwoC" +
+  "OaB+XsTBJtgZgTEVTf+LdN6WZQhBkL" +
+  "aylHNg/fGpRaJ8oHIdFWvZvmSZN7Xb" +
+  "12qQtpmbgg3c2smAzPdVj1VdPr+18U" +
+  "M5qC6NcPDYbs493Yl/flPc5KE2jlss" +
+  "+BsBkHiZyf2ABztHnJMxA2s0skupOJ" +
+  "MoBevJgusfUV+PLJwfIbinVZZxMlKI" +
+  "12r2AW+vZQRDpvzMr8hdu9z6w82uq+" +
+  "JFqqplfKH5D3IXrNz2ABwxJLhpK/4i" +
+  "UK7Vlaiv0fwHNvWLGQknBiHpzzg6vP" +
+  "FCYoWoz0Lx8Q==\nU2NhbmJvdFNESw" +
+  "psb2NhbGhvc3R8d3d3LmRyaXZlcnRy" +
+  "YXguc2l0ZQoxNzgwMjcxOTk5CjgzOD" +
+  "g2MDcKOA==\n";
+
+
 let _scanbotSDK = null;          // resolved SDK instance after init
 let _scanbotLoading = null;      // Promise so concurrent taps don't race
 let _scanbotScanner = null;      // active scanner instance (for cleanup)

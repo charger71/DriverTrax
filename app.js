@@ -2811,16 +2811,22 @@ function acceptScanResult(rawText, is2D) {
     if (!vin) return false; // ignore non-VIN 2D codes
     finalCode = vin;
   } else {
-    // 1D double-confirm: require the same read twice within CONFIRM_WINDOW_MS.
+    // 1D codes: accept on first read. A previous "double-confirm" gate (require
+    // the same value twice within 500–800ms) was rejecting legitimate scans
+    // when the decoder only produced one good read before the user moved.
+    // We instead trust the format restriction + decoder checksums (Code 128
+    // has an internal check digit; Code 39 reads we restrict to alnum), and
+    // add a brief re-accept lockout so the same code can't fire twice in a row.
     const now = performance.now();
-    if (lastCandidate === code && (now - lastCandidateAt) < confirmWindowMs) {
-      // confirmed
-      lastCandidate = null;
-    } else {
-      lastCandidate = code;
-      lastCandidateAt = now;
-      return false; // wait for confirmation
+    const cleaned = code.replace(/[^A-Z0-9\-]/g, "");
+    if (cleaned.length < 4) return false; // ignore junk reads
+    if (lastCandidate === cleaned && (now - lastCandidateAt) < 1500) {
+      // same code, fired moments ago — don't re-trigger
+      return false;
     }
+    lastCandidate = cleaned;
+    lastCandidateAt = now;
+    finalCode = cleaned;
   }
 
   const flash = document.getElementById("scannerFlash");
@@ -3071,40 +3077,57 @@ function runZxingFallback() {
 }
 
 // iOS-tuned ZXing loop: TRY_HARDER from the start, ROI-cropped frames.
-// Returns true if the loop started; false if ZXing API surface didn't match.
+// Uses ZXing's low-level primitives (HTMLCanvasElementLuminanceSource +
+// HybridBinarizer + MultiFormatReader.decode) instead of the high-level
+// BrowserCodeReader.decodeFromCanvas, which is missing in @zxing/library
+// 0.18.x. Returns true if the loop started.
 function tryRunZxingWithROI() {
   try {
-    hardModeOn = true; // we ARE try-harder mode from tick 0 on iOS
-    codeReader = new ZXing.BrowserMultiFormatReader(buildZxingHints(true));
     const video = document.getElementById("scannerVideo");
     if (!video || !video.srcObject) return false;
+    if (!ZXing.MultiFormatReader || !ZXing.HTMLCanvasElementLuminanceSource ||
+        !ZXing.HybridBinarizer || !ZXing.BinaryBitmap) {
+      console.warn("[Scanner] ZXing primitives missing — falling back to high-level path");
+      return false;
+    }
 
-    // Reuse one offscreen canvas for the ROI crop.
+    hardModeOn = true; // try-harder from tick 0 on iOS
+    const reader = new ZXing.MultiFormatReader();
+    reader.setHints(buildZxingHints(true));
+
     if (!zxingRoiCanvas) {
       zxingRoiCanvas = document.createElement("canvas");
       zxingRoiCtx = zxingRoiCanvas.getContext("2d", { willReadFrequently: true });
     }
 
     let lastTick = 0;
+    let logged = false;
     const tick = (ts) => {
       if (!scannerActive) return;
       if (ts - lastTick >= ROI_DECODE_INTERVAL_MS && video.readyState >= 2) {
         lastTick = ts;
         const vw = video.videoWidth, vh = video.videoHeight;
         if (vw && vh) {
-          const sx = Math.floor(vw * ROI.xPct);
-          const sy = Math.floor(vh * ROI.yPct);
-          const sw = Math.floor(vw * ROI.wPct);
-          const sh = Math.floor(vh * ROI.hPct);
-          if (zxingRoiCanvas.width !== sw) zxingRoiCanvas.width = sw;
-          if (zxingRoiCanvas.height !== sh) zxingRoiCanvas.height = sh;
-          zxingRoiCtx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+          // Use the FULL frame on iOS rather than a narrow strip: 1D codes
+          // are often held outside the center band, and ZXing's
+          // GlobalHistogramBinarizer (under HybridBinarizer) handles the
+          // larger image fine in TRY_HARDER mode.
+          if (zxingRoiCanvas.width !== vw) zxingRoiCanvas.width = vw;
+          if (zxingRoiCanvas.height !== vh) zxingRoiCanvas.height = vh;
+          zxingRoiCtx.drawImage(video, 0, 0, vw, vh);
+
+          if (!logged) {
+            console.log("[Scanner] iOS decode loop running", { vw, vh });
+            logged = true;
+          }
+
           try {
-            const result = codeReader.decodeFromCanvas
-              ? codeReader.decodeFromCanvas(zxingRoiCanvas)
-              : null;
+            const luminance = new ZXing.HTMLCanvasElementLuminanceSource(zxingRoiCanvas);
+            const bitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
+            const result = reader.decode(bitmap);
             if (result) {
               const fmt = result.getBarcodeFormat();
+              console.log("[Scanner] decoded", { fmt, text: result.getText() });
               const is2D = fmt === ZXing.BarcodeFormat.QR_CODE ||
                            fmt === ZXing.BarcodeFormat.DATA_MATRIX ||
                            fmt === ZXing.BarcodeFormat.AZTEC ||
@@ -3112,13 +3135,9 @@ function tryRunZxingWithROI() {
               acceptScanResult(result.getText(), is2D);
             }
           } catch (e) {
-            // NotFoundException is expected on most ticks — ignore.
-            // If decodeFromCanvas itself is missing, bail to the regular path.
-            if (!codeReader.decodeFromCanvas) {
-              cancelAnimationFrame(zxingRoiLoopId);
-              zxingRoiLoopId = null;
-              return;
-            }
+            // NotFoundException is expected on most ticks — ignore quietly.
+          } finally {
+            try { reader.reset(); } catch (_) {}
           }
         }
       }

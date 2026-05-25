@@ -1128,6 +1128,13 @@ function openVinKeypad(targetId) {
 
   syncKeypadDisplay();
   if (input) input.blur();
+
+  // Focus the hidden HID-capture input so external Bluetooth/USB barcode
+  // scanners can deliver keystrokes. iOS Safari does not fire keydown
+  // events for HID input when a readonly field is focused, so we park
+  // focus on a hidden non-readonly input instead. inputmode="none" keeps
+  // the on-screen keyboard from appearing.
+  if (typeof focusHidScannerInput === "function") focusHidScannerInput();
 }
 
 function closeVinKeypad(event) {
@@ -1264,20 +1271,37 @@ function escapeHtml(str) {
 // ============================
 // BLUETOOTH / USB HID BARCODE SCANNER
 // ============================
-// External barcode scanners (Bluetooth or USB) typically present as HID
-// keyboards: they "type" the barcode at very high speed and end with Enter.
-// Our Serial ID inputs are readonly (they open a custom keypad on focus),
-// so those HID keystrokes would otherwise be silently dropped. This global
-// capture-phase listener buffers fast-arriving keystrokes and routes them
-// into the active serial target (VIN keypad target, edit panel, or main).
+// External barcode scanners (Bluetooth or USB) present as HID keyboards:
+// they "type" the barcode at very high speed and end with Enter. Our
+// Serial ID inputs are readonly (they open a custom on-screen keypad on
+// focus), and iOS Safari silently swallows HID keystrokes when a readonly
+// input is focused. To work around this we:
+//   1. Create a hidden, NON-readonly input parked off-screen.
+//   2. Park focus on it whenever the VIN keypad or edit panel is open.
+//   3. Listen for `input` events on it (iOS DOES fire input events here)
+//      AND a global `keydown` listener (covers desktop/Android too).
+//   4. Route the captured value into the active serial target.
+//
+// inputmode="none" prevents iOS from showing its on-screen keyboard while
+// the hidden input is focused; HID keystrokes still arrive normally.
+let hidScannerInput = null;
+function focusHidScannerInput() {
+  if (!hidScannerInput) return;
+  try {
+    hidScannerInput.value = "";
+    // Defer to after the current tap/focus cycle so iOS accepts the focus shift.
+    setTimeout(() => {
+      try { hidScannerInput.focus({ preventScroll: true }); } catch(e) {
+        try { hidScannerInput.focus(); } catch(_) {}
+      }
+    }, 0);
+  } catch(e) {}
+}
+
 (function () {
-  const MAX_GAP_MS = 50;     // gap between scanner keys is ~10-30ms; humans >> 50ms
-  const FLUSH_DELAY_MS = 80; // flush buffer this long after last key (no Enter)
-  const MIN_SCAN_LEN = 4;    // ignore stray fast keypresses below this length
-  let buf = "";
-  let firstAt = 0;
-  let lastAt = 0;
-  let flushTimer = null;
+  const MAX_GAP_MS = 80;     // gap between scanner keys; humans type much slower
+  const FLUSH_DELAY_MS = 120;
+  const MIN_SCAN_LEN = 3;
 
   function activeTargetId() {
     const kp = document.getElementById("vinKeypadOverlay");
@@ -1287,32 +1311,21 @@ function escapeHtml(str) {
     return "serial";
   }
 
-  function focusedIsTypable() {
+  function shouldCaptureNow() {
+    const kp = document.getElementById("vinKeypadOverlay");
+    if (kp && kp.classList.contains("open")) return true;
+    const edit = document.getElementById("editOverlay");
+    if (edit && edit.classList.contains("open")) return true;
+    // Also capture when the entry panel is visible and no real text input is focused
     const el = document.activeElement;
-    if (!el) return false;
-    if (el.isContentEditable) return true;
-    const tag = el.tagName;
-    if (tag === "TEXTAREA") return !el.readOnly && !el.disabled;
-    if (tag === "INPUT") {
-      if (el.readOnly || el.disabled) return false;
-      const t = (el.type || "text").toLowerCase();
-      return ["text","search","email","url","tel","password","number"].includes(t);
-    }
+    if (!el || el === document.body || el === hidScannerInput) return true;
+    if (el.tagName === "INPUT" && el.readOnly) return true;
     return false;
   }
 
-  function flush() {
-    clearTimeout(flushTimer);
-    flushTimer = null;
-    const raw = buf;
-    const span = lastAt - firstAt;
-    buf = "";
-    if (raw.length < MIN_SCAN_LEN) return;
-    // Average gap must look like a machine, not a human
-    if (raw.length > 1 && span / (raw.length - 1) > MAX_GAP_MS) return;
-
-    const cleaned = sanitizeSerial(raw.toUpperCase());
-    if (!cleaned) return;
+  function applyToTarget(rawValue) {
+    const cleaned = sanitizeSerial((rawValue || "").toUpperCase());
+    if (!cleaned || cleaned.length < MIN_SCAN_LEN) return;
 
     const targetId = activeTargetId();
     const input = document.getElementById(targetId);
@@ -1338,8 +1351,87 @@ function escapeHtml(str) {
     if (typeof showToast === "function") showToast(`Scanned ${cleaned}`, "success");
   }
 
+  // ---- Hidden capture input (iOS-friendly path) ----
+  function createHidScannerInput() {
+    if (hidScannerInput) return;
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.id = "hidScannerInput";
+    inp.setAttribute("inputmode", "none");
+    inp.setAttribute("autocomplete", "off");
+    inp.setAttribute("autocorrect", "off");
+    inp.setAttribute("autocapitalize", "off");
+    inp.setAttribute("spellcheck", "false");
+    inp.setAttribute("aria-hidden", "true");
+    inp.tabIndex = -1;
+    inp.style.cssText =
+      "position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;" +
+      "pointer-events:none;border:0;padding:0;margin:0;background:transparent;" +
+      "color:transparent;caret-color:transparent;font-size:16px;z-index:-1;";
+    document.body.appendChild(inp);
+    hidScannerInput = inp;
+
+    let flushTimer = null;
+    function flushFromHidden() {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+      const v = hidScannerInput.value;
+      hidScannerInput.value = "";
+      applyToTarget(v);
+    }
+
+    // Most scanners terminate with Enter — flush on Enter immediately
+    hidScannerInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        flushFromHidden();
+      }
+    });
+
+    // Fallback: if no Enter terminator, flush after a short idle window
+    hidScannerInput.addEventListener("input", function () {
+      clearTimeout(flushTimer);
+      flushTimer = setTimeout(flushFromHidden, FLUSH_DELAY_MS);
+    });
+
+    // If something else steals focus while we still need it, take it back
+    hidScannerInput.addEventListener("blur", function () {
+      setTimeout(() => {
+        if (shouldCaptureNow() && document.activeElement !== hidScannerInput) {
+          try { hidScannerInput.focus({ preventScroll: true }); } catch(e) {}
+        }
+      }, 50);
+    });
+  }
+
+  if (document.body) createHidScannerInput();
+  else document.addEventListener("DOMContentLoaded", createHidScannerInput);
+
+  // ---- Document-level keydown fallback (desktop / Android) ----
+  let buf = "";
+  let firstAt = 0;
+  let lastAt = 0;
+  let docFlushTimer = null;
+
+  function docFlush() {
+    clearTimeout(docFlushTimer);
+    docFlushTimer = null;
+    const raw = buf;
+    const span = lastAt - firstAt;
+    buf = "";
+    if (raw.length < MIN_SCAN_LEN) return;
+    if (raw.length > 1 && span / (raw.length - 1) > MAX_GAP_MS) return;
+    applyToTarget(raw);
+  }
+
   document.addEventListener("keydown", function (e) {
-    if (focusedIsTypable()) return;
+    // Skip when the user is actively typing in a normal editable input
+    const el = document.activeElement;
+    if (el && el !== hidScannerInput && el.tagName === "INPUT" && !el.readOnly && !el.disabled) {
+      const t = (el.type || "text").toLowerCase();
+      if (["text","search","email","url","tel","password","number"].includes(t)) return;
+    }
+    if (el && el !== hidScannerInput && (el.tagName === "TEXTAREA" || el.isContentEditable)) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
 
     const now = performance.now();
@@ -1348,23 +1440,17 @@ function escapeHtml(str) {
     if (e.key === "Enter") {
       if (buf.length >= MIN_SCAN_LEN) {
         e.preventDefault();
-        flush();
+        docFlush();
       }
       return;
     }
-
     if (e.key.length !== 1) return;
-
-    // Slow keystroke after some buffered chars → not a scan, reset
-    if (buf.length > 0 && gap > MAX_GAP_MS) {
-      buf = "";
-    }
+    if (buf.length > 0 && gap > MAX_GAP_MS) buf = "";
     if (buf.length === 0) firstAt = now;
     buf += e.key;
     lastAt = now;
-
-    clearTimeout(flushTimer);
-    flushTimer = setTimeout(flush, FLUSH_DELAY_MS);
+    clearTimeout(docFlushTimer);
+    docFlushTimer = setTimeout(docFlush, FLUSH_DELAY_MS);
   }, true);
 })();
 

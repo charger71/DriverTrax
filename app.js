@@ -1261,6 +1261,113 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// ============================
+// BLUETOOTH / USB HID BARCODE SCANNER
+// ============================
+// External barcode scanners (Bluetooth or USB) typically present as HID
+// keyboards: they "type" the barcode at very high speed and end with Enter.
+// Our Serial ID inputs are readonly (they open a custom keypad on focus),
+// so those HID keystrokes would otherwise be silently dropped. This global
+// capture-phase listener buffers fast-arriving keystrokes and routes them
+// into the active serial target (VIN keypad target, edit panel, or main).
+(function () {
+  const MAX_GAP_MS = 50;     // gap between scanner keys is ~10-30ms; humans >> 50ms
+  const FLUSH_DELAY_MS = 80; // flush buffer this long after last key (no Enter)
+  const MIN_SCAN_LEN = 4;    // ignore stray fast keypresses below this length
+  let buf = "";
+  let firstAt = 0;
+  let lastAt = 0;
+  let flushTimer = null;
+
+  function activeTargetId() {
+    const kp = document.getElementById("vinKeypadOverlay");
+    if (kp && kp.classList.contains("open")) return _vinKeypadTargetId;
+    const edit = document.getElementById("editOverlay");
+    if (edit && edit.classList.contains("open")) return "editSerial";
+    return "serial";
+  }
+
+  function focusedIsTypable() {
+    const el = document.activeElement;
+    if (!el) return false;
+    if (el.isContentEditable) return true;
+    const tag = el.tagName;
+    if (tag === "TEXTAREA") return !el.readOnly && !el.disabled;
+    if (tag === "INPUT") {
+      if (el.readOnly || el.disabled) return false;
+      const t = (el.type || "text").toLowerCase();
+      return ["text","search","email","url","tel","password","number"].includes(t);
+    }
+    return false;
+  }
+
+  function flush() {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+    const raw = buf;
+    const span = lastAt - firstAt;
+    buf = "";
+    if (raw.length < MIN_SCAN_LEN) return;
+    // Average gap must look like a machine, not a human
+    if (raw.length > 1 && span / (raw.length - 1) > MAX_GAP_MS) return;
+
+    const cleaned = sanitizeSerial(raw.toUpperCase());
+    if (!cleaned) return;
+
+    const targetId = activeTargetId();
+    const input = document.getElementById(targetId);
+    if (!input) return;
+    input.value = cleaned;
+
+    if (targetId === "serial") {
+      if (typeof toggleClearBtn === "function") toggleClearBtn();
+      if (typeof updateVinCount === "function") updateVinCount();
+      if (typeof showManualEntry === "function") showManualEntry();
+    } else if (targetId === "editSerial") {
+      if (typeof toggleEditClearBtn === "function") toggleEditClearBtn();
+      if (typeof updateEditVinCount === "function") updateEditVinCount();
+    }
+
+    const kp = document.getElementById("vinKeypadOverlay");
+    if (kp && kp.classList.contains("open")) {
+      _vinKeypadCursor = cleaned.length;
+      if (typeof syncKeypadDisplay === "function") syncKeypadDisplay();
+    }
+
+    if (navigator.vibrate) navigator.vibrate(20);
+    if (typeof showToast === "function") showToast(`Scanned ${cleaned}`, "success");
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (focusedIsTypable()) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    const now = performance.now();
+    const gap = now - lastAt;
+
+    if (e.key === "Enter") {
+      if (buf.length >= MIN_SCAN_LEN) {
+        e.preventDefault();
+        flush();
+      }
+      return;
+    }
+
+    if (e.key.length !== 1) return;
+
+    // Slow keystroke after some buffered chars → not a scan, reset
+    if (buf.length > 0 && gap > MAX_GAP_MS) {
+      buf = "";
+    }
+    if (buf.length === 0) firstAt = now;
+    buf += e.key;
+    lastAt = now;
+
+    clearTimeout(flushTimer);
+    flushTimer = setTimeout(flush, FLUSH_DELAY_MS);
+  }, true);
+})();
+
 function updateVinCount() {
   const input = document.getElementById("serial");
   const c = document.getElementById("vinCharCount");

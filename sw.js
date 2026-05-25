@@ -1,6 +1,6 @@
 // DriverTrax Service Worker
 // Provides offline support and caches app assets
-const CACHE_VERSION = "drivertrax-v4.1";
+const CACHE_VERSION = "drivertrax-v2.2";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -11,6 +11,7 @@ const APP_SHELL = [
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
   "https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js"
 ];
+
 // Install: pre-cache the app shell
 self.addEventListener("install", (event) => {
   event.waitUntil(

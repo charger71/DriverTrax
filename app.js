@@ -3396,15 +3396,31 @@ async function openScanbotScanner() {
     document.body.appendChild(host);
   }
   host.style.display = "block";
-  // Add a small close button overlay since the SDK UI may or may not include one
-  if (!host.querySelector(".scanbot-close")) {
-    const btn = document.createElement("button");
-    btn.className = "scanbot-close";
-    btn.textContent = "Close";
-    btn.style.cssText = "position:absolute;top:env(safe-area-inset-top,12px);right:12px;z-index:2;padding:8px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.3);background:rgba(0,0,0,0.6);color:#fff;font-weight:800;letter-spacing:1px";
-    btn.onclick = closeScanbotScanner;
-    host.appendChild(btn);
+  // Add a close button overlay since the SDK UI may not include one.
+  // Mounted on document.body (not host) at a very high z-index so the
+  // Scanbot SDK can't render on top of it.
+  let closeBtn = document.getElementById("scanbotCloseBtn");
+  if (!closeBtn) {
+    closeBtn = document.createElement("button");
+    closeBtn.id = "scanbotCloseBtn";
+    closeBtn.className = "scanbot-close";
+    closeBtn.setAttribute("aria-label", "Close scanner");
+    closeBtn.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    closeBtn.style.cssText =
+      "position:fixed;" +
+      "top:calc(env(safe-area-inset-top,0px) + 12px);" +
+      "right:calc(env(safe-area-inset-right,0px) + 12px);" +
+      "z-index:2147483647;" +
+      "width:44px;height:44px;display:flex;align-items:center;justify-content:center;" +
+      "border-radius:50%;border:1px solid rgba(255,255,255,0.35);" +
+      "background:rgba(0,0,0,0.65);color:#fff;cursor:pointer;" +
+      "-webkit-tap-highlight-color:transparent;touch-action:manipulation;" +
+      "box-shadow:0 2px 8px rgba(0,0,0,0.4);padding:0;";
+    closeBtn.onclick = closeScanbotScanner;
+    document.body.appendChild(closeBtn);
   }
+  closeBtn.style.display = "flex";
 
   showToast("Loading Scanbot…", "success");
   try {
@@ -3454,6 +3470,8 @@ async function openScanbotScanner() {
     console.error(e);
     showToast("Couldn't start Scanbot: " + (e && e.message ? e.message : "unknown"), "error");
     host.style.display = "none";
+    const cb = document.getElementById("scanbotCloseBtn");
+    if (cb) cb.style.display = "none";
   }
 }
 
@@ -3468,6 +3486,8 @@ async function closeScanbotScanner() {
   } catch (e) { /* ignore */ }
   _scanbotScanner = null;
   if (host) host.style.display = "none";
+  const closeBtn = document.getElementById("scanbotCloseBtn");
+  if (closeBtn) closeBtn.style.display = "none";
 }
 
 async function toggleTorch() {

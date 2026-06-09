@@ -1,0 +1,30 @@
+{
+  "id": "q-lotsafety",
+  "title": "LOT & GARAGE SAFETY",
+  "category": "SAFETY",
+  "duration": 4,
+  "passingScore": 80,
+  "description": "Speed limits, pedestrian awareness, and movement protocols in ready lines and structured parking.",
+  "questions": [
+    {
+      "id": "l1",
+      "type": "true-false",
+      "prompt": "The maximum speed in any structured garage or ready line is 5 mph.",
+      "correctAnswer": "true",
+      "explanation": "Tight aisles, blind corners, and frequent pedestrians make 5 mph the standard ceiling across all rental operations."
+    },
+    {
+      "id": "l2",
+      "type": "multiple-choice",
+      "prompt": "You are pulling out of a stall and a customer is walking behind a row of cars two spaces over. What should you do?",
+      "options": [
+        { "id": "a", "text": "Honk to alert them and continue" },
+        { "id": "b", "text": "Stop, make eye contact, and wait until they pass behind you" },
+        { "id": "c", "text": "Speed up to clear the area before they reach you" },
+        { "id": "d", "text": "Reverse faster — they will see the brake lights" }
+      ],
+      "correctAnswer": "b",
+      "explanation": "Pedestrians always have right of way in the lot. Stop, make eye contact, confirm they see you, and let them pass."
+    }
+  ]
+}

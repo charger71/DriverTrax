@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'self';">
+<title>Training Admin · DriverTrax</title>
+<link rel="icon" type="image/png" sizes="32x32" href="icon.png">
+<link rel="stylesheet" href="app.css">
+<style>
+  body { padding: 16px; max-width: 920px; margin: 0 auto; }
+  .admin-header { background: transparent; border: none; padding: 0 0 16px; border-bottom: 2px solid var(--accent); margin-bottom: var(--space-5); }
+  .admin-title { color: var(--accent); font-size: 20px; font-weight: 900; letter-spacing: 2px; }
+  .admin-sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  #adminBody input[type="text"], #adminBody input[type="number"] { text-transform: none; }
+  /* gate */
+  .gate { max-width: 360px; margin: 80px auto 0; text-align: center; }
+  .gate h2 { color: var(--accent); font-size: 16px; letter-spacing: 2px; font-weight: 900; margin-bottom: var(--space-4); }
+  .gate input { text-transform: none !important; text-align: center; }
+  .gate .err { color: var(--danger); font-size: var(--font-sm); margin-top: var(--space-2); min-height: 18px; }
+</style>
+</head>
+<body>
+
+<div id="gateWrap" class="gate" style="display:none">
+  <h2>TRAINING ADMIN</h2>
+  <input type="password" id="gatePw" placeholder="Admin passphrase" autocomplete="off">
+  <button class="btn btn-primary" id="gateBtn" style="margin-top:var(--space-3)">UNLOCK</button>
+  <div class="err" id="gateErr"></div>
+  <div style="margin-top:var(--space-5);color:var(--muted);font-size:var(--font-xs);line-height:1.5">
+    First time? Open the browser console and run:<br>
+    <code>localStorage.setItem('drivertrax_admin_hash', await (async p=>{const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(p));return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('')})('your-passphrase'))</code>
+  </div>
+</div>
+
+<div id="adminWrap" style="display:none">
+  <div class="admin-header">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end">
+      <div>
+        <div class="admin-title">TRAINING ADMIN</div>
+        <div class="admin-sub">Author training modules. Saved locally + exportable as JSON files to ship in <code>elearning/modules/</code>.</div>
+      </div>
+      <a href="index.html" style="color:var(--muted);font-size:var(--font-xs);text-decoration:none">← APP</a>
+    </div>
+  </div>
+  <div id="adminBody"></div>
+</div>
+
+<script src="elearning-admin.js"></script>
+</body>
+</html>

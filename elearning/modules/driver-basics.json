@@ -1,0 +1,45 @@
+{
+  "id": "q-walkaround",
+  "title": "PRE-MOVEMENT WALKAROUND",
+  "category": "SAFETY",
+  "duration": 5,
+  "passingScore": 80,
+  "description": "Damage check, fluid leaks, and tire condition before moving a vehicle off the return lane.",
+  "questions": [
+    {
+      "id": "w1",
+      "type": "multiple-choice",
+      "prompt": "A returned car has a small dent on the driver-side door that was not on the existing damage record. What is the correct first action?",
+      "image": null,
+      "options": [
+        { "id": "a", "text": "Drive it to the wash and report at end of shift" },
+        { "id": "b", "text": "Photograph the damage, tag the car, and notify a supervisor before moving" },
+        { "id": "c", "text": "Touch up the area and continue" },
+        { "id": "d", "text": "Ignore it — small dents are normal wear" }
+      ],
+      "correctAnswer": "b",
+      "explanation": "Unreported damage must be documented at the point of discovery. Photograph, tag, and escalate before moving the vehicle."
+    },
+    {
+      "id": "w2",
+      "type": "true-false",
+      "prompt": "You should always check under a returned vehicle for fluid leaks before driving it to the wash bay.",
+      "correctAnswer": "true",
+      "explanation": "A leaking vehicle moved to the wash bay can spread fluid across the floor and create a slip hazard for the wash crew."
+    },
+    {
+      "id": "w3",
+      "type": "multi-select",
+      "prompt": "Which of the following must be checked before moving a returned vehicle? Select all that apply.",
+      "options": [
+        { "id": "a", "text": "Fuel level" },
+        { "id": "b", "text": "Visible damage to body panels" },
+        { "id": "c", "text": "Items left by the customer" },
+        { "id": "d", "text": "Radio station preset" },
+        { "id": "e", "text": "Warning lights on dash" }
+      ],
+      "correctAnswer": ["a", "b", "c", "e"],
+      "explanation": "Fuel, damage, customer items, and dash warnings all factor into status assignment. Radio presets are not part of the check."
+    }
+  ]
+}

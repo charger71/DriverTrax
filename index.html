@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; img-src 'self' data: blob: https://*.tile.openstreetmap.org; connect-src 'self' blob: https://vpic.nhtsa.dot.gov https://api.weather.gov https://api.open-meteo.com https://cdn.jsdelivr.net; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; worker-src 'self' blob:">
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -136,11 +137,7 @@
   <div class="training-header">
     <div class="dash-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg> Training</div>
   </div>
-  <div class="training-placeholder">
-    <h3 style="color:var(--accent);font-size:16px;margin-bottom:12px">Training Module</h3>
-    <p style="color:var(--text2);font-size:14px;margin-bottom:16px;line-height:1.7">Please complete the following training module.</p>
-    <a class="btn btn-secondary" href="https://view.genially.com/69fb50f469b6d9c5af90bf5f" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block">OPEN</a>
-  </div>
+  <div id="elearningRoot"></div>
   <div class="training-placeholder">
     <h3 style="color:var(--accent);font-size:16px;margin-bottom:12px">Clean Car Notes</h3>
     <p style="color:var(--text2);font-size:14px;margin-bottom:16px;line-height:1.7">If you are unsure of current needs, ask a CXR or Manager.</p>
@@ -626,5 +623,6 @@
 </div>
 
 <script src="app.js"></script>
+<script src="elearning.js"></script>
 </body>
 </html>

@@ -155,6 +155,7 @@
 
 ### Scanner
 - Continuous scan mode — log multiple barcodes without closing scanner
+- Remove diagnostic `console.log` calls from iOS ZXing path (`[Scanner] iOS decode loop running`, `[Scanner] decoded {...}`) once 1D scanning has been stable in production for a release or two — added v4.5 to verify reliability on real lot tags
 
 ### UX
 - Onboarding flow — first-launch wizard for new drivers

@@ -227,17 +227,12 @@
       state.user = session.user;
       state.profile = await loadProfile(session.user.id);
       hideModal();
-      // Managers belong on the Backlot dashboard, not the driver app
-      if (state.profile && state.profile.role === "manager" &&
-          !location.pathname.endsWith("backlot-pwa.html")) {
-        location.href = "backlot-pwa.html";
-        return;
-      }
     } else {
       state.user = null;
       state.profile = null;
       showModal();
     }
+    document.body.classList.toggle("is-manager", !!(state.profile && state.profile.role === "manager"));
     if (!state.ready) {
       state.ready = true;
       state.listeners.splice(0).forEach(fn => { try { fn(); } catch (e) { console.error(e); } });

@@ -587,6 +587,10 @@ function showTab(name) {
   if (name === "profile") applyProfile();
   if (name === "keyup") loadKeyUp();
   if (name === "garage") loadGarage();
+  if (name && name.startsWith("backlot-") && window.DT_BACKLOT) {
+    if (name === "backlot-map") DT_BACKLOT.loadMap();
+    else DT_BACKLOT.refresh();
+  }
 }
 
 function bumpKeyUp(id, delta) {

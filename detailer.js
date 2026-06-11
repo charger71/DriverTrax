@@ -15,38 +15,48 @@
 
   // ---- task catalog ----
   const TASKS = {
-    TRASH:         "Trash",
-    VACUUM:        "Vacuum",
-    DISINFECT:     "Disinfect",
-    DEODORIZE:     "Deodorize",
-    WINDOWS:       "Windows",
-    RESET_RADIO:   "Reset Radio",
-    RESET_OIL:     "Reset Oil",
-    AIR:           "Air",
-    WASHER_FLUID:  "Washer Fluid",
-    SCRUB:         "Scrub",
-    WASH:          "Wash"
+    TRASH:        "Trash",
+    VACUUM:       "Vacuum",
+    DISINFECT:    "Disinfect",
+    DEODORIZE:    "Deodorize",
+    WINDOWS:      "Windows",
+    RESET_RADIO:  "Reset Radio",
+    SCRUB:        "Scrub",
+    WASH:         "Wash",
+    CHECK_FLUIDS: "Check Air and Washer Fluids",
+    FUEL:         "Fuel",
+    CHARGE:       "Charge",
+    ODOR:         "Odor Treatment"
   };
 
-  // condition → which tasks it brings into the todo
+  // condition → which tasks it brings into the todo.
+  // Tags without tasks (Priority, Pet Hair, Detail, Air, Washer Fluid) are
+  // descriptive only — they mark the vehicle as needing extra time/effort
+  // but don't add a checklist item.
   const CONDITION_TASKS = {
-    PRIORITY:     [],   // flag only, no tasks of its own
-    PET_HAIR:     ["VACUUM"],
-    QUICK_FLIP:   ["TRASH","VACUUM","WINDOWS","RESET_RADIO"],
-    DETAIL:       ["TRASH","VACUUM","DISINFECT","DEODORIZE","WINDOWS","RESET_RADIO","RESET_OIL","SCRUB"],
-    AIR:          ["AIR"],
-    WASHER_FLUID: ["WASHER_FLUID"],
-    SPIFFY:       ["TRASH","VACUUM","WINDOWS","WASH"]
+    PRIORITY:     [],
+    PET_HAIR:     [],
+    QUICK_FLIP:   ["TRASH","VACUUM","DISINFECT","DEODORIZE","WINDOWS","RESET_RADIO"],
+    REGULAR:      ["TRASH","VACUUM","DISINFECT","DEODORIZE","WINDOWS","RESET_RADIO","SCRUB","WASH","CHECK_FLUIDS"],
+    DETAIL:       [],
+    SPIFFY:       ["ODOR"],
+    FUEL:         ["FUEL"],
+    CHARGE:       ["CHARGE"],
+    AIR:          [],
+    WASHER_FLUID: []
   };
 
   const CONDITIONS = [
     { id: "PRIORITY",     label: "Priority"     },
     { id: "PET_HAIR",     label: "Pet Hair"     },
     { id: "QUICK_FLIP",   label: "Quick Flip"   },
+    { id: "REGULAR",      label: "Regular"      },
     { id: "DETAIL",       label: "Detail"       },
+    { id: "SPIFFY",       label: "Spiffy"       },
+    { id: "FUEL",         label: "Fuel"         },
+    { id: "CHARGE",       label: "Charge"       },
     { id: "AIR",          label: "Air"          },
-    { id: "WASHER_FLUID", label: "Washer Fluid" },
-    { id: "SPIFFY",       label: "Spiffy"       }
+    { id: "WASHER_FLUID", label: "Washer Fluid" }
   ];
 
   // ---- state ----
@@ -54,14 +64,6 @@
   let currentVin = null;
   let currentJob = null;          // { id, conditions: Set, todo: [{id,label,done,note,done_at}], serial_id }
   let saveTimer = null;
-  const profileCache = new Map();
-
-  async function fetchProfileNames(ids) {
-    const missing = [...new Set(ids)].filter(id => id && !profileCache.has(id));
-    if (!missing.length) return;
-    const { data } = await sb.from("profiles").select("id,display_name,role").in("id", missing);
-    (data || []).forEach(p => profileCache.set(p.id, p));
-  }
 
   function start() {
     if (started) return;
@@ -100,12 +102,35 @@
   async function loadVin(serialId) {
     if (!serialId) return;
     currentVin = serialId.toUpperCase();
-    currentJob = { id: null, conditions: new Set(), todo: [], serial_id: currentVin };
+    currentJob = { id: null, conditions: new Set(), todo: [], serial_id: currentVin, record_id: null };
     showLoaded();
     renderShell(currentVin);
-    await Promise.all([loadNotes(currentVin), tryResumeJob(currentVin)]);
+    await tryResumeJob(currentVin);
+    // If this is a fresh scan (no in-progress job to resume), drop a tracking
+    // record row so managers can see the VIN was touched, same way drivers do.
+    if (!currentJob.id) await createTrackingRecord();
     renderConditions();
     renderTodo();
+  }
+
+  async function createTrackingRecord() {
+    const user = DT_AUTH.getUser();
+    if (!user) return;
+    const id = Date.now().toString();
+    const ts = new Date().toISOString();
+    const { error } = await sb.from("records").insert({
+      id,
+      user_id: user.id,
+      serial_id: currentVin,
+      status: "DETAILING",
+      no_tag: false,
+      shuttle: false,
+      transport: false,
+      ts,
+      gps_error: true   // GPS gets filled in at Complete Job time
+    });
+    if (error) { console.warn("[Detail] tracking record create", error); return; }
+    currentJob.record_id = id;
   }
 
   function renderShell(vin) {
@@ -128,28 +153,7 @@
         <button type="button" class="btn btn-primary" id="detailCompleteBtn">Complete Job</button>
       </div>
 
-      <div class="detail-subhead">Notes from the team</div>
-      <div id="detailNotesList"><div class="bl-empty">Loading…</div></div>
-
-      <div class="detail-subhead">Add a note</div>
-      <form id="detailNoteForm" class="bl-form">
-        <textarea name="body" placeholder="Anything the next person should know…" required maxlength="1000"></textarea>
-        <div class="note-attach-row">
-          <label class="note-attach-chip">
-            <input type="checkbox" id="noteGpsInput">
-            <span>📍 <span id="noteGpsLabel">Attach location</span></span>
-          </label>
-          <label class="note-attach-chip" id="noteCameraBtn">
-            <input type="file" id="notePhotoInput" accept="image/*" capture="environment" hidden>
-            <span>📷 Add photo</span>
-          </label>
-        </div>
-        <div class="note-photo-preview" id="notePhotoPreview" style="display:none">
-          <img id="notePhotoImg" alt="Selected photo">
-          <button type="button" id="notePhotoRemove" aria-label="Remove">✕</button>
-        </div>
-        <button type="submit" class="btn btn-primary">Save Note</button>
-      </form>
+      <div id="detailNotesMount"></div>
     `;
     $("detailVinClose").addEventListener("click", () => {
       if (currentJob && currentJob.id && !currentJob.completed_at) {
@@ -158,102 +162,21 @@
       $("serial").value = "";
       showEmpty();
     });
-    $("detailNoteForm").addEventListener("submit", onAddNote);
     $("detailCompleteBtn").addEventListener("click", onCompleteJob);
-    wireAttachments();
+    // DT_VNOTES handles the notes list + add-note form (with photo + GPS)
+    if (window.DT_VNOTES) {
+      DT_VNOTES.mount($("detailNotesMount"), vin, { addWithMedia: true });
+    }
   }
 
-  // ---- attachments (GPS + photo) ----
-  let pendingPhotoBlob = null;
-  let pendingGps = null;
-
-  function wireAttachments() {
-    pendingPhotoBlob = null;
-    pendingGps = null;
-
-    const gpsInput = $("noteGpsInput");
-    const gpsLabel = $("noteGpsLabel");
-    gpsInput?.addEventListener("change", async () => {
-      if (gpsInput.checked) {
-        gpsLabel.textContent = "Locating…";
-        const loc = await captureGps();
-        if (!loc) {
-          gpsInput.checked = false;
-          gpsLabel.textContent = "Location unavailable";
-          pendingGps = null;
-          return;
-        }
-        pendingGps = loc;
-        gpsLabel.textContent = `Location attached (±${Math.round(loc.acc || 0)}m)`;
-      } else {
-        pendingGps = null;
-        gpsLabel.textContent = "Attach location";
-      }
-    });
-
-    const photoInput = $("notePhotoInput");
-    const previewWrap = $("notePhotoPreview");
-    const previewImg = $("notePhotoImg");
-    photoInput?.addEventListener("change", async () => {
-      const file = photoInput.files?.[0];
-      if (!file) return;
-      try {
-        const blob = await resizeImageBlob(file, 1920, 1080, 0.85);
-        pendingPhotoBlob = blob;
-        previewImg.src = URL.createObjectURL(blob);
-        previewWrap.style.display = "";
-      } catch (e) {
-        console.warn("[Detail] resize failed", e);
-        alert("Couldn't process that image.");
-      }
-    });
-    $("notePhotoRemove")?.addEventListener("click", () => {
-      pendingPhotoBlob = null;
-      photoInput.value = "";
-      previewWrap.style.display = "none";
-      previewImg.src = "";
-    });
-  }
-
-  function captureGps() {
-    return new Promise(resolve => {
-      if (!("geolocation" in navigator)) return resolve(null);
-      navigator.geolocation.getCurrentPosition(
-        p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }),
-        () => resolve(null),
-        { timeout: 8000, enableHighAccuracy: true, maximumAge: 30000 }
-      );
-    });
-  }
-
-  async function resizeImageBlob(file, maxW, maxH, quality) {
-    const bmp = await createImageBitmap(file);
-    const ratio = Math.min(maxW / bmp.width, maxH / bmp.height, 1);
-    const w = Math.round(bmp.width * ratio);
-    const h = Math.round(bmp.height * ratio);
-    const canvas = document.createElement("canvas");
-    canvas.width = w; canvas.height = h;
-    canvas.getContext("2d").drawImage(bmp, 0, 0, w, h);
-    return new Promise(res => canvas.toBlob(res, "image/jpeg", quality));
-  }
-
-  async function uploadPhoto(blob) {
-    const user = DT_AUTH.getUser();
-    if (!user) throw new Error("Not signed in");
-    const path = `${user.id}/${currentVin}-${Date.now()}.jpg`;
-    const { error } = await sb.storage
-      .from("vehicle-photos")
-      .upload(path, blob, { contentType: "image/jpeg", upsert: false });
-    if (error) throw error;
-    return path;
-  }
+  // Notes UI + GPS + photo handling all live in DT_VNOTES now.
 
   // Try to resume an existing in-progress job for this VIN + detailer.
   async function tryResumeJob(vin) {
     const user = DT_AUTH.getUser();
     const { data } = await sb
       .from("detail_jobs")
-      .select("id,condition_tags,todo_state,completed_at")
+      .select("id,condition_tags,todo_state,completed_at,record_id")
       .eq("detailer_id", user.id)
       .eq("serial_id", vin)
       .is("completed_at", null)
@@ -264,6 +187,7 @@
     currentJob.id = data.id;
     currentJob.conditions = new Set(data.condition_tags || []);
     currentJob.todo = Array.isArray(data.todo_state) ? data.todo_state : [];
+    currentJob.record_id = data.record_id || null;
   }
 
   // ---- conditions ----
@@ -357,7 +281,8 @@
       detailer_id: user.id,
       serial_id: currentJob.serial_id,
       condition_tags: [...currentJob.conditions],
-      todo_state: currentJob.todo
+      todo_state: currentJob.todo,
+      record_id: currentJob.record_id || null
     };
     if (currentJob.id) {
       const { error } = await sb.from("detail_jobs").update(payload).eq("id", currentJob.id);
@@ -375,142 +300,28 @@
     if (open > 0 && !confirm(`${open} item${open === 1 ? "" : "s"} still open. Complete anyway?`)) return;
 
     if (typeof showToast === "function") showToast("Capturing location…", "info");
-    const loc = await captureGps();   // single capture at completion time
+    const loc = await DT_VNOTES.captureGps();
+    const completedAt = new Date().toISOString();
 
-    const update = { completed_at: new Date().toISOString() };
-    if (loc) {
-      update.completion_lat = loc.lat;
-      update.completion_lng = loc.lng;
-    }
-    const { error } = await sb.from("detail_jobs").update(update).eq("id", currentJob.id);
+    const jobUpdate = { completed_at: completedAt };
+    if (loc) { jobUpdate.completion_lat = loc.lat; jobUpdate.completion_lng = loc.lng; }
+    const { error } = await sb.from("detail_jobs").update(jobUpdate).eq("id", currentJob.id);
     if (error) { alert(error.message); return; }
 
-    currentJob.completed_at = update.completed_at;
+    // Stamp the linked tracking record with the completion GPS + a final status.
+    if (currentJob.record_id) {
+      const recordUpdate = { status: "DETAILED" };
+      if (loc) { recordUpdate.lat = loc.lat; recordUpdate.lng = loc.lng; recordUpdate.gps_error = false; }
+      const { error: rErr } = await sb.from("records").update(recordUpdate).eq("id", currentJob.record_id);
+      if (rErr) console.warn("[Detail] record update on complete", rErr);
+    }
+
+    currentJob.completed_at = completedAt;
     if (typeof showToast === "function") {
       showToast(loc ? "Job complete · location captured" : "Job complete (no GPS)", "success");
     }
     $("serial").value = "";
     showEmpty();
-  }
-
-  // ---- notes (Phase B) ----
-  async function loadNotes(vin) {
-    const { data, error } = await sb
-      .from("vehicle_notes")
-      .select("id,body,author_id,created_at,archived,lat,lng,photo_url")
-      .eq("serial_id", vin)
-      .eq("archived", false)
-      .order("created_at", { ascending: false })
-      .limit(50);
-    const el = $("detailNotesList");
-    if (!el) return;
-    if (error) { el.innerHTML = `<div class="bl-empty">${esc(error.message)}</div>`; return; }
-    if (!data || !data.length) {
-      el.innerHTML = `<div class="bl-empty">No notes on this VIN yet.</div>`;
-      return;
-    }
-    await fetchProfileNames(data.map(n => n.author_id));
-
-    // Sign all photo paths in one call (10-min expiry — plenty for browse)
-    const photoPaths = [...new Set(data.filter(n => n.photo_url).map(n => n.photo_url))];
-    const signedUrls = {};
-    if (photoPaths.length) {
-      const { data: signed, error: sErr } = await sb.storage
-        .from("vehicle-photos")
-        .createSignedUrls(photoPaths, 600);
-      if (sErr) console.warn("[Detail] signed urls", sErr);
-      (signed || []).forEach(s => { signedUrls[s.path] = s.signedUrl; });
-    }
-
-    const myId = DT_AUTH.getUser()?.id;
-    el.innerHTML = data.map(n => {
-      const p = profileCache.get(n.author_id);
-      const name = p?.display_name || "Someone";
-      const roleLabel = p?.role ? ` <span class="note-role role-${esc(p.role)}">${esc(p.role)}</span>` : "";
-      const mine = n.author_id === myId;
-      const photoHtml = n.photo_url && signedUrls[n.photo_url]
-        ? `<div class="note-photo"><img src="${esc(signedUrls[n.photo_url])}" alt="" data-full="${esc(signedUrls[n.photo_url])}"></div>`
-        : "";
-      const gpsHtml = (Number.isFinite(n.lat) && Number.isFinite(n.lng))
-        ? `<a class="note-gps" href="https://www.google.com/maps?q=${n.lat},${n.lng}" target="_blank" rel="noopener">📍 Location</a>`
-        : "";
-      return `
-        <div class="note-card" data-id="${n.id}">
-          <div class="note-head">
-            <span class="note-author">${esc(name)}${roleLabel}</span>
-            <span class="note-time">${esc(ago(n.created_at))}</span>
-          </div>
-          <div class="note-body">${esc(n.body)}</div>
-          ${photoHtml}
-          ${gpsHtml}
-          ${mine ? `<button class="note-del" data-id="${n.id}">delete</button>` : ""}
-        </div>
-      `;
-    }).join("");
-    el.querySelectorAll(".note-del").forEach(b => {
-      b.addEventListener("click", async () => {
-        if (!confirm("Delete this note?")) return;
-        const { error } = await sb.from("vehicle_notes").delete().eq("id", b.dataset.id);
-        if (error) { alert(error.message); return; }
-        loadNotes(currentVin);
-      });
-    });
-    el.querySelectorAll(".note-photo img").forEach(img => {
-      img.addEventListener("click", () => openPhotoViewer(img.dataset.full));
-    });
-  }
-
-  function openPhotoViewer(url) {
-    let v = document.getElementById("notePhotoViewer");
-    if (!v) {
-      v = document.createElement("div");
-      v.id = "notePhotoViewer";
-      v.className = "note-photo-viewer";
-      v.innerHTML = `<img id="notePhotoViewerImg" alt=""><button id="notePhotoViewerClose">✕</button>`;
-      document.body.appendChild(v);
-      v.addEventListener("click", (e) => { if (e.target === v || e.target.id === "notePhotoViewerClose") v.classList.remove("show"); });
-    }
-    document.getElementById("notePhotoViewerImg").src = url;
-    v.classList.add("show");
-  }
-
-  async function onAddNote(e) {
-    e.preventDefault();
-    const submitBtn = e.target.querySelector("button[type=submit]");
-    const fd = new FormData(e.target);
-    const body = (fd.get("body") || "").trim();
-    if (!body) return;
-    const user = DT_AUTH.getUser();
-    if (!user) return;
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Saving…"; }
-
-    let photo_url = null;
-    try {
-      if (pendingPhotoBlob) photo_url = await uploadPhoto(pendingPhotoBlob);
-    } catch (err) {
-      console.warn("[Detail] photo upload failed", err);
-      alert("Photo upload failed: " + err.message);
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Save Note"; }
-      return;
-    }
-
-    const row = {
-      serial_id: currentVin,
-      author_id: user.id,
-      body
-    };
-    if (pendingGps) { row.lat = pendingGps.lat; row.lng = pendingGps.lng; }
-    if (photo_url) row.photo_url = photo_url;
-
-    const { error } = await sb.from("vehicle_notes").insert(row);
-    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Save Note"; }
-    if (error) { alert(error.message); return; }
-    e.target.reset();
-    pendingPhotoBlob = null;
-    pendingGps = null;
-    $("notePhotoPreview").style.display = "none";
-    $("noteGpsLabel").textContent = "Attach location";
-    loadNotes(currentVin);
   }
 
   // ---- History tab ----
@@ -528,7 +339,7 @@
     if (error) { el.innerHTML = `<div class="bl-empty">${esc(error.message)}</div>`; return; }
     if (!data || !data.length) { el.innerHTML = `<div class="bl-empty">No jobs yet. Scan a VIN to start.</div>`; return; }
     el.innerHTML = data.map(j => `
-      <div class="detail-history-row ${j.completed_at ? "done" : "open"}">
+      <div class="detail-history-row ${j.completed_at ? "done" : "open"}" data-job-id="${esc(j.id)}">
         <div class="detail-history-serial">${esc(j.serial_id)}</div>
         <div class="detail-history-meta">
           ${j.completed_at ? "Done" : "In progress"} · ${esc(ago(j.completed_at || j.started_at))}
@@ -536,6 +347,32 @@
         </div>
       </div>
     `).join("");
+    el.querySelectorAll(".detail-history-row").forEach(row => {
+      row.addEventListener("click", () => openJobFromHistory(row.dataset.jobId));
+    });
+  }
+
+  async function openJobFromHistory(jobId) {
+    const { data, error } = await sb
+      .from("detail_jobs")
+      .select("id,serial_id,condition_tags,todo_state,completed_at,record_id")
+      .eq("id", jobId)
+      .maybeSingle();
+    if (error || !data) { alert(error?.message || "Job not found"); return; }
+    currentVin = data.serial_id;
+    currentJob = {
+      id: data.id,
+      serial_id: data.serial_id,
+      conditions: new Set(data.condition_tags || []),
+      todo: Array.isArray(data.todo_state) ? data.todo_state : [],
+      completed_at: data.completed_at,
+      record_id: data.record_id || null
+    };
+    showLoaded();
+    renderShell(currentVin);    // renderShell already mounts DT_VNOTES for the notes UI
+    renderConditions();
+    renderTodo();
+    if (typeof showTab === "function") showTab("detail-scan");
   }
 
   document.addEventListener("dt-auth-change", () => {
@@ -545,7 +382,83 @@
 
   document.addEventListener("dt-tab-shown", (e) => {
     if (e.detail === "detail-history") loadHistory();
+    if (e.detail === "dashboard")      renderDashboard();
   });
 
-  window.DT_DETAIL = { loadVin, loadHistory, TASKS, CONDITIONS, CONDITION_TASKS };
+  // ---- personal dashboard ----
+  async function renderDashboard() {
+    const user = DT_AUTH.getUser();
+    if (!user) return;
+    const todayStart = startOfDay(new Date());
+    const weekStart  = startOfDay(addDays(new Date(), -7));
+    const monthStart = startOfDay(addDays(new Date(), -30));
+
+    const { data, error } = await sb
+      .from("detail_jobs")
+      .select("id,serial_id,condition_tags,completed_at,started_at")
+      .eq("detailer_id", user.id)
+      .order("started_at", { ascending: false })
+      .limit(500);
+    if (error) { console.warn("[Detail Dash]", error); return; }
+    const jobs = data || [];
+    const done = jobs.filter(j => j.completed_at);
+
+    // Stat cards
+    const todayCount = done.filter(j => new Date(j.completed_at) >= todayStart).length;
+    const weekCount  = done.filter(j => new Date(j.completed_at) >= weekStart).length;
+    const monthCount = done.filter(j => new Date(j.completed_at) >= monthStart).length;
+    document.getElementById("detailStatToday").textContent = todayCount;
+    document.getElementById("detailStatWeek").textContent  = weekCount;
+    document.getElementById("detailStat30").textContent    = monthCount;
+    document.getElementById("detailStatAll").textContent   = done.length;
+
+    // Avg job time (start → complete) over the last 30 days
+    const recent = done.filter(j => j.completed_at && j.started_at && new Date(j.completed_at) >= monthStart);
+    let avgStr = "—";
+    if (recent.length) {
+      const avgMs = recent.reduce((a, j) => a + (new Date(j.completed_at) - new Date(j.started_at)), 0) / recent.length;
+      const mins = Math.round(avgMs / 60000);
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      avgStr = h ? (m ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
+    }
+    document.getElementById("detailStatAvg").textContent = avgStr;
+
+    // Condition breakdown for the 30-day window
+    const byCond = {};
+    done
+      .filter(j => new Date(j.completed_at) >= monthStart)
+      .forEach(j => (j.condition_tags || []).forEach(c => { byCond[c] = (byCond[c] || 0) + 1; }));
+    const entries = Object.entries(byCond).sort((a, b) => b[1] - a[1]);
+    const max = entries[0]?.[1] || 1;
+    const bd = document.getElementById("detailConditionsBreakdown");
+    bd.innerHTML = entries.length
+      ? entries.map(([c, n]) => {
+          const label = (CONDITIONS.find(x => x.id === c) || {}).label || c;
+          return `<div class="bl-bar-row"><div class="label">${esc(label)}</div><div class="bar"><span style="width:${(n/max)*100}%"></span></div><div class="count">${n}</div></div>`;
+        }).join("")
+      : `<div class="bl-empty">No jobs in the last 30 days.</div>`;
+
+    // Recent jobs list
+    const recentRows = jobs.slice(0, 10);
+    const recentEl = document.getElementById("detailRecentList");
+    recentEl.innerHTML = recentRows.length
+      ? recentRows.map(j => `
+          <div class="detail-history-row ${j.completed_at ? "done" : "open"}" data-job-id="${esc(j.id)}">
+            <div class="detail-history-serial">${esc(j.serial_id)}</div>
+            <div class="detail-history-meta">
+              ${j.completed_at ? "Done" : "In progress"} · ${esc(ago(j.completed_at || j.started_at))}
+              ${j.condition_tags && j.condition_tags.length ? " · " + j.condition_tags.map(esc).join(" · ") : ""}
+            </div>
+          </div>
+        `).join("")
+      : `<div class="bl-empty">No jobs yet.</div>`;
+    recentEl.querySelectorAll(".detail-history-row").forEach(row => {
+      row.addEventListener("click", () => openJobFromHistory(row.dataset.jobId));
+    });
+  }
+  function startOfDay(d) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
+  function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+
+  window.DT_DETAIL = { loadVin, loadHistory, renderDashboard, TASKS, CONDITIONS, CONDITION_TASKS };
 })();

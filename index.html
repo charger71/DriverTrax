@@ -248,11 +248,17 @@
     background: #20252c; border-left: 3px solid #b76eff;
     border-top-left-radius: 0; border-bottom-left-radius: 0;
     border-radius: 8px; padding: 12px 14px; margin-bottom: 8px;
+    cursor: pointer; transition: background 0.15s;
   }
+  .detail-history-row:hover { background: #2a313a; }
   .detail-history-row.done   { border-left-color: #00a651; }
   .detail-history-row.open   { border-left-color: #f0b429; }
   .detail-history-serial { font-weight: 800; font-size: 14px; letter-spacing: 1px; color: #e8eaed; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
   .detail-history-meta   { font-size: 12px; color: #6b7785; margin-top: 4px; }
+  .detail-dash-avg {
+    font-size: 32px; font-weight: 900; letter-spacing: 1px;
+    color: #b76eff; text-align: center; padding: 8px 0;
+  }
 
   /* VIN header on the detailer scan-loaded view */
   .detail-vin-header {
@@ -442,6 +448,77 @@
     width: 40px; height: 40px; border-radius: 999px;
     font-size: 20px; cursor: pointer;
   }
+
+  /* Records panel — search-driven layout */
+  .records-search-row {
+    margin-bottom: 10px;
+  }
+  .records-search-row input {
+    width: 100%; padding: 12px 14px;
+    font-size: 15px;
+    border-radius: var(--radius);
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .records-search-row input:focus { outline: none; border-color: var(--accent); }
+  .records-filters {
+    margin-bottom: 12px;
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 6px 12px;
+  }
+  .records-filters summary {
+    cursor: pointer; font-size: 12px; color: var(--text2);
+    font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    padding: 6px 0; list-style: none;
+  }
+  .records-filters summary::-webkit-details-marker { display: none; }
+  .records-filters summary::before { content: "▸ "; color: var(--muted); }
+  .records-filters[open] summary::before { content: "▾ "; color: var(--accent); }
+  .records-prompt {
+    color: var(--muted); text-align: center;
+    padding: 30px 16px; font-size: 14px;
+  }
+  .records-search-section { margin-top: 12px; }
+  .records-section-label {
+    font-size: 11px; color: var(--muted);
+    letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  /* VIN timeline — every event for one asset */
+  .vin-tl-header {
+    background: #1a1e24; border: 1px solid #2a313a;
+    border-radius: var(--radius);
+    padding: 14px 16px; margin-bottom: 12px;
+  }
+  .vin-tl-label  { font-size: 11px; color: #6b7785; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; }
+  .vin-tl-vin    { font-size: 20px; font-weight: 900; letter-spacing: 2px; color: #e8eaed; font-family: ui-monospace, "SF Mono", Menlo, monospace; margin-top: 2px; }
+  .vin-tl-vehicle{ font-size: 13px; color: #b0b8c1; margin-top: 4px; font-weight: 600; }
+  .vin-tl-count  { font-size: 11px; color: #6b7785; margin-top: 6px; }
+  .vin-tl-list   { display: flex; flex-direction: column; gap: 8px; }
+  .vin-tl-empty  { color: #6b7785; text-align: center; padding: 30px 16px; font-size: 14px; }
+  .vin-tl-row {
+    background: #20252c; border: 1px solid #2a313a; border-left: 3px solid #2a313a;
+    border-top-left-radius: 0; border-bottom-left-radius: 0;
+    border-radius: 8px; padding: 12px 14px;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .vin-tl-row:hover { background: #262d36; }
+  .vin-tl-record { border-left-color: #4a9eff; }
+  .vin-tl-note   { border-left-color: #f0b429; cursor: default; }
+  .vin-tl-head   { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+  .vin-tl-time   { font-size: 11px; color: #6b7785; white-space: nowrap; }
+  .vin-tl-gps    { color: #4a9eff; text-decoration: none; }
+  .vin-tl-meta   { font-size: 12px; color: #b0b8c1; }
+  .vin-tl-body   { font-size: 14px; color: #e8eaed; white-space: pre-wrap; margin-top: 6px; }
+  .vin-tl-kind {
+    font-size: 10px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;
+    color: #f0b429; padding: 3px 8px; border-radius: 999px; background: #2a1f08;
+  }
+  /* Inside the VIN timeline the notes list duplicates the timeline events,
+     so only show the title + Add button + form. */
+  #vinTimelineNotes .vn-list { display: none; }
+  #vinTimelineNotes { margin-bottom: 12px; }
 
   /* Shared vehicle-notes widget (drivers + detailers + detail overlay) */
   .vn-mount-slot:empty { display: none; }
@@ -852,9 +929,10 @@
     <div class="tab driver-only"        data-tab="dashboard" onclick="showTab('dashboard')">DASHBOARD</div>
     <div class="tab manager-only"       data-tab="backlot-stats"    onclick="showTab('backlot-stats')">FLEET STATS</div>
     <div class="tab manager-only"        data-tab="backlot-announce" onclick="showTab('backlot-announce')">ALERTS<span class="tab-badge hidden" id="tabAlertsMgrBadge"></span></div>
-    <div class="tab manager-only"       data-tab="records"          onclick="showTab('records')">RECORDS</div>
+    <div class="tab"                    data-tab="records"          onclick="showTab('records')">RECORDS</div>
     <div class="tab detailer-only"      data-tab="detail-scan"      onclick="showTab('detail-scan')">SCAN VIN</div>
     <div class="tab detailer-only"      data-tab="detail-history"   onclick="showTab('detail-history')">HISTORY</div>
+    <div class="tab detailer-only"      data-tab="dashboard"        onclick="showTab('dashboard')">DASHBOARD</div>
   </div>
 </header>
 
@@ -926,6 +1004,9 @@
     </a>
     <a class="menu-item detailer-only" onclick="showTab('detail-history'); closeMenu()">
       <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span> Detail History
+    </a>
+    <a class="menu-item detailer-only" onclick="showTab('dashboard'); closeMenu()">
+      <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span> Dashboard
     </a>
 
     <!-- Manager-only Backlot section. Hidden unless body has .is-manager (set by auth.js). -->
@@ -1253,7 +1334,7 @@
     <div class="tire-selected-label" id="tireSelectedLabel">No tires selected</div>
   </div>
 
-  <div id="entryVinNotes" class="vn-mount-slot driver-only"></div>
+  <div id="entryVinNotes" class="vn-mount-slot"></div>
 
   <div style="display:flex;gap:10px;margin-top:20px">
     <div style="flex:1">
@@ -1311,37 +1392,45 @@
 
 <!-- ==================== RECORDS PANEL ==================== -->
 <div class="panel" id="panel-records">
-  <div class="filter-bar">
-    <div class="filter-row">
-      <input type="text" id="fSearch" placeholder="Search serial..." oninput="this.value=this.value.toUpperCase(); debouncedSearchUpdate()">
-      <select id="fStatus" onchange="resetRecordsPage(); renderRecords()">
-        <option value="">All Statuses</option>
-        <option value="CLEAN">CLEAN</option>
-        <option value="DIRTY">DIRTY</option>
-        <option value="REWASH">REWASH/FLUIDS</option>
-        <option value="BODY">BODY DAMAGE</option>
-        <option value="PM">PM (MAINT.)</option>
-        <option value="MK">MK (MECH.)</option>
-        <option value="MR">MR (RECALL)</option>
-        <option value="OM">OM (OVER MILES)</option>
-        <option value="AUDIT FAIL">AUDIT FAIL</option>
-        <option value="WI/DELETE">WI/DELETE</option>
-        <option value="GLASS">GLASS</option>
-        <option value="TI">TI(TIRE)</option>
-        <option value="OTHER">OTHER</option>
-      </select>
-    </div>
-    <div class="filter-row">
-      <select id="fNoTag" onchange="resetRecordsPage(); renderRecords()"><option value="">All Records</option><option value="yes">No Tag Only</option><option value="no">Has Tag Only</option></select>
-      <select id="fDest" onchange="resetRecordsPage(); renderRecords()"><option value="">All Destinations</option><option>GARAGE</option><option>QTA</option><option>BACKLOT</option><option>ATLANTIC</option><option>BRANCH</option><option>OTHER</option></select>
-    </div>
-    <div class="filter-row">
-      <input type="date" id="fDateFrom" onchange="onRecordsDateChange()">
-      <input type="date" id="fDateTo" onchange="onRecordsDateChange()">
-    </div>
-    <button class="btn btn-secondary" style="margin-top:6px" onclick="clearFilters()">Clear Filters</button>
-    <button class="btn btn-primary" style="margin-top:4px" onclick="exportCSV()">EXPORT CSV</button>
+  <div class="records-search-row">
+    <input type="text" id="fSearch" placeholder="Search VIN or notes…" autocomplete="off" oninput="debouncedSearchUpdate()">
   </div>
+
+  <details class="records-filters">
+    <summary>Filters</summary>
+    <div class="filter-bar" style="margin-top:8px">
+      <div class="filter-row">
+        <select id="fStatus" onchange="renderRecords()">
+          <option value="">All Statuses</option>
+          <option value="CLEAN">CLEAN</option>
+          <option value="DIRTY">DIRTY</option>
+          <option value="REWASH">REWASH/FLUIDS</option>
+          <option value="BODY">BODY DAMAGE</option>
+          <option value="PM">PM (MAINT.)</option>
+          <option value="MK">MK (MECH.)</option>
+          <option value="MR">MR (RECALL)</option>
+          <option value="OM">OM (OVER MILES)</option>
+          <option value="AUDIT FAIL">AUDIT FAIL</option>
+          <option value="WI/DELETE">WI/DELETE</option>
+          <option value="GLASS">GLASS</option>
+          <option value="TI">TI(TIRE)</option>
+          <option value="DETAILING">DETAILING</option>
+          <option value="DETAILED">DETAILED</option>
+          <option value="OTHER">OTHER</option>
+        </select>
+        <select id="fNoTag" onchange="renderRecords()"><option value="">All Records</option><option value="yes">No Tag Only</option><option value="no">Has Tag Only</option></select>
+      </div>
+      <div class="filter-row">
+        <select id="fDest" onchange="renderRecords()"><option value="">All Destinations</option><option>GARAGE</option><option>QTA</option><option>BACKLOT</option><option>ATLANTIC</option><option>BRANCH</option><option>OTHER</option></select>
+      </div>
+      <div class="filter-row">
+        <input type="date" id="fDateFrom" onchange="renderRecords()">
+        <input type="date" id="fDateTo" onchange="renderRecords()">
+      </div>
+      <button class="btn btn-secondary" style="margin-top:6px" onclick="clearFilters()">Clear Filters</button>
+      <button class="btn btn-primary" style="margin-top:4px" onclick="exportCSV()">EXPORT CSV</button>
+    </div>
+  </details>
 
   <div class="results-count" id="resultsCount"></div>
 
@@ -1480,6 +1569,12 @@
 <!-- VEHICLE NOTES — manager-only -->
 <!-- ===================================================== -->
 <div class="panel" id="panel-notes">
+  <div class="users-actions">
+    <button type="button" class="btn btn-primary users-invite-btn" id="notesAddBtn" aria-label="Add note">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span>Add Note</span>
+    </button>
+  </div>
   <div class="dash-section">
     <div class="dash-title">Vehicle Notes</div>
     <input type="text" id="notesSearch" class="users-search" placeholder="Filter by VIN or text" autocomplete="off">
@@ -1487,6 +1582,21 @@
       <input type="checkbox" id="notesShowArchived"> Show archived
     </label>
     <div id="notesAdminList"><div class="bl-empty">Loading…</div></div>
+  </div>
+</div>
+
+<!-- "Add Note" modal — manager picks a VIN, then mounts DT_VNOTES for the body+media -->
+<div class="users-modal" id="notesAddModal" aria-hidden="true">
+  <div class="users-modal-card">
+    <div class="users-modal-header">
+      <span>Add Note</span>
+      <button type="button" class="users-modal-close" id="notesAddClose" aria-label="Close">&times;</button>
+    </div>
+    <form id="notesAddVinForm">
+      <label>VIN<input type="text" name="vin" autocomplete="off" maxlength="17" placeholder="17-char VIN" required></label>
+      <div class="users-modal-msg" id="notesAddMsg"></div>
+    </form>
+    <div id="notesAddMount" style="margin-top:12px"></div>
   </div>
 </div>
 
@@ -1530,6 +1640,34 @@
   <div class="dash-section">
     <div class="dash-title">Detail History</div>
     <div id="detailHistoryList"><div class="bl-empty">Loading…</div></div>
+  </div>
+</div>
+
+<!-- Detailer personal dashboard — same structural pattern as the driver dashboard -->
+<div class="panel" id="panel-dashboard-detailer">
+  <div class="dash-section">
+    <div class="dash-title">Detailer Dashboard</div>
+    <div class="stat-grid" id="detailStatGrid">
+      <div class="stat-card"><div class="stat-label">Today</div><div class="stat-value" id="detailStatToday">—</div><div class="stat-sub">jobs done</div></div>
+      <div class="stat-card"><div class="stat-label">This Week</div><div class="stat-value" id="detailStatWeek">—</div><div class="stat-sub">jobs done</div></div>
+      <div class="stat-card"><div class="stat-label">30 Days</div><div class="stat-value" id="detailStat30">—</div><div class="stat-sub">jobs done</div></div>
+      <div class="stat-card"><div class="stat-label">All Time</div><div class="stat-value" id="detailStatAll">—</div><div class="stat-sub">jobs done</div></div>
+    </div>
+  </div>
+
+  <div class="dash-section">
+    <div class="dash-title">Avg Time per Job</div>
+    <div id="detailStatAvg" class="detail-dash-avg">—</div>
+  </div>
+
+  <div class="dash-section">
+    <div class="dash-title">Conditions Breakdown (30 days)</div>
+    <div id="detailConditionsBreakdown" class="bl-breakdown"><div class="bl-empty">Loading…</div></div>
+  </div>
+
+  <div class="dash-section">
+    <div class="dash-title">Recent Jobs</div>
+    <div id="detailRecentList"><div class="bl-empty">Loading…</div></div>
   </div>
 </div>
 

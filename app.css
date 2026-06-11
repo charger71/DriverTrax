@@ -111,7 +111,8 @@
     transition: border-color 0.15s;
   }
   /* VIN / serial fields stay uppercase — they're scanned codes, not free text */
-  #serial, #editSerial, #fSearch { text-transform: uppercase; }
+  #serial, #editSerial { text-transform: uppercase; }
+  /* #fSearch handles both VIN (uppercased server-side) and note text (mixed case) */
   input[type=text]:focus, select:focus, textarea:focus {
     outline: none; border-color: var(--accent);
   }

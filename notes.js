@@ -16,14 +16,12 @@
   let notes = [];
   let realtimeChan = null;
   let started = false;
-  const profileCache = new Map();
-
-  async function fetchProfileNames(ids) {
-    const missing = [...new Set(ids)].filter(id => id && !profileCache.has(id));
-    if (!missing.length) return;
-    const { data } = await sb.from("profiles").select("id,display_name,role").in("id", missing);
-    (data || []).forEach(p => profileCache.set(p.id, p));
-  }
+  // Profile cache + photo viewer + URL signing are shared with DT_VNOTES so
+  // every notes view in the app speaks the same language.
+  const profileCache = window.DT_VNOTES?.profileCache || new Map();
+  const fetchProfileNames = (ids) => window.DT_VNOTES?.fetchProfileNames(ids);
+  const signPhotoPaths    = (paths) => window.DT_VNOTES?.signPhotoPaths(paths) || {};
+  const openPhotoViewer   = (url)   => window.DT_VNOTES?.openPhotoViewer(url);
 
   async function load() {
     const wantArchived = $("notesShowArchived")?.checked;
@@ -53,13 +51,7 @@
       return;
     }
 
-    // Batch sign photo URLs
-    const photoPaths = [...new Set(filtered.filter(n => n.photo_url).map(n => n.photo_url))];
-    const signedUrls = {};
-    if (photoPaths.length) {
-      const { data: signed } = await sb.storage.from("vehicle-photos").createSignedUrls(photoPaths, 600);
-      (signed || []).forEach(s => { signedUrls[s.path] = s.signedUrl; });
-    }
+    const signedUrls = await signPhotoPaths(filtered.map(n => n.photo_url));
 
     el.innerHTML = filtered.map(n => {
       const p = profileCache.get(n.author_id);
@@ -151,18 +143,30 @@
     load();
   }
 
-  function openPhotoViewer(url) {
-    let v = document.getElementById("notePhotoViewer");
-    if (!v) {
-      v = document.createElement("div");
-      v.id = "notePhotoViewer";
-      v.className = "note-photo-viewer";
-      v.innerHTML = `<img id="notePhotoViewerImg" alt=""><button id="notePhotoViewerClose">✕</button>`;
-      document.body.appendChild(v);
-      v.addEventListener("click", (e) => { if (e.target === v || e.target.id === "notePhotoViewerClose") v.classList.remove("show"); });
+  // ---- Add Note modal (manager entry point that doesn't require a record) ----
+  function openAddNote() {
+    const modal = $("notesAddModal");
+    const form  = $("notesAddVinForm");
+    const mount = $("notesAddMount");
+    form.reset();
+    mount.innerHTML = "";
+    $("notesAddMsg").textContent = "";
+    modal.classList.add("show");
+    form.elements.vin.focus();
+  }
+  function closeAddNote() { $("notesAddModal")?.classList.remove("show"); }
+
+  function onAddVinSubmit(e) {
+    e.preventDefault();
+    const vin = (e.target.elements.vin.value || "").trim().toUpperCase();
+    if (!/^[A-HJ-NPR-Z0-9]{6,17}$/.test(vin)) {
+      $("notesAddMsg").textContent = "Enter a valid VIN (6–17 alphanumeric, no I/O/Q).";
+      $("notesAddMsg").className = "users-modal-msg err";
+      return;
     }
-    document.getElementById("notePhotoViewerImg").src = url;
-    v.classList.add("show");
+    $("notesAddMsg").textContent = "";
+    // Hand off to the shared widget — same UI as everywhere else
+    window.DT_VNOTES?.mount($("notesAddMount"), vin, { addWithMedia: true, showList: true });
   }
 
   function start() {
@@ -171,6 +175,10 @@
     $("notesSearch")?.addEventListener("input", render);
     $("notesShowArchived")?.addEventListener("change", load);
     $("notesEditForm")?.addEventListener("submit", onEditSubmit);
+    $("notesAddBtn")?.addEventListener("click", openAddNote);
+    $("notesAddClose")?.addEventListener("click", closeAddNote);
+    $("notesAddModal")?.addEventListener("click", (e) => { if (e.target.id === "notesAddModal") closeAddNote(); });
+    $("notesAddVinForm")?.addEventListener("submit", onAddVinSubmit);
     $("notesEditClose")?.addEventListener("click", closeEdit);
     $("notesEditCancel")?.addEventListener("click", closeEdit);
     $("notesEditModal")?.addEventListener("click", (e) => { if (e.target.id === "notesEditModal") closeEdit(); });

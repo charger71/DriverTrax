@@ -648,27 +648,24 @@ function closeMenu() {
 // TABS
 // ============================
 function showTab(name) {
+  // Detailers' "dashboard" tab routes to their detail-jobs dashboard instead
+  // of the driver one, so the same nav element gives every role a useful view.
+  const visualTab = name; // for the active-class lookup
+  if (name === "dashboard" && window.DT_AUTH?.isDetailer?.()) name = "dashboard-detailer";
   document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
   document.getElementById("panel-" + name)?.classList.add("active");
-  document.querySelector(`.tab[data-tab="${name}"]`)?.classList.add("active");
+  document.querySelector(`.tab[data-tab="${visualTab}"]`)?.classList.add("active");
   if (name === "entry") renderTodayEntries();
   if (name === "records") {
-    // Default the Records view to today only — user can widen via the date filters
-    const fromEl = document.getElementById("fDateFrom");
-    const toEl   = document.getElementById("fDateTo");
-    if (fromEl && toEl && !fromEl.value && !toEl.value) {
-      const today = new Date().toISOString().slice(0, 10);
-      fromEl.value = today;
-      toEl.value   = today;
-    }
-    if (isManagerView()) {
-      fetchFleetRecords().then(renderRecords);
-    } else {
-      renderRecords();
-    }
+    // Search-driven view: don't auto-populate dates, don't render anything
+    // until the user types. renderRecords() handles the empty-input state.
+    renderRecords();
   }
   if (name === "dashboard") { applyProfile(); renderDashboard(); }
+  if (name === "dashboard-detailer" && window.DT_DETAIL?.renderDashboard) {
+    DT_DETAIL.renderDashboard();
+  }
   if (name === "profile") applyProfile();
   if (name === "keyup") loadKeyUp();
   if (name === "garage") loadGarage();
@@ -1726,41 +1723,337 @@ function resetRecordsPage() {
   recordsCurrentPage = 1;
 }
 
+// VIN check digit isn't enforced — just shape. 17 chars, no I/O/Q.
+function isFullVin(s) { return /^[A-HJ-NPR-Z0-9]{17}$/i.test(s); }
+
+// When the shared notes widget adds a note, re-render the timeline so the
+// new note interleaves into the events without a manual reload.
+document.addEventListener("dt-vehicle-note-added", (e) => {
+  const cur = document.getElementById("fSearch")?.value.trim().toUpperCase();
+  if (cur && cur === (e.detail?.vin || "").toUpperCase()) renderVinTimeline(cur);
+});
+
 function renderRecords() {
-  const records = getFiltered();
-  const total = records.length;
-  const totalPages = Math.max(1, Math.ceil(total / RECORDS_PER_PAGE));
+  const searchVal = (document.getElementById("fSearch")?.value || "").trim();
+  const countEl   = document.getElementById("resultsCount");
+  const container = document.getElementById("records");
 
-  // Clamp current page if filters reduced the total
-  if (recordsCurrentPage > totalPages) recordsCurrentPage = totalPages;
-  if (recordsCurrentPage < 1) recordsCurrentPage = 1;
-
-  const startIdx = (recordsCurrentPage - 1) * RECORDS_PER_PAGE;
-  const endIdx = Math.min(startIdx + RECORDS_PER_PAGE, total);
-  const pageRecords = records.slice(startIdx, endIdx);
-
-  // Update the results count to reflect pagination
-  const countEl = document.getElementById("resultsCount");
-  if (total === 0) {
-    countEl.textContent = "0 records found";
-  } else if (total <= RECORDS_PER_PAGE) {
-    countEl.textContent = total + " record" + (total !== 1 ? "s" : "") + " found";
-  } else {
-    countEl.textContent = `Showing ${startIdx + 1}-${endIdx} of ${total} records`;
+  // No search → empty state, no list, no markers.
+  if (!searchVal) {
+    if (countEl)   countEl.textContent = "";
+    if (container) container.innerHTML = `<p class="records-prompt">Type a VIN or search notes to start.</p>`;
+    _renderRecordsMapMarkers([]);
+    return;
   }
 
-  if (total === 0) {
-    document.getElementById("records").innerHTML =
-      '<p style="color:var(--muted);text-align:center;padding:24px">No records match your filters.</p>';
-  } else {
-    let html = pageRecords.map(r => recordCard(r, "deleteRecord")).join("");
-    // Append pagination controls if needed
-    if (totalPages > 1) {
-      html += renderPaginationControls(recordsCurrentPage, totalPages);
+  // Full VIN → timeline view
+  if (isFullVin(searchVal)) {
+    return renderVinTimeline(searchVal.toUpperCase());
+  }
+
+  // Partial term → fuzzy search across the cloud
+  return renderFuzzyResults(searchVal);
+}
+
+// Fuzzy search: matches against records.serial_id + records.notes and
+// vehicle_notes.serial_id + vehicle_notes.body across every signed-in user.
+async function renderFuzzyResults(term) {
+  const container = document.getElementById("records");
+  const countEl   = document.getElementById("resultsCount");
+  if (!window.DT_AUTH) return;
+  const sb = DT_AUTH.client;
+
+  // Honor the collapsible filters too
+  const fStatus = document.getElementById("fStatus")?.value || "";
+  const fNoTag  = document.getElementById("fNoTag")?.value  || "";
+  const fDest   = document.getElementById("fDest")?.value   || "";
+  const fFrom   = document.getElementById("fDateFrom")?.value || "";
+  const fTo     = document.getElementById("fDateTo")?.value   || "";
+
+  container.innerHTML = `<p class="records-prompt">Searching…</p>`;
+  if (countEl) countEl.textContent = "";
+
+  // Quote-safe — Supabase .or() expects a comma-separated filter string
+  const safe = term.replace(/[%,]/g, " ").replace(/'/g, "''");
+  const upTerm = safe.toUpperCase();
+
+  let recsQ = sb.from("records")
+    .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,tires,gps_error,shift_num")
+    .or(`serial_id.ilike.%${upTerm}%,notes.ilike.%${safe}%`)
+    .order("ts", { ascending: false })
+    .limit(200);
+  if (fStatus) recsQ = recsQ.eq("status", fStatus);
+  if (fNoTag === "yes") recsQ = recsQ.eq("no_tag", true);
+  if (fNoTag === "no")  recsQ = recsQ.eq("no_tag", false);
+  if (fDest)   recsQ = recsQ.eq("destination", fDest);
+  if (fFrom)   recsQ = recsQ.gte("ts", new Date(fFrom + "T00:00:00").toISOString());
+  if (fTo)     recsQ = recsQ.lte("ts", new Date(fTo   + "T23:59:59.999").toISOString());
+
+  const [recRes, noteRes] = await Promise.all([
+    recsQ,
+    sb.from("vehicle_notes")
+      .select("id,serial_id,body,author_id,created_at,lat,lng,photo_url,archived")
+      .eq("archived", false)
+      .or(`serial_id.ilike.%${upTerm}%,body.ilike.%${safe}%`)
+      .order("created_at", { ascending: false })
+      .limit(200)
+  ]);
+
+  const recRows  = recRes.data  || [];
+  const noteRows = noteRes.data || [];
+
+  // Map driver names for record cards (manager-style augmentation)
+  const userIds = [...new Set(recRows.map(r => r.user_id))];
+  const names = {};
+  if (userIds.length) {
+    const { data: profs } = await sb.from("profiles").select("id,display_name").in("id", userIds);
+    (profs || []).forEach(p => { names[p.id] = p.display_name || "Driver"; });
+  }
+  if (window.DT_VNOTES) await DT_VNOTES.fetchProfileNames(noteRows.map(n => n.author_id));
+
+  // Convert records to the local-record shape so recordCard() can render them
+  const cards = recRows.map(row => ({
+    id: row.id,
+    serialId: row.serial_id,
+    status: row.status,
+    statusOther: row.status_other || "",
+    destination: row.destination || "",
+    destinationOther: row.destination_other || "",
+    noTag: !!row.no_tag,
+    shuttle: !!row.shuttle,
+    transport: !!row.transport,
+    shiftNum: row.shift_num,
+    notes: row.notes || "",
+    lat: row.lat, lng: row.lng,
+    gpsError: !!row.gps_error,
+    tires: row.tires || [],
+    vinData: row.vin_data || undefined,
+    timestamp: row.ts ? new Date(row.ts).getTime() : Date.now(),
+    _driverName: names[row.user_id]
+  }));
+
+  if (!cards.length && !noteRows.length) {
+    container.innerHTML = `<p class="records-prompt">No matches for <b>${sanitizeText(term)}</b>.</p>`;
+    if (countEl) countEl.textContent = "0 results";
+    _renderRecordsMapMarkers([]);
+    return;
+  }
+
+  // Sign note photos in one call
+  const signed = (window.DT_VNOTES && noteRows.length)
+    ? await DT_VNOTES.signPhotoPaths(noteRows.map(n => n.photo_url))
+    : {};
+
+  const esc = (s) => sanitizeText(s);
+  const ago = (d) => (window.dtTimeAgo ? window.dtTimeAgo(d) : new Date(d).toLocaleString());
+
+  const recHtml = cards.length
+    ? `<div class="records-search-section"><div class="records-section-label">${cards.length} record${cards.length === 1 ? "" : "s"}</div>${cards.map(r => recordCard(r, "deleteRecord")).join("")}</div>`
+    : "";
+
+  const noteHtml = noteRows.length ? `
+    <div class="records-search-section">
+      <div class="records-section-label">${noteRows.length} matching note${noteRows.length === 1 ? "" : "s"}</div>
+      ${noteRows.map(n => {
+        const p = DT_VNOTES?.profileCache.get(n.author_id);
+        const name = esc(p?.display_name || "Someone");
+        const role = p?.role ? ` <span class="note-role role-${esc(p.role)}">${esc(p.role)}</span>` : "";
+        const photoHtml = n.photo_url && signed[n.photo_url]
+          ? `<div class="note-photo"><img src="${esc(signed[n.photo_url])}" alt="" data-full="${esc(signed[n.photo_url])}"></div>` : "";
+        return `
+          <div class="note-card vin-tl-note-clickable" data-vin="${esc(n.serial_id)}">
+            <div class="note-head">
+              <span class="note-author"><b>${esc(n.serial_id)}</b> · ${name}${role}</span>
+              <span class="note-time">${esc(ago(n.created_at))}</span>
+            </div>
+            <div class="note-body">${esc(n.body)}</div>
+            ${photoHtml}
+          </div>`;
+      }).join("")}
+    </div>` : "";
+
+  container.innerHTML = recHtml + noteHtml;
+  if (countEl) countEl.textContent = `${cards.length + noteRows.length} result${(cards.length + noteRows.length) === 1 ? "" : "s"}`;
+
+  // Tap any matched note → load that VIN's full timeline
+  container.querySelectorAll(".vin-tl-note-clickable").forEach(el => {
+    el.style.cursor = "pointer";
+    el.addEventListener("click", () => {
+      document.getElementById("fSearch").value = el.dataset.vin;
+      renderVinTimeline(el.dataset.vin.toUpperCase());
+    });
+  });
+
+  // Map: drop a pin for every result that has GPS
+  const pins = [];
+  cards.forEach(c => { if (Number.isFinite(c.lat) && Number.isFinite(c.lng)) pins.push({ lat: c.lat, lng: c.lng, label: c.serialId }); });
+  noteRows.forEach(n => { if (Number.isFinite(n.lat) && Number.isFinite(n.lng)) pins.push({ lat: n.lat, lng: n.lng, label: n.serial_id }); });
+  _renderRecordsMapMarkers(pins);
+}
+
+// Drop markers on the records map for an arbitrary list. Used by the
+// fuzzy-results renderer and the empty path.
+function _renderRecordsMapMarkers(pins) {
+  if (typeof recordsLeafletMap === "undefined" || !recordsLeafletMap) {
+    if (typeof renderRecordsMap === "function" && pins.length === 0) renderRecordsMap();
+    return;
+  }
+  // Clear existing markers
+  if (Array.isArray(recordsMapMarkers)) {
+    recordsMapMarkers.forEach(m => recordsLeafletMap.removeLayer(m));
+    recordsMapMarkers = [];
+  }
+  if (!pins.length) {
+    document.getElementById("recordsMapEmpty").style.display = "block";
+    return;
+  }
+  document.getElementById("recordsMapEmpty").style.display = "none";
+  const bounds = [];
+  pins.forEach(p => {
+    const m = L.circleMarker([p.lat, p.lng], { radius: 7, color: "#00a651", weight: 2, fillColor: "#00a651", fillOpacity: 0.7 })
+      .bindPopup(`<b>${sanitizeText(p.label)}</b>`)
+      .addTo(recordsLeafletMap);
+    recordsMapMarkers.push(m);
+    bounds.push([p.lat, p.lng]);
+  });
+  if (bounds.length > 1) recordsLeafletMap.fitBounds(bounds, { padding: [30, 30] });
+  else recordsLeafletMap.setView(bounds[0], 15);
+  setTimeout(() => recordsLeafletMap.invalidateSize(), 50);
+}
+
+// ============================
+// VIN TIMELINE — every event for a single asset, oldest visit last
+// ============================
+const _vinProfileCache = new Map();
+async function _vinFetchProfiles(ids) {
+  if (!window.DT_AUTH) return;
+  const sb = DT_AUTH.client;
+  const missing = [...new Set(ids)].filter(id => id && !_vinProfileCache.has(id));
+  if (!missing.length) return;
+  const { data } = await sb.from("profiles").select("id,display_name,role").in("id", missing);
+  (data || []).forEach(p => _vinProfileCache.set(p.id, p));
+}
+
+async function renderVinTimeline(vin) {
+  const container = document.getElementById("records");
+  const countEl   = document.getElementById("resultsCount");
+  if (!container || !window.DT_AUTH) return;
+  countEl.textContent = `VIN history`;
+  container.innerHTML = `<div class="vin-tl-empty">Loading…</div>`;
+  const sb = DT_AUTH.client;
+
+  const [recordsRes, notesRes] = await Promise.all([
+    sb.from("records")
+      .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data")
+      .eq("serial_id", vin)
+      .order("ts", { ascending: false }),
+    sb.from("vehicle_notes")
+      .select("id,body,author_id,created_at,lat,lng,photo_url")
+      .eq("serial_id", vin)
+      .eq("archived", false)
+      .order("created_at", { ascending: false })
+  ]);
+
+  const records = recordsRes.data || [];
+  const notes   = notesRes.data   || [];
+  if (!records.length && !notes.length) {
+    container.innerHTML = `<div class="vin-tl-empty">No history for <b>${sanitizeText(vin)}</b>.</div>`;
+    return;
+  }
+
+  await _vinFetchProfiles([
+    ...records.map(r => r.user_id),
+    ...notes.map(n => n.author_id)
+  ]);
+
+  // Sign all note photo paths in one call
+  const photoPaths = [...new Set(notes.filter(n => n.photo_url).map(n => n.photo_url))];
+  const signed = {};
+  if (photoPaths.length) {
+    const { data: urls } = await sb.storage.from("vehicle-photos").createSignedUrls(photoPaths, 600);
+    (urls || []).forEach(u => { signed[u.path] = u.signedUrl; });
+  }
+
+  // Merge into one timeline (newest first)
+  const events = [
+    ...records.map(r => ({ ts: new Date(r.ts).getTime(),         kind: "record", r })),
+    ...notes.map(n   => ({ ts: new Date(n.created_at).getTime(), kind: "note",   n }))
+  ].sort((a, b) => b.ts - a.ts);
+
+  const ago = (input) => (window.dtTimeAgo ? window.dtTimeAgo(input) : new Date(input).toLocaleString());
+  const esc = (s) => sanitizeText(s);
+
+  // Vehicle line — first record we find with vin_data wins
+  const headerVehicle = (() => {
+    const r = records.find(x => x.vin_data);
+    if (!r) return "";
+    const v = r.vin_data;
+    const name = [v.year, v.make, v.model].filter(Boolean).map(esc).join(" ");
+    return name ? `<div class="vin-tl-vehicle">${name}</div>` : "";
+  })();
+
+  const html = events.map(ev => {
+    if (ev.kind === "record") {
+      const r = ev.r;
+      const p = _vinProfileCache.get(r.user_id);
+      const name = esc(p?.display_name || "Someone");
+      const role = p?.role ? `<span class="note-role role-${esc(p.role)}">${esc(p.role)}</span>` : "";
+      const statusDisp = r.status === "OTHER" && r.status_other ? `OTHER: ${r.status_other}` : statusLabel(r.status);
+      const destDisp   = r.destination === "OTHER" && r.destination_other ? `OTHER: ${r.destination_other}` : (r.destination || "");
+      const gps = (Number.isFinite(r.lat) && Number.isFinite(r.lng))
+        ? ` · <a href="https://www.google.com/maps?q=${r.lat},${r.lng}" target="_blank" rel="noopener" class="vin-tl-gps">📍</a>` : "";
+      return `
+        <div class="vin-tl-row vin-tl-record" onclick="openDetail('${r.id}', 'deleteRecord')">
+          <div class="vin-tl-head">
+            <span class="record-status ${statusClass(r.status)}">${esc(statusDisp)}</span>
+            <span class="vin-tl-time">${esc(ago(ev.ts))}${gps}</span>
+          </div>
+          <div class="vin-tl-meta">${name}${role}${destDisp ? ` · ${esc(destDisp)}` : ""}</div>
+          ${r.notes ? `<div class="vin-tl-body">${esc(r.notes)}</div>` : ""}
+        </div>`;
     }
-    document.getElementById("records").innerHTML = html;
+    const n = ev.n;
+    const p = _vinProfileCache.get(n.author_id);
+    const name = esc(p?.display_name || "Someone");
+    const role = p?.role ? `<span class="note-role role-${esc(p.role)}">${esc(p.role)}</span>` : "";
+    const photoHtml = n.photo_url && signed[n.photo_url]
+      ? `<div class="note-photo"><img src="${esc(signed[n.photo_url])}" alt=""></div>` : "";
+    const gps = (Number.isFinite(n.lat) && Number.isFinite(n.lng))
+      ? `<a class="note-gps" href="https://www.google.com/maps?q=${n.lat},${n.lng}" target="_blank" rel="noopener">📍 Location</a>` : "";
+    return `
+      <div class="vin-tl-row vin-tl-note">
+        <div class="vin-tl-head">
+          <span class="vin-tl-kind">Note</span>
+          <span class="vin-tl-time">${esc(ago(ev.ts))}</span>
+        </div>
+        <div class="vin-tl-meta">${name}${role}</div>
+        <div class="vin-tl-body">${esc(n.body)}</div>
+        ${photoHtml}
+        ${gps}
+      </div>`;
+  }).join("");
+
+  container.innerHTML = `
+    <div class="vin-tl-header">
+      <div class="vin-tl-label">VIN HISTORY</div>
+      <div class="vin-tl-vin">${esc(vin)}</div>
+      ${headerVehicle}
+      <div class="vin-tl-count">${events.length} event${events.length === 1 ? "" : "s"}</div>
+    </div>
+    <div id="vinTimelineNotes"></div>
+    <div class="vin-tl-list">${html}</div>
+  `;
+  // Mount the shared notes widget so any signed-in user (managers included)
+  // can leave a note on this VIN without needing to tap into a record first.
+  if (window.DT_VNOTES) {
+    DT_VNOTES.mount(document.getElementById("vinTimelineNotes"), vin);
   }
-  renderRecordsMap(); // refresh map if open
+
+  // Drop pins for every event on this VIN that has GPS
+  const pins = [];
+  records.forEach(r => { if (Number.isFinite(r.lat) && Number.isFinite(r.lng)) pins.push({ lat: r.lat, lng: r.lng, label: r.serial_id }); });
+  notes.forEach(n   => { if (Number.isFinite(n.lat) && Number.isFinite(n.lng)) pins.push({ lat: n.lat, lng: n.lng, label: vin });          });
+  _renderRecordsMapMarkers(pins);
 }
 
 function renderPaginationControls(current, total) {

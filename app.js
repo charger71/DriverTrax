@@ -165,9 +165,8 @@ function createNumberedMarker(num, color, size = 26) {
 }
 
 function recordPopupHTML(r) {
-  const time = new Date(r.timestamp).toLocaleTimeString("en-US", {
-    hour: "2-digit", minute: "2-digit", timeZone: "America/New_York"
-  });
+  const time = (window.dtTimeAgo && window.dtTimeAgo(r.timestamp))
+    || new Date(r.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" });
   return `
     <div style="font-family:Arial,sans-serif;min-width:140px">
       <div style="font-weight:800;font-size:14px;margin-bottom:4px">${sanitizeText(r.serialId)}</div>
@@ -192,6 +191,79 @@ function setRecords(r) {
 }
 function invalidateRecordsCache() { _recordsCache = null; }
 function statusClass(s) { return "status-" + s.replace(/[^A-Z]/g,""); }
+
+// --- Fleet records (manager view) ----------------------------------
+// Managers don't log cars locally; their Records tab pulls every driver's
+// records from Supabase. Cached and refreshed when they open the tab.
+let _fleetRecords = [];
+let _fleetFetching = null;
+function isManagerView() { return !!(window.DT_AUTH && DT_AUTH.isManager()); }
+function getEffectiveRecords() { return isManagerView() ? _fleetRecords : getRecords(); }
+
+// Triggered by the Records date inputs — managers need to refetch the fleet
+// when the date range changes; drivers just re-render their local set.
+function onRecordsDateChange() {
+  resetRecordsPage();
+  if (isManagerView()) {
+    fetchFleetRecords().then(renderRecords);
+  } else {
+    renderRecords();
+  }
+}
+
+async function fetchFleetRecords() {
+  if (!window.DT_AUTH || !DT_AUTH.client) return;
+  if (_fleetFetching) return _fleetFetching;
+  _fleetFetching = (async () => {
+    try {
+      // Honor the current date filter so the manager only pulls what they're looking at.
+      // Defaults to today when both filters are empty.
+      const fromEl = document.getElementById("fDateFrom");
+      const toEl   = document.getElementById("fDateTo");
+      const fromStr = fromEl?.value || new Date().toISOString().slice(0, 10);
+      const toStr   = toEl?.value   || fromStr;
+      const sinceISO = new Date(fromStr + "T00:00:00").toISOString();
+      const untilISO = new Date(toStr   + "T23:59:59.999").toISOString();
+
+      const { data, error } = await DT_AUTH.client
+        .from("records")
+        .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,shift_num,notes,lat,lng,gps_error,tires,vin_data,ts")
+        .gte("ts", sinceISO)
+        .lte("ts", untilISO)
+        .order("ts", { ascending: false })
+        .limit(2000);
+      if (error) { console.warn("[Fleet] records load", error); return; }
+      // Map driver names so manager cards can show whose entry this is
+      const ids = [...new Set((data || []).map(r => r.user_id))];
+      const names = {};
+      if (ids.length) {
+        const { data: profs } = await DT_AUTH.client.from("profiles").select("id,display_name").in("id", ids);
+        (profs || []).forEach(p => { names[p.id] = p.display_name || "Driver"; });
+      }
+      _fleetRecords = (data || []).map(row => ({
+        id: row.id,
+        serialId: row.serial_id,
+        status: row.status,
+        statusOther: row.status_other || "",
+        destination: row.destination || "",
+        destinationOther: row.destination_other || "",
+        noTag: !!row.no_tag,
+        shuttle: !!row.shuttle,
+        transport: !!row.transport,
+        shiftNum: row.shift_num,
+        notes: row.notes || "",
+        lat: row.lat,
+        lng: row.lng,
+        gpsError: !!row.gps_error,
+        tires: row.tires || [],
+        vinData: row.vin_data || undefined,
+        timestamp: row.ts ? new Date(row.ts).getTime() : Date.now(),
+        _driverName: names[row.user_id] || "Driver"
+      }));
+    } finally { _fleetFetching = null; }
+  })();
+  return _fleetFetching;
+}
 
 // ============================
 // INPUT SANITIZATION
@@ -378,7 +450,7 @@ function getFiltered() {
   const dest = document.getElementById("fDest").value;
   const from = document.getElementById("fDateFrom").value;
   const to = document.getElementById("fDateTo").value;
-  return getRecords().filter(r => {
+  return getEffectiveRecords().filter(r => {
     if (search && !r.serialId.includes(search)) return false;
     if (status && r.status !== status) return false;
     if (noTagFilter === "yes" && !r.noTag) return false;
@@ -578,19 +650,32 @@ function closeMenu() {
 function showTab(name) {
   document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  document.getElementById("panel-" + name).classList.add("active");
-  const idx = {entry:0, records:1, dashboard:2}[name];
-  if (idx !== undefined) document.querySelectorAll(".tab")[idx].classList.add("active");
+  document.getElementById("panel-" + name)?.classList.add("active");
+  document.querySelector(`.tab[data-tab="${name}"]`)?.classList.add("active");
   if (name === "entry") renderTodayEntries();
-  if (name === "records") renderRecords();
+  if (name === "records") {
+    // Default the Records view to today only — user can widen via the date filters
+    const fromEl = document.getElementById("fDateFrom");
+    const toEl   = document.getElementById("fDateTo");
+    if (fromEl && toEl && !fromEl.value && !toEl.value) {
+      const today = new Date().toISOString().slice(0, 10);
+      fromEl.value = today;
+      toEl.value   = today;
+    }
+    if (isManagerView()) {
+      fetchFleetRecords().then(renderRecords);
+    } else {
+      renderRecords();
+    }
+  }
   if (name === "dashboard") { applyProfile(); renderDashboard(); }
   if (name === "profile") applyProfile();
   if (name === "keyup") loadKeyUp();
   if (name === "garage") loadGarage();
   if (name && name.startsWith("backlot-") && window.DT_BACKLOT) {
-    if (name === "backlot-map") DT_BACKLOT.loadMap();
-    else DT_BACKLOT.refresh();
+    DT_BACKLOT.refresh();
   }
+  document.dispatchEvent(new CustomEvent("dt-tab-shown", { detail: name }));
 }
 
 function bumpKeyUp(id, delta) {
@@ -1146,6 +1231,12 @@ function closeVinKeypad(event) {
     if (event.currentTarget && event.target !== event.currentTarget) return;
   }
   document.getElementById("vinKeypadOverlay").classList.remove("open");
+  // Programmatic writes (the keypad mutates input.value directly) don't fire
+  // 'input' events, so dispatch a custom one so other modules can react.
+  const input = document.getElementById(_vinKeypadTargetId);
+  if (input && input.value) {
+    document.dispatchEvent(new CustomEvent("dt-vin-scanned", { detail: input.value }));
+  }
 }
 
 function vinKeypadType(ch) {
@@ -1571,7 +1662,7 @@ function recordCard(r, onDelete) {
         </div>
       </div>
       ${vinInfo}
-      <div class="record-meta"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${new Date(r.timestamp).toLocaleTimeString("en-US", {hour:'2-digit',minute:'2-digit', timeZone:"America/New_York"})}</div>
+      <div class="record-meta"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${(window.dtTimeAgo && window.dtTimeAgo(r.timestamp)) || new Date(r.timestamp).toLocaleTimeString("en-US", {hour:'2-digit',minute:'2-digit', timeZone:"America/New_York"})}${r._driverName ? ` · <b style="color:var(--text2)">${sanitizeText(r._driverName)}</b>` : ""}</div>
       ${safeTires ? `<div class="record-meta" style="margin-top:4px">Tires: <b style="color:var(--danger)">${safeTires}</b></div>` : ""}
       ${safeNotes ? `<div class="record-notes">${safeNotes}</div>` : ""}
     </div>`;
@@ -1716,10 +1807,8 @@ function openDetail(id, onDelete) {
 
   document.getElementById("detailSerial").textContent = r.serialId || "";
   document.getElementById("detailTime").textContent =
-    new Date(r.timestamp).toLocaleString("en-US", {
-      weekday:"short", month:"short", day:"numeric",
-      hour:"numeric", minute:"2-digit", timeZone:"America/New_York"
-    });
+    (window.dtTimeAgo && window.dtTimeAgo(r.timestamp))
+    || new Date(r.timestamp).toLocaleString("en-US", { weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit", timeZone:"America/New_York" });
 
   const detailStatusLabel = r.status === "OTHER" && r.statusOther ? `OTHER: ${r.statusOther}` : statusLabel(r.status);
   const detailDestLabel = r.destination === "OTHER" && r.destinationOther ? `OTHER: ${r.destinationOther}` : (r.destination || "");
@@ -1813,6 +1902,12 @@ function openDetail(id, onDelete) {
   };
   document.getElementById("detailDeleteBtn").onclick = _detailDeleteFn;
 
+  // Mount the cross-role notes widget so anyone viewing the record sees +
+  // can leave VIN-level notes.
+  if (window.DT_VNOTES) {
+    DT_VNOTES.mount(document.getElementById("detailVinNotes"), r.serialId || "");
+  }
+
   document.getElementById("detailOverlay").classList.add("open");
 }
 
@@ -1838,10 +1933,8 @@ function openEdit() {
   document.getElementById("editSerial").value = r.serialId || "";
   document.getElementById("editNotes").value = r.notes || "";
   document.getElementById("editTime").textContent =
-    new Date(r.timestamp).toLocaleString("en-US", {
-      weekday:"short", month:"short", day:"numeric",
-      hour:"numeric", minute:"2-digit", timeZone:"America/New_York"
-    });
+    (window.dtTimeAgo && window.dtTimeAgo(r.timestamp))
+    || new Date(r.timestamp).toLocaleString("en-US", { weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit", timeZone:"America/New_York" });
 
   toggleEditClearBtn();
   updateEditVinCount();
@@ -2373,7 +2466,7 @@ function renderRecordsMap() {
     records.forEach((r, i) => {
       const color = statusMapColor(r.status);
       const icon = createNumberedMarker(i+1, color, 26);
-      const time = new Date(r.timestamp).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', timeZone:'America/New_York' });
+      const time = (window.dtTimeAgo && window.dtTimeAgo(r.timestamp)) || new Date(r.timestamp).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', timeZone:'America/New_York' });
       const marker = L.marker([r.lat, r.lng], { icon })
         .addTo(recordsLeafletMap)
         .bindPopup(`
@@ -2472,9 +2565,7 @@ function renderShiftMap(shiftIndex) {
     // Custom numbered SVG marker
     const icon = createNumberedMarker(num, color, 28);
 
-    const time = new Date(r.timestamp).toLocaleTimeString("en-US", {
-      hour:"2-digit", minute:"2-digit", timeZone:"America/New_York"
-    });
+    const time = (window.dtTimeAgo && window.dtTimeAgo(r.timestamp)) || new Date(r.timestamp).toLocaleTimeString("en-US", { hour:"2-digit", minute:"2-digit", timeZone:"America/New_York" });
 
     const marker = L.marker([r.lat, r.lng], { icon })
       .addTo(leafletMap)
@@ -2511,9 +2602,7 @@ function renderShiftMap(shiftIndex) {
   if (legend) {
     legend.innerHTML = records.map((r, i) => {
       const color = statusMapColor(r.status);
-      const time = new Date(r.timestamp).toLocaleTimeString("en-US", {
-        hour:"2-digit", minute:"2-digit", timeZone:"America/New_York"
-      });
+      const time = (window.dtTimeAgo && window.dtTimeAgo(r.timestamp)) || new Date(r.timestamp).toLocaleTimeString("en-US", { hour:"2-digit", minute:"2-digit", timeZone:"America/New_York" });
       return `<div class="map-legend-row" onclick="openDetail('${r.id}', 'deleteRecord')">
         <span class="map-legend-num" style="background:#${color}">${i+1}</span>
         <span class="map-legend-serial">${sanitizeText(r.serialId)}</span>
@@ -2849,6 +2938,8 @@ function acceptScanResult(rawText, is2D) {
   toggleClearBtn();
   updateVinCount();
   showManualEntry();
+  // Let other modules (detailer.js, etc.) react to a successful scan
+  document.dispatchEvent(new CustomEvent("dt-vin-scanned", { detail: finalCode }));
   setTimeout(() => closeScanner(), 600);
   return true;
 }
@@ -3341,8 +3432,13 @@ function closeScanner() {
 }
 
 // ============================
-// SCANBOT SDK (experimental / beta)
+// SCANBOT SDK (DISABLED — kept for future re-enable)
 // ============================
+/* Scanbot trial flow disabled. The button in index.html is commented
+   out; this whole block stays here so we can revive it without rewriting.
+   To re-enable: remove this opening /* and the closing one before TORCH below,
+   then uncomment the button in index.html.
+
 // Loads on first tap of the "Scan with Scanbot (beta)" button. Runs in
 // license-free trial mode (~60s per session) — enough to evaluate read
 // reliability on iPhone vs. the existing ZXing path. To go production
@@ -3506,12 +3602,13 @@ async function closeScanbotScanner() {
       else if (typeof _scanbotScanner.destroy === "function") await _scanbotScanner.destroy();
       else if (typeof _scanbotScanner.close === "function") await _scanbotScanner.close();
     }
-  } catch (e) { /* ignore */ }
+  } catch (e) { } // ignore
   _scanbotScanner = null;
   if (host) host.style.display = "none";
   const closeBtn = document.getElementById("scanbotCloseBtn");
   if (closeBtn) closeBtn.style.display = "none";
 }
+*/ // end SCANBOT disabled block
 
 async function toggleTorch() {
   // ZXing path may not have populated activeStream yet — grab from the video element.
@@ -3583,15 +3680,54 @@ function getProfile() {
   try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || "{}"); } catch(e) { return {}; }
 }
 
-function saveProfile() {
+function extractAirportCode(text) {
+  const m = /\(([A-Z]{3,4})\)/.exec(text || "");
+  return m ? m[1] : (text || "").trim().toUpperCase();
+}
+
+async function saveProfile() {
   const name = sanitizeName(document.getElementById("profileName").value.trim());
   if (!name) { showToast("Please enter your name.", "error"); return; }
-  const location = document.getElementById("profileLocation").value;
+  const location = extractAirportCode(document.getElementById("profileLocation").value);
   const profile = { name, location };
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
   applyProfile();
+
+  // Push to Supabase so the manager Backlot view + leaderboard see the right name
+  if (window.DT_AUTH && DT_AUTH.getUser()) {
+    const userId = DT_AUTH.getUser().id;
+    const { error } = await DT_AUTH.client
+      .from("profiles")
+      .update({ display_name: name, home_airport: location || null })
+      .eq("id", userId);
+    if (error) {
+      console.warn("[Profile] cloud sync failed", error);
+      showToast("Saved locally — cloud sync failed", "warn");
+      return;
+    }
+    // Refresh the cached profile on DT_AUTH so other UI reads the new name immediately
+    const { data: fresh } = await DT_AUTH.client.from("profiles").select("*").eq("id", userId).maybeSingle();
+    if (fresh && DT_AUTH._setProfile) DT_AUTH._setProfile(fresh);
+  }
   showToast("Profile saved", "success");
 }
+
+// Copy the cloud profile down into localStorage so the rest of the app can keep
+// reading the simple { name, location } shape it expects. Runs whenever the
+// auth profile changes.
+function syncProfileFromCloud() {
+  if (!window.DT_AUTH) return;
+  const cp = DT_AUTH.getProfile();
+  if (!cp) return;
+  const current = getProfile();
+  const merged = {
+    name:     cp.display_name  || current.name     || "",
+    location: cp.home_airport  || current.location || ""
+  };
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(merged));
+  applyProfile();
+}
+document.addEventListener("dt-auth-change", syncProfileFromCloud);
 
 function previewProfileName() {
   const name = sanitizeName(document.getElementById("profileName").value.trim());
@@ -3617,7 +3753,95 @@ function applyProfile() {
   const nameInput = document.getElementById("profileName");
   const locSelect = document.getElementById("profileLocation");
   if (nameInput && name) nameInput.value = name;
-  if (locSelect && location) locSelect.value = location;
+  if (locSelect && location) {
+    // The saved value is the airport code (e.g. "SDF"); find the matching option.
+    const match = Array.from(locSelect.options).find(o => extractAirportCode(o.value) === location);
+    if (match) locSelect.value = match.value;
+  }
+
+  // Role pill — pulled from the cloud profile (read-only)
+  const roleEl = document.getElementById("profileRole");
+  if (roleEl) {
+    const role = (window.DT_AUTH && DT_AUTH.getProfile() && DT_AUTH.getProfile().role) || "";
+    const label = { driver: "Driver", cxr: "CXR", manager: "Manager", admin: "Admin", detailer: "Detailer" }[role] || "—";
+    roleEl.textContent = label;
+    roleEl.className = "profile-role-pill" + (role ? " role-" + role : "");
+  }
+
+  // PIN status + button visibility
+  const pinStatus = document.getElementById("profilePinStatus");
+  const btnSet    = document.getElementById("btnSetPin");
+  const btnChange = document.getElementById("btnChangePin");
+  const btnRemove = document.getElementById("btnRemovePin");
+  if (pinStatus && btnSet) {
+    const hasPin = !!(window.DT_AUTH && DT_AUTH.hasPin && DT_AUTH.hasPin());
+    pinStatus.textContent = hasPin ? "PIN set" : "No PIN set";
+    pinStatus.className = "profile-pin-status " + (hasPin ? "on" : "off");
+    btnSet.style.display    = hasPin ? "none" : "";
+    btnChange.style.display = hasPin ? "" : "none";
+    btnRemove.style.display = hasPin ? "" : "none";
+  }
+}
+
+// Refresh Profile when the PIN state changes
+document.addEventListener("dt-pin-change", () => applyProfile());
+
+// Show notes for the VIN that just got scanned/typed into the entry panel
+document.addEventListener("dt-vin-scanned", (e) => {
+  const vin = (e.detail || "").toUpperCase();
+  const target = document.getElementById("entryVinNotes");
+  if (target && vin && window.DT_VNOTES) DT_VNOTES.mount(target, vin);
+});
+
+// Force a manual sync — push any queued local changes, then pull cloud state.
+async function forceSync() {
+  if (!window.DT_SYNC) { showToast("Sync not loaded", "error"); return; }
+  showToast("Syncing…", "info");
+  try {
+    await DT_SYNC.flush();
+    await DT_SYNC.pull();
+    showToast("Sync complete", "success");
+  } catch (e) {
+    console.warn("[Sync] force sync failed", e);
+    showToast("Sync failed — see console", "error");
+  }
+}
+
+// Wire PIN buttons once on load
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("btnSetPin")?.addEventListener("click", openPinSetupModal);
+  document.getElementById("btnChangePin")?.addEventListener("click", openPinSetupModal);
+  document.getElementById("btnRemovePin")?.addEventListener("click", () => {
+    if (!confirm("Remove the PIN on this device? Email + password will be required next time you open the app.")) return;
+    if (window.DT_AUTH && DT_AUTH.removePin) DT_AUTH.removePin();
+    applyProfile();
+    showToast("PIN removed", "success");
+  });
+  document.getElementById("btnSendOwnReset")?.addEventListener("click", async () => {
+    if (!window.DT_AUTH || !DT_AUTH.getUser()) { showToast("Not signed in", "error"); return; }
+    const email = DT_AUTH.getUser().email;
+    if (!email) { showToast("No email on this account", "error"); return; }
+    if (!confirm(`Send a password-reset email to ${email}?`)) return;
+    const { error } = await DT_AUTH.client.auth.resetPasswordForEmail(email, {
+      redirectTo: location.origin + location.pathname
+    });
+    if (error) { showToast(error.message, "error"); return; }
+    showToast("Reset link sent — check your email", "success");
+  });
+});
+
+function openPinSetupModal() {
+  // Reuse auth.js's PIN setup form — it's already wired and writes via DT_AUTH.setPin internally
+  const modal = document.getElementById("dt-auth-modal");
+  if (!modal) return;
+  // Switch the visible form, hide the tabs strip, and show the modal
+  ["signin","signup","forgot","reset","pin-unlock","pin-setup"].forEach(n => {
+    const f = document.getElementById("dt-form-" + n);
+    if (f) f.classList.toggle("hidden", n !== "pin-setup");
+  });
+  const tabs = modal.querySelector(".dt-auth-tabs");
+  if (tabs) tabs.style.display = "none";
+  modal.classList.add("show");
 }
 
 function getDriverFileName(base, ext) {

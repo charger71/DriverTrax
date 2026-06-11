@@ -125,6 +125,11 @@
     if (flushing) return;
     const user = DT_AUTH.getUser();
     if (!user) return;
+    // Skip silently for non-driver roles — their queue should never have
+    // entries to flush, but if old stale ones linger from a previous user
+    // we don't want them surfacing as a sync error.
+    const p = DT_AUTH.getProfile();
+    if (p && p.role !== "driver") return;
     if (!navigator.onLine) { updateBadge(); return; }
     const queue = readQueue();
     const ids = Object.keys(queue);
@@ -169,6 +174,9 @@
   async function pullAndMerge() {
     const user = DT_AUTH.getUser();
     if (!user) return;
+    // Same skip logic as flushQueue — only drivers own personal record rows.
+    const p = DT_AUTH.getProfile();
+    if (p && p.role !== "driver") return;
     updateBadge("syncing");
     try {
       const { data: rows, error } = await sb
@@ -238,16 +246,32 @@
     el.textContent = "Synced ✓";
   }
 
+  // ----- role gating -----
+  // Records sync is only relevant for drivers. CXR/manager/admin/detailer
+  // don't log cars themselves, so syncing the local records cache to the
+  // cloud just shoves stale or empty data through RLS and surfaces a
+  // confusing "sync error". They keep using local-only state for any
+  // record reads (managers fetch fleet records separately).
+  function shouldRunSync() {
+    const p = DT_AUTH.getProfile();
+    return p && p.role === "driver";
+  }
+
+  function clearBadge() {
+    const el = document.getElementById("menuSyncStatus");
+    if (el) el.textContent = "";
+  }
+
   // ----- wire up auth + connectivity events -----
   document.addEventListener("dt-auth-change", (e) => {
-    if (e.detail.user) pullAndMerge();
-    else updateBadge();
+    if (e.detail.user && shouldRunSync()) pullAndMerge();
+    else clearBadge();
   });
-  window.addEventListener("online", () => { scheduleFlush(); });
-  window.addEventListener("offline", () => updateBadge());
+  window.addEventListener("online",  () => { if (shouldRunSync()) scheduleFlush(); });
+  window.addEventListener("offline", () => { if (shouldRunSync()) updateBadge(); });
 
-  // If auth fires before this file loads, kick off immediately
-  if (DT_AUTH.getUser()) pullAndMerge();
+  // If auth fires before this file loads, kick off immediately (drivers only)
+  if (DT_AUTH.getUser() && shouldRunSync()) pullAndMerge();
 
   // Expose for debugging
   window.DT_SYNC = { flush: flushQueue, pull: pullAndMerge, queue: readQueue };

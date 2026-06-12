@@ -24,11 +24,7 @@
   let state = { quizIdx: 0, qIdx: 0 };
 
   // ---------- utils ----------
-  function esc(s) {
-    return String(s == null ? "" : s)
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-  }
+  const esc = window.DT_ESC;
   function uid(prefix) {
     return (prefix || "q") + "-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   }

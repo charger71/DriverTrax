@@ -10,8 +10,8 @@
   if (!window.DT_AUTH) return;
   const sb = DT_AUTH.client;
   const $ = (id) => document.getElementById(id);
-  const esc = (s) => String(s || "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
-  const ago = (d) => (window.dtTimeAgo ? window.dtTimeAgo(d) : new Date(d).toLocaleString());
+  const esc = window.DT_ESC;
+  const ago = (d) => window.DT_FORMAT.timeAgo(d);
 
   // ---- task catalog ----
   const TASKS = {
@@ -97,6 +97,7 @@
     $("detailScanLoaded").style.display = "none";
     currentVin = null;
     currentJob = null;
+    loadOpenJobs();
   }
 
   async function loadVin(serialId) {
@@ -324,25 +325,32 @@
     showEmpty();
   }
 
-  // ---- History tab ----
-  async function loadHistory() {
+  // ---- Open Jobs (shown under New Entry while no VIN is loaded) ----
+  async function loadOpenJobs() {
     const user = DT_AUTH.getUser();
     if (!user) return;
+    const el = $("detailOpenJobsList");
+    const countEl = $("detailOpenJobsCount");
+    if (!el) return;
     const { data, error } = await sb
       .from("detail_jobs")
-      .select("id,serial_id,vehicle_type,condition_tags,completed_at,started_at")
+      .select("id,serial_id,condition_tags,started_at")
       .eq("detailer_id", user.id)
+      .is("completed_at", null)
       .order("started_at", { ascending: false })
       .limit(50);
-    const el = $("detailHistoryList");
-    if (!el) return;
-    if (error) { el.innerHTML = `<div class="bl-empty">${esc(error.message)}</div>`; return; }
-    if (!data || !data.length) { el.innerHTML = `<div class="bl-empty">No jobs yet. Scan a VIN to start.</div>`; return; }
+    if (error) { el.innerHTML = `<div class="bl-empty">${esc(error.message)}</div>`; if (countEl) countEl.textContent = "0"; return; }
+    if (!data || !data.length) {
+      el.innerHTML = `<div class="bl-empty">No open jobs.</div>`;
+      if (countEl) countEl.textContent = "0";
+      return;
+    }
+    if (countEl) countEl.textContent = String(data.length);
     el.innerHTML = data.map(j => `
-      <div class="detail-history-row ${j.completed_at ? "done" : "open"}" data-job-id="${esc(j.id)}">
+      <div class="detail-history-row open" data-job-id="${esc(j.id)}">
         <div class="detail-history-serial">${esc(j.serial_id)}</div>
         <div class="detail-history-meta">
-          ${j.completed_at ? "Done" : "In progress"} · ${esc(ago(j.completed_at || j.started_at))}
+          In progress · ${esc(ago(j.started_at))}
           ${j.condition_tags && j.condition_tags.length ? " · " + j.condition_tags.map(esc).join(" · ") : ""}
         </div>
       </div>
@@ -381,7 +389,7 @@
   if (DT_AUTH.isDetailer && DT_AUTH.isDetailer()) start();
 
   document.addEventListener("dt-tab-shown", (e) => {
-    if (e.detail === "detail-history") loadHistory();
+    if (e.detail === "detail-scan")    loadOpenJobs();
     if (e.detail === "dashboard")      renderDashboard();
   });
 
@@ -460,5 +468,5 @@
   function startOfDay(d) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
   function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
 
-  window.DT_DETAIL = { loadVin, loadHistory, renderDashboard, TASKS, CONDITIONS, CONDITION_TASKS };
+  window.DT_DETAIL = { loadVin, loadOpenJobs, renderDashboard, TASKS, CONDITIONS, CONDITION_TASKS };
 })();

@@ -28,8 +28,8 @@
 (function () {
   if (!window.DT_AUTH) return;
   const sb = DT_AUTH.client;
-  const esc = (s) => String(s || "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
-  const ago = (d) => (window.dtTimeAgo ? window.dtTimeAgo(d) : new Date(d).toLocaleString());
+  const esc = window.DT_ESC;
+  const ago = (d) => window.DT_FORMAT.timeAgo(d);
 
   // ---- shared cache ----
   const profileCache = new Map();
@@ -156,20 +156,30 @@
     }).join("");
   }
 
-  function wirePhotoZoom(scope) {
-    scope.querySelectorAll(".note-photo img").forEach(img => {
-      img.addEventListener("click", () => openPhotoViewer(img.dataset.full));
-    });
-  }
-
-  function wireSelfDelete(scope, onAfter) {
-    scope.querySelectorAll(".note-del").forEach(b => {
-      b.addEventListener("click", async () => {
+  // Single delegated handler — bind once per list container in mount(),
+  // survives refresh() re-renders, no per-row listeners.
+  function wireListDelegation(scope, onAfter) {
+    if (scope._vnDelegated) return;
+    scope._vnDelegated = true;
+    scope.addEventListener("click", async (e) => {
+      const t = e.target;
+      if (t.matches(".note-photo img")) {
+        return openPhotoViewer(t.dataset.full);
+      }
+      if (t.matches(".note-del")) {
         if (!confirm("Delete this note?")) return;
-        const { error } = await sb.from("vehicle_notes").delete().eq("id", b.dataset.id);
+        const { error } = await sb.from("vehicle_notes").delete().eq("id", t.dataset.id);
         if (error) { alert(error.message); return; }
         if (typeof onAfter === "function") onAfter();
-      });
+      }
+    });
+  }
+  // Back-compat shims for external callers (e.g. requests.js uses _wirePhotoZoom).
+  function wirePhotoZoom(scope) {
+    if (scope._vnZoomDelegated) return;
+    scope._vnZoomDelegated = true;
+    scope.addEventListener("click", (e) => {
+      if (e.target.matches(".note-photo img")) openPhotoViewer(e.target.dataset.full);
     });
   }
 
@@ -304,8 +314,7 @@
     await fetchProfileNames(notes.map(n => n.author_id));
     const signed = await signPhotoPaths(notes.map(n => n.photo_url));
     list.innerHTML = renderNoteCardsHtml(notes, signed);
-    wirePhotoZoom(list);
-    wireSelfDelete(list, () => refresh(container, vin));
+    wireListDelegation(list, () => refresh(container, vin));
   }
 
   window.DT_VNOTES = {

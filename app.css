@@ -288,14 +288,19 @@
   .record-header { display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; gap: var(--space-2); }
   .record-serial { font-size: var(--font-lg); font-weight: 700; letter-spacing: 1px; color: var(--text); }
   .record-badges { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
-  .record-status { font-size: var(--font-xs); font-weight: 700; padding: var(--space-1) var(--space-2); border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
-  .badge-dest { background: var(--accent-muted); color: var(--accent); border: 1px solid var(--accent); font-size: var(--font-xs); font-weight: 700; padding: var(--space-1) var(--space-2); border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
-  .badge-notag { background: #2d1515; color: #e85550; font-size: var(--font-xs); font-weight: 700; padding: var(--space-1) var(--space-2); border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
-  .badge-shuttle { background: #0d1e36; color: #4d9bff; border: 1px solid #4d9bff; font-size: var(--font-xs); font-weight: 700; padding: var(--space-1) var(--space-2); border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  /* Shared base for all record/status badges — variants below override color only. */
+  .record-status, .badge-dest, .badge-notag, .badge-shuttle, .badge-transport {
+    font-size: var(--font-xs); font-weight: 700;
+    padding: var(--space-1) var(--space-2); border-radius: 6px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .badge-dest { background: var(--accent-muted); color: var(--accent); border: 1px solid var(--accent); }
+  .badge-notag { background: #2d1515; color: #e85550; }
+  .badge-shuttle { background: #0d1e36; color: #4d9bff; border: 1px solid #4d9bff; }
+  .badge-transport { background: #2a1f08; color: #f0b04a; border: 1px solid #f0b04a; }
   .transport-row.transport-checked { border-color: #f0b04a; background: #2a1f08; }
   .transport-row.transport-checked label { color: #f0b04a; }
   .transport-row input[type=checkbox] { accent-color: #f0b04a; }
-  .badge-transport { background: #2a1f08; color: #f0b04a; border: 1px solid #f0b04a; font-size: var(--font-xs); font-weight: 700; padding: var(--space-1) var(--space-2); border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
   .status-CLEAN { background: #0d2e1a; color: #34c76a; }
   .status-DIRTY { background: #2d1515; color: #e87070; }
   .status-REWASH { background: #0a1e1e; color: #3dcfcf; }
@@ -564,11 +569,12 @@
   @keyframes dotPulse {
     0%, 100% { opacity: 1; } 50% { opacity: 0.2; }
   }
-  .scanner-actions { display: flex; gap: var(--space-2); }
+  .scanner-actions { display: flex; gap: var(--space-2); align-items: stretch; }
+  .scanner-actions > button { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; }
   .btn-torch {
     background: var(--card2); color: #fff; border: 1px solid var(--border);
     border-radius: var(--radius); padding: var(--space-3) var(--space-4); font-size: var(--font-lg);
-    cursor: pointer; flex-shrink: 0;
+    cursor: pointer;
   }
   .btn-torch.on { background: #fff; color: #000; border-color: #fff; }
   .btn-torch.pulse { animation: torch-pulse 1.2s ease-in-out infinite; box-shadow: 0 0 0 0 rgba(255,200,0,0.6); }
@@ -648,8 +654,8 @@
 
   .menu-nav { flex: 1; padding: var(--space-3) 0; }
   .menu-item {
-    display: flex; align-items: center; gap: var(--space-4);
-    padding: var(--space-4) var(--space-5); font-size: var(--font-md); font-weight: 600;
+    display: flex; align-items: center; gap: var(--space-2);
+    padding: var(--space-2) var(--space-3); font-size: var(--font-sm); font-weight: 600;
     color: var(--text2); cursor: pointer; transition: background 0.15s, color 0.15s;
     text-decoration: none; border-left: 3px solid transparent;
   }

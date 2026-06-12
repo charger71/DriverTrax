@@ -10,7 +10,7 @@
   const sb = DT_AUTH.client;
 
   const $ = (id) => document.getElementById(id);
-  const esc = (s) => String(s || "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  const esc = window.DT_ESC;
 
   let realtimeChan = null;
   let started = false;

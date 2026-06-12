@@ -13,7 +13,7 @@
   const $ = (id) => document.getElementById(id);
   const startOfToday = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
   const fmtHM = (d) => d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  const esc = (s) => String(s || "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  const esc = window.DT_ESC;
 
   let map = null;
   let markerLayer = null;
@@ -51,8 +51,9 @@
       : `<div class="bl-empty">No cars logged yet today.</div>`;
 
     // Active drivers list — every driver who logged at least one car today
+    // (exclude DETAILING records — those belong to detailers, shown separately)
     const active = {};
-    records.forEach(r => {
+    records.filter(r => r.status !== "DETAILING").forEach(r => {
       const a = active[r.user_id] || (active[r.user_id] = { count: 0, last: r.ts });
       a.count++;
       if (r.ts > a.last) a.last = r.ts;
@@ -69,11 +70,48 @@
     (profs || []).forEach(p => { names[p.id] = p.display_name || "Driver"; });
     const sorted = activeIds
       .map(id => ({ id, name: names[id] || "Driver", ...active[id] }))
-      .sort((a, b) => b.last.localeCompare(a.last)); // most-recently-active first
+      .sort((a, b) => b.last.localeCompare(a.last)) // most-recently-active first
+      .slice(0, 5);
     listEl.innerHTML = sorted.map(d => `
       <div class="bl-active-driver">
         <span class="bl-active-name">${esc(d.name)}</span>
         <span class="bl-active-meta">${d.count} car${d.count === 1 ? "" : "s"} · ${esc(window.dtTimeAgo(d.last))}</span>
+      </div>
+    `).join("");
+  }
+
+  async function loadActiveDetailers() {
+    const listEl = $("blActiveDetailers");
+    if (!listEl) return;
+    const since = startOfToday().toISOString();
+    const { data: jobs, error } = await sb
+      .from("detail_jobs")
+      .select("detailer_id,started_at,completed_at")
+      .gte("started_at", since);
+    if (error) { console.warn("[Backlot] detailers", error); return; }
+    if (!jobs || !jobs.length) {
+      listEl.innerHTML = `<div class="bl-empty">No detailers active yet today.</div>`;
+      return;
+    }
+    const active = {};
+    jobs.forEach(j => {
+      const last = j.completed_at || j.started_at;
+      const a = active[j.detailer_id] || (active[j.detailer_id] = { count: 0, last });
+      a.count++;
+      if (last > a.last) a.last = last;
+    });
+    const ids = Object.keys(active);
+    const { data: profs } = await sb.from("profiles").select("id,display_name").in("id", ids);
+    const names = {};
+    (profs || []).forEach(p => { names[p.id] = p.display_name || "Detailer"; });
+    const sorted = ids
+      .map(id => ({ id, name: names[id] || "Detailer", ...active[id] }))
+      .sort((a, b) => b.last.localeCompare(a.last))
+      .slice(0, 5);
+    listEl.innerHTML = sorted.map(d => `
+      <div class="bl-active-driver">
+        <span class="bl-active-name">${esc(d.name)}</span>
+        <span class="bl-active-meta">${d.count} job${d.count === 1 ? "" : "s"} · ${esc(window.dtTimeAgo(d.last))}</span>
       </div>
     `).join("");
   }
@@ -246,10 +284,16 @@
       delete card.dataset.archived;
     });
 
-    // Wire admin buttons (must come after the buttons exist in the DOM)
-    el.querySelectorAll(".ann-act-close").forEach(b => b.addEventListener("click", () => setAlertStatus(b.dataset.id, "closed")));
-    el.querySelectorAll(".ann-act-cancel").forEach(b => b.addEventListener("click", () => setAlertStatus(b.dataset.id, "cancelled")));
-    el.querySelectorAll(".ann-act-del").forEach(b => b.addEventListener("click", () => deleteAlert(b.dataset.id)));
+    // Admin button wiring is delegated on #blAnnList once in start() — no per-render binding.
+  }
+
+  function onAnnListClick(e) {
+    const t = e.target;
+    const id = t.dataset?.id;
+    if (!id) return;
+    if (t.matches(".ann-act-close"))  return setAlertStatus(id, "closed");
+    if (t.matches(".ann-act-cancel")) return setAlertStatus(id, "cancelled");
+    if (t.matches(".ann-act-del"))    return deleteAlert(id);
   }
 
   async function setAlertStatus(id, status) {
@@ -332,10 +376,16 @@
       </details>
     `;
 
-    // Wire up admin buttons
-    el.querySelectorAll(".edr-act-fill").forEach(b => b.addEventListener("click", () => setStatus(b.dataset.id, "filled")));
-    el.querySelectorAll(".edr-act-cancel").forEach(b => b.addEventListener("click", () => setStatus(b.dataset.id, "cancelled")));
-    el.querySelectorAll(".edr-act-del").forEach(b => b.addEventListener("click", () => deleteRequest(b.dataset.id)));
+    // Admin button wiring is delegated on #blEdrList once in start().
+  }
+
+  function onEdrListClick(e) {
+    const t = e.target;
+    const id = t.dataset?.id;
+    if (!id) return;
+    if (t.matches(".edr-act-fill"))   return setStatus(id, "filled");
+    if (t.matches(".edr-act-cancel")) return setStatus(id, "cancelled");
+    if (t.matches(".edr-act-del"))    return deleteRequest(id);
   }
 
   async function setStatus(id, status) {
@@ -384,12 +434,15 @@
 
   function refreshAll() {
     // loadMap removed — fleet map is now part of the unified Records panel
-    loadFleetStats(); loadLeaderboard(); loadAnnouncements(); loadEdrList(); loadRepliesBadge();
+    loadFleetStats(); loadActiveDetailers(); loadLeaderboard(); loadAnnouncements(); loadEdrList(); loadRepliesBadge();
   }
 
   function start() {
     if (started) return;
     started = true;
+
+    $("blAnnList")?.addEventListener("click", onAnnListClick);
+    $("blEdrList")?.addEventListener("click", onEdrListClick);
 
     document.getElementById("blAnnForm")?.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -430,6 +483,7 @@
 
     realtimeChan = sb.channel("backlot-live")
       .on("postgres_changes", { event: "*", schema: "public", table: "records" },             () => { loadFleetStats(); loadLeaderboard(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "detail_jobs" },         loadActiveDetailers)
       .on("postgres_changes", { event: "*", schema: "public", table: "announcements" },       loadAnnouncements)
       .on("postgres_changes", { event: "*", schema: "public", table: "extra_driver_requests" }, loadEdrList)
       .on("postgres_changes", { event: "*", schema: "public", table: "extra_driver_responses" }, loadEdrList)

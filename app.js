@@ -165,8 +165,7 @@ function createNumberedMarker(num, color, size = 26) {
 }
 
 function recordPopupHTML(r) {
-  const time = (window.dtTimeAgo && window.dtTimeAgo(r.timestamp))
-    || new Date(r.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" });
+  const time = DT_FORMAT.timeAgoOrClock(r.timestamp);
   return `
     <div style="font-family:Arial,sans-serif;min-width:140px">
       <div style="font-weight:800;font-size:14px;margin-bottom:4px">${sanitizeText(r.serialId)}</div>
@@ -1659,7 +1658,7 @@ function recordCard(r, onDelete) {
         </div>
       </div>
       ${vinInfo}
-      <div class="record-meta"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${(window.dtTimeAgo && window.dtTimeAgo(r.timestamp)) || new Date(r.timestamp).toLocaleTimeString("en-US", {hour:'2-digit',minute:'2-digit', timeZone:"America/New_York"})}${r._driverName ? ` · <b style="color:var(--text2)">${sanitizeText(r._driverName)}</b>` : ""}</div>
+      <div class="record-meta"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${DT_FORMAT.timeAgoOrClock(r.timestamp)}${r._driverName ? ` · <b style="color:var(--text2)">${sanitizeText(r._driverName)}</b>` : ""}</div>
       ${safeTires ? `<div class="record-meta" style="margin-top:4px">Tires: <b style="color:var(--danger)">${safeTires}</b></div>` : ""}
       ${safeNotes ? `<div class="record-notes">${safeNotes}</div>` : ""}
     </div>`;
@@ -1845,7 +1844,7 @@ async function renderFuzzyResults(term) {
     : {};
 
   const esc = (s) => sanitizeText(s);
-  const ago = (d) => (window.dtTimeAgo ? window.dtTimeAgo(d) : new Date(d).toLocaleString());
+  const ago = (d) => DT_FORMAT.timeAgo(d);
 
   const recHtml = cards.length
     ? `<div class="records-search-section"><div class="records-section-label">${cards.length} record${cards.length === 1 ? "" : "s"}</div>${cards.map(r => recordCard(r, "deleteRecord")).join("")}</div>`
@@ -1980,7 +1979,7 @@ async function renderVinTimeline(vin) {
     ...notes.map(n   => ({ ts: new Date(n.created_at).getTime(), kind: "note",   n }))
   ].sort((a, b) => b.ts - a.ts);
 
-  const ago = (input) => (window.dtTimeAgo ? window.dtTimeAgo(input) : new Date(input).toLocaleString());
+  const ago = (input) => DT_FORMAT.timeAgo(input);
   const esc = (s) => sanitizeText(s);
 
   // Vehicle line — first record we find with vin_data wins
@@ -2759,7 +2758,7 @@ function renderRecordsMap() {
     records.forEach((r, i) => {
       const color = statusMapColor(r.status);
       const icon = createNumberedMarker(i+1, color, 26);
-      const time = (window.dtTimeAgo && window.dtTimeAgo(r.timestamp)) || new Date(r.timestamp).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', timeZone:'America/New_York' });
+      const time = DT_FORMAT.timeAgoOrClock(r.timestamp);
       const marker = L.marker([r.lat, r.lng], { icon })
         .addTo(recordsLeafletMap)
         .bindPopup(`
@@ -2858,7 +2857,7 @@ function renderShiftMap(shiftIndex) {
     // Custom numbered SVG marker
     const icon = createNumberedMarker(num, color, 28);
 
-    const time = (window.dtTimeAgo && window.dtTimeAgo(r.timestamp)) || new Date(r.timestamp).toLocaleTimeString("en-US", { hour:"2-digit", minute:"2-digit", timeZone:"America/New_York" });
+    const time = DT_FORMAT.timeAgoOrClock(r.timestamp);
 
     const marker = L.marker([r.lat, r.lng], { icon })
       .addTo(leafletMap)
@@ -2895,7 +2894,7 @@ function renderShiftMap(shiftIndex) {
   if (legend) {
     legend.innerHTML = records.map((r, i) => {
       const color = statusMapColor(r.status);
-      const time = (window.dtTimeAgo && window.dtTimeAgo(r.timestamp)) || new Date(r.timestamp).toLocaleTimeString("en-US", { hour:"2-digit", minute:"2-digit", timeZone:"America/New_York" });
+      const time = DT_FORMAT.timeAgoOrClock(r.timestamp);
       return `<div class="map-legend-row" onclick="openDetail('${r.id}', 'deleteRecord')">
         <span class="map-legend-num" style="background:#${color}">${i+1}</span>
         <span class="map-legend-serial">${sanitizeText(r.serialId)}</span>
@@ -3227,6 +3226,19 @@ function acceptScanResult(rawText, is2D) {
   const hint = document.getElementById("scannerHint");
   hint.className = "scanner-status success";
   hint.textContent = finalCode;
+
+  if (scanTarget === "search") {
+    const fs = document.getElementById("fSearch");
+    if (fs) {
+      fs.value = finalCode;
+      // Mirror what the user typing in fSearch does — trigger the debounced search.
+      fs.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    scanTarget = "entry"; // one-shot; reset for next time
+    setTimeout(() => closeScanner(), 600);
+    return true;
+  }
+
   document.getElementById("serial").value = finalCode;
   toggleClearBtn();
   updateVinCount();
@@ -3602,9 +3614,22 @@ function clearScannerEscalation() {
   if (manualBtn) manualBtn.style.display = "none";
 }
 
-// Tap "Enter Manually" from inside the scanner overlay
+// Tap "Enter Manually" / Keyboard from inside the scanner overlay
 function openScannerManualEntry() {
-  closeScanner();
+  // If the scanner was opened from records search, return the user to that
+  // input rather than the entry-tab serial field.
+  const wasSearch = scanTarget === "search";
+  closeScanner(); // resets scanTarget
+  if (wasSearch) {
+    const fs = document.getElementById("fSearch");
+    if (fs) {
+      fs.focus();
+      if (typeof openVinKeypad === "function") {
+        try { openVinKeypad("fSearch"); } catch(e) {}
+      }
+    }
+    return;
+  }
   showManualEntry();
   const serial = document.getElementById("serial");
   if (serial) {
@@ -3617,6 +3642,14 @@ function openScannerManualEntry() {
 }
 
 // ---------- Public API ----------
+
+// "entry" (default) → write to #serial on the entry tab.
+// "search"          → write to #fSearch and re-run the records search.
+let scanTarget = "entry";
+function openScannerForSearch() {
+  scanTarget = "search";
+  openScanner();
+}
 
 async function openScanner() {
   const overlay = document.getElementById("scannerOverlay");
@@ -3685,6 +3718,7 @@ async function openScanner() {
 }
 
 function closeScanner() {
+  scanTarget = "entry"; // never leak a one-shot search mode into the next session
   scannerActive = false;
   clearScannerEscalation();
 

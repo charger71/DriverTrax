@@ -12,7 +12,7 @@
   if (!window.DT_AUTH) return;
   const sb = DT_AUTH.client;
   const $ = (id) => document.getElementById(id);
-  const esc = (s) => String(s || "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  const esc = window.DT_ESC;
 
   let users = [];
   let realtimeChan = null;
@@ -33,8 +33,13 @@
   }
 
   function render() {
+    const amAdmin = DT_AUTH.isAdmin && DT_AUTH.isAdmin();
+    const amCxr   = DT_AUTH.isCxr   && DT_AUTH.isCxr();
+    const CXR_EDITABLE = new Set(["driver", "detailer"]);
     const term = ($("usersSearch")?.value || "").trim().toLowerCase();
-    const list = users.filter(u => !term
+    // CXR only sees drivers + detailers — never managers, admins, or other CXRs.
+    const visible = amCxr ? users.filter(u => CXR_EDITABLE.has(u.role || "driver")) : users;
+    const list = visible.filter(u => !term
       || (u.display_name || "").toLowerCase().includes(term)
       || (u.email || "").toLowerCase().includes(term));
     const el = $("usersList");
@@ -42,9 +47,6 @@
       el.innerHTML = `<div class="bl-empty">No users match.</div>`;
       return;
     }
-    const amAdmin = DT_AUTH.isAdmin && DT_AUTH.isAdmin();
-    const amCxr   = DT_AUTH.isCxr   && DT_AUTH.isCxr();
-    const CXR_EDITABLE = new Set(["driver", "detailer"]);
     el.innerHTML = list.map(u => {
       const targetRole = u.role || "driver";
       // CXR can edit drivers + detailers. Non-admin managers can touch anyone except admins. Admins can touch anyone.
@@ -81,10 +83,7 @@
 
   // ----- modal helpers -----
   function setMsg(text, kind) {
-    const m = $("usersModalMsg");
-    if (!m) return;
-    m.textContent = text || "";
-    m.className = "users-modal-msg" + (kind ? " " + kind : "");
+    DT_UI.setMessage($("usersModalMsg"), text, kind);
   }
 
   function showModal() { $("usersModal").classList.add("show"); }
@@ -228,10 +227,12 @@
     if (realtimeChan) { sb.removeChannel(realtimeChan); realtimeChan = null; }
   }
 
+  // CXR also needs the users list (limited to drivers/detailers — render() enforces).
+  const canSeeUsers = () => DT_AUTH.isManager() || (DT_AUTH.isCxr && DT_AUTH.isCxr());
   document.addEventListener("dt-auth-change", () => {
-    if (DT_AUTH.isManager()) start(); else stop();
+    if (canSeeUsers()) start(); else stop();
   });
-  if (DT_AUTH.isManager()) start();
+  if (canSeeUsers()) start();
 
   window.DT_USERS = { reload: load };
 })();

@@ -10,8 +10,8 @@
   if (!window.DT_AUTH) return;
   const sb = DT_AUTH.client;
   const $ = (id) => document.getElementById(id);
-  const esc = (s) => String(s || "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
-  const ago = (d) => (window.dtTimeAgo ? window.dtTimeAgo(d) : new Date(d).toLocaleString());
+  const esc = window.DT_ESC;
+  const ago = (d) => window.DT_FORMAT.timeAgo(d);
 
   let notes = [];
   let realtimeChan = null;
@@ -81,12 +81,16 @@
       `;
     }).join("");
 
-    el.querySelectorAll(".note-act-edit").forEach(b => b.addEventListener("click", () => openEdit(b.dataset.id)));
-    el.querySelectorAll(".note-act-archive").forEach(b => b.addEventListener("click", () => toggleArchive(b.dataset.id)));
-    el.querySelectorAll(".note-act-del").forEach(b => b.addEventListener("click", () => deleteNote(b.dataset.id)));
-    el.querySelectorAll(".note-photo img").forEach(img => {
-      img.addEventListener("click", () => openPhotoViewer(img.dataset.full));
-    });
+  }
+
+  // Single delegated listener (bound once in start()) — survives re-renders
+  // and avoids re-attaching per row.
+  function onListClick(e) {
+    const t = e.target;
+    if (t.matches(".note-act-edit"))    return openEdit(t.dataset.id);
+    if (t.matches(".note-act-archive")) return toggleArchive(t.dataset.id);
+    if (t.matches(".note-act-del"))     return deleteNote(t.dataset.id);
+    if (t.matches(".note-photo img"))   return openPhotoViewer(t.dataset.full);
   }
 
   function openEdit(id) {
@@ -110,11 +114,15 @@
     const { error } = await sb.from("vehicle_notes")
       .update({ body, updated_at: new Date().toISOString() })
       .eq("id", id);
-    if (error) { $("notesEditMsg").textContent = error.message; $("notesEditMsg").className = "users-modal-msg err"; return; }
-    $("notesEditMsg").textContent = "Saved.";
-    $("notesEditMsg").className = "users-modal-msg ok";
+    if (error) { DT_UI.setMessage($("notesEditMsg"), error.message, "err"); return; }
+    DT_UI.setMessage($("notesEditMsg"), "Saved.", "ok");
     load();
     setTimeout(closeEdit, 400);
+  }
+
+  // Find the card DOM node for a note id (data-id attribute set in render()).
+  function cardFor(id) {
+    return document.querySelector(`#notesAdminList .note-card[data-id="${CSS.escape(id)}"]`);
   }
 
   async function toggleArchive(id) {
@@ -124,7 +132,18 @@
       .update({ archived: !n.archived, updated_at: new Date().toISOString() })
       .eq("id", id);
     if (error) { alert(error.message); return; }
-    load();
+    n.archived = !n.archived;
+    const card = cardFor(id);
+    const showingArchived = $("notesShowArchived")?.checked;
+    if (card) {
+      if (!showingArchived && n.archived) {
+        card.remove();
+      } else {
+        card.classList.toggle("archived", n.archived);
+        const btn = card.querySelector(".note-act-archive");
+        if (btn) btn.textContent = n.archived ? "Unarchive" : "Archive";
+      }
+    }
   }
 
   async function deleteNote(id) {
@@ -140,7 +159,8 @@
     }
     const { error } = await sb.from("vehicle_notes").delete().eq("id", id);
     if (error) { alert(error.message); return; }
-    load();
+    notes = notes.filter(x => x.id !== id);
+    cardFor(id)?.remove();
   }
 
   // ---- Add Note modal (manager entry point that doesn't require a record) ----
@@ -160,8 +180,7 @@
     e.preventDefault();
     const vin = (e.target.elements.vin.value || "").trim().toUpperCase();
     if (!/^[A-HJ-NPR-Z0-9]{6,17}$/.test(vin)) {
-      $("notesAddMsg").textContent = "Enter a valid VIN (6–17 alphanumeric, no I/O/Q).";
-      $("notesAddMsg").className = "users-modal-msg err";
+      DT_UI.setMessage($("notesAddMsg"), "Enter a valid VIN (6–17 alphanumeric, no I/O/Q).", "err");
       return;
     }
     $("notesAddMsg").textContent = "";
@@ -172,6 +191,7 @@
   function start() {
     if (started) return;
     started = true;
+    $("notesAdminList")?.addEventListener("click", onListClick);
     $("notesSearch")?.addEventListener("input", render);
     $("notesShowArchived")?.addEventListener("change", load);
     $("notesEditForm")?.addEventListener("submit", onEditSubmit);

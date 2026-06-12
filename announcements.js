@@ -15,7 +15,7 @@
   const REACTION_EMOJIS = ["👍", "✅", "👀", "🙋"];
 
   const $ = (id) => document.getElementById(id);
-  const esc = (s) => String(s || "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  const esc = window.DT_ESC;
   const profileCache = new Map(); // user_id -> display_name
 
   // Twitter-style relative time. Pass prefix:"" for "5 min ago", or omit

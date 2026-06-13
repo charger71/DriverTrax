@@ -2,6 +2,7 @@
   "name": "DriverTrax",
   "short_name": "DriverTrax",
   "description": "Mobile-first lot operations app for Enterprise Rental Car",
+  "version": "3.0-beta",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

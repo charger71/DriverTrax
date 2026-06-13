@@ -1,9 +1,9 @@
 // ============================================================
-// DRIVERTRAX v2.0
+// DRIVERTRAX v3.0 (beta)
 // Single-file PWA for rental car lot operations
 // ============================================================
 
-const APP_VERSION = "2.2";
+const APP_VERSION = "3.0-beta";
 const SCHEMA_VERSION = 2;
 
 // Canonical short status code -> visible label shown in record cards / detail.

@@ -24,7 +24,7 @@
 
   async function loadFleetStats() {
     const since = startOfToday().toISOString();
-    const { data: records, error } = await sb.from("records").select("user_id,status,no_tag,ts").gte("ts", since);
+    const { data: records, error } = await sb.from("records").select("user_id,status,no_tag,ts,source").gte("ts", since).or("source.is.null,source.eq.scan");
     if (error) { console.warn("[Backlot] stats", error); return; }
     const total = records.length;
     const driverIds = new Set(records.map(r => r.user_id));
@@ -147,44 +147,143 @@
     }
     const hours = Math.max(1/60, (Date.now() - startOfToday().getTime()) / 3600000);
     const cph = (records.length / hours).toFixed(1);
+    const lbl = document.getElementById("avgBannerTimeLabel");
+    if (lbl) lbl.textContent = "AVG TRIP TIME";
     document.getElementById("avgBannerTime").textContent = timeStr;
     document.getElementById("avgBannerCph").textContent  = cph;
     banner.style.display = "block";
   }
 
+  const lbState = { role: "driver", period: "today" };
+
+  function periodStart(period) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    if (period === "today") return d;
+    if (period === "week") {
+      d.setDate(d.getDate() - d.getDay()); // Sunday
+      return d;
+    }
+    if (period === "month") {
+      d.setDate(1);
+      return d;
+    }
+    if (period === "quarter") {
+      const q = Math.floor(d.getMonth() / 3) * 3;
+      d.setMonth(q, 1);
+      return d;
+    }
+    return d;
+  }
+
+  function periodLabel(period) {
+    return period === "today" ? "Today's"
+         : period === "week"  ? "This Week's"
+         : period === "month" ? "This Month's"
+         : period === "quarter" ? "This Quarter's"
+         : "Today's";
+  }
+
   async function loadLeaderboard() {
-    const since = startOfToday().toISOString();
-    const { data: records, error } = await sb.from("records").select("user_id,ts").gte("ts", since);
-    if (error) { console.warn("[Backlot] leaderboard", error); return; }
+    const titleEl = $("blLeaderboardTitle");
+    if (titleEl) {
+      const who = lbState.role === "detailer" ? "Detailer" : "Driver";
+      titleEl.textContent = `${periodLabel(lbState.period)} ${who} Leaders`;
+    }
+    const el = $("blLeaderboard");
+    if (!el) return;
+    const since = periodStart(lbState.period).toISOString();
     const byUser = {};
-    records.forEach(r => {
-      const u = byUser[r.user_id] || (byUser[r.user_id] = { count: 0, first: r.ts, last: r.ts });
-      u.count++;
-      if (r.ts < u.first) u.first = r.ts;
-      if (r.ts > u.last)  u.last  = r.ts;
-    });
+
+    if (lbState.role === "detailer") {
+      const { data: jobs, error } = await sb
+        .from("detail_jobs")
+        .select("detailer_id,started_at,completed_at")
+        .gte("started_at", since);
+      if (error) { console.warn("[Backlot] leaderboard", error); return; }
+      (jobs || []).forEach(j => {
+        if (!j.detailer_id) return;
+        const last = j.completed_at || j.started_at;
+        const u = byUser[j.detailer_id] || (byUser[j.detailer_id] = { count: 0, first: j.started_at, last });
+        u.count++;
+        if (j.started_at < u.first) u.first = j.started_at;
+        if (last > u.last) u.last = last;
+      });
+    } else {
+      const { data: records, error } = await sb
+        .from("records")
+        .select("user_id,ts,status")
+        .gte("ts", since)
+        .neq("status", "DETAILING")
+        .or("source.is.null,source.eq.scan");
+      if (error) { console.warn("[Backlot] leaderboard", error); return; }
+      (records || []).forEach(r => {
+        const u = byUser[r.user_id] || (byUser[r.user_id] = { count: 0, first: r.ts, last: r.ts });
+        u.count++;
+        if (r.ts < u.first) u.first = r.ts;
+        if (r.ts > u.last)  u.last  = r.ts;
+      });
+    }
+
     const ids = Object.keys(byUser);
     let names = {};
     if (ids.length) {
       const { data: profiles } = await sb.from("profiles").select("id,display_name").in("id", ids);
       (profiles || []).forEach(p => { names[p.id] = p.display_name || "(no name)"; });
     }
-    const rows = Object.entries(byUser).map(([id,u]) => ({ id, name: names[id] || "Driver", ...u }))
+    const fallback = lbState.role === "detailer" ? "Detailer" : "Driver";
+    const unit = lbState.role === "detailer" ? "job" : "car";
+    const rows = Object.entries(byUser).map(([id,u]) => ({ id, name: names[id] || fallback, ...u }))
       .sort((a,b) => b.count - a.count);
-    const el = $("blLeaderboard");
-    if (!rows.length) { el.innerHTML = `<div class="bl-empty">No drivers active yet today.</div>`; return; }
+
+    if (!rows.length) {
+      const who = lbState.role === "detailer" ? "detailers" : "drivers";
+      const when = lbState.period === "today" ? "yet today"
+                 : lbState.period === "week" ? "this week"
+                 : lbState.period === "month" ? "this month"
+                 : "this quarter";
+      el.innerHTML = `<div class="bl-empty">No ${who} active ${when}.</div>`;
+      return;
+    }
     el.innerHTML = rows.map((r, i) => {
-      const hrs = Math.max(1/60, (new Date(r.last) - new Date(r.first)) / 3600000);
-      const rate = (r.count / hrs).toFixed(1);
+      const spanHrs = (new Date(r.last) - new Date(r.first)) / 3600000;
+      const sub = spanHrs >= (1/60)
+        ? `${(r.count / Math.max(1/60, spanHrs)).toFixed(1)}/hr · ${esc(window.dtTimeAgo(r.last))}`
+        : `${esc(window.dtTimeAgo(r.last))}`;
       return `<div class="bl-leader-row">
         <div class="bl-leader-rank ${i===0?'gold':''}">${i+1}</div>
         <div>
           <div class="bl-leader-name">${esc(r.name)}</div>
-          <div class="bl-leader-sub">${rate}/hr · ${esc(window.dtTimeAgo(r.last))}</div>
+          <div class="bl-leader-sub">${sub}</div>
         </div>
-        <div class="bl-leader-count">${r.count}</div>
+        <div class="bl-leader-count" title="${r.count} ${unit}${r.count===1?'':'s'}">${r.count}</div>
       </div>`;
     }).join("");
+  }
+
+  function wireLeaderboardControls() {
+    const roleSeg = $("blLbRole");
+    const periodSeg = $("blLbPeriod");
+    if (roleSeg && !roleSeg.dataset.wired) {
+      roleSeg.dataset.wired = "1";
+      roleSeg.addEventListener("click", (e) => {
+        const btn = e.target.closest(".bl-seg-btn");
+        if (!btn || !roleSeg.contains(btn)) return;
+        lbState.role = btn.dataset.role;
+        roleSeg.querySelectorAll(".bl-seg-btn").forEach(b => b.classList.toggle("is-active", b === btn));
+        loadLeaderboard();
+      });
+    }
+    if (periodSeg && !periodSeg.dataset.wired) {
+      periodSeg.dataset.wired = "1";
+      periodSeg.addEventListener("click", (e) => {
+        const btn = e.target.closest(".bl-seg-btn");
+        if (!btn || !periodSeg.contains(btn)) return;
+        lbState.period = btn.dataset.period;
+        periodSeg.querySelectorAll(".bl-seg-btn").forEach(b => b.classList.toggle("is-active", b === btn));
+        loadLeaderboard();
+      });
+    }
   }
 
   function initMap() {
@@ -443,6 +542,7 @@
 
     $("blAnnList")?.addEventListener("click", onAnnListClick);
     $("blEdrList")?.addEventListener("click", onEdrListClick);
+    wireLeaderboardControls();
 
     document.getElementById("blAnnForm")?.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -483,7 +583,7 @@
 
     realtimeChan = sb.channel("backlot-live")
       .on("postgres_changes", { event: "*", schema: "public", table: "records" },             () => { loadFleetStats(); loadLeaderboard(); })
-      .on("postgres_changes", { event: "*", schema: "public", table: "detail_jobs" },         loadActiveDetailers)
+      .on("postgres_changes", { event: "*", schema: "public", table: "detail_jobs" },         () => { loadActiveDetailers(); loadLeaderboard(); })
       .on("postgres_changes", { event: "*", schema: "public", table: "announcements" },       loadAnnouncements)
       .on("postgres_changes", { event: "*", schema: "public", table: "extra_driver_requests" }, loadEdrList)
       .on("postgres_changes", { event: "*", schema: "public", table: "extra_driver_responses" }, loadEdrList)

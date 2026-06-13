@@ -10,6 +10,7 @@
     --space-2: 8px;
     --space-3: 12px;
     --space-4: 16px;
+    --dt-input-h: 44px;
     --space-5: 24px;
     --space-6: 32px;
     --space-7: 48px;
@@ -109,6 +110,10 @@
     color: var(--text);
     margin-bottom: var(--space-6);
     transition: border-color 0.15s;
+  }
+  /* Consistent height for single-line form controls across the app */
+  input[type=text], input[type=number], input[type=date], input[type=time], input[type=email], input[type=password], input[type=search], input[type=tel], input[type=url], select {
+    box-sizing: border-box; height: var(--dt-input-h); line-height: 1.2;
   }
   /* VIN / serial fields stay uppercase — they're scanned codes, not free text */
   #serial, #editSerial { text-transform: uppercase; }
@@ -314,6 +319,16 @@
   .status-GLASS { background: #0a1e1e; color: #3dcfcf; }
   .status-TI { background: #2d1515; color: #e85550; border: 1px solid #e85550; }
   .status-WIDELETE { background: #2d1515; color: #e87070; }
+  .status-BODY { background: #2a1f08; color: #f0b04a; border: 1px solid #f0b04a; }
+  .status-BACKLOT { background: #0a1e1e; color: #3dcfcf; }
+  .status-DETAILING { background: #1e0d2e; color: #b87be8; }
+  .status-DETAILED { background: #0d2e1a; color: #34c76a; }
+  .status-CHECKIN { background: #0d2e1a; color: #34c76a; border: 1px solid #34c76a; }
+  .status-CHECKOUT { background: #0f1a36; color: #4d9bff; border: 1px solid #4d9bff; }
+  .status-HOLD { background: #3a2a10; color: #f59e0b; border: 1px solid #f59e0b; }
+  .status-DNR { background: #3a1313; color: #ef4444; border: 1px solid #ef4444; }
+  /* Fallback so unknown statuses still render with a visible chip */
+  .record-status:not([class*=" status-"]):not([class^="status-"]) { background: var(--card2); color: var(--text2); }
   .record-meta { font-size: var(--font-sm); color: var(--muted); margin-top: var(--space-2); }
   .record-vin { display: flex; align-items: center; font-size: var(--font-base); color: var(--accent); margin-top: var(--space-2); font-weight: 600; letter-spacing: 0.3px; }
   .record-notes { font-size: var(--font-base); margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border); color: var(--text2); line-height: var(--leading-relaxed); }
@@ -615,7 +630,18 @@
   .weather-alert-close { background: none; border: none; color: #f0b080; font-size: var(--font-md); cursor: pointer; padding: 0 var(--space-1); flex-shrink: 0; opacity: 0.7; }
 
   /* HEADER TOP ROW */
-  .header-top { display: flex; justify-content: space-between; align-items: center; }
+  .header-top { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
+  .header-greeting {
+    margin-left: auto;
+    font-size: var(--font-sm);
+    font-weight: 600;
+    color: var(--text2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  body.is-manager .header-greeting { color: #0b1015; }
 
   /* HAMBURGER */
   .btn-hamburger {

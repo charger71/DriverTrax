@@ -15,7 +15,11 @@ const STATUS_LABELS = {
   "MK": "MK (MECH.)",
   "MR": "MR (RECALL)",
   "OM": "OM (OVER MILES)",
-  "TI": "TI(TIRE)"
+  "TI": "TI(TIRE)",
+  "CHECK_IN": "CUSTOMER CHECK IN",
+  "CHECK_OUT": "CUSTOMER CHECK OUT",
+  "HOLD": "HOLD",
+  "DNR": "DO NOT RENT (DNR)"
 };
 function statusLabel(s) { return STATUS_LABELS[s] || s || ""; }
 
@@ -424,6 +428,8 @@ function updateAvgBanner() {
   const elapsedMs = timestamps[timestamps.length-1] - timestamps[0];
   const elapsedHrs = elapsedMs / 3600000;
   const cph = elapsedHrs > 0 ? (timestamps.length / elapsedHrs).toFixed(1) : "-";
+  const lbl = document.getElementById("avgBannerTimeLabel");
+  if (lbl) lbl.textContent = "AVG TRIP TIME";
   document.getElementById("avgBannerTime").textContent = timeStr;
   document.getElementById("avgBannerCph").textContent = cph;
   banner.style.display = "block";
@@ -634,7 +640,27 @@ function saveRecord() {
 // ============================
 // SLIDE MENU
 // ============================
+function updateMenuGreeting() {
+  const el = document.getElementById("menuGreeting");
+  if (!el) return;
+  const name = window.DT_AUTH?.getProfile?.()?.display_name || "";
+  const h = new Date().getHours();
+  let text;
+  if (h >= 1 && h < 5) {
+    text = name ? `GIT TO BED '${name.toUpperCase()}'! 🌙` : "GIT TO BED! 🌙";
+  } else {
+    let salutation;
+    if (h >= 5 && h < 12) salutation = "Good morning";
+    else if (h >= 12 && h < 17) salutation = "Good afternoon";
+    else salutation = "Good evening";
+    text = name ? `${salutation}, ${name}` : salutation;
+  }
+  el.textContent = text;
+}
+document.addEventListener("dt-auth-change", updateMenuGreeting);
+
 function openMenu() {
+  updateMenuGreeting();
   document.getElementById("slideMenu").classList.add("open");
   document.getElementById("menuOverlay").classList.add("open");
 }
@@ -654,7 +680,7 @@ function showTab(name) {
   document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
   document.getElementById("panel-" + name)?.classList.add("active");
-  document.querySelector(`.tab[data-tab="${visualTab}"]`)?.classList.add("active");
+  document.querySelectorAll(`.tab[data-tab="${visualTab}"]`).forEach(t => t.classList.add("active"));
   if (name === "entry") renderTodayEntries();
   if (name === "records") {
     // Search-driven view: don't auto-populate dates, don't render anything
@@ -668,6 +694,7 @@ function showTab(name) {
   if (name === "profile") applyProfile();
   if (name === "keyup") loadKeyUp();
   if (name === "garage") loadGarage();
+  if (name === "bcounter") loadBcounter();
   if (name && name.startsWith("backlot-") && window.DT_BACKLOT) {
     DT_BACKLOT.refresh();
   }
@@ -890,6 +917,192 @@ async function shareGarage() {
   renderGarageHistory();
   if (navigator.share) {
     try { await navigator.share({ title: "Garage Count", text }); return; }
+    catch (e) { if (e && e.name === "AbortError") return; }
+  }
+  const sms = "sms:?&body=" + encodeURIComponent(text);
+  try { await navigator.clipboard.writeText(text); showToast("Copied — opening Messages", "success"); }
+  catch(e) { showToast("Opening Messages", "success"); }
+  window.location.href = sms;
+}
+
+// ============================
+// BACKLOT COUNTER (mirror of Garage with its own storage)
+// ============================
+const BCOUNTER_KEY = "drivertrax_bcounter";
+const BCOUNTER_HISTORY_KEY = "drivertrax_bcounter_history";
+const BCOUNTER_DEFAULT_CATS = ["Clean", "Dirty", "PM", "MK", "MR", "OM", "Other"];
+
+function loadBcounterData() {
+  let data = {};
+  try { data = JSON.parse(localStorage.getItem(BCOUNTER_KEY) || "{}"); } catch(e) {}
+  if (!Array.isArray(data.categories) || data.categories.length === 0) {
+    data.categories = BCOUNTER_DEFAULT_CATS.slice();
+  }
+  if (!data.counts || typeof data.counts !== "object") data.counts = {};
+  if (typeof data.notes !== "string") data.notes = "";
+  return data;
+}
+
+function saveBcounterData(data) {
+  localStorage.setItem(BCOUNTER_KEY, JSON.stringify(data));
+}
+
+function loadBcounter() {
+  const data = loadBcounterData();
+  const grid = document.getElementById("bcounterGrid");
+  grid.innerHTML = "";
+  data.categories.forEach(cat => {
+    const count = data.counts[cat] || 0;
+    const tile = document.createElement("div");
+    tile.className = "keyup-tile";
+    tile.innerHTML = `
+      <div class="keyup-label">${escapeHtml(cat)}</div>
+      <div class="tally-controls">
+        <button type="button" class="tally-btn" data-action="dec" data-cat="${escapeAttr(cat)}">&minus;</button>
+        <input type="number" inputmode="numeric" min="0" value="${count || ""}" placeholder="0" data-cat="${escapeAttr(cat)}">
+        <button type="button" class="tally-btn" data-action="inc" data-cat="${escapeAttr(cat)}">+</button>
+      </div>`;
+    grid.appendChild(tile);
+  });
+  grid.querySelectorAll("button[data-action]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const cat = btn.dataset.cat;
+      const delta = btn.dataset.action === "inc" ? 1 : -1;
+      bumpBcounter(cat, delta);
+    });
+  });
+  grid.querySelectorAll("input[type='number']").forEach(inp => {
+    inp.addEventListener("input", () => {
+      const cat = inp.dataset.cat;
+      const v = parseInt(inp.value, 10);
+      const d = loadBcounterData();
+      d.counts[cat] = Number.isFinite(v) && v >= 0 ? v : 0;
+      saveBcounterData(d);
+      updateBcounterTotal();
+    });
+  });
+  document.getElementById("bcounterNotes").value = data.notes;
+  updateBcounterTotal();
+  renderBcounterHistory();
+}
+
+function bumpBcounter(cat, delta) {
+  const d = loadBcounterData();
+  const cur = d.counts[cat] || 0;
+  d.counts[cat] = Math.max(0, cur + delta);
+  saveBcounterData(d);
+  const inp = document.querySelector(`#bcounterGrid input[data-cat="${escapeAttr(cat)}"]`);
+  if (inp) inp.value = d.counts[cat] || "";
+  updateBcounterTotal();
+  haptic("tap");
+}
+
+function updateBcounterTotal() {
+  const d = loadBcounterData();
+  const total = d.categories.reduce((sum, c) => sum + (d.counts[c] || 0), 0);
+  document.getElementById("bcounterTotal").textContent = total;
+}
+
+function saveBcounter() {
+  const d = loadBcounterData();
+  d.notes = (document.getElementById("bcounterNotes").value || "").slice(0, 1000);
+  saveBcounterData(d);
+}
+
+function resetBcounter() {
+  if (!confirm("Reset all Backlot counts and notes? (Current totals will be saved to History first.)")) return;
+  archiveBcounter("reset");
+  const d = loadBcounterData();
+  d.counts = {};
+  d.notes = "";
+  saveBcounterData(d);
+  loadBcounter();
+  showToast("Backlot reset (archived to History)", "success");
+}
+
+function archiveBcounter(trigger) {
+  const d = loadBcounterData();
+  const total = d.categories.reduce((sum, c) => sum + (d.counts[c] || 0), 0);
+  if (total === 0 && !d.notes.trim()) return;
+  const entry = {
+    id: Date.now().toString(),
+    timestamp: Date.now(),
+    trigger: trigger || "manual",
+    categories: d.categories.slice(),
+    counts: { ...d.counts },
+    notes: d.notes,
+    total
+  };
+  const hist = loadHistory(BCOUNTER_HISTORY_KEY);
+  hist.unshift(entry);
+  saveHistory(BCOUNTER_HISTORY_KEY, hist);
+}
+
+function renderBcounterHistory() {
+  const container = document.getElementById("bcounterHistory");
+  if (!container) return;
+  const hist = loadHistory(BCOUNTER_HISTORY_KEY);
+  if (hist.length === 0) {
+    container.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:8px 0">No archived entries yet. Share or Reset to save a snapshot here.</p>';
+    return;
+  }
+  container.innerHTML = hist.map(e => {
+    const rows = e.categories.map(c => `<div class="history-line"><span>${escapeHtml(c)}</span><b>${e.counts[c] || 0}</b></div>`).join("");
+    const notes = e.notes && e.notes.trim()
+      ? `<div class="history-notes">${escapeHtml(e.notes)}</div>` : "";
+    return `
+      <div class="history-entry">
+        <div class="history-head">
+          <div>
+            <div class="history-date">${escapeHtml(formatHistoryDate(e.timestamp))}</div>
+            <div class="history-trigger">${escapeHtml(e.trigger)}</div>
+          </div>
+          <div class="history-total">${e.total}</div>
+        </div>
+        <div class="history-body">${rows}</div>
+        ${notes}
+        <button class="history-del" onclick="deleteHistoryEntry('${BCOUNTER_HISTORY_KEY}','${e.id}',renderBcounterHistory)">Delete</button>
+      </div>`;
+  }).join("");
+}
+
+function editBcounterCategories() {
+  const d = loadBcounterData();
+  const input = prompt(
+    "Edit categories (comma-separated). Counts for removed categories will be deleted.",
+    d.categories.join(", ")
+  );
+  if (input === null) return;
+  const cats = input.split(",").map(s => s.trim()).filter(Boolean);
+  if (cats.length === 0) {
+    alert("Need at least one category.");
+    return;
+  }
+  const newCounts = {};
+  cats.forEach(c => { if (d.counts[c] != null) newCounts[c] = d.counts[c]; });
+  d.categories = cats;
+  d.counts = newCounts;
+  saveBcounterData(d);
+  loadBcounter();
+}
+
+function buildBcounterMessage() {
+  const d = loadBcounterData();
+  const total = d.categories.reduce((sum, c) => sum + (d.counts[c] || 0), 0);
+  const dateStr = new Date().toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  const lines = [`Backlot Count — ${dateStr}`];
+  d.categories.forEach(c => lines.push(`${c}: ${d.counts[c] || 0}`));
+  lines.push(`Total: ${total}`);
+  if (d.notes.trim()) lines.push("", `Notes: ${d.notes.trim()}`);
+  return lines.join("\n");
+}
+
+async function shareBcounter() {
+  const text = buildBcounterMessage();
+  archiveBcounter("share");
+  renderBcounterHistory();
+  if (navigator.share) {
+    try { await navigator.share({ title: "Backlot Count", text }); return; }
     catch (e) { if (e && e.name === "AbortError") return; }
   }
   const sms = "sms:?&body=" + encodeURIComponent(text);
@@ -1742,6 +1955,7 @@ function renderRecords() {
     if (countEl)   countEl.textContent = "";
     if (container) container.innerHTML = `<p class="records-prompt">Type a VIN or search notes to start.</p>`;
     _renderRecordsMapMarkers([]);
+    renderVinDetailList([]);
     return;
   }
 
@@ -1835,6 +2049,7 @@ async function renderFuzzyResults(term) {
     container.innerHTML = `<p class="records-prompt">No matches for <b>${sanitizeText(term)}</b>.</p>`;
     if (countEl) countEl.textContent = "0 results";
     _renderRecordsMapMarkers([]);
+    renderVinDetailList([]);
     return;
   }
 
@@ -1860,7 +2075,7 @@ async function renderFuzzyResults(term) {
         const photoHtml = n.photo_url && signed[n.photo_url]
           ? `<div class="note-photo"><img src="${esc(signed[n.photo_url])}" alt="" data-full="${esc(signed[n.photo_url])}"></div>` : "";
         return `
-          <div class="note-card vin-tl-note-clickable" data-vin="${esc(n.serial_id)}">
+          <div class="note-card vin-tl-note-clickable" data-vin="${esc(n.serial_id)}" data-id="${esc(n.id)}">
             <div class="note-head">
               <span class="note-author"><b>${esc(n.serial_id)}</b> · ${name}${role}</span>
               <span class="note-time">${esc(ago(n.created_at))}</span>
@@ -1883,11 +2098,27 @@ async function renderFuzzyResults(term) {
     });
   });
 
-  // Map: drop a pin for every result that has GPS
+  // Map: latest GPS per VIN, capped to 25 by recency
   const pins = [];
-  cards.forEach(c => { if (Number.isFinite(c.lat) && Number.isFinite(c.lng)) pins.push({ lat: c.lat, lng: c.lng, label: c.serialId }); });
-  noteRows.forEach(n => { if (Number.isFinite(n.lat) && Number.isFinite(n.lng)) pins.push({ lat: n.lat, lng: n.lng, label: n.serial_id }); });
+  cards.forEach(c => {
+    if (Number.isFinite(c.lat) && Number.isFinite(c.lng)) {
+      pins.push({ lat: c.lat, lng: c.lng, label: c.serialId, ts: c.timestamp || 0 });
+    }
+  });
+  noteRows.forEach(n => {
+    if (Number.isFinite(n.lat) && Number.isFinite(n.lng)) {
+      pins.push({ lat: n.lat, lng: n.lng, label: n.serial_id, ts: new Date(n.created_at).getTime() || 0 });
+    }
+  });
   _renderRecordsMapMarkers(pins);
+
+  const vinItems = [];
+  cards.forEach(c => {
+    const v = c.vinData ? [c.vinData.year, c.vinData.make, c.vinData.model].filter(Boolean).join(" ") : "";
+    vinItems.push({ vin: c.serialId, ts: c.timestamp || null, vehicle: v });
+  });
+  noteRows.forEach(n => vinItems.push({ vin: n.serial_id, ts: n.created_at, vehicle: "" }));
+  renderVinDetailList(vinItems);
 }
 
 // Drop markers on the records map for an arbitrary list. Used by the
@@ -1906,9 +2137,19 @@ function _renderRecordsMapMarkers(pins) {
     document.getElementById("recordsMapEmpty").style.display = "block";
     return;
   }
+  // Latest GPS per VIN, cap at 25 by recency
+  const byVin = new Map();
+  pins.forEach(p => {
+    const key = String(p.label || "").toUpperCase();
+    const cur = byVin.get(key);
+    if (!cur || (p.ts || 0) > (cur.ts || 0)) byVin.set(key, p);
+  });
+  const deduped = Array.from(byVin.values())
+    .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+    .slice(0, 25);
   document.getElementById("recordsMapEmpty").style.display = "none";
   const bounds = [];
-  pins.forEach(p => {
+  deduped.forEach(p => {
     const m = L.circleMarker([p.lat, p.lng], { radius: 7, color: "#00a651", weight: 2, fillColor: "#00a651", fillOpacity: 0.7 })
       .bindPopup(`<b>${sanitizeText(p.label)}</b>`)
       .addTo(recordsLeafletMap);
@@ -1919,6 +2160,70 @@ function _renderRecordsMapMarkers(pins) {
   else recordsLeafletMap.setView(bounds[0], 15);
   setTimeout(() => recordsLeafletMap.invalidateSize(), 50);
 }
+
+// Read-only detail panel for a cloud record row inside the VIN timeline.
+// Layout mirrors the #detailSheet template (detail-header / -badges / -body / -actions).
+function openVinRecordDetail(r, profileCache) {
+  const body = document.getElementById("recordDetailBody");
+  if (!body) return;
+  const esc = (s) => sanitizeText(s);
+  const p = profileCache?.get?.(r.user_id) || null;
+  const name = esc(p?.display_name || "Someone");
+  const role = p?.role ? `<span class="note-role role-${esc(p.role)}">${esc(p.role)}</span>` : "";
+  const statusDisp = r.status === "OTHER" && r.status_other ? `OTHER: ${r.status_other}` : statusLabel(r.status);
+  const destDisp   = r.destination === "OTHER" && r.destination_other ? `OTHER: ${r.destination_other}` : (r.destination || "");
+  const when = (() => { try { return new Date(r.ts).toLocaleString(); } catch { return ""; } })();
+  const vd = r.vin_data || null;
+  const vehicle = vd ? [vd.year, vd.make, vd.model].filter(Boolean).join(" ") : "";
+
+  const badges = [
+    `<span class="record-status ${statusClass(r.status)}">${esc(statusDisp)}</span>`,
+    destDisp ? `<span class="badge-dest">${esc(destDisp)}</span>` : "",
+    r.shuttle ? '<span class="badge-shuttle">SHUTTLE</span>' : "",
+    r.transport ? '<span class="badge-transport">TRANSPORT</span>' : "",
+    r.no_tag ? '<span class="badge-notag">NO TAG</span>' : ""
+  ].filter(Boolean).join("");
+
+  const gpsAction = (Number.isFinite(r.lat) && Number.isFinite(r.lng))
+    ? `<a class="btn btn-secondary" href="https://www.google.com/maps?q=${r.lat},${r.lng}" target="_blank" rel="noopener">Open in Maps</a>` : "";
+
+  body.innerHTML = `
+    <div class="detail-header">
+      <div>
+        <div class="detail-serial">${esc(r.serial_id || "")}</div>
+        <div class="detail-time">${esc(when)}</div>
+      </div>
+      <button class="detail-close" onclick="closeRecordDetailOverlay()" aria-label="Close"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    ${badges ? `<div class="detail-badges">${badges}</div>` : ""}
+    ${vehicle ? `
+      <div class="detail-vin-section">
+        <div class="detail-vin-info">
+          <div class="detail-vin-name">${esc(vehicle)}</div>
+          ${vd?.trim ? `<div class="detail-vin-specs">${esc(vd.trim)}</div>` : ""}
+        </div>
+      </div>` : ""}
+    <div class="detail-body">
+      <div class="detail-row"><span class="detail-label">Author</span><span class="detail-val">${name}${role}</span></div>
+      ${r.notes ? `<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-val">${esc(r.notes)}</span></div>` : ""}
+      ${r.source ? `<div class="detail-row"><span class="detail-label">Source</span><span class="detail-val">${esc(r.source)}</span></div>` : ""}
+    </div>
+    ${gpsAction ? `<div class="detail-actions" style="grid-template-columns:1fr">${gpsAction}</div>` : ""}
+  `;
+  document.getElementById("recordDetailOverlay").classList.add("open");
+}
+
+function closeRecordDetailOverlay() {
+  document.getElementById("recordDetailOverlay")?.classList.remove("open");
+}
+function closeNoteDetailOverlay() {
+  document.getElementById("noteDetailOverlay")?.classList.remove("open");
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (document.getElementById("recordDetailOverlay")?.classList.contains("open")) closeRecordDetailOverlay();
+  if (document.getElementById("noteDetailOverlay")?.classList.contains("open")) closeNoteDetailOverlay();
+});
 
 // ============================
 // VIN TIMELINE — every event for a single asset, oldest visit last
@@ -1933,21 +2238,22 @@ async function _vinFetchProfiles(ids) {
   (data || []).forEach(p => _vinProfileCache.set(p.id, p));
 }
 
-async function renderVinTimeline(vin) {
-  const container = document.getElementById("records");
-  const countEl   = document.getElementById("resultsCount");
+async function renderVinTimeline(vin, opts) {
+  opts = opts || {};
+  const container = opts.container || document.getElementById("records");
+  const countEl   = opts.countEl !== undefined ? opts.countEl : document.getElementById("resultsCount");
   if (!container || !window.DT_AUTH) return;
-  countEl.textContent = `VIN history`;
+  if (countEl) countEl.textContent = `VIN history`;
   container.innerHTML = `<div class="vin-tl-empty">Loading…</div>`;
   const sb = DT_AUTH.client;
 
   const [recordsRes, notesRes] = await Promise.all([
     sb.from("records")
-      .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data")
+      .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,source,note_id")
       .eq("serial_id", vin)
       .order("ts", { ascending: false }),
     sb.from("vehicle_notes")
-      .select("id,body,author_id,created_at,lat,lng,photo_url")
+      .select("id,body,author_id,created_at,lat,lng,photo_url,mileage,fuel_level")
       .eq("serial_id", vin)
       .eq("archived", false)
       .order("created_at", { ascending: false })
@@ -1957,7 +2263,17 @@ async function renderVinTimeline(vin) {
   const notes   = notesRes.data   || [];
   if (!records.length && !notes.length) {
     container.innerHTML = `<div class="vin-tl-empty">No history for <b>${sanitizeText(vin)}</b>.</div>`;
+    renderVinDetailList([]);
     return;
+  }
+  {
+    const vd = records.find(r => r.vin_data)?.vin_data;
+    const veh = vd ? [vd.year, vd.make, vd.model].filter(Boolean).join(" ") : "";
+    const items = [
+      ...records.map(r => ({ vin, ts: r.ts, vehicle: veh })),
+      ...notes.map(n   => ({ vin, ts: n.created_at, vehicle: veh }))
+    ];
+    renderVinDetailList(items);
   }
 
   await _vinFetchProfiles([
@@ -1973,10 +2289,22 @@ async function renderVinTimeline(vin) {
     (urls || []).forEach(u => { signed[u.path] = u.signedUrl; });
   }
 
-  // Merge into one timeline (newest first)
+  // Merge linked record+note pairs (status-change notes) into a single timeline
+  // entry. Records carry note_id back to the originating note; we drop the record
+  // from the event list and stamp the matching note with a `linkedRecord` so the
+  // note row can show the status badge.
+  const recordByNoteId = new Map();
+  records.forEach(r => { if (r.note_id) recordByNoteId.set(r.note_id, r); });
   const events = [
-    ...records.map(r => ({ ts: new Date(r.ts).getTime(),         kind: "record", r })),
-    ...notes.map(n   => ({ ts: new Date(n.created_at).getTime(), kind: "note",   n }))
+    ...records
+      .filter(r => !r.note_id) // drop note-sourced records; their data lives on the note
+      .map(r => ({ ts: new Date(r.ts).getTime(), kind: "record", r })),
+    ...notes.map(n => ({
+      ts: new Date(n.created_at).getTime(),
+      kind: "note",
+      n,
+      linkedRecord: recordByNoteId.get(n.id) || null
+    }))
   ].sort((a, b) => b.ts - a.ts);
 
   const ago = (input) => DT_FORMAT.timeAgo(input);
@@ -2002,7 +2330,7 @@ async function renderVinTimeline(vin) {
       const gps = (Number.isFinite(r.lat) && Number.isFinite(r.lng))
         ? ` · <a href="https://www.google.com/maps?q=${r.lat},${r.lng}" target="_blank" rel="noopener" class="vin-tl-gps">📍</a>` : "";
       return `
-        <div class="vin-tl-row vin-tl-record" onclick="openDetail('${r.id}', 'deleteRecord')">
+        <div class="vin-tl-row vin-tl-record" data-record-id="${esc(r.id)}">
           <div class="vin-tl-head">
             <span class="record-status ${statusClass(r.status)}">${esc(statusDisp)}</span>
             <span class="vin-tl-time">${esc(ago(ev.ts))}${gps}</span>
@@ -2012,32 +2340,86 @@ async function renderVinTimeline(vin) {
         </div>`;
     }
     const n = ev.n;
+    const lr = ev.linkedRecord;
     const p = _vinProfileCache.get(n.author_id);
     const name = esc(p?.display_name || "Someone");
     const role = p?.role ? `<span class="note-role role-${esc(p.role)}">${esc(p.role)}</span>` : "";
-    const photoHtml = n.photo_url && signed[n.photo_url]
-      ? `<div class="note-photo"><img src="${esc(signed[n.photo_url])}" alt=""></div>` : "";
-    const gps = (Number.isFinite(n.lat) && Number.isFinite(n.lng))
-      ? `<a class="note-gps" href="https://www.google.com/maps?q=${n.lat},${n.lng}" target="_blank" rel="noopener">📍 Location</a>` : "";
+    const bodyPreview = n.body ? (n.body.length > 180 ? n.body.slice(0, 180) + "…" : n.body) : "";
+    const extras = [];
+    if (Number.isFinite(n.mileage)) extras.push(`${n.mileage.toLocaleString()} mi`);
+    if (n.fuel_level) extras.push(`Fuel ${n.fuel_level}`);
+    if (n.photo_url) extras.push("photo");
+    if (Number.isFinite(n.lat) && Number.isFinite(n.lng)) extras.push("location");
+    if (lr?.destination) extras.push(esc(lr.destination));
+    const extrasHtml = extras.length ? `<div class="vin-tl-meta-sub">${esc(extras.join(" · "))}</div>` : "";
+    // If this note also drove a status change, show the status badge in place of the "Note" pill.
+    const head = lr
+      ? `<span class="record-status ${statusClass(lr.status)}">${esc(lr.status === "OTHER" && lr.status_other ? `OTHER: ${lr.status_other}` : statusLabel(lr.status))}</span>`
+      : `<span class="vin-tl-kind">Note</span>`;
     return `
-      <div class="vin-tl-row vin-tl-note">
+      <div class="vin-tl-row vin-tl-note" data-note-id="${esc(n.id)}">
         <div class="vin-tl-head">
-          <span class="vin-tl-kind">Note</span>
+          ${head}
           <span class="vin-tl-time">${esc(ago(ev.ts))}</span>
         </div>
         <div class="vin-tl-meta">${name}${role}</div>
-        <div class="vin-tl-body">${esc(n.body)}</div>
-        ${photoHtml}
-        ${gps}
+        ${bodyPreview ? `<div class="vin-tl-body">${esc(bodyPreview)}</div>` : ""}
+        ${extrasHtml}
       </div>`;
   }).join("");
 
+  // Latest status from most-recent record; latest mileage from most-recent note that has one.
+  const latestRec = records[0] || null;
+  const latestStatus = latestRec?.status || "";
+  const latestStatusDisp = latestRec
+    ? (latestRec.status === "OTHER" && latestRec.status_other ? `OTHER: ${latestRec.status_other}` : statusLabel(latestRec.status))
+    : "";
+  const latestMileage = (() => {
+    const n = notes.find(x => Number.isFinite(x.mileage));
+    return n ? n.mileage : null;
+  })();
+  const latestFuel = (() => {
+    const n = notes.find(x => x.fuel_level);
+    return n ? n.fuel_level : null;
+  })();
+  const FUEL_PCT = { "EMPTY": 0, "1/4": 25, "1/2": 50, "3/4": 75, "FULL": 100 };
+  const fuelGauge = latestFuel ? (() => {
+    const pct = FUEL_PCT[latestFuel] ?? 0;
+    const lowCls = pct <= 25 ? " is-low" : pct <= 50 ? " is-mid" : "";
+    return `
+      <div class="vin-tl-fuel">
+        <div class="vin-tl-fuel-head">
+          <span class="vin-tl-fuel-label"><svg class="ico-fuel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="11" height="18" rx="1"/><line x1="3" y1="9" x2="14" y2="9"/><path d="M14 13h3a2 2 0 0 1 2 2v2a1.5 1.5 0 0 0 3 0V8l-3-3"/></svg>FUEL</span>
+          <span class="vin-tl-fuel-value">${esc(latestFuel)}</span>
+        </div>
+        <div class="vin-tl-fuel-gauge${lowCls}" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Fuel level ${esc(latestFuel)}">
+          <div class="vin-tl-fuel-fill" style="width:${pct}%"></div>
+          <div class="vin-tl-fuel-ticks"><span></span><span></span><span></span></div>
+        </div>
+        <div class="vin-tl-fuel-scale"><span>E</span><span>¼</span><span>½</span><span>¾</span><span>F</span></div>
+      </div>`;
+  })() : "";
+  const headerMod = latestStatus === "HOLD" ? "vin-tl-header--hold"
+                  : latestStatus === "DNR"  ? "vin-tl-header--dnr"
+                  : "";
+  const statusPill = latestStatus
+    ? `<span class="vin-tl-status-pill ${statusClass(latestStatus)}">${esc(latestStatusDisp)}</span>`
+    : "";
+  const mileageLine = Number.isFinite(latestMileage)
+    ? `<div class="vin-tl-mileage"><svg class="ico-mileage" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16a9 9 0 0 1 18 0"/><path d="M12 16 16 10"/><circle cx="12" cy="16" r="1.2" fill="currentColor"/></svg>${latestMileage.toLocaleString()} mi</div>` : "";
+  const headerRight = (statusPill || mileageLine)
+    ? `<div class="vin-tl-header-right">${statusPill}${mileageLine}</div>` : "";
+
   container.innerHTML = `
-    <div class="vin-tl-header">
-      <div class="vin-tl-label">VIN HISTORY</div>
+    <div class="vin-tl-header ${headerMod}">
+      <div class="vin-tl-header-top">
+        <div class="vin-tl-label">VIN HISTORY</div>
+        ${headerRight}
+      </div>
       <div class="vin-tl-vin">${esc(vin)}</div>
       ${headerVehicle}
       <div class="vin-tl-count">${events.length} event${events.length === 1 ? "" : "s"}</div>
+      ${fuelGauge}
     </div>
     <div id="vinTimelineNotes"></div>
     <div class="vin-tl-list">${html}</div>
@@ -2045,13 +2427,52 @@ async function renderVinTimeline(vin) {
   // Mount the shared notes widget so any signed-in user (managers included)
   // can leave a note on this VIN without needing to tap into a record first.
   if (window.DT_VNOTES) {
-    DT_VNOTES.mount(document.getElementById("vinTimelineNotes"), vin);
+    // Hide the widget's notes list — notes now live in the merged timeline below.
+    DT_VNOTES.mount(container.querySelector("#vinTimelineNotes"), vin, { addWithMedia: true, withStatus: true, showList: false });
   }
+
+  // Wire record-row clicks → open a read-only record detail overlay.
+  const recordsById = new Map(records.map(r => [r.id, r]));
+  container.querySelectorAll('.vin-tl-record').forEach(row => {
+    if (row._wired) return;
+    row._wired = true;
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('a, button')) return;
+      const r = recordsById.get(row.dataset.recordId);
+      if (r) openVinRecordDetail(r, _vinProfileCache);
+    });
+  });
+
+  // Wire note-row clicks → open the note detail overlay (from vehicle-notes.js).
+  container.querySelectorAll('.vin-tl-note').forEach(row => {
+    if (row._wired) return;
+    row._wired = true;
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('a, button')) return;
+      const id = row.dataset.noteId;
+      if (id && window.DT_VNOTES?.openNoteDetail) DT_VNOTES.openNoteDetail(id);
+    });
+  });
+
+  // When a note is added for this VIN, re-render the timeline so the VIN HISTORY
+  // header (current status, mileage, fuel gauge) reflects the new note immediately.
+  if (!container._vinNoteListener) {
+    container._vinNoteListener = (ev) => {
+      const v = ev?.detail?.vin;
+      if (!v || v === container._vinTimelineVin) {
+        renderVinTimeline(container._vinTimelineVin, { container, countEl: opts.countEl ?? null });
+      }
+    };
+    document.addEventListener("dt-vehicle-note-added", container._vinNoteListener);
+  }
+  container._vinTimelineVin = vin;
 
   // Drop pins for every event on this VIN that has GPS
   const pins = [];
-  records.forEach(r => { if (Number.isFinite(r.lat) && Number.isFinite(r.lng)) pins.push({ lat: r.lat, lng: r.lng, label: r.serial_id }); });
-  notes.forEach(n   => { if (Number.isFinite(n.lat) && Number.isFinite(n.lng)) pins.push({ lat: n.lat, lng: n.lng, label: vin });          });
+  records.forEach(r => { if (Number.isFinite(r.lat) && Number.isFinite(r.lng)) pins.push({ lat: r.lat, lng: r.lng, label: r.serial_id, ts: new Date(r.ts).getTime() || 0 }); });
+  notes.forEach(n   => { if (Number.isFinite(n.lat) && Number.isFinite(n.lng)) pins.push({ lat: n.lat, lng: n.lng, label: vin,         ts: new Date(n.created_at).getTime() || 0 }); });
   _renderRecordsMapMarkers(pins);
 }
 
@@ -2709,7 +3130,7 @@ function renderRangeMonthTable(elId, all, months) {
 // ============================
 let recordsLeafletMap = null;
 let recordsMapMarkers = [];
-let recordsMapOpen = true;
+let recordsMapOpen = false;
 
 function toggleRecordsMap() {
   const body = document.getElementById('body-recordsMap');
@@ -2721,6 +3142,60 @@ function toggleRecordsMap() {
   tab.classList.toggle('active', recordsMapOpen);
   if (recordsMapOpen) renderRecordsMap();
 }
+
+// Build a deduped list of VINs from whatever was just rendered into #records,
+// each row linking to the VIN Detail modal.
+function renderVinDetailList(items) {
+  const el = document.getElementById('vinDetailList');
+  if (!el) return;
+  const seen = new Map();
+  const tsNum = (t) => {
+    if (!t && t !== 0) return 0;
+    if (typeof t === "number") return t;
+    const n = new Date(t).getTime();
+    return Number.isFinite(n) ? n : 0;
+  };
+  (items || []).forEach(it => {
+    if (!it || !it.vin) return;
+    const key = String(it.vin).toUpperCase();
+    const t = tsNum(it.ts);
+    const cur = seen.get(key) || { vin: key, count: 0, last: t, vehicle: it.vehicle || "" };
+    cur.count += 1;
+    if (t > cur.last) cur.last = t;
+    if (!cur.vehicle && it.vehicle) cur.vehicle = it.vehicle;
+    seen.set(key, cur);
+  });
+  const rows = Array.from(seen.values()).sort((a, b) => b.last - a.last);
+  if (!rows.length) {
+    el.innerHTML = `<div class="bl-empty">No VINs in current results.</div>`;
+    return;
+  }
+  const esc = (s) => sanitizeText(s);
+  const ago = (input) => input ? DT_FORMAT.timeAgo(input) : "";
+  el.innerHTML = rows.map(r => `
+    <div class="vin-detail-row" data-vin="${esc(r.vin)}">
+      <div>
+        <div class="vin-detail-vin">${esc(r.vin)}</div>
+        <div class="vin-detail-sub">${esc(r.vehicle || "")}${r.vehicle && r.last ? " · " : ""}${esc(ago(r.last))}</div>
+      </div>
+      <div class="vin-detail-count">${r.count}</div>
+    </div>
+  `).join("");
+  el.querySelectorAll('.vin-detail-row').forEach(row => {
+    row.addEventListener('click', () => openVinDetailPanel(row.dataset.vin));
+  });
+}
+
+async function openVinDetailPanel(vin) {
+  const title = document.getElementById('vinDetailTitle');
+  const body  = document.getElementById('vinDetailBody');
+  if (!body || !window.DT_AUTH) return;
+  if (title) title.textContent = vin;
+  body.innerHTML = `<div class="bl-empty">Loading…</div>`;
+  if (typeof showTab === "function") showTab('vin-detail');
+  renderVinTimeline(vin, { container: body, countEl: null });
+}
+
 
 function renderRecordsMap() {
   if (!recordsMapOpen) return;

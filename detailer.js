@@ -432,6 +432,10 @@
     }
     document.getElementById("detailStatAvg").textContent = avgStr;
 
+    // Mirror the detailer numbers into the global #avgBanner so the role sees
+    // their own AVG CLEAN TIME + CARS/HOUR at the top of the dashboard.
+    updateDetailerAvgBanner(done, todayStart, avgStr);
+
     // Condition breakdown for the 30-day window
     const byCond = {};
     done
@@ -464,6 +468,22 @@
     recentEl.querySelectorAll(".detail-history-row").forEach(row => {
       row.addEventListener("click", () => openJobFromHistory(row.dataset.jobId));
     });
+  }
+  // Cars/hour for detailers = completed jobs today ÷ elapsed hours between
+  // first and last completion (matches the driver-side formula in app.js).
+  function updateDetailerAvgBanner(done, todayStart, avgStr) {
+    const banner = document.getElementById("avgBanner");
+    if (!banner) return;
+    const todayDone = done.filter(j => new Date(j.completed_at) >= todayStart);
+    if (todayDone.length < 2) { banner.style.display = "none"; return; }
+    const ts = todayDone.map(j => new Date(j.completed_at).getTime()).sort((a, b) => a - b);
+    const elapsedHrs = (ts[ts.length - 1] - ts[0]) / 3600000;
+    const cph = elapsedHrs > 0 ? (ts.length / elapsedHrs).toFixed(1) : "—";
+    const lbl = document.getElementById("avgBannerTimeLabel");
+    if (lbl) lbl.textContent = "AVG CLEAN TIME";
+    document.getElementById("avgBannerTime").textContent = avgStr;
+    document.getElementById("avgBannerCph").textContent  = cph;
+    banner.style.display = "block";
   }
   function startOfDay(d) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
   function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }

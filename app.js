@@ -2651,7 +2651,7 @@ async function renderVinTimeline(vin, opts) {
   // can leave a note on this VIN without needing to tap into a record first.
   if (window.DT_VNOTES) {
     // Hide the widget's notes list — notes now live in the merged timeline below.
-    DT_VNOTES.mount(container.querySelector("#vinTimelineNotes"), vin, { addWithMedia: true, withStatus: true, showList: false });
+    DT_VNOTES.mount(container.querySelector("#vinTimelineNotes"), vin, { addWithMedia: true, withStatus: true, showList: false, showAdd: false });
   }
 
   // Wire record-row clicks → open a read-only record detail overlay.
@@ -2841,7 +2841,7 @@ function openDetail(id, onDelete) {
   // Mount the cross-role notes widget so anyone viewing the record sees +
   // can leave VIN-level notes.
   if (window.DT_VNOTES) {
-    DT_VNOTES.mount(document.getElementById("detailVinNotes"), r.serialId || "");
+    DT_VNOTES.mount(document.getElementById("detailVinNotes"), r.serialId || "", { showAdd: false });
   }
 
   document.getElementById("detailOverlay").classList.add("open");
@@ -2974,7 +2974,7 @@ function csvEscape(v) {
 function exportCSV() {
   const records = getFiltered();
   if (records.length === 0) { showToast("No records to export.", "error"); return; }
-  const rows = [["ID","Serial ID","Year","Make","Model","Status","Tires","Destination","Shuttle","Transport","Bad Tag","Notes","Latitude","Longitude","Timestamp"]];
+  const rows = [["ID","Serial ID","Year","Make","Model","Status","Tires","Location","Shuttle","Transport","Bad Tag","Notes","Latitude","Longitude","Timestamp"]];
   records.forEach(r => rows.push([
     r.id, r.serialId,
     r.vinData ? r.vinData.year : "",
@@ -4815,7 +4815,7 @@ document.addEventListener("dt-pin-change", () => applyProfile());
 document.addEventListener("dt-vin-scanned", (e) => {
   const vin = (e.detail || "").toUpperCase();
   const target = document.getElementById("entryVinNotes");
-  if (target && vin && window.DT_VNOTES) DT_VNOTES.mount(target, vin);
+  if (target && vin && window.DT_VNOTES) DT_VNOTES.mount(target, vin, { showAdd: false });
   renderEntryCurrentState(vin);
 });
 

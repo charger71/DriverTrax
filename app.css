@@ -266,11 +266,42 @@
     border: none; border-radius: var(--radius); cursor: pointer;
     font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
     margin-top: var(--space-4); width: 100%;
+    /* Smooth fade between resting (85% fill) and hover (95% fill). */
+    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
   }
-  .btn-primary { background: var(--accent); color: #000; font-weight: 900; }
-  .btn-primary:active { background: var(--accent-dark); }
-  .btn-secondary { background: var(--card2); color: var(--accent); border: 1px solid var(--border); margin-top: var(--space-3); }
-  .btn-danger { background: var(--danger); color: #fff; padding: var(--space-2) var(--space-3); font-size: var(--font-sm); width: auto; margin-top: 0; border-radius: 6px; }
+  .btn-primary {
+    background: color-mix(in srgb, var(--accent) 20%, transparent);
+    color: var(--text); font-weight: 900;
+    border: 1px solid var(--accent);
+  }
+  .btn-primary:hover { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+  .btn-primary:active { background: color-mix(in srgb, var(--accent-dark) 50%, transparent); }
+  /* Disabled: same shape, just dimmed + non-interactive. */
+  .btn-primary:disabled,
+  .btn-primary[disabled] {
+    background: transparent;
+    color: var(--muted);
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  .btn-secondary {
+    background: color-mix(in srgb, var(--card2) 85%, transparent);
+    color: var(--accent);
+    border: 1px solid color-mix(in srgb, var(--border) 95%, transparent);
+    margin-top: var(--space-3);
+  }
+  .btn-secondary:hover {
+    background: color-mix(in srgb, var(--card2) 95%, transparent);
+    border-color: color-mix(in srgb, var(--border) 99%, transparent);
+  }
+  .btn-danger {
+    background: color-mix(in srgb, var(--danger) 85%, transparent);
+    color: #fff;
+    padding: var(--space-2) var(--space-3); font-size: var(--font-sm);
+    width: auto; margin-top: 0; border-radius: 6px;
+  }
+  .btn-danger:hover { background: color-mix(in srgb, var(--danger) 95%, transparent); }
 
   /* TODAY'S ENTRIES SECTION */
   .today-header {
@@ -402,12 +433,25 @@
   /* LARGE SCAN BUTTON */
   .btn-scan-primary {
     width: 100%; padding: 26px;
-    background: var(--accent); color: #000; border: none;
+    background: color-mix(in srgb, var(--accent) 20%, transparent);
+    color: var(--text);
+    border: 2px solid var(--accent);
     border-radius: var(--radius); font-size: var(--font-xl); font-weight: 900;
     letter-spacing: 1.5px; cursor: pointer;
     display: flex; align-items: center; justify-content: center; gap: var(--space-3);
+    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+    animation: btn-scan-pulse 2.6s ease-in-out infinite;
   }
-  .btn-scan-primary:active { background: var(--accent-dark); }
+  .btn-scan-primary:hover  { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+  .btn-scan-primary:active { background: color-mix(in srgb, var(--accent-dark) 50%, transparent); animation: none; }
+  /* Slow, subtle attention pulse: soft glow grows and the border breathes. */
+  @keyframes btn-scan-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 40%, transparent); border-color: var(--accent); }
+    50%      { box-shadow: 0 0 0 10px color-mix(in srgb, var(--accent)  0%, transparent); border-color: color-mix(in srgb, var(--accent) 70%, transparent); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .btn-scan-primary { animation: none; }
+  }
 
   /* Beta secondary scan button (Scanbot SDK) */
   .btn-scan-beta {

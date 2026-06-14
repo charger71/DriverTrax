@@ -6,7 +6,8 @@
 //   Public surface (window.DT_VNOTES):
 //
 //   UI
-//     mount(container, vin, opts)   — full widget: notes list + Add form
+//     mount(container, vin, opts)   — notes list widget (read-only).
+//                                     Adding notes is done from the NEW ENTRY form.
 //     refresh(container, vin)       — re-render an existing mount
 //     openPhotoViewer(url)          — fullscreen image overlay
 //
@@ -265,17 +266,6 @@
     document.dispatchEvent(new CustomEvent("dt-vehicle-note-added", { detail: { vin } }));
   }
 
-  // Latest status/destination for a VIN — looks at the most recent record row.
-  async function getCurrentStatus(vin) {
-    const { data, error } = await sb.from("records")
-      .select("status,status_other,destination,destination_other,ts,user_id,source")
-      .eq("serial_id", vin)
-      .order("ts", { ascending: false })
-      .limit(1);
-    if (error) { console.warn("[VNotes] currentStatus", error); return null; }
-    return (data && data[0]) || null;
-  }
-
   // Most recent mileage/fuel values from this VIN's notes — used to pre-fill the form.
   async function getLatestMileageAndFuel(vin) {
     const { data, error } = await sb.from("vehicle_notes")
@@ -290,19 +280,6 @@
     const fuel    = rows.find(r => r.fuel_level)?.fuel_level ?? null;
     return { mileage, fuel };
   }
-
-  // Pull from the shared DT_OPTIONS catalog defined in app.js so the notes
-  // form stays aligned with the NEW ENTRY form and the records filter.
-  // DETAILING / DETAILED are derived (system-set by the detailer flow) and
-  // intentionally not selectable here.
-  const STATUS_OPTS = (window.DT_OPTIONS?.STATUS_BASE) || ["CLEAN","DIRTY","REWASH","BODY","PM","MK","MR","OM","AUDIT FAIL","WI/DELETE","GLASS","TI","OTHER"];
-  const PRIVILEGED_STATUS_OPTS = ((window.DT_OPTIONS?.STATUS_PRIVILEGED) || ["CHECK_IN","CHECK_OUT","HOLD","DNR"])
-    .map(code => ({ code, label: (window.statusLabel ? statusLabel(code) : code) }));
-  function canSetPrivilegedStatus() {
-    return !!(window.DT_AUTH && (DT_AUTH.isCxr?.() || DT_AUTH.isManager?.() || DT_AUTH.isAdmin?.()));
-  }
-  const DEST_OPTS = (window.DT_OPTIONS?.DESTINATIONS) || ["GARAGE","QTA","BACKLOT","ATLANTIC","BRANCH","OTHER"];
-  const FUEL_OPTS = (window.DT_OPTIONS?.FUEL_LEVELS) || ["EMPTY","1/4","1/2","3/4","FULL"];
 
   // ---- shared render of a list of note rows ----
   function renderNoteCardsHtml(notes, signed) {
@@ -388,191 +365,21 @@
   }
 
   // ---- mount-able widget ----
+  // The inline "+ Add a note" UI was removed in favor of the NEW ENTRY form,
+  // so this widget is now list-only. The showAdd / addWithMedia / withStatus
+  // opts are accepted but ignored for back-compat with existing callers.
   async function mount(container, vin, opts = {}) {
     if (!container) return;
     if (!vin) { container.innerHTML = ""; return; }
-    const { showList = true, showAdd = true, addWithMedia = false, withStatus = false } = opts;
-    // Status mode implies media so location/photo can ride along with the change.
-    const wantMedia = addWithMedia || withStatus;
+    const { showList = true } = opts;
     container.classList.add("vn-mount");
 
-    const [current, latestMF] = withStatus
-      ? await Promise.all([getCurrentStatus(vin), getLatestMileageAndFuel(vin)])
-      : [null, { mileage: null, fuel: null }];
-    const curStatus = current?.status || "";
-    const curDest = current?.destination || "";
-    const lastMileage = latestMF?.mileage ?? null;
-    const lastFuel    = latestMF?.fuel ?? "";
-    const curStatusLabel = (window.statusLabel ? statusLabel(curStatus) : curStatus) || "";
-    const labelFor = (s) => (window.statusLabel ? statusLabel(s) : s);
-    const baseOpts = STATUS_OPTS.map(s => `<option value="${s}"${s===curStatus?" selected":""}>${labelFor(s)}</option>`).join("");
-    const privOpts = canSetPrivilegedStatus()
-      ? PRIVILEGED_STATUS_OPTS.map(o => `<option value="${o.code}"${o.code===curStatus?" selected":""}>${o.label}</option>`).join("")
+    container.innerHTML = showList
+      ? `<div class="vin-tl-label" style="margin-top:14px;margin-bottom:6px">NOTES</div><div class="vn-list"><div class="bl-empty">Loading…</div></div>`
       : "";
-    const statusOpts = baseOpts + (privOpts ? `<optgroup label="CXR / Manager">${privOpts}</optgroup>` : "");
-    const destOpts = DEST_OPTS.map(d => `<option value="${d}"${d===curDest?" selected":""}>${d}</option>`).join("");
-
-    container.innerHTML = `
-      ${showAdd ? `<div class="vn-head"><button type="button" class="vn-add-toggle btn btn-primary" data-state="closed">+ Add a note</button></div>` : ""}
-      ${showList ? `<div class="vin-tl-label" style="margin-top:14px;margin-bottom:6px">NOTES</div><div class="vn-list"><div class="bl-empty">Loading…</div></div>` : ""}
-      ${showAdd ? `
-        <form class="vn-add-form" style="display:none">
-          ${withStatus ? `
-          <div class="vn-status-row">
-            <label class="vn-field">
-              <span>Status</span>
-              <select name="status"><option value="">(leave unchanged)</option>${statusOpts}</select>
-            </label>
-            <label class="vn-field">
-              <span>Location</span>
-              <select name="destination"><option value="">(none)</option>${destOpts}</select>
-            </label>
-            <label class="vn-field">
-              <span>Mileage</span>
-              <input type="number" name="mileage" inputmode="numeric" min="0" step="1" placeholder="${Number.isFinite(lastMileage) ? lastMileage : "optional"}">
-            </label>
-            <label class="vn-field">
-              <span>Fuel</span>
-              <select name="fuel_level"><option value="">(none)</option>${FUEL_OPTS.map(f => `<option value="${f}"${f===lastFuel?" selected":""}>${f}</option>`).join("")}</select>
-            </label>
-          </div>` : ""}
-          ${wantMedia ? `
-          <div class="note-attach-row">
-            <label class="vn-gps-switch">
-              <span class="vn-gps-text">Update Location</span>
-              <span class="vn-switch">
-                <input type="checkbox" name="gps">
-                <span class="vn-switch-track"><span class="vn-switch-thumb"></span></span>
-              </span>
-            </label>
-            <div class="vn-photo-action">
-              <input type="file" name="photo" id="vnPhotoInput-${vin}" accept="image/*" hidden>
-              <button type="button" class="btn btn-secondary vn-photo-btn" onclick="document.getElementById('vnPhotoInput-${vin}').click()">📷 Add photo</button>
-            </div>
-          </div>
-          <div class="note-photo-preview vn-photo-preview" style="display:none">
-            <img class="vn-photo-img" alt="">
-            <button type="button" class="vn-photo-remove" aria-label="Remove">✕</button>
-          </div>` : ""}
-          <textarea name="body" placeholder="What should the next person know? (optional)" maxlength="1000"></textarea>
-          <button type="submit" class="btn btn-primary" style="margin-bottom:48px">Save Note</button>
-        </form>
-      ` : ""}
-    `;
     container.dataset.vin = vin;
 
-    if (showAdd) {
-      const toggle = container.querySelector(".vn-add-toggle");
-      const form = container.querySelector(".vn-add-form");
-      toggle.addEventListener("click", () => {
-        const open = toggle.dataset.state !== "open";
-        toggle.dataset.state = open ? "open" : "closed";
-        toggle.textContent = open ? "Cancel" : "+ Add a note";
-        form.style.display = open ? "flex" : "none";
-        if (open) {
-          // Focus the first form control rather than the body textarea (now at
-          // the bottom) so opening the form doesn't auto-scroll past the
-          // status/location fields.
-          const first = form.querySelector("select, input:not([type=hidden]), textarea");
-          first?.focus();
-        }
-      });
-      wireAddForm(form, container, vin, wantMedia, withStatus);
-    }
-
     if (showList) await refresh(container, vin);
-  }
-
-  function wireAddForm(form, container, vin, withMedia, withStatus) {
-    let pendingPhoto = null;
-
-    if (withMedia) {
-      const photoInput = form.querySelector("input[name=photo]");
-      const preview = form.querySelector(".vn-photo-preview");
-      const previewImg = form.querySelector(".vn-photo-img");
-      photoInput?.addEventListener("change", async () => {
-        const file = photoInput.files?.[0];
-        if (!file) return;
-        // Hard cap to keep slow cell uploads from looking frozen.
-        const MAX_BYTES = 15 * 1024 * 1024;
-        if (file.size > MAX_BYTES) {
-          alert("That photo is too large (over 15MB). Please pick a smaller one.");
-          photoInput.value = "";
-          return;
-        }
-        try {
-          const blob = await resizeImageBlob(file, 1920, 1080, 0.85);
-          pendingPhoto = blob;
-          previewImg.src = URL.createObjectURL(blob);
-          preview.style.display = "";
-        } catch (e) { console.warn("[VNotes] resize", e); alert("Couldn't process that image."); }
-      });
-      form.querySelector(".vn-photo-remove")?.addEventListener("click", () => {
-        pendingPhoto = null;
-        photoInput.value = "";
-        preview.style.display = "none";
-        previewImg.src = "";
-      });
-    }
-
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const fd = new FormData(form);
-      const body = (fd.get("body") || "").trim();
-      const statusVal = withStatus ? (fd.get("status") || "").trim() : "";
-      const destVal   = withStatus ? (fd.get("destination") || "").trim() : "";
-      const mileageRaw = withStatus ? (fd.get("mileage") || "").trim() : "";
-      const mileageVal = mileageRaw ? parseInt(mileageRaw, 10) : null;
-      const fuelVal    = withStatus ? (fd.get("fuel_level") || "").trim() : "";
-      const gpsInput   = form.querySelector("input[name=gps]");
-      const wantsGps   = !!(withMedia && gpsInput?.checked);
-      const hasChange = !!(
-        body || pendingPhoto || wantsGps || statusVal || destVal || fuelVal ||
-        (Number.isFinite(mileageVal) && mileageVal >= 0)
-      );
-      if (!hasChange) {
-        if (typeof showToast === "function") showToast("Update at least one field to save", "warn");
-        else alert("Update at least one field to save.");
-        return;
-      }
-      const btn = form.querySelector("button[type=submit]");
-      btn.disabled = true; btn.textContent = "Saving…";
-      try {
-        let pendingGps = null;
-        if (wantsGps) {
-          btn.textContent = "Locating…";
-          pendingGps = await captureGps();
-          if (!pendingGps) {
-            const proceed = confirm("Couldn't get current location. Save without location?");
-            if (!proceed) { btn.disabled = false; btn.textContent = "Save Note"; return; }
-          }
-          btn.textContent = "Saving…";
-        }
-        if (pendingPhoto) btn.textContent = "Uploading photo…";
-        await addNote(vin, body, {
-          photoBlob: pendingPhoto,
-          ...(pendingGps ? { lat: pendingGps.lat, lng: pendingGps.lng } : {}),
-          ...(statusVal ? { status: statusVal } : {}),
-          ...(destVal   ? { destination: destVal } : {}),
-          ...(Number.isFinite(mileageVal) && mileageVal >= 0 ? { mileage: mileageVal } : {}),
-          ...(fuelVal ? { fuel_level: fuelVal } : {})
-        });
-      } catch (err) {
-        btn.disabled = false; btn.textContent = "Save Note";
-        alert(err.message);
-        return;
-      }
-      btn.disabled = false; btn.textContent = "Save Note";
-      form.reset();
-      form.style.display = "none";
-      const toggle = container.querySelector(".vn-add-toggle");
-      toggle.dataset.state = "closed";
-      toggle.textContent = "+ Add a note";
-      pendingPhoto = null;
-      const preview = form.querySelector(".vn-photo-preview");
-      if (preview) preview.style.display = "none";
-      refresh(container, vin);
-    });
   }
 
   async function refresh(container, vin) {

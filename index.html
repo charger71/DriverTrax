@@ -1571,12 +1571,12 @@
       <input type="text" id="statusOther" class="other-input" placeholder="Specify other status..." maxlength="40" autocomplete="off" style="display:none">
     </div>
     <div style="flex:1">
-      <div class="field-label" style="margin-top:0">Destination</div>
+      <div class="field-label" style="margin-top:0">Location</div>
       <select id="destination" onchange="toggleOtherField('destination')" style="margin-bottom:0">
-        <option value="">-- DESTINATION --</option>
+        <option value="">-- LOCATION --</option>
         <option>GARAGE</option><option>QTA</option><option>BACKLOT</option><option>ATLANTIC</option><option>BRANCH</option><option>OTHER</option>
       </select>
-      <input type="text" id="destinationOther" class="other-input" placeholder="Specify other destination..." maxlength="40" autocomplete="off" style="display:none">
+      <input type="text" id="destinationOther" class="other-input" placeholder="Specify other location..." maxlength="40" autocomplete="off" style="display:none">
     </div>
   </div>
 
@@ -1675,7 +1675,7 @@
         <select id="fNoTag" onchange="renderRecords()"><option value="">All Records</option><option value="yes">Bad Tag Only</option><option value="no">Good Tag Only</option></select>
       </div>
       <div class="filter-row">
-        <select id="fDest" onchange="renderRecords()"><option value="">All Destinations</option><option>GARAGE</option><option>QTA</option><option>BACKLOT</option><option>ATLANTIC</option><option>BRANCH</option><option>OTHER</option></select>
+        <select id="fDest" onchange="renderRecords()"><option value="">All Locations</option><option>GARAGE</option><option>QTA</option><option>BACKLOT</option><option>ATLANTIC</option><option>BRANCH</option><option>OTHER</option></select>
       </div>
       <div class="filter-row">
         <input type="date" id="fDateFrom" onchange="renderRecords()">
@@ -2045,7 +2045,7 @@
     </div>
     <div class="detail-body">
       <div class="detail-row" id="detailTiresRow" style="display:none"><span class="detail-label">Tires</span><span class="detail-val" id="detailTires"></span></div>
-      <div class="detail-row" id="detailDestRow" style="display:none"><span class="detail-label">Destination</span><span class="detail-val" id="detailDest"></span></div>
+      <div class="detail-row" id="detailDestRow" style="display:none"><span class="detail-label">Location</span><span class="detail-val" id="detailDest"></span></div>
       <div class="detail-row" id="detailNotesRow" style="display:none"><span class="detail-label">Notes</span><span class="detail-val" id="detailNotes"></span></div>
       <div class="detail-row" id="detailShiftRow"><span class="detail-label">Shift</span><span class="detail-val" id="detailShift"></span></div>
     </div>

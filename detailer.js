@@ -173,7 +173,7 @@
     if (currentJob && currentJob.id) revealCompleteJob();
     // DT_VNOTES handles the notes list + add-note form (with photo + GPS)
     if (window.DT_VNOTES) {
-      DT_VNOTES.mount($("detailNotesMount"), vin, { addWithMedia: true });
+      DT_VNOTES.mount($("detailNotesMount"), vin, { addWithMedia: true, showAdd: false });
     }
   }
 
@@ -260,6 +260,7 @@
         currentJob.todo[idx].done = e.target.checked;
         currentJob.todo[idx].done_at = e.target.checked ? new Date().toISOString() : null;
         row.classList.toggle("done", e.target.checked);
+        updateCompleteBtnState();
         scheduleSave();
       });
       row.querySelector(".todo-note-toggle").addEventListener("click", () => {
@@ -273,6 +274,19 @@
       });
     });
     if (actions) actions.style.display = "";
+    updateCompleteBtnState();
+  }
+
+  // Complete Job stays disabled until every todo item is checked. We also
+  // reflect the gating in the title attribute so a paused detailer hovering
+  // over the disabled button gets a hint about why it's grayed out.
+  function updateCompleteBtnState() {
+    const btn = $("detailCompleteBtn");
+    if (!btn) return;
+    const items = currentJob?.todo || [];
+    const allDone = items.length > 0 && items.every(t => t.done);
+    btn.disabled = !allDone;
+    btn.title = allDone ? "" : "Finish every todo item to enable.";
   }
 
   // ---- persistence (auto-save) ----
@@ -305,6 +319,7 @@
   function revealCompleteJob() {
     const btn = $("detailCompleteBtn");
     if (btn) btn.style.display = "";
+    updateCompleteBtnState();
   }
 
   async function onSaveJob() {

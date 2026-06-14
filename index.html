@@ -600,6 +600,15 @@
     font-size: 13px; font-style: italic;
   }
   .vn-add-form { flex-direction: column; gap: 8px; margin-top: 8px; }
+  .entry-current-state {
+    margin-top: 14px; padding: 10px 12px; border-radius: 8px;
+    background: #1a2330; border: 1px solid #2a4060; color: #cfe4ff;
+    font-size: 13px; line-height: 1.45;
+  }
+  .entry-current-state .ecs-label { font-size: 10px; color: #6b7785; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
+  .entry-current-state .ecs-val { font-weight: 700; color: #e8eaed; }
+  .entry-current-state .ecs-sep { color: #4a5563; padding: 0 6px; }
+  .entry-current-state.is-empty { background: #20252c; border-color: #2a313a; color: #6b7785; }
   .vn-status-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
   .vn-status-label { font-size: 11px; color: #6b7785; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; }
   .vn-status-pill { display: inline-block; padding: 4px 10px; border-radius: 999px; background: #1a2330; color: #cfe4ff; border: 1px solid #2a4060; font-weight: 800; font-size: 12px; letter-spacing: .05em; }
@@ -771,6 +780,30 @@
   .vin-detail-modal-val { font-size: 14px; color: #fff; }
 
   /* Announcement banner (top of app) */
+  .fc-banner {
+    margin: var(--space-3) var(--space) 0;
+    padding: 10px 14px;
+    background: #0e1a2c; border: 1px solid #2a4060; border-radius: var(--radius);
+    color: #cfe4ff;
+  }
+  .fc-banner.hidden { display: none; }
+  .fc-banner-inner {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  .fc-stat { display: flex; flex-direction: column; line-height: 1.1; }
+  .fc-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: #6b7785; font-weight: 700; }
+  .fc-row { display: inline-flex; align-items: baseline; gap: 8px; }
+  .fc-value { font-size: 22px; font-weight: 900; color: #e8eaed; font-variant-numeric: tabular-nums; }
+  .fc-day-start {
+    font-size: 12px; font-weight: 600; color: #6b7785;
+    font-variant-numeric: tabular-nums; letter-spacing: 0.5px;
+  }
+  .fc-day-start:empty { display: none; }
+  .fc-day-start::before { content: "/ "; opacity: 0.7; }
+  .fc-divider { width: 1px; align-self: stretch; background: #2a313a; }
+  .fc-meta { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 11px; color: #6b7785; }
+  .fc-meta #fcNote { color: #cfe4ff; font-weight: 600; }
+
   .ann-banner {
     display: flex; align-items: center; gap: 10px;
     margin: var(--space-3) var(--space);
@@ -1039,10 +1072,11 @@
     </button>
   </div>
   <div class="tabs">
-    <div class="tab active driver-only" data-tab="entry"     onclick="showTab('entry')">NEW ENTRY</div>
+    <div class="tab active driver-only cxr-show" data-tab="entry"     onclick="showTab('entry')">NEW ENTRY</div>
     <div class="tab driver-only"        data-tab="announcements" onclick="showTab('announcements')">ALERTS<span class="tab-badge hidden" id="tabAlertsBadge"></span></div>
     <div class="tab driver-only"        data-tab="records"          onclick="showTab('records')">VIN LOOKUP</div>
     <div class="tab driver-only"        data-tab="dashboard" onclick="showTab('dashboard')">DASHBOARD</div>
+    <div class="tab manager-only"       data-tab="entry"            onclick="showTab('entry')">NEW ENTRY</div>
     <div class="tab manager-only"       data-tab="backlot-stats"    onclick="showTab('backlot-stats')">FLEET STATS</div>
     <div class="tab manager-only"        data-tab="backlot-announce" onclick="showTab('backlot-announce')">ALERTS<span class="tab-badge hidden" id="tabAlertsMgrBadge"></span></div>
     <div class="tab manager-only"       data-tab="records"          onclick="showTab('records')">VIN LOOKUP</div>
@@ -1065,6 +1099,32 @@
     <div class="avg-banner-stat">
       <div class="avg-banner-label">CARS / HOUR</div>
       <div class="avg-banner-time" id="avgBannerCph">&mdash;</div>
+    </div>
+  </div>
+</div>
+
+<!-- Fleet counts banner — manager / CXR broadcasts how many cars are coming
+     in (returns) and going out (rentals). Read-only for drivers. -->
+<div id="fleetCountsBanner" class="fc-banner hidden" role="status" aria-live="polite">
+  <div class="fc-banner-inner">
+    <div class="fc-stat">
+      <span class="fc-label">Returns</span>
+      <span class="fc-row">
+        <span class="fc-value" id="fcReturns">0</span>
+        <span class="fc-day-start" id="fcReturnsStart"></span>
+      </span>
+    </div>
+    <div class="fc-divider"></div>
+    <div class="fc-stat">
+      <span class="fc-label">Rentals</span>
+      <span class="fc-row">
+        <span class="fc-value" id="fcRentals">0</span>
+        <span class="fc-day-start" id="fcRentalsStart"></span>
+      </span>
+    </div>
+    <div class="fc-meta">
+      <span id="fcNote"></span>
+      <span class="fc-updated" id="fcUpdated"></span>
     </div>
   </div>
 </div>
@@ -1473,6 +1533,8 @@
     <div class="vin-charcount" id="vinCharCount">0 / 17</div>
   </div>
 
+  <div id="entryCurrentState" class="entry-current-state" style="display:none"></div>
+
   <div id="tireSelectorSection" style="display:none">
     <div class="field-label">Select Affected Tire(s)</div>
     <div class="tire-diagram">
@@ -1484,8 +1546,6 @@
     </div>
     <div class="tire-selected-label" id="tireSelectedLabel">No tires selected</div>
   </div>
-
-  <div id="entryVinNotes" class="vn-mount-slot"></div>
 
   <div style="display:flex;gap:10px;margin-top:20px">
     <div style="flex:1">
@@ -1504,6 +1564,8 @@
         <option value="WI/DELETE">WI/DELETE</option>
         <option value="GLASS">GLASS</option>
         <option value="TI">TI(TIRE)</option>
+        <!-- Privileged options (CHECK_IN, CHECK_OUT, HOLD, DNR) are injected
+             by gateCxrStatusOption() in app.js for CXR/manager/admin. -->
         <option value="OTHER">OTHER</option>
       </select>
       <input type="text" id="statusOther" class="other-input" placeholder="Specify other status..." maxlength="40" autocomplete="off" style="display:none">
@@ -1518,10 +1580,28 @@
     </div>
   </div>
 
+  <div style="display:flex;gap:10px;margin-top:14px">
+    <div style="flex:1">
+      <div class="field-label" style="margin-top:0">Mileage</div>
+      <input type="number" id="mileage" inputmode="numeric" min="0" step="1" placeholder="optional" autocomplete="off" style="margin-bottom:0">
+    </div>
+    <div style="flex:1">
+      <div class="field-label" style="margin-top:0">Fuel</div>
+      <select id="fuelLevel" style="margin-bottom:0">
+        <option value="">-- FUEL --</option>
+        <option value="EMPTY">EMPTY</option>
+        <option value="1/4">1/4</option>
+        <option value="1/2">1/2</option>
+        <option value="3/4">3/4</option>
+        <option value="FULL">FULL</option>
+      </select>
+    </div>
+  </div>
+
   <div class="field-label">Options</div>
   <div class="checkbox-row" style="display:flex;gap:10px;margin-top:0">
     <div class="notag-row" id="noTagRow" style="flex:1;margin-top:0" onclick="document.getElementById('noTag').checked=!document.getElementById('noTag').checked; toggleNoTagStyle()">
-      <input type="checkbox" id="noTag" style="pointer-events:none"><label for="noTag">No Tag</label>
+      <input type="checkbox" id="noTag" style="pointer-events:none"><label for="noTag">Bad Tag</label>
     </div>
     <div class="notag-row shuttle-row" id="shuttleRow" style="flex:1;margin-top:0" onclick="document.getElementById('shuttle').checked=!document.getElementById('shuttle').checked; toggleShuttleStyle()">
       <input type="checkbox" id="shuttle" style="pointer-events:none"><label for="shuttle">Shuttle</label>
@@ -1531,11 +1611,27 @@
     </div>
   </div>
 
+  <div id="cxrConditionsSection">
+    <div class="field-label">Conditions</div>
+    <div class="detail-conditions" id="cxrConditions"></div>
+  </div>
+
   <div class="field-label">Notes</div>
   <textarea id="notes" placeholder="Optional notes..."></textarea>
 
+  <div class="vn-photo-action" style="margin-top:10px">
+    <input type="file" name="photo" id="entryPhotoInput" accept="image/*" hidden>
+    <button type="button" class="btn btn-secondary vn-photo-btn" onclick="document.getElementById('entryPhotoInput').click()">📷 Add photo</button>
+  </div>
+  <div class="note-photo-preview" id="entryPhotoPreview" style="display:none;margin-top:10px">
+    <img id="entryPhotoImg" alt="">
+    <button type="button" id="entryPhotoRemove" aria-label="Remove">✕</button>
+  </div>
+
   <button id="saveBtn" class="btn btn-primary" onclick="saveRecord()">SAVE RECORD</button>
   <div id="gpsStatus" class="gps-status"></div>
+
+  <div id="entryVinNotes" class="vn-mount-slot"></div>
 
   <div class="today-header"><span class="today-title">Today's Entries</span><span class="today-count" id="todayCount">0</span></div>
   <div id="todayRecords"></div>
@@ -1568,11 +1664,15 @@
           <option value="WI/DELETE">WI/DELETE</option>
           <option value="GLASS">GLASS</option>
           <option value="TI">TI(TIRE)</option>
+          <option value="CHECK_IN">CUSTOMER CHECK IN</option>
+          <option value="CHECK_OUT">CUSTOMER CHECK OUT</option>
+          <option value="HOLD">HOLD</option>
+          <option value="DNR">DO NOT RENT (DNR)</option>
           <option value="DETAILING">DETAILING</option>
           <option value="DETAILED">DETAILED</option>
           <option value="OTHER">OTHER</option>
         </select>
-        <select id="fNoTag" onchange="renderRecords()"><option value="">All Records</option><option value="yes">No Tag Only</option><option value="no">Has Tag Only</option></select>
+        <select id="fNoTag" onchange="renderRecords()"><option value="">All Records</option><option value="yes">Bad Tag Only</option><option value="no">Good Tag Only</option></select>
       </div>
       <div class="filter-row">
         <select id="fDest" onchange="renderRecords()"><option value="">All Destinations</option><option>GARAGE</option><option>QTA</option><option>BACKLOT</option><option>ATLANTIC</option><option>BRANCH</option><option>OTHER</option></select>
@@ -1674,7 +1774,7 @@
     <div class="stat-grid">
       <div class="stat-card"><div class="stat-label">Cars logged</div><div class="stat-value" id="blStatCars">—</div><div class="stat-sub" id="blStatCarsSub"></div></div>
       <div class="stat-card"><div class="stat-label">Active drivers</div><div class="stat-value" id="blStatDrivers">—</div><div class="stat-sub" id="blStatDriversSub"></div></div>
-      <div class="stat-card"><div class="stat-label">No Tag</div><div class="stat-value" id="blStatNoTag">—</div><div class="stat-sub" id="blStatNoTagSub"></div></div>
+      <div class="stat-card"><div class="stat-label">Bad Tag</div><div class="stat-value" id="blStatNoTag">—</div><div class="stat-sub" id="blStatNoTagSub"></div></div>
       <div class="stat-card"><div class="stat-label">Cars / hour</div><div class="stat-value" id="blStatRate">—</div><div class="stat-sub">today, fleet-wide</div></div>
     </div>
   </div>
@@ -1712,6 +1812,17 @@
 </div>
 
 <div class="panel" id="panel-backlot-announce">
+  <div class="dash-section">
+    <div class="dash-title">Fleet Counts</div>
+    <form class="bl-form" id="fcForm">
+      <div style="display:flex;gap:10px">
+        <label style="flex:1">Returns<input type="number" name="returns_count" min="0" step="1" inputmode="numeric" required></label>
+        <label style="flex:1">Rentals<input type="number" name="rentals_count" min="0" step="1" inputmode="numeric" required></label>
+      </div>
+      <label>Note (optional)<input type="text" name="note" maxlength="120" placeholder="e.g. heavy returns expected after 3pm"></label>
+      <button type="submit" class="btn btn-primary">Update counts</button>
+    </form>
+  </div>
   <div class="dash-section">
     <div class="dash-title">Post Alert</div>
     <form class="bl-form" id="blAnnForm">
@@ -2034,6 +2145,7 @@
 <script src="sync.js"></script>
 <script src="backlot.js"></script>
 <script src="announcements.js"></script>
+<script src="fleet-counts.js"></script>
 <script src="requests.js"></script>
 <script src="vehicle-notes.js"></script>
 <script src="users.js"></script>

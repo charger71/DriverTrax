@@ -54,23 +54,51 @@
   async function uploadPhoto(blob, vin) {
     const user = DT_AUTH.getUser();
     if (!user) throw new Error("Not signed in");
-    const path = `${user.id}/${vin}-${Date.now()}.jpg`;
+    const type = blob.type || "image/jpeg";
+    const ext = type === "image/png" ? "png"
+              : type === "image/webp" ? "webp"
+              : type === "image/heic" || type === "image/heif" ? "heic"
+              : "jpg";
+    const path = `${user.id}/${vin}-${Date.now()}.${ext}`;
     const { error } = await sb.storage
       .from("vehicle-photos")
-      .upload(path, blob, { contentType: "image/jpeg", upsert: false });
+      .upload(path, blob, { contentType: type, upsert: false });
     if (error) throw error;
     return path;
   }
 
-  async function resizeImageBlob(file, maxW, maxH, quality) {
-    const bmp = await createImageBitmap(file);
-    const ratio = Math.min(maxW / bmp.width, maxH / bmp.height, 1);
-    const w = Math.round(bmp.width * ratio);
-    const h = Math.round(bmp.height * ratio);
+  async function drawToJpeg(source, w, h, quality) {
     const canvas = document.createElement("canvas");
     canvas.width = w; canvas.height = h;
-    canvas.getContext("2d").drawImage(bmp, 0, 0, w, h);
+    canvas.getContext("2d").drawImage(source, 0, 0, w, h);
     return new Promise(res => canvas.toBlob(res, "image/jpeg", quality));
+  }
+
+  // Mobile-safe resize: createImageBitmap throws on iOS HEIC photos and on
+  // some Android browsers, so fall back to an <img> element, and finally to
+  // returning the original file untouched so the upload still goes through.
+  async function resizeImageBlob(file, maxW, maxH, quality) {
+    try {
+      const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+      const ratio = Math.min(maxW / bmp.width, maxH / bmp.height, 1);
+      return await drawToJpeg(bmp, Math.round(bmp.width * ratio), Math.round(bmp.height * ratio), quality);
+    } catch (_) { /* fall through */ }
+
+    try {
+      const url = URL.createObjectURL(file);
+      try {
+        const img = await new Promise((resolve, reject) => {
+          const i = new Image();
+          i.onload = () => resolve(i);
+          i.onerror = () => reject(new Error("image decode failed"));
+          i.src = url;
+        });
+        const ratio = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+        return await drawToJpeg(img, Math.round(img.naturalWidth * ratio), Math.round(img.naturalHeight * ratio), quality);
+      } finally { URL.revokeObjectURL(url); }
+    } catch (_) { /* fall through */ }
+
+    return file;
   }
 
   function captureGps() {
@@ -175,7 +203,11 @@
   async function addNote(vin, body, opts = {}) {
     const user = DT_AUTH.getUser();
     if (!user) throw new Error("Not signed in");
-    const row = { serial_id: vin, author_id: user.id, body };
+    // Empty body → null. The vehicle_notes.body column has a non-empty
+    // check constraint; null bypasses it so a "metadata-only" note (status
+    // change, photo, GPS, mileage, fuel) can still save.
+    const bodyVal = (body && body.trim()) ? body : null;
+    const row = { serial_id: vin, author_id: user.id, body: bodyVal };
     if (opts.photoBlob) row.photo_url = await uploadPhoto(opts.photoBlob, vin);
     if (Number.isFinite(opts.lat) && Number.isFinite(opts.lng)) {
       row.lat = opts.lat; row.lng = opts.lng;
@@ -184,7 +216,14 @@
     if (opts.fuel_level) row.fuel_level = opts.fuel_level;
     const { data: insertedNote, error } = await sb.from("vehicle_notes")
       .insert(row).select("id").single();
-    if (error) throw error;
+    if (error) {
+      // Roll back the photo upload so we don't leave an orphan in storage.
+      if (row.photo_url) {
+        sb.storage.from("vehicle-photos").remove([row.photo_url])
+          .catch(e => console.warn("[VNotes] orphan cleanup", e));
+      }
+      throw error;
+    }
 
     // If a status change is included, also write a record row tagged source='note'
     // and linked back to the note via note_id, so the timeline can merge them
@@ -212,7 +251,15 @@
         rec.gps_error = true;
       }
       const { error: recErr } = await sb.from("records").insert(rec);
-      if (recErr) throw recErr;
+      if (recErr) {
+        if (row.photo_url) {
+          sb.storage.from("vehicle-photos").remove([row.photo_url])
+            .catch(e => console.warn("[VNotes] orphan cleanup", e));
+        }
+        sb.from("vehicle_notes").delete().eq("id", insertedNote.id)
+          .then(({ error }) => { if (error) console.warn("[VNotes] note rollback", error); });
+        throw recErr;
+      }
     }
 
     document.dispatchEvent(new CustomEvent("dt-vehicle-note-added", { detail: { vin } }));
@@ -244,18 +291,18 @@
     return { mileage, fuel };
   }
 
-  const STATUS_OPTS = ["CLEAN","DIRTY","REWASH","BODY","PM","MK","MR","OM","AUDIT FAIL","WI/DELETE","GLASS","TI","DETAILING","DETAILED","CHECK_IN","OTHER"];
-  // CXR / manager / admin only. Visible label vs stored code.
-  const PRIVILEGED_STATUS_OPTS = [
-    { code: "CHECK_OUT", label: "CUSTOMER CHECK OUT" },
-    { code: "HOLD",      label: "HOLD" },
-    { code: "DNR",       label: "DO NOT RENT (DNR)" }
-  ];
+  // Pull from the shared DT_OPTIONS catalog defined in app.js so the notes
+  // form stays aligned with the NEW ENTRY form and the records filter.
+  // DETAILING / DETAILED are derived (system-set by the detailer flow) and
+  // intentionally not selectable here.
+  const STATUS_OPTS = (window.DT_OPTIONS?.STATUS_BASE) || ["CLEAN","DIRTY","REWASH","BODY","PM","MK","MR","OM","AUDIT FAIL","WI/DELETE","GLASS","TI","OTHER"];
+  const PRIVILEGED_STATUS_OPTS = ((window.DT_OPTIONS?.STATUS_PRIVILEGED) || ["CHECK_IN","CHECK_OUT","HOLD","DNR"])
+    .map(code => ({ code, label: (window.statusLabel ? statusLabel(code) : code) }));
   function canSetPrivilegedStatus() {
     return !!(window.DT_AUTH && (DT_AUTH.isCxr?.() || DT_AUTH.isManager?.() || DT_AUTH.isAdmin?.()));
   }
-  const DEST_OPTS = ["GARAGE","QTA","BACKLOT","ATLANTIC","BRANCH","OTHER"];
-  const FUEL_OPTS = ["EMPTY","1/4","1/2","3/4","FULL"];
+  const DEST_OPTS = (window.DT_OPTIONS?.DESTINATIONS) || ["GARAGE","QTA","BACKLOT","ATLANTIC","BRANCH","OTHER"];
+  const FUEL_OPTS = (window.DT_OPTIONS?.FUEL_LEVELS) || ["EMPTY","1/4","1/2","3/4","FULL"];
 
   // ---- shared render of a list of note rows ----
   function renderNoteCardsHtml(notes, signed) {
@@ -370,7 +417,6 @@
       ${showList ? `<div class="vin-tl-label" style="margin-top:14px;margin-bottom:6px">NOTES</div><div class="vn-list"><div class="bl-empty">Loading…</div></div>` : ""}
       ${showAdd ? `
         <form class="vn-add-form" style="display:none">
-          <textarea name="body" placeholder="What should the next person know?" required maxlength="1000"></textarea>
           ${withStatus ? `
           <div class="vn-status-row">
             <label class="vn-field">
@@ -400,7 +446,7 @@
               </span>
             </label>
             <div class="vn-photo-action">
-              <input type="file" name="photo" id="vnPhotoInput-${vin}" accept="image/*" capture="environment" hidden>
+              <input type="file" name="photo" id="vnPhotoInput-${vin}" accept="image/*" hidden>
               <button type="button" class="btn btn-secondary vn-photo-btn" onclick="document.getElementById('vnPhotoInput-${vin}').click()">📷 Add photo</button>
             </div>
           </div>
@@ -408,6 +454,7 @@
             <img class="vn-photo-img" alt="">
             <button type="button" class="vn-photo-remove" aria-label="Remove">✕</button>
           </div>` : ""}
+          <textarea name="body" placeholder="What should the next person know? (optional)" maxlength="1000"></textarea>
           <button type="submit" class="btn btn-primary" style="margin-bottom:48px">Save Note</button>
         </form>
       ` : ""}
@@ -422,7 +469,13 @@
         toggle.dataset.state = open ? "open" : "closed";
         toggle.textContent = open ? "Cancel" : "+ Add a note";
         form.style.display = open ? "flex" : "none";
-        if (open) form.querySelector("textarea").focus();
+        if (open) {
+          // Focus the first form control rather than the body textarea (now at
+          // the bottom) so opening the form doesn't auto-scroll past the
+          // status/location fields.
+          const first = form.querySelector("select, input:not([type=hidden]), textarea");
+          first?.focus();
+        }
       });
       wireAddForm(form, container, vin, wantMedia, withStatus);
     }
@@ -440,6 +493,13 @@
       photoInput?.addEventListener("change", async () => {
         const file = photoInput.files?.[0];
         if (!file) return;
+        // Hard cap to keep slow cell uploads from looking frozen.
+        const MAX_BYTES = 15 * 1024 * 1024;
+        if (file.size > MAX_BYTES) {
+          alert("That photo is too large (over 15MB). Please pick a smaller one.");
+          photoInput.value = "";
+          return;
+        }
         try {
           const blob = await resizeImageBlob(file, 1920, 1080, 0.85);
           pendingPhoto = blob;
@@ -457,20 +517,29 @@
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const body = (new FormData(form).get("body") || "").trim();
-      if (!body) return;
+      const fd = new FormData(form);
+      const body = (fd.get("body") || "").trim();
+      const statusVal = withStatus ? (fd.get("status") || "").trim() : "";
+      const destVal   = withStatus ? (fd.get("destination") || "").trim() : "";
+      const mileageRaw = withStatus ? (fd.get("mileage") || "").trim() : "";
+      const mileageVal = mileageRaw ? parseInt(mileageRaw, 10) : null;
+      const fuelVal    = withStatus ? (fd.get("fuel_level") || "").trim() : "";
+      const gpsInput   = form.querySelector("input[name=gps]");
+      const wantsGps   = !!(withMedia && gpsInput?.checked);
+      const hasChange = !!(
+        body || pendingPhoto || wantsGps || statusVal || destVal || fuelVal ||
+        (Number.isFinite(mileageVal) && mileageVal >= 0)
+      );
+      if (!hasChange) {
+        if (typeof showToast === "function") showToast("Update at least one field to save", "warn");
+        else alert("Update at least one field to save.");
+        return;
+      }
       const btn = form.querySelector("button[type=submit]");
       btn.disabled = true; btn.textContent = "Saving…";
       try {
-        const fd = new FormData(form);
-        const statusVal = withStatus ? (fd.get("status") || "").trim() : "";
-        const destVal   = withStatus ? (fd.get("destination") || "").trim() : "";
-        const mileageRaw = withStatus ? (fd.get("mileage") || "").trim() : "";
-        const mileageVal = mileageRaw ? parseInt(mileageRaw, 10) : null;
-        const fuelVal    = withStatus ? (fd.get("fuel_level") || "").trim() : "";
         let pendingGps = null;
-        const gpsInput = form.querySelector("input[name=gps]");
-        if (withMedia && gpsInput?.checked) {
+        if (wantsGps) {
           btn.textContent = "Locating…";
           pendingGps = await captureGps();
           if (!pendingGps) {
@@ -479,6 +548,7 @@
           }
           btn.textContent = "Saving…";
         }
+        if (pendingPhoto) btn.textContent = "Uploading photo…";
         await addNote(vin, body, {
           photoBlob: pendingPhoto,
           ...(pendingGps ? { lat: pendingGps.lat, lng: pendingGps.lng } : {}),
@@ -522,7 +592,7 @@
     // UI
     mount, refresh, openPhotoViewer, openNoteDetail,
     // Data
-    addNote, listNotes,
+    addNote, listNotes, getLatestMileageAndFuel,
     // Helpers
     fetchProfileNames, profileCache, signPhotoPaths,
     captureGps, resizeImageBlob, uploadPhoto,

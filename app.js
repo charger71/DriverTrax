@@ -23,6 +23,39 @@ const STATUS_LABELS = {
 };
 function statusLabel(s) { return STATUS_LABELS[s] || s || ""; }
 
+// ============================================================
+// Single source of truth for status / destination / condition
+// catalogs. Referenced by app.js (entry form), vehicle-notes.js
+// (notes form) and detailer.js so the three forms stay aligned.
+// ============================================================
+const DT_OPTIONS = {
+  // Selectable by any role on the NEW ENTRY form + notes form.
+  STATUS_BASE: [
+    "CLEAN","DIRTY","REWASH","BODY","PM","MK","MR","OM",
+    "AUDIT FAIL","WI/DELETE","GLASS","TI","OTHER"
+  ],
+  // Selectable only by CXR / manager / admin.
+  STATUS_PRIVILEGED: ["CHECK_IN","CHECK_OUT","HOLD","DNR"],
+  // System-set by the detailer flow. Not selectable from any form,
+  // but appears as a filter option in the records view.
+  STATUS_DERIVED: ["DETAILING","DETAILED"],
+  DESTINATIONS: ["GARAGE","QTA","BACKLOT","ATLANTIC","BRANCH","OTHER"],
+  CONDITIONS: [
+    { id: "PRIORITY",     label: "Priority"     },
+    { id: "PET_HAIR",     label: "Pet Hair"     },
+    { id: "QUICK_FLIP",   label: "Quick Flip"   },
+    { id: "REGULAR",      label: "Regular"      },
+    { id: "DETAIL",       label: "Detail"       },
+    { id: "SPIFFY",       label: "Spiffy"       },
+    { id: "FUEL",         label: "Fuel"         },
+    { id: "CHARGE",       label: "Charge"       },
+    { id: "AIR",          label: "Air"          },
+    { id: "WASHER_FLUID", label: "Washer Fluid" }
+  ],
+  FUEL_LEVELS: ["EMPTY","1/4","1/2","3/4","FULL"]
+};
+window.DT_OPTIONS = DT_OPTIONS;
+
 const SCHEMA_KEY = "drivertrax_schema_version";
 
 // ============================
@@ -534,15 +567,62 @@ async function decodeVIN(vin) {
 // ============================
 // SAVE RECORD
 // ============================
+// Photo attached to the current NEW ENTRY form (resized blob, pre-upload).
+// Wired by initEntryPhotoInput() at boot.
+let pendingEntryPhoto = null;
+
+function initEntryPhotoInput() {
+  const input   = document.getElementById("entryPhotoInput");
+  const preview = document.getElementById("entryPhotoPreview");
+  const img     = document.getElementById("entryPhotoImg");
+  const remove  = document.getElementById("entryPhotoRemove");
+  if (!input || input.dataset.wired) return;
+  input.dataset.wired = "1";
+
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    const MAX_BYTES = 15 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      alert("That photo is too large (over 15MB). Please pick a smaller one.");
+      input.value = "";
+      return;
+    }
+    try {
+      const blob = await (window.DT_VNOTES?.resizeImageBlob?.(file, 1920, 1080, 0.85) ?? file);
+      pendingEntryPhoto = blob;
+      img.src = URL.createObjectURL(blob);
+      preview.style.display = "";
+    } catch (e) {
+      console.warn("[Entry] photo resize", e);
+      alert("Couldn't process that image.");
+    }
+  });
+
+  remove?.addEventListener("click", () => {
+    pendingEntryPhoto = null;
+    input.value = "";
+    preview.style.display = "none";
+    img.src = "";
+  });
+}
+document.addEventListener("DOMContentLoaded", initEntryPhotoInput);
+
+function resetEntryPhotoUI() {
+  pendingEntryPhoto = null;
+  const input = document.getElementById("entryPhotoInput");
+  const preview = document.getElementById("entryPhotoPreview");
+  const img = document.getElementById("entryPhotoImg");
+  if (input) input.value = "";
+  if (preview) preview.style.display = "none";
+  if (img) img.src = "";
+}
+
 function saveRecord() {
-  const noTagChecked = document.getElementById("noTag").checked;
   let serial = sanitizeSerial(document.getElementById("serial").value.trim().toUpperCase());
   if (!serial) {
-    if (noTagChecked) {
-      serial = "XXXXXXXXXXXXXXXXX"; // 17 X's placeholder for No Tag entries
-    } else {
-      showToast("Please enter or scan a Serial ID.", "error"); return;
-    }
+    showToast("Please enter or scan a Serial ID.", "error");
+    return;
   }
   const statusVal = document.getElementById("status").value;
   if (!statusVal) { showToast("Please select a status.", "error"); return; }
@@ -550,7 +630,7 @@ function saveRecord() {
   const saveBtn = document.getElementById("saveBtn");
   const gpsEl = document.getElementById("gpsStatus");
   saveBtn.disabled = true;
-  saveBtn.innerHTML = "Getting location...";
+  saveBtn.innerHTML = pendingEntryPhoto ? "Uploading photo..." : "Getting location...";
   gpsEl.className = "gps-status acquiring";
   gpsEl.textContent = "Acquiring GPS coordinates...";
 
@@ -563,6 +643,9 @@ function saveRecord() {
   const destVal = document.getElementById("destination").value;
   const statusOtherText = sanitizeNotes((document.getElementById("statusOther").value || "").trim()).slice(0, 40);
   const destOtherText = sanitizeNotes((document.getElementById("destinationOther").value || "").trim()).slice(0, 40);
+  const mileageRaw = (document.getElementById("mileage")?.value || "").trim();
+  const mileageVal = mileageRaw ? parseInt(mileageRaw, 10) : null;
+  const fuelVal = (document.getElementById("fuelLevel")?.value || "").trim();
   const recordData = {
     id: Date.now().toString(),
     serialId: serial,
@@ -571,11 +654,14 @@ function saveRecord() {
     tires: statusVal === "TI" ? [...selectedTires] : [],
     destination: destVal,
     destinationOther: destVal === "OTHER" ? destOtherText : "",
+    conditions: selectedCxrConditions.length ? [...selectedCxrConditions] : [],
     noTag: document.getElementById("noTag").checked,
     shuttle: document.getElementById("shuttle").checked,
     transport: document.getElementById("transport").checked,
     shiftNum: currentShiftNum,
     notes: sanitizeNotes(document.getElementById("notes").value),
+    mileage: Number.isFinite(mileageVal) && mileageVal >= 0 ? mileageVal : null,
+    fuel_level: fuelVal || null,
     timestamp: Date.now()
   };
 
@@ -585,6 +671,7 @@ function saveRecord() {
     const records = getRecords();
     records.unshift(recordData);
     setRecords(records);
+    resetEntryPhotoUI();
     document.getElementById("serial").value = "";
     toggleClearBtn();
     updateVinCount();
@@ -592,6 +679,9 @@ function saveRecord() {
     document.getElementById("status").selectedIndex = 0;
     document.getElementById("tireSelectorSection").style.display = "none";
     resetTires();
+    selectedCxrConditions = [];
+    renderCxrConditions();
+    clearEntryCurrentState();
     document.getElementById("destination").selectedIndex = 0;
     document.getElementById("statusOther").value = "";
     document.getElementById("statusOther").style.display = "none";
@@ -601,6 +691,8 @@ function saveRecord() {
     toggleNoTagStyle();
     document.getElementById("transport").checked = false;
     toggleTransportStyle();
+    const mEl = document.getElementById("mileage"); if (mEl) mEl.value = "";
+    const fEl = document.getElementById("fuelLevel"); if (fEl) fEl.selectedIndex = 0;
     document.getElementById("manualEntrySection").style.display = "none";
     document.querySelector(".btn-manual-toggle").innerHTML = "Enter Manually";
     saveBtn.disabled = false;
@@ -612,8 +704,10 @@ function saveRecord() {
     else { showToast("Saved with GPS", "success"); haptic("success"); }
 
     // VIN decode runs AFTER record is saved so the lookup finds it
-    // Skip decoding for No Tag placeholder serials (17 X's)
-    if (!recordData.noTag && isValidVIN(recordData.serialId)) {
+    // Decode whenever the serial looks like a real VIN. Bad Tag entries
+    // are now tied to a real serial too (the flag just means the physical
+    // tag is missing/damaged), so we let them decode like any other.
+    if (isValidVIN(recordData.serialId)) {
       decodeVIN(recordData.serialId).then(vinData => {
         if (vinData) {
           const recs = getRecords();
@@ -628,13 +722,24 @@ function saveRecord() {
     }
   }
 
-  if ("geolocation" in navigator) {
-    navigator.geolocation.getCurrentPosition(
-      pos => { gpsEl.className = "gps-status got"; gpsEl.textContent = "Location acquired"; doSave(pos.coords.latitude, pos.coords.longitude, false); },
-      err => { gpsEl.className = "gps-status err"; gpsEl.textContent = "Location unavailable - saving anyway"; saveBtn.innerHTML = "Saving..."; setTimeout(() => doSave(null, null, true), 800); },
-      { timeout: 8000, maximumAge: 30000, enableHighAccuracy: true }
-    );
-  } else { doSave(null, null, true); }
+  (async () => {
+    if (pendingEntryPhoto) {
+      try {
+        recordData.photo_url = await window.DT_VNOTES.uploadPhoto(pendingEntryPhoto, serial);
+      } catch (e) {
+        console.warn("[Entry] photo upload", e);
+        showToast("Photo upload failed — saving without photo", "warn");
+      }
+      saveBtn.innerHTML = "Getting location...";
+    }
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        pos => { gpsEl.className = "gps-status got"; gpsEl.textContent = "Location acquired"; doSave(pos.coords.latitude, pos.coords.longitude, false); },
+        err => { gpsEl.className = "gps-status err"; gpsEl.textContent = "Location unavailable - saving anyway"; saveBtn.innerHTML = "Saving..."; setTimeout(() => doSave(null, null, true), 800); },
+        { timeout: 8000, maximumAge: 30000, enableHighAccuracy: true }
+      );
+    } else { doSave(null, null, true); }
+  })();
 }
 
 // ============================
@@ -1268,18 +1373,75 @@ async function shareKeyUp() {
 // TIRE SELECTOR
 // ============================
 let selectedTires = [];
+let selectedCxrConditions = [];
+
+// Shared condition vocabulary. Pulls from DT_OPTIONS so the entry form,
+// detailer form, and any future surface stay aligned.
+const ENTRY_CONDITIONS = DT_OPTIONS.CONDITIONS;
 
 function handleStatusChange() {
   const val = document.getElementById("status").value;
-  const section = document.getElementById("tireSelectorSection");
+  const tireSection = document.getElementById("tireSelectorSection");
   if (val === "TI") {
-    section.style.display = "block";
+    tireSection.style.display = "block";
   } else {
-    section.style.display = "none";
+    tireSection.style.display = "none";
     resetTires();
   }
   toggleOtherField("status");
 }
+
+function renderCxrConditions() {
+  const el = document.getElementById("cxrConditions");
+  if (!el) return;
+  const esc = (s) => sanitizeText(s);
+  el.innerHTML = ENTRY_CONDITIONS.map(c => `
+    <label class="cond-chip ${selectedCxrConditions.includes(c.id) ? "checked" : ""}">
+      <input type="checkbox" value="${c.id}" ${selectedCxrConditions.includes(c.id) ? "checked" : ""}>
+      <span>${esc(c.label)}</span>
+    </label>
+  `).join("");
+  el.querySelectorAll("input").forEach(inp => {
+    inp.addEventListener("change", () => {
+      if (inp.checked) {
+        if (!selectedCxrConditions.includes(inp.value)) selectedCxrConditions.push(inp.value);
+      } else {
+        selectedCxrConditions = selectedCxrConditions.filter(c => c !== inp.value);
+      }
+      inp.closest(".cond-chip").classList.toggle("checked", inp.checked);
+    });
+  });
+}
+// Render the chip row once on load so they're visible regardless of status.
+document.addEventListener("DOMContentLoaded", renderCxrConditions);
+
+// Privileged status options (CHECK_IN, CHECK_OUT, HOLD, DNR) are CXR /
+// manager / admin only. `display:none` on <option> is unreliable across
+// browsers, so we add/remove the nodes from the DOM as role changes.
+function gateCxrStatusOption() {
+  const sel = document.getElementById("status");
+  if (!sel) return;
+  const allowed = !!(window.DT_AUTH && (DT_AUTH.isCxr?.() || DT_AUTH.isManager?.() || DT_AUTH.isAdmin?.()));
+  DT_OPTIONS.STATUS_PRIVILEGED.forEach(code => {
+    let opt = sel.querySelector(`option[value="${code}"]`);
+    if (allowed) {
+      if (!opt) {
+        opt = document.createElement("option");
+        opt.value = code;
+        opt.textContent = statusLabel(code);
+        opt.className = "opt-cxr-only";
+      }
+      if (!opt.isConnected) {
+        const otherOpt = sel.querySelector('option[value="OTHER"]');
+        sel.insertBefore(opt, otherOpt || null);
+      }
+    } else if (opt && opt.isConnected) {
+      opt.remove();
+    }
+  });
+}
+document.addEventListener("dt-auth-change", gateCxrStatusOption);
+document.addEventListener("DOMContentLoaded", gateCxrStatusOption);
 
 // Generic: when a <select id="X"> is set to "OTHER", show <input id="XOther">
 function toggleOtherField(selectId) {
@@ -1867,7 +2029,7 @@ function recordCard(r, onDelete) {
           ${safeDest ? `<span class="badge-dest"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${safeDest}</span>` : ""}
           ${r.shuttle ? `<span class="badge-shuttle"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="6" width="22" height="12" rx="2"/><path d="M16 6V4a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v2"/><line x1="12" y1="6" x2="12" y2="18"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><line x1="1" y1="12" x2="23" y2="12"/></svg> SHUTTLE</span>` : ""}
           ${r.transport ? '<span class="badge-transport">TRANSPORT</span>' : ""}
-          ${r.noTag ? '<span class="badge-notag">NO TAG</span>' : ""}
+          ${r.noTag ? '<span class="badge-notag">BAD TAG</span>' : ""}
         </div>
       </div>
       ${vinInfo}
@@ -2002,18 +2164,28 @@ async function renderFuzzyResults(term) {
   if (fFrom)   recsQ = recsQ.gte("ts", new Date(fFrom + "T00:00:00").toISOString());
   if (fTo)     recsQ = recsQ.lte("ts", new Date(fTo   + "T23:59:59.999").toISOString());
 
-  const [recRes, noteRes] = await Promise.all([
+  const [recRes, noteRes, vehRes] = await Promise.all([
     recsQ,
     sb.from("vehicle_notes")
       .select("id,serial_id,body,author_id,created_at,lat,lng,photo_url,archived")
       .eq("archived", false)
       .or(`serial_id.ilike.%${upTerm}%,body.ilike.%${safe}%`)
       .order("created_at", { ascending: false })
-      .limit(200)
+      .limit(200),
+    sb.from("vehicles")
+      .select("serial_id,current_status,current_status_other,current_destination,current_destination_other,last_lat,last_lng,last_seen_at,vin_data,entered_inventory_at")
+      .ilike("serial_id", `%${upTerm}%`)
+      .order("last_seen_at", { ascending: false, nullsFirst: false })
+      .limit(100)
   ]);
 
   const recRows  = recRes.data  || [];
   const noteRows = noteRes.data || [];
+  let vehRows    = vehRes.data  || [];
+  // Apply the same filters the records list honors so the inventory section
+  // stays in sync with what the user is filtering by.
+  if (fStatus) vehRows = vehRows.filter(v => v.current_status === fStatus);
+  if (fDest)   vehRows = vehRows.filter(v => v.current_destination === fDest);
 
   // Map driver names for record cards (manager-style augmentation)
   const userIds = [...new Set(recRows.map(r => r.user_id))];
@@ -2045,7 +2217,7 @@ async function renderFuzzyResults(term) {
     _driverName: names[row.user_id]
   }));
 
-  if (!cards.length && !noteRows.length) {
+  if (!cards.length && !noteRows.length && !vehRows.length) {
     container.innerHTML = `<p class="records-prompt">No matches for <b>${sanitizeText(term)}</b>.</p>`;
     if (countEl) countEl.textContent = "0 results";
     _renderRecordsMapMarkers([]);
@@ -2060,6 +2232,37 @@ async function renderFuzzyResults(term) {
 
   const esc = (s) => sanitizeText(s);
   const ago = (d) => DT_FORMAT.timeAgo(d);
+
+  const vehHtml = vehRows.length ? `
+    <div class="records-search-section">
+      <div class="records-section-label">${vehRows.length} VIN${vehRows.length === 1 ? "" : "s"} in inventory</div>
+      ${vehRows.map(v => {
+        const statusDisp = v.current_status === "OTHER" && v.current_status_other
+          ? `OTHER: ${v.current_status_other}`
+          : statusLabel(v.current_status);
+        const destDisp = v.current_destination === "OTHER" && v.current_destination_other
+          ? `OTHER: ${v.current_destination_other}`
+          : (v.current_destination || "");
+        const vd = v.vin_data || {};
+        const vehName = [vd.year, vd.make, vd.model].filter(Boolean).join(" ");
+        const pin = (Number.isFinite(v.last_lat) && Number.isFinite(v.last_lng))
+          ? ` · <a href="https://www.google.com/maps?q=${v.last_lat},${v.last_lng}" target="_blank" rel="noopener" class="vin-tl-gps" onclick="event.stopPropagation()">📍</a>` : "";
+        const statusPill = v.current_status
+          ? `<span class="record-status ${statusClass(v.current_status)}">${esc(statusDisp)}</span>`
+          : "";
+        return `
+          <div class="vin-detail-row vin-inv-row" data-vin="${esc(v.serial_id)}">
+            <div>
+              <div class="vin-detail-vin">${esc(v.serial_id)}</div>
+              <div class="vin-detail-sub">
+                ${statusPill}${destDisp ? ` · ${esc(destDisp)}` : ""}
+                ${vehName ? ` · ${esc(vehName)}` : ""}
+                · ${esc(ago(v.last_seen_at || v.entered_inventory_at))}${pin}
+              </div>
+            </div>
+          </div>`;
+      }).join("")}
+    </div>` : "";
 
   const recHtml = cards.length
     ? `<div class="records-search-section"><div class="records-section-label">${cards.length} record${cards.length === 1 ? "" : "s"}</div>${cards.map(r => recordCard(r, "deleteRecord")).join("")}</div>`
@@ -2086,8 +2289,18 @@ async function renderFuzzyResults(term) {
       }).join("")}
     </div>` : "";
 
-  container.innerHTML = recHtml + noteHtml;
-  if (countEl) countEl.textContent = `${cards.length + noteRows.length} result${(cards.length + noteRows.length) === 1 ? "" : "s"}`;
+  container.innerHTML = vehHtml + recHtml + noteHtml;
+  const totalResults = vehRows.length + cards.length + noteRows.length;
+  if (countEl) countEl.textContent = `${totalResults} result${totalResults === 1 ? "" : "s"}`;
+
+  // Tap an inventory row → open that VIN's full timeline
+  container.querySelectorAll(".vin-inv-row").forEach(row => {
+    row.style.cursor = "pointer";
+    row.addEventListener("click", () => {
+      document.getElementById("fSearch").value = row.dataset.vin;
+      renderVinTimeline(row.dataset.vin.toUpperCase());
+    });
+  });
 
   // Tap any matched note → load that VIN's full timeline
   container.querySelectorAll(".vin-tl-note-clickable").forEach(el => {
@@ -2100,6 +2313,11 @@ async function renderFuzzyResults(term) {
 
   // Map: latest GPS per VIN, capped to 25 by recency
   const pins = [];
+  vehRows.forEach(v => {
+    if (Number.isFinite(v.last_lat) && Number.isFinite(v.last_lng)) {
+      pins.push({ lat: v.last_lat, lng: v.last_lng, label: v.serial_id, ts: new Date(v.last_seen_at || 0).getTime() || 0 });
+    }
+  });
   cards.forEach(c => {
     if (Number.isFinite(c.lat) && Number.isFinite(c.lng)) {
       pins.push({ lat: c.lat, lng: c.lng, label: c.serialId, ts: c.timestamp || 0 });
@@ -2113,6 +2331,11 @@ async function renderFuzzyResults(term) {
   _renderRecordsMapMarkers(pins);
 
   const vinItems = [];
+  vehRows.forEach(v => {
+    const vd = v.vin_data || {};
+    const vehName = [vd.year, vd.make, vd.model].filter(Boolean).join(" ");
+    vinItems.push({ vin: v.serial_id, ts: v.last_seen_at || null, vehicle: vehName });
+  });
   cards.forEach(c => {
     const v = c.vinData ? [c.vinData.year, c.vinData.make, c.vinData.model].filter(Boolean).join(" ") : "";
     vinItems.push({ vin: c.serialId, ts: c.timestamp || null, vehicle: v });
@@ -2181,7 +2404,7 @@ function openVinRecordDetail(r, profileCache) {
     destDisp ? `<span class="badge-dest">${esc(destDisp)}</span>` : "",
     r.shuttle ? '<span class="badge-shuttle">SHUTTLE</span>' : "",
     r.transport ? '<span class="badge-transport">TRANSPORT</span>' : "",
-    r.no_tag ? '<span class="badge-notag">NO TAG</span>' : ""
+    r.no_tag ? '<span class="badge-notag">BAD TAG</span>' : ""
   ].filter(Boolean).join("");
 
   const gpsAction = (Number.isFinite(r.lat) && Number.isFinite(r.lng))
@@ -2530,7 +2753,7 @@ function openDetail(id, onDelete) {
     ${r.destination ? `<span class="badge-dest">${sanitizeText(detailDestLabel)}</span>` : ""}
     ${r.shuttle ? '<span class="badge-shuttle">SHUTTLE</span>' : ""}
     ${r.transport ? '<span class="badge-transport">TRANSPORT</span>' : ""}
-    ${r.noTag ? '<span class="badge-notag">NO TAG</span>' : ""}
+    ${r.noTag ? '<span class="badge-notag">BAD TAG</span>' : ""}
   `;
 
   // Vehicle info
@@ -2751,7 +2974,7 @@ function csvEscape(v) {
 function exportCSV() {
   const records = getFiltered();
   if (records.length === 0) { showToast("No records to export.", "error"); return; }
-  const rows = [["ID","Serial ID","Year","Make","Model","Status","Tires","Destination","Shuttle","Transport","No Tag","Notes","Latitude","Longitude","Timestamp"]];
+  const rows = [["ID","Serial ID","Year","Make","Model","Status","Tires","Destination","Shuttle","Transport","Bad Tag","Notes","Latitude","Longitude","Timestamp"]];
   records.forEach(r => rows.push([
     r.id, r.serialId,
     r.vinData ? r.vinData.year : "",
@@ -3469,7 +3692,7 @@ function renderDashboard() {
       <div class="stat-num">${thisWeekCount}</div><div class="stat-label">This Week &#8594;</div>
     </div>
     <div class="stat-card"><div class="stat-num">${all.length}</div><div class="stat-label">Total</div></div>
-    <div class="stat-card"><div class="stat-num" style="color:var(--danger)">${noTagCount}</div><div class="stat-label">No Tag</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--danger)">${noTagCount}</div><div class="stat-label">Bad Tag</div></div>
   `;
 
   const statuses = ["CLEAN","DIRTY","REWASH","BODY","PM","MK","MR","OM","AUDIT FAIL","WI/DELETE","GLASS","TI","OTHER"];
@@ -4593,7 +4816,68 @@ document.addEventListener("dt-vin-scanned", (e) => {
   const vin = (e.detail || "").toUpperCase();
   const target = document.getElementById("entryVinNotes");
   if (target && vin && window.DT_VNOTES) DT_VNOTES.mount(target, vin);
+  renderEntryCurrentState(vin);
 });
+
+// Render a read-only banner of the vehicle's current state (status, destination,
+// last mileage / fuel) under the scan area, and pre-fill the Destination select.
+// Status stays blank intentionally so the user has to make a deliberate pick.
+async function renderEntryCurrentState(vin) {
+  const el = document.getElementById("entryCurrentState");
+  if (!el || !window.DT_AUTH) return;
+  if (!vin) { el.style.display = "none"; el.innerHTML = ""; return; }
+  el.style.display = "";
+  el.classList.remove("is-empty");
+  el.innerHTML = `<div class="ecs-label">Current state</div><div>Loading…</div>`;
+  const sb = DT_AUTH.client;
+  const [vehRes, latestMF] = await Promise.all([
+    sb.from("vehicles")
+      .select("current_status,current_status_other,current_destination,current_destination_other,last_seen_at,vin_data,current_conditions,needs_new_tag")
+      .eq("serial_id", vin).maybeSingle(),
+    window.DT_VNOTES ? DT_VNOTES.getLatestMileageAndFuel?.(vin) : Promise.resolve({ mileage: null, fuel: null })
+  ]);
+  const v = vehRes?.data;
+  if (!v) {
+    el.classList.add("is-empty");
+    el.innerHTML = `<div class="ecs-label">Current state</div><div>New to inventory — no history yet.</div>`;
+    return;
+  }
+  const esc = (s) => sanitizeText(s);
+  const statusDisp = v.current_status === "OTHER" && v.current_status_other
+    ? `OTHER: ${v.current_status_other}` : statusLabel(v.current_status);
+  const destDisp = v.current_destination === "OTHER" && v.current_destination_other
+    ? `OTHER: ${v.current_destination_other}` : (v.current_destination || "");
+  const parts = [];
+  if (statusDisp)        parts.push(`<span class="ecs-val">${esc(statusDisp)}</span>`);
+  if (destDisp)          parts.push(`<span class="ecs-val">${esc(destDisp)}</span>`);
+  if (Number.isFinite(latestMF?.mileage)) parts.push(`<span class="ecs-val">${latestMF.mileage.toLocaleString()} mi</span>`);
+  if (latestMF?.fuel)    parts.push(`<span class="ecs-val">${esc(latestMF.fuel)}</span>`);
+  if (Array.isArray(v.current_conditions) && v.current_conditions.length) {
+    const labels = v.current_conditions.map(id => (DT_OPTIONS.CONDITIONS.find(c => c.id === id)?.label) || id);
+    parts.push(`<span class="ecs-val">${esc(labels.join(", "))}</span>`);
+  }
+  if (v.needs_new_tag) {
+    parts.push(`<span class="badge-notag">BAD TAG</span>`);
+  }
+  const ago = v.last_seen_at ? DT_FORMAT.timeAgo(v.last_seen_at) : "";
+  el.innerHTML = `
+    <div class="ecs-label">Current state${ago ? ` · ${esc(ago)}` : ""}</div>
+    <div>${parts.length ? parts.join('<span class="ecs-sep">·</span>') : "No prior status."}</div>
+  `;
+
+  // Pre-fill Destination only if the user hasn't already picked one this entry.
+  const destSel = document.getElementById("destination");
+  if (destSel && !destSel.value && v.current_destination &&
+      DT_OPTIONS.DESTINATIONS.includes(v.current_destination)) {
+    destSel.value = v.current_destination;
+  }
+}
+
+// Clear the banner when the entry form resets (after save, after clearing serial).
+function clearEntryCurrentState() {
+  const el = document.getElementById("entryCurrentState");
+  if (el) { el.style.display = "none"; el.innerHTML = ""; }
+}
 
 // Force a manual sync — push any queued local changes, then pull cloud state.
 async function forceSync() {

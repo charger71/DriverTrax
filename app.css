@@ -57,7 +57,7 @@
 
   /* === Shared bases (consolidated duplication) === */
   /* Card surface: dark card bg + bordered + rounded. Per-rule padding/margin still applies. */
-  input[type=text], select, textarea,
+  input[type=text], input[type=number], select, textarea,
   .record, .filter-bar, .stat-card, .bar-chart, .day-table {
     background: var(--card);
     border: 1px solid var(--border);
@@ -105,7 +105,7 @@
     margin-bottom: var(--space-2); margin-top: var(--space-5);
   }
 
-  input[type=text], select, textarea {
+  input[type=text], input[type=number], select, textarea {
     width: 100%; padding: var(--space-3) var(--space-4); font-size: var(--font-md);
     color: var(--text);
     margin-bottom: var(--space-6);
@@ -118,7 +118,7 @@
   /* VIN / serial fields stay uppercase — they're scanned codes, not free text */
   #serial, #editSerial { text-transform: uppercase; }
   /* #fSearch handles both VIN (uppercased server-side) and note text (mixed case) */
-  input[type=text]:focus, select:focus, textarea:focus {
+  input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
     outline: none; border-color: var(--accent);
   }
   textarea { text-transform: none; height: 80px; resize: vertical; }

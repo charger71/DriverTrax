@@ -46,7 +46,10 @@
     WASHER_FLUID: []
   };
 
-  const CONDITIONS = [
+  // Shared with the NEW ENTRY form via DT_OPTIONS (defined in app.js).
+  // CONDITION_TASKS above maps each id to the auto-generated todo items;
+  // any condition without a tasks entry is descriptive only.
+  const CONDITIONS = (window.DT_OPTIONS?.CONDITIONS) || [
     { id: "PRIORITY",     label: "Priority"     },
     { id: "PET_HAIR",     label: "Pet Hair"     },
     { id: "QUICK_FLIP",   label: "Quick Flip"   },
@@ -141,7 +144,7 @@
           <div class="detail-vin-label">VIN</div>
           <div class="detail-vin-value">${esc(vin)}</div>
         </div>
-        <button type="button" class="btn btn-secondary" id="detailVinClose">Done</button>
+        <button type="button" class="btn btn-danger" id="detailVinCancel">Cancel</button>
       </div>
 
       <div class="detail-subhead">Conditions</div>
@@ -151,19 +154,23 @@
       <div id="detailTodo"><div class="bl-empty">Pick a condition to generate the list.</div></div>
 
       <div class="detail-job-actions" id="detailJobActions" style="display:none">
-        <button type="button" class="btn btn-primary" id="detailCompleteBtn">Complete Job</button>
+        <button type="button" class="btn btn-primary" id="detailSaveJobBtn">Save Job</button>
+        <button type="button" class="btn btn-primary" id="detailCompleteBtn" style="display:none">Complete Job</button>
       </div>
 
       <div id="detailNotesMount"></div>
     `;
-    $("detailVinClose").addEventListener("click", () => {
+    $("detailVinCancel").addEventListener("click", () => {
       if (currentJob && currentJob.id && !currentJob.completed_at) {
         if (!confirm("This job isn't marked complete yet. Leave anyway?")) return;
       }
       $("serial").value = "";
       showEmpty();
     });
+    $("detailSaveJobBtn").addEventListener("click", onSaveJob);
     $("detailCompleteBtn").addEventListener("click", onCompleteJob);
+    // If we resumed an already-saved job, surface Complete Job immediately.
+    if (currentJob && currentJob.id) revealCompleteJob();
     // DT_VNOTES handles the notes list + add-note form (with photo + GPS)
     if (window.DT_VNOTES) {
       DT_VNOTES.mount($("detailNotesMount"), vin, { addWithMedia: true });
@@ -293,6 +300,25 @@
       if (error) { console.warn("[Detail] insert", error); return; }
       currentJob.id = data.id;
     }
+  }
+
+  function revealCompleteJob() {
+    const btn = $("detailCompleteBtn");
+    if (btn) btn.style.display = "";
+  }
+
+  async function onSaveJob() {
+    const btn = $("detailSaveJobBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+    // Flush any pending auto-save debounce so the row is written before we
+    // expose Complete Job. If saveJob() insert fails (e.g. offline + RLS),
+    // the user sees a console warn but the button still progresses — the
+    // existing onCompleteJob path re-attempts a save.
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    await saveJob();
+    if (btn) { btn.disabled = false; btn.textContent = "Save Job"; }
+    revealCompleteJob();
+    if (typeof showToast === "function") showToast("Job saved", "success");
   }
 
   async function onCompleteJob() {

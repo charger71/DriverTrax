@@ -157,7 +157,23 @@
     try {
       if (upserts.length) {
         const { error } = await sb.from("records").upsert(upserts, { onConflict: "id" });
-        if (error) throw error;
+        if (error) {
+          // RLS rejection: log the offending rows + ids so the cause is
+          // diagnosable. The most common reason is a stale queue entry whose
+          // row in the cloud is owned by a different user_id than the
+          // current session — fix is to clear DT_SYNC.clearQueue() or
+          // sign out and back in.
+          if (error.code === "42501" || /row-level security/i.test(error.message || "")) {
+            const mismatched = upserts.filter(r => r.user_id !== user.id);
+            console.warn("[Sync] RLS blocked upsert.",
+              "current user.id =", user.id,
+              "rows being sent =", upserts.length,
+              "rows with mismatched user_id =", mismatched.length,
+              "queued ids =", upserts.map(r => r.id));
+            if (mismatched.length) console.warn("[Sync] mismatched rows:", mismatched);
+          }
+          throw error;
+        }
       }
       if (deletes.length) {
         const { error } = await sb.from("records").delete().in("id", deletes);
@@ -280,5 +296,13 @@
   if (DT_AUTH.getUser() && shouldRunSync()) pullAndMerge();
 
   // Expose for debugging
-  window.DT_SYNC = { flush: flushQueue, pull: pullAndMerge, queue: readQueue };
+  window.DT_SYNC = {
+    flush: flushQueue,
+    pull: pullAndMerge,
+    queue: readQueue,
+    // Console escape hatch: when the queue is wedged on rows whose cloud
+    // copy is owned by a different user, clear the queue without touching
+    // local cache. Reload after running.
+    clearQueue() { writeQueue({}); updateBadge("ok"); console.info("[Sync] queue cleared"); }
+  };
 })();

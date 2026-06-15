@@ -691,8 +691,11 @@ function saveRecord() {
   const mileageRaw = (document.getElementById("mileage")?.value || "").trim();
   const mileageVal = mileageRaw ? parseInt(mileageRaw, 10) : null;
   const fuelVal = (document.getElementById("fuelLevel")?.value || "").trim();
+  // Use a UUID instead of a millisecond timestamp so two clients can't
+  // generate the same id and collide on upsert (which then triggers an
+  // UPDATE against a row owned by someone else, hitting the USING policy).
   const recordData = {
-    id: Date.now().toString(),
+    id: (crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2,10)}`),
     serialId: serial,
     status: statusVal,
     statusOther: statusVal === "OTHER" ? statusOtherText : "",
@@ -746,11 +749,16 @@ function saveRecord() {
     gpsEl.textContent = "";
     renderTodayEntries();
     // If the form was opened inline from a VIN history view, put it back and
-    // refresh the timeline so the new entry shows immediately.
+    // refresh the timeline so the new entry shows immediately. The sync queue
+    // normally debounces for ~600ms; flush it now so the timeline's Supabase
+    // query actually sees the row we just saved.
     const inlineSlot = document.getElementById("vinTlEntrySlot");
     if (inlineSlot && inlineSlot.contains(document.getElementById("entryFormBody"))) {
       restoreInlineNewEntry();
-      if (typeof renderVinTimeline === "function") renderVinTimeline(recordData.serialId);
+      const refresh = () => { if (typeof renderVinTimeline === "function") renderVinTimeline(recordData.serialId); };
+      const p = window.DT_SYNC?.flush?.();
+      if (p && typeof p.then === "function") p.then(refresh, refresh);
+      else refresh();
     }
     if (gpsError) { showToast("Saved - no GPS location", "warn"); }
     else { showToast("Saved with GPS", "success"); haptic("success"); }
@@ -3621,6 +3629,10 @@ function openInlineNewEntry(vin) {
   if (headerBtns) headerBtns.style.display = "none";
   if (typeof toggleClearBtn === "function") toggleClearBtn();
   if (typeof updateVinCount === "function") updateVinCount();
+  // Populate the current-state banner + placeholder hints on the form fields
+  // (status / destination / mileage / fuel). The scan flow does this via the
+  // dt-vin-scanned event; inline opening has to trigger it manually.
+  if (vin && typeof renderEntryCurrentState === "function") renderEntryCurrentState(vin);
   // Hide the New Entry trigger button while the form is open.
   const trigger = document.querySelector(".vin-tl-new-entry");
   if (trigger) trigger.style.display = "none";
@@ -5042,11 +5054,18 @@ function applyProfile() {
 // Refresh Profile when the PIN state changes
 document.addEventListener("dt-pin-change", () => applyProfile());
 
-// Show notes for the VIN that just got scanned/typed into the entry panel
+// Show the full VIN history (records + notes) for the VIN just scanned/typed
+// into the entry panel. Previously this only mounted the notes widget, so the
+// driver couldn't see prior status changes (CLEAN, DIRTY, PM, etc.) for the
+// same VIN — making it easy to log a duplicate.
 document.addEventListener("dt-vin-scanned", (e) => {
   const vin = (e.detail || "").toUpperCase();
   const target = document.getElementById("entryVinNotes");
-  if (target && vin && window.DT_VNOTES) DT_VNOTES.mount(target, vin, { showAdd: false });
+  if (target && vin && typeof renderVinTimeline === "function") {
+    renderVinTimeline(vin, { container: target, countEl: null });
+  } else if (target && !vin) {
+    target.innerHTML = "";
+  }
   renderEntryCurrentState(vin);
 });
 
@@ -5064,16 +5083,22 @@ async function renderEntryCurrentState(vin) {
   // The vehicles row may lag behind records (it's populated by an out-of-band
   // process). Fetching the latest record directly means a VIN with history
   // always shows real state, even before the vehicles row catches up.
+  // RLS may deny the records query for drivers when the matching rows belong
+  // to other users — we surface that as "no history yet" rather than letting
+  // the rejection break the page or noise up the console.
   const [vehRes, latestRecRes, latestMF] = await Promise.all([
     sb.from("vehicles")
       .select("current_status,current_status_other,current_destination,current_destination_other,last_seen_at,vin_data,current_conditions,needs_new_tag")
-      .eq("serial_id", vin).maybeSingle(),
+      .eq("serial_id", vin).maybeSingle()
+      .then(r => r, () => ({ data: null })),
     sb.from("records")
       .select("status,status_other,destination,destination_other,ts")
       .eq("serial_id", vin)
       .order("ts", { ascending: false })
-      .limit(1).maybeSingle(),
-    window.DT_VNOTES ? DT_VNOTES.getLatestMileageAndFuel?.(vin) : Promise.resolve({ mileage: null, fuel: null })
+      .limit(1).maybeSingle()
+      .then(r => r, () => ({ data: null })),
+    (window.DT_VNOTES ? DT_VNOTES.getLatestMileageAndFuel?.(vin) : Promise.resolve({ mileage: null, fuel: null }))
+      ?.catch?.(() => ({ mileage: null, fuel: null }))
   ]);
   const v = vehRes?.data;
   const r = latestRecRes?.data;

@@ -117,7 +117,10 @@
   async function createTrackingRecord() {
     const user = DT_AUTH.getUser();
     if (!user) return;
-    const id = Date.now().toString();
+    // UUID, not Date.now(), so two concurrent detailers can't generate the
+    // same tracking-record id (which would otherwise trigger an UPDATE against
+    // someone else's row and fail the records UPDATE policy).
+    const id = (crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2,10)}`);
     const ts = new Date().toISOString();
     const { error } = await sb.from("records").insert({
       id,

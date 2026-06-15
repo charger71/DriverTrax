@@ -1734,8 +1734,14 @@
   <textarea class="u-mb-0" id="notes" placeholder="Optional notes..."></textarea>
 
   <div class="vn-photo-action u-mt-3">
-    <input type="file" name="photo" id="entryPhotoInput" accept="image/*" hidden>
-    <button type="button" class="btn btn-secondary vn-photo-btn" onclick="document.getElementById('entryPhotoInput').click()">📷 Add photo</button>
+    <!-- iOS Safari: a JS-proxied .click() on a hidden file input is unreliable
+         (esp. inside a moved/standalone PWA context). Wrapping the visually
+         hidden input in a real <label> means the picker is opened by a native
+         click on a labeled control, which iOS handles reliably. -->
+    <label for="entryPhotoInput" class="btn btn-secondary vn-photo-btn">
+      <input type="file" name="photo" id="entryPhotoInput" accept="image/*" class="visually-hidden">
+      📷 Add photo
+    </label>
   </div>
   <div class="note-photo-preview" id="entryPhotoPreview" style="display:none;margin-top:10px">
     <img id="entryPhotoImg" alt="">

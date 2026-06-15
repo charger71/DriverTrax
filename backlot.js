@@ -445,7 +445,7 @@
             return `<div class="edr-acceptor">
               <span>${esc(names[a.driver_id] || "Driver")}</span>
               ${ash ? `<span class="shifts">${esc(ash)}</span>` : ""}
-              <span class="when" style="margin-left:auto">${esc(ts)}</span>
+              <span class="when u-ml-auto">${esc(ts)}</span>
             </div>`;
           }).join("")}
         </div>` : "";
@@ -457,7 +457,7 @@
       return `<div class="bl-edr-item" data-id="${r.id}">
         <div class="row"><div>${esc(when)}</div><div class="status status-${esc(r.status)}">${esc(r.status)}</div></div>
         <div class="edr-shift-tags">${shiftTags}</div>
-        <div class="row" style="margin-top:6px"><div>${r.needed_count} needed</div><div>${esc(r.note || "")}</div></div>
+        <div class="row u-mt-2"><div>${r.needed_count} needed</div><div>${esc(r.note || "")}</div></div>
         <div class="responses">✅ ${accepted.length} accepted · ❌ ${declined} declined</div>
         ${acceptedHtml}
         <div class="edr-admin-actions">${actions}</div>
@@ -557,6 +557,11 @@
 
     document.getElementById("blEdrForm")?.addEventListener("submit", async (e) => {
       e.preventDefault();
+      // CXR can't request extra drivers — only managers/admins post shift requests.
+      if (DT_AUTH.isCxr && DT_AUTH.isCxr()) {
+        alert("CXR users can't post shift requests.");
+        return;
+      }
       const fd = new FormData(e.target);
       const shifts = fd.getAll("shifts");
       if (!shifts.length) { alert("Pick at least one shift (AM / MID / PM)."); return; }

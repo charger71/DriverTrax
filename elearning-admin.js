@@ -185,15 +185,15 @@
       </div>` : ""}
 
       <div class="field-label quiz-first-label">MODULE</div>
-      <div style="display:flex;gap:var(--space-2);align-items:stretch;flex-wrap:wrap">
-        <select id="adQuizSel" style="flex:1;min-width:200px">
+      <div class="u-row u-gap-2 admin-toolbar">
+        <select id="adQuizSel" class="u-flex-1 admin-select">
           ${quizzes.map((qz, i) => `<option value="${i}"${i === state.quizIdx ? " selected" : ""}>${esc(qz.title || qz.id)}${isCustom(qz.id) ? "" : " · bundled"}</option>`).join("")}
         </select>
-        <button class="quiz-type-btn" id="adNewQuiz" style="white-space:nowrap">+ NEW</button>
-        <button class="quiz-type-btn" id="adExport" style="white-space:nowrap">⇩ EXPORT JSON</button>
-        <button class="quiz-type-btn" id="adImport" style="white-space:nowrap">⇪ IMPORT JSON</button>
+        <button class="quiz-type-btn" id="adNewQuiz">+ NEW</button>
+        <button class="quiz-type-btn" id="adExport">⇩ EXPORT JSON</button>
+        <button class="quiz-type-btn" id="adImport">⇪ IMPORT JSON</button>
         <input type="file" id="adImportFile" accept="application/json,.json" style="display:none">
-        ${editable ? `<button class="quiz-type-btn" id="adDeleteQuiz" style="white-space:nowrap;color:var(--danger);border-color:var(--danger)">✕ DELETE</button>` : ""}
+        ${editable ? `<button class="quiz-type-btn danger" id="adDeleteQuiz">✕ DELETE</button>` : ""}
       </div>
 
       ${editable ? `
@@ -204,7 +204,7 @@
           <input type="number" id="adDuration" value="${esc(quiz.duration || 5)}" min="1" placeholder="Duration (min)">
           <input type="number" id="adPass" value="${esc(quiz.passingScore || 80)}" min="0" max="100" placeholder="Passing %">
         </div>
-        <textarea id="adDesc" rows="2" placeholder="Description" style="margin-top:var(--space-2)">${esc(quiz.description || "")}</textarea>
+        <textarea id="adDesc" rows="2" placeholder="Description" class="u-mt-2">${esc(quiz.description || "")}</textarea>
       ` : `<div class="record"><div class="record-notes" style="color:var(--text2);font-size:var(--font-sm)">This module is loaded from <code>elearning/modules/</code> and is read-only here. To customise it, click <b>+ NEW</b>, or use <b>Import JSON</b> after editing the file directly.</div></div>`}
 
       <div class="today-header">
@@ -246,9 +246,9 @@
 
         <div class="field-label">IMAGE (OPTIONAL)</div>
         <input type="text" id="adQImage" value="${esc(q.image || "")}" placeholder="https://… or upload below" class="quiz-url-input">
-        <div style="display:flex;gap:var(--space-2);margin-top:var(--space-2)">
+        <div class="u-row u-gap-2 u-mt-2">
           <button class="quiz-type-btn" id="adQUpload">⇪ UPLOAD IMAGE</button>
-          ${q.image ? `<button class="quiz-type-btn" id="adQClearImg" style="color:var(--danger);border-color:var(--danger)">✕ REMOVE IMAGE</button>` : ""}
+          ${q.image ? `<button class="quiz-type-btn danger" id="adQClearImg">✕ REMOVE IMAGE</button>` : ""}
           <input type="file" id="adQImgFile" accept="image/*" style="display:none">
         </div>
         ${q.image ? `<img src="${esc(q.image)}" alt="" class="quiz-image quiz-image-preview">` : ""}

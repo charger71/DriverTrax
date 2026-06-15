@@ -224,6 +224,29 @@
 
   /* footer */
   footer { color: var(--muted); font-size: 11px; text-align: center; margin-top: 28px; }
+
+  /* ---- utility helpers ---- */
+  .u-text-text   { color: var(--text); }
+  .u-text-text2  { color: var(--text2); }
+  .u-text-muted  { color: var(--muted); }
+  .u-text-accent { color: var(--accent); }
+  .u-text-warn   { color: var(--warn); }
+  .u-text-danger { color: var(--danger); }
+  .u-bg-accent   { background: var(--accent); }
+  .u-flex-1      { flex: 1; }
+  .u-mb-2        { margin-bottom: 6px; }
+
+  /* row that lists a driver with a meta time (used in handoff / dispatch lists) */
+  .meta-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-top: 1px solid var(--line);
+  }
+  .meta-row-muted { color: var(--muted); }
+
+  /* small inline label (e.g. "/ 18" stat divider) */
+  .stat-of { font-size: 14px; color: var(--muted); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -234,7 +257,7 @@
     <div class="crumbs">SDF · Louisville · <b>Lot A — Live Dashboard</b></div>
     <div class="top-right">
       <span class="pill"><span class="dot"></span> 14 drivers on shift</span>
-      <span class="pill" style="color:var(--warn)">⚠ 2 active alerts</span>
+      <span class="pill u-text-warn">⚠ 2 active alerts</span>
       <span>Thu May 14 · 2:47 PM</span>
       <div class="avatar">DH</div>
     </div>
@@ -292,17 +315,17 @@
       </div>
       <div class="kpi">
         <div class="label">Drivers On Shift</div>
-        <div class="val">14<span style="font-size:14px;color:var(--muted);font-weight:600"> / 18</span></div>
+        <div class="val">14<span class="stat-of"> / 18</span></div>
         <div class="delta flat">3 on break · 1 late</div>
       </div>
       <div class="kpi">
         <div class="label">Ready-Line Cars</div>
-        <div class="val" style="color:var(--accent)">62</div>
+        <div class="val u-text-accent">62</div>
         <div class="delta up">Target 50 ✓</div>
       </div>
       <div class="kpi">
         <div class="label">PM / Service Holds</div>
-        <div class="val" style="color:var(--danger)">9</div>
+        <div class="val u-text-danger">9</div>
         <div class="delta down">▲ 3 since 12 PM</div>
       </div>
     </section>
@@ -493,7 +516,7 @@
           <div class="pin"       style="top:340px; left:495px">F5</div>
         </div>
         <div class="legend">
-          <span><i class="swatch" style="background:var(--accent)"></i> Clean / Ready (62)</span>
+          <span><i class="swatch u-bg-accent"></i> Clean / Ready (62)</span>
           <span><i class="swatch" style="background:var(--warn)"></i> Dirty (24)</span>
           <span><i class="swatch" style="background:var(--danger)"></i> PM / Service (9)</span>
           <span><i class="swatch" style="background:var(--info)"></i> Shuttle / Transport (7)</span>
@@ -631,9 +654,9 @@
               Recent broadcasts
             </div>
             <div style="font-size:12px; color:var(--text2)">
-              <div style="margin-bottom:6px"><b style="color:var(--text)">12:14 PM</b> — Shuttle van #3 down, use #1 or #5. <span style="color:var(--accent)">14/14 read</span></div>
-              <div style="margin-bottom:6px"><b style="color:var(--text)">10:02 AM</b> — Premium SUVs to Row A only today. <span style="color:var(--accent)">14/14 read</span></div>
-              <div><b style="color:var(--text)">8:30 AM</b> — Morning huddle in office at 8:45. <span style="color:var(--accent)">12/12 read</span></div>
+              <div class="u-mb-2"><b class="u-text-text">12:14 PM</b> — Shuttle van #3 down, use #1 or #5. <span class="u-text-accent">14/14 read</span></div>
+              <div class="u-mb-2"><b class="u-text-text">10:02 AM</b> — Premium SUVs to Row A only today. <span class="u-text-accent">14/14 read</span></div>
+              <div><b class="u-text-text">8:30 AM</b> — Morning huddle in office at 8:45. <span class="u-text-accent">12/12 read</span></div>
             </div>
           </div>
         </div>
@@ -659,7 +682,7 @@
           <div class="col"><div class="bars"><i style="height:80%"></i><i class="b" style="height:74%"></i></div><span>2P</span></div>
         </div>
         <div class="chart-foot">
-          <span class="key"><i class="sw" style="background:var(--accent)"></i> Today (487)</span>
+          <span class="key"><i class="sw u-bg-accent"></i> Today (487)</span>
           <span class="key"><i class="sw" style="background:var(--accent-dim)"></i> Same hour last Thu (432)</span>
           <span>Peak: 1 PM · 64 cars</span>
         </div>
@@ -681,22 +704,22 @@
           </div>
           <div class="bar" style="height:8px"><i style="width:27%"></i></div>
           <div style="margin-top:14px; font-size:12px; color:var(--text2)">
-            <div style="display:flex; justify-content:space-between; padding:6px 0; border-top:1px solid var(--line)">
-              <span><b style="color:var(--text)">A. Robinson</b> · accepted</span><span>2:31 PM · ETA 2:55</span>
+            <div class="meta-row">
+              <span><b class="u-text-text">A. Robinson</b> · accepted</span><span>2:31 PM · ETA 2:55</span>
             </div>
-            <div style="display:flex; justify-content:space-between; padding:6px 0; border-top:1px solid var(--line)">
-              <span><b style="color:var(--text)">N. Cho</b> · accepted</span><span>2:33 PM · ETA 3:05</span>
+            <div class="meta-row">
+              <span><b class="u-text-text">N. Cho</b> · accepted</span><span>2:33 PM · ETA 3:05</span>
             </div>
-            <div style="display:flex; justify-content:space-between; padding:6px 0; border-top:1px solid var(--line)">
-              <span><b style="color:var(--text)">T. Boudreaux</b> · accepted</span><span>2:40 PM · ETA 3:10</span>
+            <div class="meta-row">
+              <span><b class="u-text-text">T. Boudreaux</b> · accepted</span><span>2:40 PM · ETA 3:10</span>
             </div>
-            <div style="display:flex; justify-content:space-between; padding:6px 0; border-top:1px solid var(--line); color:var(--muted)">
+            <div class="meta-row meta-row-muted">
               <span>8 drivers pending</span><span>—</span>
             </div>
           </div>
           <div style="display:flex; gap:8px; margin-top:14px">
-            <button class="btn" style="flex:1">Cancel request</button>
-            <button class="btn primary" style="flex:1">Send reminder</button>
+            <button class="btn u-flex-1">Cancel request</button>
+            <button class="btn primary u-flex-1">Send reminder</button>
           </div>
         </div>
       </div>

@@ -50,16 +50,16 @@
   // CONDITION_TASKS above maps each id to the auto-generated todo items;
   // any condition without a tasks entry is descriptive only.
   const CONDITIONS = (window.DT_OPTIONS?.CONDITIONS) || [
-    { id: "PRIORITY",     label: "Priority"     },
     { id: "PET_HAIR",     label: "Pet Hair"     },
-    { id: "QUICK_FLIP",   label: "Quick Flip"   },
     { id: "REGULAR",      label: "Regular"      },
     { id: "DETAIL",       label: "Detail"       },
     { id: "SPIFFY",       label: "Spiffy"       },
     { id: "FUEL",         label: "Fuel"         },
     { id: "CHARGE",       label: "Charge"       },
     { id: "AIR",          label: "Air"          },
-    { id: "WASHER_FLUID", label: "Washer Fluid" }
+    { id: "WASHER_FLUID", label: "Washer Fluid" },
+    { id: "PRIORITY",     label: "Priority"     },
+    { id: "QUICK_FLIP",   label: "Quick Flip"   }
   ];
 
   // ---- state ----
@@ -110,9 +110,6 @@
     showLoaded();
     renderShell(currentVin);
     await tryResumeJob(currentVin);
-    // If this is a fresh scan (no in-progress job to resume), drop a tracking
-    // record row so managers can see the VIN was touched, same way drivers do.
-    if (!currentJob.id) await createTrackingRecord();
     renderConditions();
     renderTodo();
   }
@@ -330,10 +327,35 @@
     // the user sees a console warn but the button still progresses — the
     // existing onCompleteJob path re-attempts a save.
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    // First-time save: drop the tracking record now (not on scan) so the
+    // VIN history only shows DETAILING once the detailer commits to the job.
+    if (!currentJob.record_id) await createTrackingRecord();
     await saveJob();
     if (btn) { btn.disabled = false; btn.textContent = "Save Job"; }
     revealCompleteJob();
     if (typeof showToast === "function") showToast("Job saved", "success");
+  }
+
+  // Render the completed job as a plain-text note body. Uses ✓ / ✗ marks so
+  // the rendered note remains readable even in a tiny card view, and includes
+  // any per-item notes the detailer left so context isn't lost.
+  function buildCompletionNoteBody(job) {
+    const lines = ["Detail job complete."];
+    const condIds = [...(job.conditions || [])];
+    if (condIds.length) {
+      const labels = condIds.map(id => (CONDITIONS.find(c => c.id === id)?.label) || id);
+      lines.push("", "Conditions: " + labels.join(" · "));
+    }
+    const todo = job.todo || [];
+    if (todo.length) {
+      lines.push("", "Checklist:");
+      for (const t of todo) {
+        const mark = t.done ? "✓" : "✗";
+        const note = (t.note || "").trim();
+        lines.push(`${mark} ${t.label}${note ? ` — ${note}` : ""}`);
+      }
+    }
+    return lines.join("\n");
   }
 
   async function onCompleteJob() {
@@ -356,6 +378,16 @@
       if (loc) { recordUpdate.lat = loc.lat; recordUpdate.lng = loc.lng; recordUpdate.gps_error = false; }
       const { error: rErr } = await sb.from("records").update(recordUpdate).eq("id", currentJob.record_id);
       if (rErr) console.warn("[Detail] record update on complete", rErr);
+    }
+
+    // Drop a VIN note that captures the conditions + the full todo list so
+    // the next person reading the VIN's notes panel sees exactly what was
+    // done, what was skipped, and any per-item notes the detailer left.
+    try {
+      const body = buildCompletionNoteBody(currentJob);
+      await DT_VNOTES.addNote(currentJob.serial_id, body, loc ? { lat: loc.lat, lng: loc.lng } : {});
+    } catch (noteErr) {
+      console.warn("[Detail] completion note", noteErr);
     }
 
     currentJob.completed_at = completedAt;

@@ -40,9 +40,10 @@ self.addEventListener("fetch", (event) => {
   // Skip non-GET requests
   if (event.request.method !== "GET") return;
 
-  // Network-first for API calls (NHTSA VIN, NWS weather, Open-Meteo)
+  // Network-first for API calls (NHTSA VIN, NHTSA recalls, NWS weather, Open-Meteo)
   if (
     url.hostname.includes("nhtsa.dot.gov") ||
+    url.hostname.includes("api.nhtsa.gov") ||
     url.hostname.includes("weather.gov") ||
     url.hostname.includes("open-meteo.com") ||
     url.hostname.includes("openstreetmap.org")

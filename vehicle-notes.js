@@ -161,7 +161,7 @@
       </div>
       <div class="detail-body">
         <div class="detail-row"><span class="detail-label">Author</span><span class="detail-val">${name}${role}</span></div>
-        ${n.body ? `<div class="detail-row"><span class="detail-label">Body</span><span class="detail-val" style="white-space:pre-wrap">${esc(n.body)}</span></div>` : ""}
+        ${n.body ? `<div class="detail-row"><span class="detail-label">Body</span><span class="detail-val u-text-prewrap">${esc(n.body)}</span></div>` : ""}
         ${Number.isFinite(n.mileage) ? `<div class="detail-row"><span class="detail-label">Mileage</span><span class="detail-val">${n.mileage.toLocaleString()} mi</span></div>` : ""}
         ${n.fuel_level ? `<div class="detail-row"><span class="detail-label">Fuel</span><span class="detail-val">${esc(n.fuel_level)}</span></div>` : ""}
       </div>
@@ -266,24 +266,60 @@
     document.dispatchEvent(new CustomEvent("dt-vehicle-note-added", { detail: { vin } }));
   }
 
-  // Most recent mileage/fuel values from this VIN's notes — used to pre-fill the form.
+  // Most recent mileage/fuel values for a VIN. Pulls from both notes and
+  // records (the NEW ENTRY form writes mileage/fuel onto records) and merges
+  // by timestamp so the freshest source wins.
   async function getLatestMileageAndFuel(vin) {
-    const { data, error } = await sb.from("vehicle_notes")
-      .select("mileage,fuel_level,created_at")
-      .eq("serial_id", vin)
-      .eq("archived", false)
-      .order("created_at", { ascending: false })
-      .limit(50);
-    if (error) { console.warn("[VNotes] latestMileageFuel", error); return { mileage: null, fuel: null }; }
-    const rows = data || [];
-    const mileage = rows.find(r => Number.isFinite(r.mileage))?.mileage ?? null;
-    const fuel    = rows.find(r => r.fuel_level)?.fuel_level ?? null;
+    const [notesRes, recsRes] = await Promise.all([
+      sb.from("vehicle_notes")
+        .select("mileage,fuel_level,created_at")
+        .eq("serial_id", vin)
+        .eq("archived", false)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      sb.from("records")
+        .select("mileage,fuel_level,ts")
+        .eq("serial_id", vin)
+        .order("ts", { ascending: false })
+        .limit(50)
+    ]);
+    if (notesRes.error) console.warn("[VNotes] latestMileageFuel notes", notesRes.error);
+    if (recsRes.error)  console.warn("[VNotes] latestMileageFuel records", recsRes.error);
+    const merged = [
+      ...((notesRes.data || []).map(r => ({ ts: r.created_at ? +new Date(r.created_at) : 0, mileage: r.mileage, fuel_level: r.fuel_level }))),
+      ...((recsRes.data  || []).map(r => ({ ts: r.ts          ? +new Date(r.ts)         : 0, mileage: r.mileage, fuel_level: r.fuel_level })))
+    ].sort((a, b) => b.ts - a.ts);
+    const mileage = merged.find(r => Number.isFinite(r.mileage))?.mileage ?? null;
+    const fuel    = merged.find(r => r.fuel_level)?.fuel_level ?? null;
     return { mileage, fuel };
   }
 
+  // Detailer completion notes carry the full checklist in their body. In the
+  // list view we collapse that to keep cards short — clicking the card opens
+  // the detail viewer which renders the full body, so nothing is lost.
+  function renderBodyPreview(body) {
+    if (!body) return "";
+    const marker = "\nChecklist:";
+    const idx = body.indexOf(marker);
+    if (idx < 0) return esc(body);
+    const head = body.slice(0, idx).trimEnd();
+    return `${esc(head)}<div class="note-body-more">Tap to view checklist</div>`;
+  }
+
   // ---- shared render of a list of note rows ----
-  function renderNoteCardsHtml(notes, signed) {
+  // `vinData` is optional. When supplied (e.g. from the VIN-history timeline,
+  // which has decoded the VIN once and passes the result down), every rendered
+  // note gets an inline NHTSA-derived subtitle: year/make/model · body · fuel.
+  function renderNoteCardsHtml(notes, signed, vinData) {
     const myId = DT_AUTH.getUser()?.id;
+    const vehicleSub = vinData ? (() => {
+      const name = [vinData.year, vinData.make, vinData.model, vinData.trim]
+        .filter(Boolean).map(esc).join(" ");
+      const meta = [vinData.bodyClass, vinData.fuelType, vinData.engine]
+        .filter(Boolean).map(esc).join(" · ");
+      const inner = [name, meta].filter(Boolean).join(" · ");
+      return inner ? `<div class="note-vehicle">${inner}</div>` : "";
+    })() : "";
     // Drop any rows that came back without an id — they can't be opened,
     // and they'd render as data-id="undefined" which then triggers UUID parse errors.
     const safe = notes.filter(n => n && n.id);
@@ -306,7 +342,7 @@
         ? `<div class="note-photo"><img src="${esc(signed[n.photo_url])}" alt="" data-full="${esc(signed[n.photo_url])}"></div>`
         : "";
       const gpsHtml = (Number.isFinite(n.lat) && Number.isFinite(n.lng))
-        ? `<a class="note-gps" href="https://www.google.com/maps?q=${n.lat},${n.lng}" target="_blank" rel="noopener">Location</a>`
+        ? `<a class="note-gps" href="https://www.google.com/maps?q=${n.lat},${n.lng}" target="_blank" rel="noopener" aria-label="Open location in Maps"><svg class="ico-gps" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s-7-7.58-7-13a7 7 0 0 1 14 0c0 5.42-7 13-7 13z"/><circle cx="12" cy="9" r="2.5"/></svg></a>`
         : "";
       const mileageHtml = Number.isFinite(n.mileage)
         ? `<span class="note-mileage"><svg class="ico-mileage" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16a9 9 0 0 1 18 0"/><path d="M12 16 16 10"/><circle cx="12" cy="16" r="1.2" fill="currentColor"/></svg>${n.mileage.toLocaleString()} mi</span>` : "";
@@ -315,15 +351,14 @@
       return `
         <div class="note-card" data-id="${n.id}">
           <div class="note-head">
-            <span class="note-author">${esc(name)}${roleLabel}</span>
             <span class="note-time">${esc(ago(n.created_at))}</span>
           </div>
-          <div class="note-body">${esc(n.body)}</div>
+          ${vehicleSub}
+          <div class="note-body">${renderBodyPreview(n.body)}</div>
           ${photoHtml}
-          ${gpsHtml}
           <div class="note-footer">
-            <span class="note-footer-left">${mileageHtml}${fuelHtml}</span>
-            ${mine ? `<button class="note-del" data-id="${n.id}">delete</button>` : ""}
+            <span class="note-footer-left">${mileageHtml}${fuelHtml}${gpsHtml}</span>
+            ${mine ? `<button class="note-del" data-id="${n.id}">Delete</button>` : ""}
           </div>
         </div>
       `;
@@ -375,7 +410,7 @@
     container.classList.add("vn-mount");
 
     container.innerHTML = showList
-      ? `<div class="vin-tl-label" style="margin-top:14px;margin-bottom:6px">NOTES</div><div class="vn-list"><div class="bl-empty">Loading…</div></div>`
+      ? `<div class="vin-tl-label u-mt-4 u-mb-2">NOTES</div><div class="vn-list"><div class="bl-empty">Loading…</div></div>`
       : "";
     container.dataset.vin = vin;
 
@@ -403,7 +438,12 @@
     // Helpers
     fetchProfileNames, profileCache, signPhotoPaths,
     captureGps, resizeImageBlob, uploadPhoto,
-    // Internal render helpers (for modules with custom row shapes)
+    // Shared card-list helpers — use these so every notes view (New Entry,
+    // VIN history, detail overlays, search results) renders and wires the
+    // same way.
+    renderCardsHtml: renderNoteCardsHtml,
+    wireCards: wireListDelegation,
+    // Back-compat aliases — older callers may still reference the underscore names.
     _renderCardsHtml: renderNoteCardsHtml,
     _wirePhotoZoom: wirePhotoZoom
   };

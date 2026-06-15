@@ -26,9 +26,9 @@
 <div id="gateWrap" class="gate" style="display:none">
   <h2>TRAINING ADMIN</h2>
   <input type="password" id="gatePw" placeholder="Admin passphrase" autocomplete="off">
-  <button class="btn btn-primary" id="gateBtn" style="margin-top:var(--space-3)">UNLOCK</button>
+  <button class="btn btn-primary" id="gateBtn" class="u-mt-3">UNLOCK</button>
   <div class="err" id="gateErr"></div>
-  <div style="margin-top:var(--space-5);color:var(--muted);font-size:var(--font-xs);line-height:1.5">
+  <div class="gate-hint">
     First time? Open the browser console and run:<br>
     <code>localStorage.setItem('drivertrax_admin_hash', await (async p=>{const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(p));return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('')})('your-passphrase'))</code>
   </div>
@@ -36,12 +36,12 @@
 
 <div id="adminWrap" style="display:none">
   <div class="admin-header">
-    <div style="display:flex;justify-content:space-between;align-items:flex-end">
+    <div class="u-row-end">
       <div>
         <div class="admin-title">TRAINING ADMIN</div>
         <div class="admin-sub">Author training modules. Saved locally + exportable as JSON files to ship in <code>elearning/modules/</code>.</div>
       </div>
-      <a href="index.html" style="color:var(--muted);font-size:var(--font-xs);text-decoration:none">← APP</a>
+      <a href="index.html" class="back-link">← APP</a>
     </div>
   </div>
   <div id="adminBody"></div>

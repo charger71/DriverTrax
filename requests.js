@@ -66,7 +66,7 @@
           ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}
           <div class="progress">${esc(progress)}</div>
 
-          <div class="shift-picker" style="margin-top:10px">
+          <div class="shift-picker u-mt-3">
             <span class="shift-picker-label">Which shifts can you cover?</span>
             ${checkboxes}
           </div>

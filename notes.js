@@ -61,7 +61,7 @@
         ? `<div class="note-photo"><img src="${esc(signedUrls[n.photo_url])}" alt="" data-full="${esc(signedUrls[n.photo_url])}"></div>`
         : "";
       const gpsHtml = (Number.isFinite(n.lat) && Number.isFinite(n.lng))
-        ? `<a class="note-gps" href="https://www.google.com/maps?q=${n.lat},${n.lng}" target="_blank" rel="noopener">📍 Location</a>`
+        ? `<a class="note-gps" href="https://www.google.com/maps?q=${n.lat},${n.lng}" target="_blank" rel="noopener"><svg class="ico-pin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12 22s-7-7.58-7-13a7 7 0 0 1 14 0c0 5.42-7 13-7 13zM12 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg> Location</a>`
         : "";
       return `
         <div class="note-card ${n.archived ? "archived" : ""}" data-id="${n.id}" data-photo="${esc(n.photo_url || "")}">

@@ -122,17 +122,22 @@
     outline: none; border-color: var(--accent);
   }
   textarea { text-transform: none; height: 80px; resize: vertical; }
+  /* When a select is on its empty/placeholder option, render the displayed
+     label in the same muted color as text-input placeholders so a pre-fill
+     hint doesn't look like a real selection. */
+  select:has(option[value=""]:checked) { color: var(--muted); }
+  select option { color: var(--text); }
 
   /* Input with clear button (X) */
   .input-with-clear { position: relative; }
   .input-with-clear input[type=text] { padding-right: 64px; cursor: pointer; }
   .input-clear-btn {
-    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    position: absolute; right: 8px; top: 0; bottom: 0; margin: auto 0;
     width: 56px; height: 32px; border-radius: 6px;
     background: var(--card2); color: var(--text2);
     border: none; cursor: pointer; display: none;
     align-items: center; justify-content: center;
-    font-size: var(--font-xl); line-height: var(--leading-none); padding: 0;
+    font-size: var(--font-xl); line-height: 1; padding: 0 0 3px;
     transition: background 0.15s, color 0.15s;
   }
   .input-clear-btn:active { background: var(--danger); color: #fff; }
@@ -242,9 +247,10 @@
   }
 
   .notag-row {
-    display: flex; align-items: center; gap: var(--space-4);
+    display: flex; align-items: center; justify-content: center; gap: var(--space-2);
+    box-sizing: border-box; height: var(--dt-input-h);
     background: var(--card); border: 1.5px solid var(--border);
-    border-radius: var(--radius); padding: var(--space-4) var(--space-4); margin-top: var(--space-3);
+    border-radius: var(--radius); padding: 0 var(--space-3); margin-top: var(--space-3);
     cursor: pointer; transition: border-color 0.15s, background 0.15s;
     user-select: none;
   }
@@ -252,7 +258,7 @@
     display: none;
   }
   .notag-row label {
-    font-size: var(--font-base); font-weight: 600; text-transform: uppercase;
+    font-size: 13px; font-weight: 700; text-transform: uppercase;
     letter-spacing: 0.5px; cursor: pointer; color: var(--text2); flex: 1;
     pointer-events: none; text-align: center;
   }
@@ -262,10 +268,19 @@
   .shuttle-row.shuttle-checked label { color: #4d9bff; }
 
   .btn {
-    display: inline-block; padding: var(--space-3) var(--space-4); font-size: var(--font-base);
+    /* Use flex so the button height stays predictable regardless of inner
+       content (text only, icon+text, etc.). Matches single-line input height
+       (var(--dt-input-h)) so buttons sit flush with form controls in rows. */
+    display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+    box-sizing: border-box; height: var(--dt-input-h);
+    padding: 0 var(--space-4); font-size: var(--font-base);
     border: none; border-radius: var(--radius); cursor: pointer;
     font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
-    margin-top: var(--space-4); width: 100%;
+    margin-top: var(--space-4);
+    /* Standard buttons size to content with a comfortable minimum. Large
+       "hero" buttons (e.g. .btn-scan-primary, .detail-actions .btn) set
+       their own width: 100% to stay full-width. */
+    min-width: 180px;
     /* Smooth fade between resting (85% fill) and hover (95% fill). */
     transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
   }
@@ -1095,6 +1110,8 @@
     transition: color 0.15s, border-color 0.15s;
   }
   .quiz-type-btn:active { color: var(--accent); border-color: var(--accent); }
+  .quiz-type-btn { white-space: nowrap; }
+  .quiz-type-btn.danger { color: var(--danger); border-color: var(--danger); }
 
   .quiz-option-row {
     display: flex; gap: var(--space-2); align-items: center;
@@ -1299,4 +1316,166 @@
     margin-top: 6px !important;
     margin-bottom: 0 !important;
     text-transform: none;
+  }
+
+  /* ============================================================
+     UTILITY CLASSES — replace repetitive inline styles.
+     Spacing/colors always reference design tokens.
+     ============================================================ */
+
+  /* Visibility */
+  .u-hidden { display: none !important; }
+
+  /* Inline SVG icon alignment next to text */
+  .u-icon { vertical-align: middle; display: inline-block; }
+  .u-icon-mr-1 { vertical-align: middle; display: inline-block; margin-right: var(--space-1); }
+  .u-icon-mr-2 { vertical-align: middle; display: inline-block; margin-right: 6px; }
+
+  /* Margin */
+  .u-m-0  { margin: 0; }
+  .u-mt-0 { margin-top: 0; }
+  .u-mb-0 { margin-bottom: 0; }
+  .u-mt-1 { margin-top: var(--space-1); }
+  .u-mt-2 { margin-top: var(--space-2); }
+  .u-mt-3 { margin-top: var(--space-3); }
+  .u-mt-4 { margin-top: var(--space-4); }
+  .u-mt-5 { margin-top: var(--space-5); }
+  .u-mb-1 { margin-bottom: var(--space-1); }
+  .u-mb-2 { margin-bottom: var(--space-2); }
+  .u-mb-3 { margin-bottom: var(--space-3); }
+  .u-mb-4 { margin-bottom: var(--space-4); }
+  .u-ml-auto { margin-left: auto; }
+
+  /* Padding */
+  .u-p-4 { padding: var(--space-4); }
+  .u-p-5 { padding: var(--space-5); }
+
+  /* Text color / alignment */
+  .u-text-accent { color: var(--accent); }
+  .u-text-text   { color: var(--text); }
+  .u-text-text2  { color: var(--text2); }
+  .u-text-muted  { color: var(--muted); }
+  .u-text-danger { color: var(--danger); }
+  .u-text-center { text-align: center; }
+  .u-text-right  { text-align: right; }
+  .u-text-nowrap { white-space: nowrap; }
+  .u-text-prewrap { white-space: pre-wrap; }
+
+  /* Layout */
+  .u-flex-1  { flex: 1; }
+  .u-flex-shrink-0 { flex-shrink: 0; }
+  .u-row { display: flex; }
+  .u-row-between { display: flex; justify-content: space-between; align-items: center; }
+  .u-row-end { display: flex; justify-content: space-between; align-items: flex-end; }
+  .u-gap-2 { gap: var(--space-2); }
+  .u-gap-3 { gap: var(--space-3); }
+
+  /* Interaction */
+  .u-cursor-pointer { cursor: pointer; }
+  .u-no-pointer { pointer-events: none; }
+
+  /* Description text used under dashboard section titles */
+  .dash-section-desc {
+    color: var(--text2); font-size: 13px;
+    margin: 0 0 var(--space-4); line-height: var(--leading-relaxed);
+  }
+
+  /* TRAINING — Clean Car notes list */
+  .training-list {
+    list-style: none; padding: 0;
+    display: flex; flex-direction: column; gap: var(--space-3);
+  }
+  .training-list-item {
+    background: var(--card2);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: var(--space-3) var(--space-4);
+    border-left: 5px solid var(--accent);
+  }
+  .training-list-item strong { color: var(--text); font-size: var(--font-base); }
+  .training-list-item p {
+    color: var(--text2); font-size: 13px;
+    margin-top: var(--space-1);
+  }
+  .training-card-title {
+    color: var(--accent); font-size: var(--font-md);
+    margin-bottom: var(--space-3);
+  }
+  .training-card-sub {
+    color: var(--text2); font-size: var(--font-base);
+    margin-bottom: var(--space-4); line-height: var(--leading-relaxed);
+  }
+  .training-card-note {
+    color: var(--muted); font-size: var(--font-sm);
+    margin-bottom: 14px; font-style: italic;
+  }
+
+  /* SIPP code reference table */
+  .sipp-scroll { overflow-x: auto; }
+  .sipp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .sipp-table thead tr { border-bottom: 2px solid var(--accent); }
+  .sipp-table th {
+    text-align: left; padding: var(--space-2) 10px;
+    color: var(--accent); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  .sipp-table th.nowrap { white-space: nowrap; }
+  .sipp-table th.center { text-align: center; white-space: nowrap; }
+  .sipp-table tbody tr { border-bottom: 1px solid var(--border); }
+  .sipp-table tbody tr:nth-child(even) { background: var(--card2); }
+  .sipp-table tbody tr:last-child { border-bottom: none; }
+  .sipp-table td { padding: 9px 10px; color: var(--text2); }
+  .sipp-table td.code { font-weight: 800; color: var(--text); white-space: nowrap; }
+  .sipp-table td.example { color: var(--muted); font-size: 12px; }
+  .sipp-table td.seats { text-align: center; }
+
+  /* Compact stat table used by dashboards (records, detailer, backlot) */
+  .stat-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .stat-table th {
+    padding: 6px var(--space-2);
+    color: var(--muted); font-weight: 700;
+    font-size: 10px; text-transform: uppercase; text-align: left;
+  }
+  .stat-table th.right { text-align: right; }
+  .stat-table td { padding: 6px var(--space-2); color: var(--text2); }
+  .stat-table td.right { text-align: right; font-weight: 700; color: var(--text); }
+  .stat-table td.label { width: 55%; }
+  .stat-table td.nowrap { white-space: nowrap; }
+
+  /* Empty state messages inside dashboard cards */
+  .u-empty {
+    color: var(--muted); font-size: 13px;
+    text-align: center; padding: var(--space-4);
+  }
+  .u-empty-sm {
+    color: var(--muted); font-size: 13px; padding: var(--space-2) 0;
+  }
+
+  /* Bar chart variant rendered inside stat-table cells */
+  .mini-bar { background: var(--card2); border-radius: 4px; height: 8px; overflow: hidden; }
+  .mini-bar > span { display: block; height: 100%; background: var(--accent); }
+
+  /* E-learning admin */
+  .admin-toolbar { display: flex; gap: var(--space-2); align-items: stretch; flex-wrap: wrap; }
+  .admin-select  { min-width: 200px; }
+  .gate-hint {
+    margin-top: var(--space-5);
+    color: var(--muted); font-size: var(--font-xs);
+    line-height: var(--leading-relaxed);
+  }
+  .back-link {
+    color: var(--muted); font-size: var(--font-xs);
+    text-decoration: none;
+  }
+
+  /* Numbered map marker (Leaflet divIcon). Size/background are dynamic
+     via inline style; everything else lives here. */
+  .map-marker-num {
+    border-radius: 50%;
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800;
+    font-family: Arial, sans-serif;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    cursor: pointer;
   }

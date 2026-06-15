@@ -41,16 +41,16 @@ const DT_OPTIONS = {
   STATUS_DERIVED: ["DETAILING","DETAILED"],
   DESTINATIONS: ["GARAGE","QTA","BACKLOT","ATLANTIC","BRANCH","OTHER"],
   CONDITIONS: [
-    { id: "PRIORITY",     label: "Priority"     },
     { id: "PET_HAIR",     label: "Pet Hair"     },
-    { id: "QUICK_FLIP",   label: "Quick Flip"   },
     { id: "REGULAR",      label: "Regular"      },
     { id: "DETAIL",       label: "Detail"       },
     { id: "SPIFFY",       label: "Spiffy"       },
     { id: "FUEL",         label: "Fuel"         },
     { id: "CHARGE",       label: "Charge"       },
     { id: "AIR",          label: "Air"          },
-    { id: "WASHER_FLUID", label: "Washer Fluid" }
+    { id: "WASHER_FLUID", label: "Washer Fluid" },
+    { id: "PRIORITY",     label: "Priority"     },
+    { id: "QUICK_FLIP",   label: "Quick Flip"   }
   ],
   FUEL_LEVELS: ["EMPTY","1/4","1/2","3/4","FULL"]
 };
@@ -194,7 +194,7 @@ function createNumberedMarker(num, color, size = 26) {
   if (!window.L) return null;
   return L.divIcon({
     className: "",
-    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:#${color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:${Math.round(size*0.4)}px;font-weight:800;font-family:Arial,sans-serif;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4);cursor:pointer;">${num}</div>`,
+    html: `<div class="map-marker-num" style="width:${size}px;height:${size}px;background:#${color};font-size:${Math.round(size*0.4)}px">${num}</div>`,
     iconSize: [size, size],
     iconAnchor: [size/2, size/2],
     popupAnchor: [0, -(size/2)]
@@ -208,7 +208,7 @@ function recordPopupHTML(r) {
       <div style="font-weight:800;font-size:14px;margin-bottom:4px">${sanitizeText(r.serialId)}</div>
       <div style="font-size:12px;color:#555;margin-bottom:6px">${sanitizeText(statusLabel(r.status))}${r.destination ? " &middot; " + sanitizeText(r.destination) : ""}</div>
       <div style="font-size:11px;color:#888;margin-bottom:8px">${time}</div>
-      <button onclick="openDetail('${r.id}', 'deleteRecord')" style="background:#00a651;color:#fff;border:none;padding:5px 12px;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;width:100%">View Record</button>
+      <button onclick="openDetail('${r.id}', 'deleteRecord')" style="background:var(--accent);color:#fff;border:none;padding:5px 12px;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;width:100%">View Record</button>
     </div>`;
 }
 
@@ -263,7 +263,7 @@ async function fetchFleetRecords() {
 
       const { data, error } = await DT_AUTH.client
         .from("records")
-        .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,shift_num,notes,lat,lng,gps_error,tires,vin_data,ts")
+        .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,shift_num,notes,lat,lng,gps_error,tires,vin_data,ts,mileage,fuel_level,photo_url")
         .gte("ts", sinceISO)
         .lte("ts", untilISO)
         .order("ts", { ascending: false })
@@ -293,6 +293,9 @@ async function fetchFleetRecords() {
         gpsError: !!row.gps_error,
         tires: row.tires || [],
         vinData: row.vin_data || undefined,
+        mileage: Number.isFinite(row.mileage) ? row.mileage : null,
+        fuel_level: row.fuel_level || "",
+        photo_url: row.photo_url || "",
         timestamp: row.ts ? new Date(row.ts).getTime() : Date.now(),
         _driverName: names[row.user_id] || "Driver"
       }));
@@ -551,6 +554,12 @@ async function decodeVIN(vin) {
       if (r.Value && r.Value !== "Not Applicable" && r.Value !== "0") map[r.Variable] = r.Value;
     });
     if (!map["Make"] && !map["Model"] && !map["Model Year"]) return null;
+    // Engine summary: prefer cylinders + displacement, fall back to just one.
+    const cyl = map["Engine Number of Cylinders"];
+    const disp = map["Displacement (L)"];
+    const engineParts = [];
+    if (disp) engineParts.push(`${disp}L`);
+    if (cyl) engineParts.push(`${cyl}-cyl`);
     return {
       year: map["Model Year"] || "",
       make: map["Make"] || "",
@@ -558,10 +567,46 @@ async function decodeVIN(vin) {
       trim: map["Trim"] || "",
       bodyClass: map["Body Class"] || "",
       fuelType: map["Fuel Type - Primary"] || "",
-      engine: map["Displacement (L)"] ? `${map["Displacement (L)"]}L` : "",
-      manufacturer: map["Manufacturer Name"] || ""
+      engine: engineParts.join(" "),
+      manufacturer: map["Manufacturer Name"] || "",
+      // Extended NHTSA fields surfaced in the VIN history header
+      driveType: map["Drive Type"] || "",
+      transmission: map["Transmission Style"] || "",
+      doors: map["Doors"] || "",
+      vehicleType: map["Vehicle Type"] || "",
+      plantCity: map["Plant City"] || "",
+      plantCountry: map["Plant Country"] || "",
+      series: map["Series"] || ""
     };
   } catch(e) { console.warn("VIN decode failed:", e); return null; }
+}
+
+// ============================
+// NHTSA OPEN RECALLS
+// ============================
+// Looked up by year+make+model (NHTSA's recallsByVehicle endpoint doesn't take
+// a VIN). Cached per session so re-opening the same VIN history doesn't refetch.
+const _recallCache = new Map();
+async function getRecalls(year, make, model) {
+  if (!year || !make || !model) return [];
+  const key = `${year}|${String(make).toUpperCase()}|${String(model).toUpperCase()}`;
+  if (_recallCache.has(key)) return _recallCache.get(key);
+  try {
+    const url = `https://api.nhtsa.gov/recalls/recallsByVehicle`
+      + `?make=${encodeURIComponent(make)}`
+      + `&model=${encodeURIComponent(model)}`
+      + `&modelYear=${encodeURIComponent(year)}`;
+    const res = await fetch(url);
+    if (!res.ok) { _recallCache.set(key, []); return []; }
+    const data = await res.json();
+    const list = Array.isArray(data?.results) ? data.results : [];
+    _recallCache.set(key, list);
+    return list;
+  } catch (e) {
+    console.warn("Recalls fetch failed:", e);
+    _recallCache.set(key, []);
+    return [];
+  }
 }
 
 // ============================
@@ -696,10 +741,17 @@ function saveRecord() {
     document.getElementById("manualEntrySection").style.display = "none";
     document.querySelector(".btn-manual-toggle").innerHTML = "Enter Manually";
     saveBtn.disabled = false;
-    saveBtn.innerHTML = "SAVE RECORD";
+    saveBtn.innerHTML = "Save";
     gpsEl.className = "gps-status";
     gpsEl.textContent = "";
     renderTodayEntries();
+    // If the form was opened inline from a VIN history view, put it back and
+    // refresh the timeline so the new entry shows immediately.
+    const inlineSlot = document.getElementById("vinTlEntrySlot");
+    if (inlineSlot && inlineSlot.contains(document.getElementById("entryFormBody"))) {
+      restoreInlineNewEntry();
+      if (typeof renderVinTimeline === "function") renderVinTimeline(recordData.serialId);
+    }
     if (gpsError) { showToast("Saved - no GPS location", "warn"); }
     else { showToast("Saved with GPS", "success"); haptic("success"); }
 
@@ -786,7 +838,7 @@ function showTab(name) {
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
   document.getElementById("panel-" + name)?.classList.add("active");
   document.querySelectorAll(`.tab[data-tab="${visualTab}"]`).forEach(t => t.classList.add("active"));
-  if (name === "entry") renderTodayEntries();
+  if (name === "entry") { restoreInlineNewEntry(); renderTodayEntries(); }
   if (name === "records") {
     // Search-driven view: don't auto-populate dates, don't render anything
     // until the user types. renderRecords() handles the empty-input state.
@@ -962,7 +1014,7 @@ function renderGarageHistory() {
   if (!container) return;
   const hist = loadHistory(GARAGE_HISTORY_KEY);
   if (hist.length === 0) {
-    container.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:8px 0">No archived entries yet. Share or Reset to save a snapshot here.</p>';
+    container.innerHTML = '<p class="u-empty-sm">No archived entries yet. Share or Reset to save a snapshot here.</p>';
     return;
   }
   container.innerHTML = hist.map(e => {
@@ -1148,7 +1200,7 @@ function renderBcounterHistory() {
   if (!container) return;
   const hist = loadHistory(BCOUNTER_HISTORY_KEY);
   if (hist.length === 0) {
-    container.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:8px 0">No archived entries yet. Share or Reset to save a snapshot here.</p>';
+    container.innerHTML = '<p class="u-empty-sm">No archived entries yet. Share or Reset to save a snapshot here.</p>';
     return;
   }
   container.innerHTML = hist.map(e => {
@@ -1303,7 +1355,7 @@ function renderKeyUpHistory() {
   if (!container) return;
   const hist = loadHistory(KEYUP_HISTORY_KEY);
   if (hist.length === 0) {
-    container.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:8px 0">No archived entries yet. Share or Reset to save a snapshot here.</p>';
+    container.innerHTML = '<p class="u-empty-sm">No archived entries yet. Share or Reset to save a snapshot here.</p>';
     return;
   }
   container.innerHTML = hist.map(e => {
@@ -1983,28 +2035,43 @@ function getVehicleSVG(vinData) {
   }
 
   let svg = "";
+  // Most icons share a square 24x24 viewBox. Branches with a different
+  // native aspect ratio (e.g. the long/low convertible silhouette) can
+  // override this so they render at their natural proportions.
+  let viewBox = "0 0 24 24";
   if (body.includes("pickup") || body.includes("truck")) {
-    svg = `<defs><mask id="${uid}"><rect width="24" height="24" fill="white"/><rect x="12" y="7.8" width="7.5" height="4" rx="0.8" fill="black"/><circle cx="6.2" cy="19.2" r="2" fill="black"/><circle cx="18" cy="19.2" r="2" fill="black"/></mask></defs><g mask="url(#${uid})"><rect x="1.5" y="13" width="21" height="6.5" rx="1.5" fill="${c}"/><rect x="10.5" y="7" width="11" height="7" rx="1" fill="${c}"/><rect x="1.5" y="9.5" width="10.5" height="4" rx="1" fill="${c}"/></g>`;
+    viewBox = "0 0 243 81";
+    svg = `<g transform="translate(-627.61523,-51.044731)"><path d="m 736.21875,52.009766 c -18.98746,1.25917 -20.47537,1.84041 -37.55664,14.68164 -6.29913,4.73551 -12.14913,8.964028 -13,9.398438 -0.85088,0.43441 -7.17188,1.336966 -14.04688,2.003906 -15.70713,1.52373 -28.28189,3.622041 -33.66992,5.619141 -5.04738,1.87084 -6.33008,4.777509 -6.33008,14.349609 0,5.52722 -0.32768,6.81497 -2,7.85938 -1.70476,1.06462 -2,2.33239 -2,8.58593 0,7.93522 0.84504,9.49507 6.25196,11.55078 1.996,0.75887 2.74804,1.73659 2.74804,3.57032 0,2.36303 0.32026,2.52539 5,2.52539 h 5 v -6.68555 c 0,-11.32595 5.77584,-19.59193 15.61133,-22.3457 12.40635,-3.47357 25.96148,5.53331 27.16406,18.04883 l 0.47852,4.98242 33.12305,-0.006 c 20.88954,-0.11416 41.77338,-0.65052 62.66015,-0.99414 h 8.69922 l 0.53711,-4 c 0.75528,-5.63098 5.12207,-12.57158 9.89844,-15.73242 5.84299,-3.86673 14.6619,-4.31589 20.75,-1.05665 5.71968,3.062 10.05851,8.49404 11.58398,14.50196 0.66844,2.63259 1.61634,4.77953 2.10547,4.76953 10.76629,-0.2128 29.09175,-1.822 30.07813,-2.64063 0.75446,-0.62614 1.31054,-3.16779 1.31054,-5.99023 0,-4.29436 -0.30692,-5.01839 -2.47265,-5.8418 -2.45132,-0.93199 -2.47469,-1.06071 -2.75,-15.224607 l -0.27735,-14.285156 -8.5,-0.332031 c -4.675,-0.18214 -23.90891,0.259347 -42.75,0.367187 l -27.41015,0.224609 c -1.36679,-19.993093 -1.33023,-24.788346 -4.33985,-26.6875 -5.62497,-3.54951 -36.36163,-1.849136 -45.89648,-1.216796 z m 39.7147,5.299429 c 0.30485,6.128268 -0.63478,22.983771 -0.63478,22.983771 h -20.97836 l 3.15385,-22.41586 c 1.88473,-0.345468 18.45929,-0.567911 18.45929,-0.567911 z m -29.87035,-0.159409 -4.53846,23.14318 h -44.5637 c 0,0 -0.22529,-2.137651 0.31054,-3.025391 1.78432,-2.95622 19.36219,-15.828391 23.20854,-16.937951 4.13179,-1.680057 16.48278,-3.489031 25.58308,-3.179838 z" fill="${c}"/></g>`;
   } else if (body.includes("van") || body.includes("minivan")) {
-    svg = `<defs><mask id="${uid}"><rect width="24" height="24" fill="white"/><rect x="2.5" y="7.5" width="8" height="5" rx="0.8" fill="black"/><rect x="13" y="7.5" width="8.5" height="5" rx="0.8" fill="black"/><circle cx="5.5" cy="19.5" r="2" fill="black"/><circle cx="18.5" cy="19.5" r="2" fill="black"/></mask></defs><g mask="url(#${uid})"><rect x="1.5" y="6" width="21" height="14" rx="1.5" fill="${c}"/></g>`;
+    viewBox = "0 0 243 91";
+    svg = `<g transform="translate(-875.38488,-170.36395)"><path d="m 1043.873,170.81836 c -47.48452,0.82955 -71.46123,0.31972 -80.25581,1.38476 -7.4392,0.90091 -12.13915,0.73488 -25.49024,10.375 l -29.51562,21.15235 -11.86914,5.65625 c -16.624,7.92202 -17.83583,9.32336 -19.01563,22.01758 -0.3563,3.83333 -1.0306,7.20793 -1.5,7.49804 -1.3719,0.84787 -0.98305,11.16694 0.56055,14.86133 1.6922,4.04982 3.71242,5.2564 10.76562,6.42969 10.0577,1.67307 9.82032,1.7678 9.82032,-3.92188 0,-14.26789 14.0352,-23.83545 26.5,-18.06445 7.5885,3.51338 11.5,9.52386 11.5,17.66992 v 4.43555 l 25.25,-0.002 c 13.8875,-9.2e-4 39.76245,-0.29914 57.49995,-0.66211 l 32.25,-0.66016 v -4.64258 c 0,-12.21234 13.9245,-21.41358 25.6836,-16.9707 6.2955,2.37858 12.3164,10.88199 12.3164,17.39648 0,3.46894 0.081,3.53907 4.0391,3.53907 9.4863,0 23.4665,-2.11871 24.7109,-3.7461 1.8362,-2.40138 1.6474,-14.67919 -0.25,-16.2539 -1.2198,-1.01232 -1.5009,-4.25651 -1.5019,-17.3711 0,-24.62215 -4.1922,-46.78527 -7.7441,-49.4414 -1.4273,-1.06739 -13.3372,-1.56046 -63.754,-0.67969 z m 29.0411,5.62891 h 25.5605 c 1.8343,0 3.3125,1.47827 3.3125,3.3125 v 24.06445 c 0,1.83422 -1.4782,3.31055 -3.3125,3.31055 h -29.5605 c -1.8343,0 -3.6133,-1.50115 -3.3125,-3.31055 l 4,-24.06445 c 0.3008,-1.80941 1.4782,-3.3125 3.3125,-3.3125 z m -84.18754,0.0234 h 64.83204 c 1.8316,0 3.6073,1.49997 3.3066,3.30664 l -4,24.0293 c -0.3007,1.80666 -1.475,3.30469 -3.3066,3.30469 h -60.83204 c -1.83153,0 -3.30468,-1.47316 -3.30468,-3.30469 v -24.0293 c 0,-1.83154 1.47315,-3.30664 3.30468,-3.30664 z m -20.93945,1.96875 c 2.52598,0.0736 4.25823,0.3591 4.73828,0.9375 0.9224,1.11184 1.87107,6.41854 -0.31445,18.60157 -1.25125,6.97496 -3.41628,9.4339 -8.76953,8.93359 -2.0749,-0.19392 -22.22014,2.1025 -42.23243,2.8125 -3.14361,0.11153 -5.43641,-1.53578 -4.16601,-3.76172 2.0343,-3.56427 24.64286,-19.75807 27.09765,-20.99805 1.50281,-0.7591 9.13779,-5.8315 14.14649,-6.19531 3.65405,-0.26541 6.97401,-0.40371 9.5,-0.33008 z" fill="${c}"/></g>`;
   } else if (body.includes("suv") || body.includes("sport utility") || body.includes("crossover")) {
-    svg = `<defs><mask id="${uid}"><rect width="24" height="24" fill="white"/><rect x="6" y="7.5" width="5" height="4.5" rx="0.8" fill="black"/><rect x="13" y="7.5" width="5" height="4.5" rx="0.8" fill="black"/><circle cx="6.5" cy="19.5" r="2" fill="black"/><circle cx="17.5" cy="19.5" r="2" fill="black"/></mask></defs><g mask="url(#${uid})"><rect x="1.5" y="13" width="21" height="7" rx="1.5" fill="${c}"/><path d="M3 13 L5.5 6.5 L18.5 6.5 L21 13 Z" fill="${c}"/></g>`;
+    viewBox = "0 0 230 87";
+    svg = `<g transform="translate(-355.37356,-54.290382)"><path d="m 418.00951,129.86282 c -4.30246,-13.58303 -6.61641,-17.87202 -10.45228,-19.37367 -1.67712,-0.65655 -7.21371,-0.88997 -14.19505,-0.59844 -10.873,0.45404 -11.5599,0.61093 -13.73229,3.13648 -1.25773,1.4622 -3.02667,5.23021 -3.93097,8.37337 -2.47897,8.61633 -4.47994,13.21491 -5.74981,13.21403 -0.62778,-4.3e-4 -3.93875,-1.32415 -7.35771,-2.94159 -7.02943,-3.32549 -7.5649,-4.35259 -7.08983,-13.59929 0.28237,-5.49605 0.50008,-5.98555 2.80612,-6.30915 3.26548,-0.45823 3.96502,-1.71156 3.99026,-7.14918 0.0336,-7.233516 1.65863,-11.615626 4.77499,-12.876236 3.38468,-1.36916 12.41905,-2.65179 36.11304,-5.12705 10.10805,-1.05597 18.46287,-2.04972 18.56625,-2.20833 2.64174,-4.05289 22.00033,-26.76498 23.27004,-27.3011 2.50154,-1.05627 42.1509,-2.30368 84.99896,-2.67416 35.11196,-0.3036 36.27291,-0.25228 38.16482,1.68688 1.07319,1.1 3.87122,7.85 6.21784,15 3.90954,11.91214 4.31416,14.12618 4.83519,26.45789 0.56345,13.335636 0.59132,13.463176 3.06861,14.041646 2.31249,0.53998 2.52191,1.07511 2.7921,7.13472 0.2243,5.03036 -0.0774,6.8576 -1.29964,7.872 -1.54715,1.28401 -21.37551,5.15388 -22.60791,4.41234 -0.33849,-0.20367 -2.31461,-4.90022 -4.39137,-10.43677 -2.20181,-5.86995 -4.64351,-10.67414 -5.85706,-11.52415 -1.53374,-1.07427 -5.14344,-1.45768 -13.72377,-1.45768 -14.97716,0 -15.18113,0.1499 -20.78692,15.27711 l -4.22838,11.41025 -18.69852,0.65349 c -10.28419,0.35943 -29.61103,0.65477 -42.94853,0.65632 l -24.25,0.003 v 3 c 0,2.45912 -0.41247,3 -2.28776,3 -2.04274,0 -2.68646,-1.25871 -6.01042,-11.75256 z m 45.50976,-41.903866 12.71157,-0.64832 0.50016,-4.09763 c 0.27508,-2.25369 0.77329,-7.81012 1.10714,-12.34762 l 0.607,-8.25 -14.31873,0.0153 c -7.87529,0.008 -14.86923,0.36507 -15.54208,0.79255 -2.20884,1.40335 -18.23772,23.44609 -17.69175,24.3295 0.631,1.02097 14.88523,1.11107 32.62669,0.20621 z m 58.91635,-2.18881 c 0.45181,-0.47111 -1.7468,-17.6061 -3.07041,-23.92953 -0.0316,-0.15113 -7.37002,-0.15113 -16.30752,0 l -16.25,0.27477 -0.28079,12.87285 -0.2808,12.87285 17.7808,-0.71809 c 9.77943,-0.39496 18.06336,-1.01274 18.40872,-1.37285 z m 42.27285,-4.65476 c -0.1562,-6.29718 -4.15325,-18.29716 -6.5157,-19.5615 -1.38353,-0.74045 -6.39483,-0.86047 -15.58738,-0.37331 l -13.54828,0.71798 0.53974,5.10841 c 0.29685,2.80963 1.07633,8.15684 1.73217,11.88268 l 1.19243,6.77426 16.14312,-0.27426 16.14312,-0.27426 z" fill="${c}"/></g>`;
   } else if (body.includes("convertible") || body.includes("roadster")) {
-    svg = `<defs><mask id="${uid}"><rect width="24" height="24" fill="white"/><rect x="7" y="11.5" width="4" height="3" rx="0.5" fill="black"/><rect x="13" y="11.5" width="4" height="3" rx="0.5" fill="black"/><circle cx="6.5" cy="20.5" r="2" fill="black"/><circle cx="17.5" cy="20.5" r="2" fill="black"/></mask></defs><g mask="url(#${uid})"><rect x="1.5" y="15" width="21" height="6" rx="1.5" fill="${c}"/><path d="M4.5 15 L7 11 L17 11 L19.5 15 Z" fill="${c}"/></g>`;
+    viewBox = "0 0 234 67";
+    svg = `<g transform="translate(-261.99973,-222.01649)"><path d="m 364.66406,222.19141 c -6.67003,2.08204 -13.43736,5.81306 -25.71094,12.78515 -15.11536,8.58639 -15.76055,8.84453 -26,10.39844 -35.90205,5.4484 -46.66806,9.82589 -49.7871,20.23633 -1.3701,4.57297 -1.49948,7.93997 -0.56446,14.76172 0.74878,5.4629 1.76121,6.15701 10.85156,7.45117 3.30001,0.46981 7.4625,0.90946 9.25,0.97656 l 3.25,0.12305 v -5.18555 c 0,-25.57908 35.14023,-26.44703 36.83008,-0.91016 l 0.42383,6.40626 21.62305,-0.6543 c 11.89299,-0.35915 35.17326,-0.6533 51.73437,-0.6543 l 30.11133,-0.002 L 427.21289,282 c 0.66643,-7.34953 2.96312,-11.36509 8.66211,-15.14453 3.51551,-2.33141 5.52455,-2.93164 9.80078,-2.93164 2.95802,0 6.63906,0.65035 8.17969,1.44726 6.20454,3.20849 11.0763,11.40135 11.0918,18.65039 l 0.006,2.59961 10.75,-1.83007 c 12.57741,-2.14268 15.61729,-3.24703 18.28516,-6.63868 2.48143,-3.15463 2.76322,-13.64608 0.45508,-16.9414 -0.831,-1.18643 -2.14922,-5.81447 -2.92969,-10.28516 -0.78048,-4.47069 -1.95547,-8.77617 -2.61133,-9.5664 -4.46294,-3.1975 0.92117,-3.00686 -6.5957,-8.74415 0,0 -34.5843,-0.94746 -47.07422,2.3086 -2.16414,0.56418 -8.11676,2.24609 -8.83203,2.24609 h -3.53711 c -2.21964,0 -2.40119,6.52039 -2.40119,6.52039 l -2.12133,0.74196 -24.8017,0.47007 v -3.51757 c 0,-2.30124 -1.85306,-4.1543 -4.15429,-4.1543 h -3.53907 c -2.30123,0 -3.7209,1.75339 -4.15429,4.1543 l -0.7343,4.06791 -27.67977,0.8774 c -7.95486,0.31516 -14.53666,0.53812 -16.32422,0.54101 l -1.15484,-0.7263 -0.84516,-1.20516 c 6.29702,-4.88564 24.98414,-15.28152 30.69922,-17.0039 3.86149,-1.16375 1.9896,-6.99607 -0.98828,-5.74414 z" fill="${c}"/></g>`;
   } else if (body.includes("wagon") || body.includes("hatchback")) {
-    svg = `<defs><mask id="${uid}"><rect width="24" height="24" fill="white"/><rect x="5" y="8.5" width="5.5" height="4" rx="0.8" fill="black"/><rect x="12.5" y="8.5" width="6" height="4" rx="0.8" fill="black"/><circle cx="6.5" cy="19.5" r="2" fill="black"/><circle cx="17.5" cy="19.5" r="2" fill="black"/></mask></defs><g mask="url(#${uid})"><rect x="1.5" y="13" width="21" height="7" rx="1.5" fill="${c}"/><path d="M3 13 L4.5 8 L20 8 L21.5 13 Z" fill="${c}"/></g>`;
+    viewBox = "0 0 234 79";
+    svg = `<g transform="translate(-894.97198,-52.069096)"><path d="m 1043.0039,52.097656 c -14.1368,-0.17136 -26.6363,0.426498 -33.2344,1.845703 -12.41543,2.67049 -25.80953,8.508514 -39.49997,17.214844 -9.97637,6.34441 -13.0873,7.411279 -27.71289,9.511719 -22.25989,3.19684 -33.91272,6.514904 -40.48437,11.527344 -4.74429,3.61865 -4.08304,4.371443 2.02734,2.308593 2.9318,-0.98977 8.4443,-2.07301 12.25,-2.40625 l 6.91992,-0.605468 -4.5,4.060547 c -5.84048,5.269892 -9.48051,6.933232 -16.86523,7.705082 -5.61463,0.58685 -6.07975,0.82812 -6.66016,3.4707 -0.85644,3.89938 0.43209,13.89964 2.14063,16.61328 1.73571,2.75679 6.21903,5.14065 11.71093,6.22656 2.29548,0.45389 5.55195,0.87525 7.23633,0.93555 l 3.0625,0.10937 0.0176,-6.25 c 0.0369,-13.15515 9.46951,-22.75 22.36523,-22.75 5.69927,0 11.01502,2.29628 15.34766,6.62891 4.26397,4.26398 5.89733,8.17877 6.41016,15.36328 l 0.46484,6.50781 21.13477,-0.2207 c 11.62404,-0.12144 34.23921,-0.50905 50.25581,-0.86133 l 29.1211,-0.64062 0.5195,-5.72656 c 0.6046,-6.66725 2.3424,-10.44796 6.8086,-14.81446 4.5843,-4.48201 8.9072,-6.23633 15.3711,-6.23633 11.7993,0 20.0835,7.95886 21.9766,21.11329 l 0.6641,4.61328 4.6132,-0.86133 c 6.0345,-1.12736 10.2481,-3.66738 13.1426,-7.91992 2.0026,-2.94218 2.256,-4.22519 1.7344,-8.78125 -0.336,-2.93487 -1.2771,-6.62585 -2.0918,-8.20118 -0.8146,-1.57531 -1.4805,-4.63311 -1.4805,-6.79687 v -3.935547 c 0,0 2.6091,-6.895962 0.3477,-9.230469 l -2.4238,-2.603515 c -7.3065,-7.844408 -15.9652,-13.760296 -18.6446,-15.259766 -1.6353,-0.91521 -1.6265,-1.094827 0.1524,-3.060547 1.0394,-1.14847 1.6099,-2.366651 1.2695,-2.707031 -0.3404,-0.34038 -9.5248,-1.741914 -20.4102,-3.115234 -13.1462,-1.658535 -28.9197,-2.600125 -43.0566,-2.771485 z m -6.7344,6.042969 c 7.2193,0.0084 13.0158,0.112505 17.9668,0.341797 v 19.09375 c -5.9668,0.755292 -12.6448,1.415242 -20.0429,1.980469 -21.6457,1.65375 -65.42387,2.533513 -65.42387,1.314453 0,-1.47143 14.8353,-10.849571 23.41406,-14.800782 15.70471,-7.233239 19.72961,-7.957887 44.08591,-7.929687 z m 25.6465,0.855469 c 2.7563,0.25164 5.2862,0.565653 7.7539,0.951172 16.6051,2.59417 23.082,6.56792 16.3496,10.03125 -5.0489,2.597294 -13.0556,4.76316 -24.1035,6.511718 z" fill="${c}"/></g>`;
   } else {
-    svg = `<defs><mask id="${uid}"><rect width="24" height="24" fill="white"/><rect x="7" y="9.5" width="4" height="4" rx="0.8" fill="black"/><rect x="13" y="9.5" width="4" height="4" rx="0.8" fill="black"/><circle cx="6.5" cy="20" r="2" fill="black"/><circle cx="17.5" cy="20" r="2" fill="black"/></mask></defs><g mask="url(#${uid})"><rect x="1.5" y="14" width="21" height="6.5" rx="1.5" fill="${c}"/><path d="M4.5 14 L7 9 L17 9 L19.5 14 Z" fill="${c}"/></g>`;
+    viewBox = "0 0 234 70";
+    svg = `<g transform="translate(-56.96902,-76.384689)"><path d="m 68.423077,145.20961 c -9.09036,-1.29416 -10.10311,-1.98967 -10.85189,-7.45257 -0.93502,-6.82175 -0.80647,-10.18877 0.56363,-14.76174 3.11904,-10.41044 13.8862,-14.7864 49.788263,-20.2348 10.23944,-1.55391 10.88463,-1.81195 26,-10.398338 25.48518,-14.47704 27.22399,-14.98748 53.66525,-15.75385 29.09734,-0.84336 34.14334,0.18086 60.58452,12.29725 13.83657,6.34046 21.15155,8.40213 29.81144,8.40213 2.86071,0 5.15962,0.56116 5.88638,1.43685 0.65586,0.79026 1.83105,5.094678 2.61153,9.565368 0.78047,4.47069 2.09896,9.09923 2.92996,10.28566 2.30814,3.29532 2.02624,13.78727 -0.45519,16.9419 -2.66787,3.39165 -5.70748,4.49509 -18.28488,6.63777 l -10.74901,1.8312 -0.006,-2.59938 c -0.0155,-7.24904 -4.88866,-15.44196 -11.0932,-18.65045 -1.54063,-0.79691 -5.22168,-1.44892 -8.1797,-1.44892 -4.27623,0 -6.28415,0.6008 -9.79966,2.93221 -5.69899,3.77944 -7.99567,7.79484 -8.6621,15.14437 l -0.53712,5.92342 -30.11111,0.002 c -16.56111,0.001 -39.84173,0.2963 -51.73472,0.65545 l -21.6236,0.653 -0.42386,-6.40545 c -1.68985,-25.53687 -36.828933,-24.66836 -36.828933,0.91072 v 5.18428 l -3.25,-0.12194 c -1.7875,-0.0671 -5.95,-0.50633 -9.25,-0.97614 z m 89.415763,-41.89129 c 11.90375,-0.51637 21.6861,-1.36643 22.02443,-1.91385 0.90214,-1.459698 4.3634,-19.126518 3.84818,-19.641738 -0.8434,-0.8434 -16.80468,1.61507 -23.09049,3.55656 -5.70314,1.76152 -24.40087,12.11862 -30.69788,17.004258 l -2.5,1.93967 4.5,-0.008 c 2.475,-0.004 14.13709,-0.426 25.91576,-0.93694 z m 64.37991,-2.61562 c 13.13989,-0.57604 13.87043,-0.718878 15.36829,-3.004908 2.12488,-3.24296 1.09723,-4.30733 -8.97342,-9.29406 -9.10908,-4.51058 -13.73953,-5.61848 -27.77057,-6.64454 l -9.58003,-0.70056 -1.06123,9.87453 c -0.58367,5.43099 -0.8668,10.198768 -0.62917,10.595058 0.23764,0.39629 4.5762,0.50874 9.64126,0.24989 5.06506,-0.25884 15.41725,-0.74278 23.00487,-1.07541 z" fill="${c}"/></g>`;
   }
 
-  const vehicleIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${size}" height="${size}" style="vertical-align:middle;flex-shrink:0">${svg}</svg>`;
+  // Height-driven sizing: height = size, width scales to preserve the
+  // viewBox's native aspect ratio so wide silhouettes fill the row
+  // instead of letterboxing inside a square.
+  const [, , vbW, vbH] = viewBox.split(/\s+/).map(Number);
+  const iconW = Math.round(size * (vbW / vbH));
+  const vehicleIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${iconW}" height="${size}" style="vertical-align:middle;flex-shrink:0">${svg}</svg>`;
   return { vehicle: vehicleIcon, fuel: fuelIcon };
 }
 
 // ============================
 // RECORD CARD HTML (shared)
 // ============================
-function recordCard(r, onDelete) {
+function recordCard(r, onDelete, onClickAttr) {
   let vinInfo = "";
   if (r.vinData) {
     const icons = getVehicleSVG(r.vinData);
@@ -2021,7 +2088,7 @@ function recordCard(r, onDelete) {
   const safeTires = r.tires && r.tires.length > 0 ? r.tires.map(sanitizeText).join(", ") : "";
 
   return `
-    <div class="record" onclick="openDetail('${r.id}', '${onDelete}')">
+    <div class="record" onclick="${onClickAttr || `openDetail('${r.id}', '${onDelete}')`}">
       <div class="record-header">
         <div class="record-serial">${safeSerial}</div>
         <div class="record-badges">
@@ -2035,6 +2102,7 @@ function recordCard(r, onDelete) {
       ${vinInfo}
       <div class="record-meta"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${DT_FORMAT.timeAgoOrClock(r.timestamp)}${r._driverName ? ` · <b style="color:var(--text2)">${sanitizeText(r._driverName)}</b>` : ""}</div>
       ${safeTires ? `<div class="record-meta" style="margin-top:4px">Tires: <b style="color:var(--danger)">${safeTires}</b></div>` : ""}
+      ${(Number.isFinite(r.mileage) || r.fuel_level) ? `<div class="record-meta" style="margin-top:4px">${Number.isFinite(r.mileage) ? `<b style="color:var(--text2)">${r.mileage.toLocaleString()} mi</b>` : ""}${(Number.isFinite(r.mileage) && r.fuel_level) ? " · " : ""}${r.fuel_level ? `Fuel <b style="color:var(--text2)">${sanitizeText(r.fuel_level)}</b>` : ""}</div>` : ""}
       ${safeNotes ? `<div class="record-notes">${safeNotes}</div>` : ""}
     </div>`;
 }
@@ -2061,7 +2129,9 @@ function renderTodayEntries() {
     return;
   }
   const sorted = [...shiftRecords].reverse();
-  document.getElementById("todayRecords").innerHTML = sorted.map(r => recordCard(r, "deleteTodayRecord")).join("");
+  document.getElementById("todayRecords").innerHTML = sorted.map(r =>
+    recordCard(r, "deleteTodayRecord", `openVinDetailPanel('${sanitizeText(r.serialId || "")}')`)
+  ).join("");
 }
 
 function deleteTodayRecord(id) {
@@ -2153,7 +2223,7 @@ async function renderFuzzyResults(term) {
   const upTerm = safe.toUpperCase();
 
   let recsQ = sb.from("records")
-    .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,tires,gps_error,shift_num")
+    .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,tires,gps_error,shift_num,mileage,fuel_level,photo_url")
     .or(`serial_id.ilike.%${upTerm}%,notes.ilike.%${safe}%`)
     .order("ts", { ascending: false })
     .limit(200);
@@ -2213,6 +2283,9 @@ async function renderFuzzyResults(term) {
     gpsError: !!row.gps_error,
     tires: row.tires || [],
     vinData: row.vin_data || undefined,
+    mileage: Number.isFinite(row.mileage) ? row.mileage : null,
+    fuel_level: row.fuel_level || "",
+    photo_url: row.photo_url || "",
     timestamp: row.ts ? new Date(row.ts).getTime() : Date.now(),
     _driverName: names[row.user_id]
   }));
@@ -2246,7 +2319,7 @@ async function renderFuzzyResults(term) {
         const vd = v.vin_data || {};
         const vehName = [vd.year, vd.make, vd.model].filter(Boolean).join(" ");
         const pin = (Number.isFinite(v.last_lat) && Number.isFinite(v.last_lng))
-          ? ` · <a href="https://www.google.com/maps?q=${v.last_lat},${v.last_lng}" target="_blank" rel="noopener" class="vin-tl-gps" onclick="event.stopPropagation()">📍</a>` : "";
+          ? ` · <a href="https://www.google.com/maps?q=${v.last_lat},${v.last_lng}" target="_blank" rel="noopener" class="vin-tl-gps" onclick="event.stopPropagation()"><svg class="ico-pin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12 22s-7-7.58-7-13a7 7 0 0 1 14 0c0 5.42-7 13-7 13zM12 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg></a>` : "";
         const statusPill = v.current_status
           ? `<span class="record-status ${statusClass(v.current_status)}">${esc(statusDisp)}</span>`
           : "";
@@ -2334,11 +2407,21 @@ async function renderFuzzyResults(term) {
   vehRows.forEach(v => {
     const vd = v.vin_data || {};
     const vehName = [vd.year, vd.make, vd.model].filter(Boolean).join(" ");
-    vinItems.push({ vin: v.serial_id, ts: v.last_seen_at || null, vehicle: vehName });
+    vinItems.push({
+      vin: v.serial_id, ts: v.last_seen_at || null, vehicle: vehName,
+      status: v.current_status, statusOther: v.current_status_other,
+      destination: v.current_destination, destinationOther: v.current_destination_other,
+      lat: v.last_lat, lng: v.last_lng
+    });
   });
   cards.forEach(c => {
     const v = c.vinData ? [c.vinData.year, c.vinData.make, c.vinData.model].filter(Boolean).join(" ") : "";
-    vinItems.push({ vin: c.serialId, ts: c.timestamp || null, vehicle: v });
+    vinItems.push({
+      vin: c.serialId, ts: c.timestamp || null, vehicle: v,
+      status: c.status, statusOther: c.statusOther,
+      destination: c.destination, destinationOther: c.destinationOther,
+      lat: c.lat, lng: c.lng
+    });
   });
   noteRows.forEach(n => vinItems.push({ vin: n.serial_id, ts: n.created_at, vehicle: "" }));
   renderVinDetailList(vinItems);
@@ -2472,7 +2555,7 @@ async function renderVinTimeline(vin, opts) {
 
   const [recordsRes, notesRes] = await Promise.all([
     sb.from("records")
-      .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,source,note_id")
+      .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,source,note_id,mileage,fuel_level,photo_url")
       .eq("serial_id", vin)
       .order("ts", { ascending: false }),
     sb.from("vehicle_notes")
@@ -2493,8 +2576,16 @@ async function renderVinTimeline(vin, opts) {
     const vd = records.find(r => r.vin_data)?.vin_data;
     const veh = vd ? [vd.year, vd.make, vd.model].filter(Boolean).join(" ") : "";
     const items = [
-      ...records.map(r => ({ vin, ts: r.ts, vehicle: veh })),
-      ...notes.map(n   => ({ vin, ts: n.created_at, vehicle: veh }))
+      ...records.map(r => ({
+        vin, ts: r.ts, vehicle: veh,
+        status: r.status, statusOther: r.status_other,
+        destination: r.destination, destinationOther: r.destination_other,
+        lat: r.lat, lng: r.lng
+      })),
+      ...notes.map(n => ({
+        vin, ts: n.created_at, vehicle: veh,
+        lat: n.lat, lng: n.lng
+      }))
     ];
     renderVinDetailList(items);
   }
@@ -2533,14 +2624,42 @@ async function renderVinTimeline(vin, opts) {
   const ago = (input) => DT_FORMAT.timeAgo(input);
   const esc = (s) => sanitizeText(s);
 
-  // Vehicle line — first record we find with vin_data wins
-  const headerVehicle = (() => {
+  // First record carrying NHTSA-decoded vin_data is the source of truth for
+  // both the vehicle line in the header and the inline subtitle on every note.
+  const headerVin = (() => {
     const r = records.find(x => x.vin_data);
-    if (!r) return "";
-    const v = r.vin_data;
-    const name = [v.year, v.make, v.model].filter(Boolean).map(esc).join(" ");
-    return name ? `<div class="vin-tl-vehicle">${name}</div>` : "";
+    return r ? r.vin_data : null;
   })();
+  const headerVehicle = headerVin
+    ? (() => {
+        const v = headerVin;
+        // Primary line: year + make + model + trim (NHTSA-decoded).
+        const nameParts = [v.year, v.make, v.model, v.trim || v.series]
+          .filter(Boolean).map(esc);
+        const name = nameParts.join(" ");
+        if (!name) return "";
+        const icons = getVehicleSVG({ ...v, _size: 18 });
+        // Secondary line: body / engine / fuel / drivetrain / doors. Each cell
+        // becomes a small chip so it stays readable when the VIN has lots of
+        // decoded fields.
+        const drive = v.driveType ? v.driveType.replace(/\s*Wheel Drive\s*/i, "WD").trim() : "";
+        const trans = v.transmission ? v.transmission.replace(/Automatic/i, "Auto") : "";
+        const doors = v.doors ? `${v.doors}-door` : "";
+        const plant = [v.plantCity, v.plantCountry].filter(Boolean).join(", ");
+        const chips = [v.bodyClass, v.engine, v.fuelType, drive, trans, doors]
+          .filter(Boolean)
+          .map(s => `<span class="vin-tl-chip">${esc(s)}</span>`)
+          .join("");
+        const mfg = v.manufacturer
+          ? `<div class="vin-tl-mfg">${esc(v.manufacturer)}${plant ? ` &nbsp;·&nbsp; ${esc(plant)}` : ""}</div>`
+          : (plant ? `<div class="vin-tl-mfg">${esc(plant)}</div>` : "");
+        return `
+          <div class="vin-tl-vehicle">${icons.vehicle}${icons.fuel}<span class="vin-tl-vehicle-name">${name}</span></div>
+          ${chips ? `<div class="vin-tl-chips">${chips}</div>` : ""}
+          ${mfg}
+        `;
+      })()
+    : "";
 
   const html = events.map(ev => {
     if (ev.kind === "record") {
@@ -2551,7 +2670,7 @@ async function renderVinTimeline(vin, opts) {
       const statusDisp = r.status === "OTHER" && r.status_other ? `OTHER: ${r.status_other}` : statusLabel(r.status);
       const destDisp   = r.destination === "OTHER" && r.destination_other ? `OTHER: ${r.destination_other}` : (r.destination || "");
       const gps = (Number.isFinite(r.lat) && Number.isFinite(r.lng))
-        ? ` · <a href="https://www.google.com/maps?q=${r.lat},${r.lng}" target="_blank" rel="noopener" class="vin-tl-gps">📍</a>` : "";
+        ? ` · <a href="https://www.google.com/maps?q=${r.lat},${r.lng}" target="_blank" rel="noopener" class="vin-tl-gps"><svg class="ico-pin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12 22s-7-7.58-7-13a7 7 0 0 1 14 0c0 5.42-7 13-7 13zM12 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg></a>` : "";
       return `
         <div class="vin-tl-row vin-tl-record" data-record-id="${esc(r.id)}">
           <div class="vin-tl-head">
@@ -2564,31 +2683,25 @@ async function renderVinTimeline(vin, opts) {
     }
     const n = ev.n;
     const lr = ev.linkedRecord;
-    const p = _vinProfileCache.get(n.author_id);
-    const name = esc(p?.display_name || "Someone");
-    const role = p?.role ? `<span class="note-role role-${esc(p.role)}">${esc(p.role)}</span>` : "";
-    const bodyPreview = n.body ? (n.body.length > 180 ? n.body.slice(0, 180) + "…" : n.body) : "";
-    const extras = [];
-    if (Number.isFinite(n.mileage)) extras.push(`${n.mileage.toLocaleString()} mi`);
-    if (n.fuel_level) extras.push(`Fuel ${n.fuel_level}`);
-    if (n.photo_url) extras.push("photo");
-    if (Number.isFinite(n.lat) && Number.isFinite(n.lng)) extras.push("location");
-    if (lr?.destination) extras.push(esc(lr.destination));
-    const extrasHtml = extras.length ? `<div class="vin-tl-meta-sub">${esc(extras.join(" · "))}</div>` : "";
-    // If this note also drove a status change, show the status badge in place of the "Note" pill.
-    const head = lr
-      ? `<span class="record-status ${statusClass(lr.status)}">${esc(lr.status === "OTHER" && lr.status_other ? `OTHER: ${lr.status_other}` : statusLabel(lr.status))}</span>`
-      : `<span class="vin-tl-kind">Note</span>`;
-    return `
-      <div class="vin-tl-row vin-tl-note" data-note-id="${esc(n.id)}">
-        <div class="vin-tl-head">
-          ${head}
-          <span class="vin-tl-time">${esc(ago(ev.ts))}</span>
-        </div>
-        <div class="vin-tl-meta">${name}${role}</div>
-        ${bodyPreview ? `<div class="vin-tl-body">${esc(bodyPreview)}</div>` : ""}
-        ${extrasHtml}
-      </div>`;
+    // Make the author/role lookup available to the shared renderer, which
+    // reads from DT_VNOTES.profileCache.
+    const localProfile = _vinProfileCache.get(n.author_id);
+    if (localProfile && window.DT_VNOTES && !DT_VNOTES.profileCache.has(n.author_id)) {
+      DT_VNOTES.profileCache.set(n.author_id, localProfile);
+    }
+    let cardHtml = (window.DT_VNOTES?.renderCardsHtml || window.DT_VNOTES?._renderCardsHtml)
+      ? DT_VNOTES.renderCardsHtml([n], signed, headerVin)
+      : "";
+    // For notes that also drove a status change, inject the status badge
+    // (and destination, if any) into the note-card's header so the timeline
+    // still communicates the change without nesting another container.
+    if (lr && cardHtml) {
+      const statusDisp = lr.status === "OTHER" && lr.status_other ? `OTHER: ${lr.status_other}` : statusLabel(lr.status);
+      const destDisp   = lr.destination === "OTHER" && lr.destination_other ? `OTHER: ${lr.destination_other}` : (lr.destination || "");
+      const badge = `<span class="record-status ${statusClass(lr.status)}">${esc(statusDisp)}</span>${destDisp ? `<span class="vin-tl-note-dest"> · ${esc(destDisp)}</span>` : ""}`;
+      cardHtml = cardHtml.replace('<span class="note-time">', `${badge}<span class="note-time">`);
+    }
+    return cardHtml;
   }).join("");
 
   // Latest status from most-recent record; latest mileage from most-recent note that has one.
@@ -2597,14 +2710,14 @@ async function renderVinTimeline(vin, opts) {
   const latestStatusDisp = latestRec
     ? (latestRec.status === "OTHER" && latestRec.status_other ? `OTHER: ${latestRec.status_other}` : statusLabel(latestRec.status))
     : "";
-  const latestMileage = (() => {
-    const n = notes.find(x => Number.isFinite(x.mileage));
-    return n ? n.mileage : null;
-  })();
-  const latestFuel = (() => {
-    const n = notes.find(x => x.fuel_level);
-    return n ? n.fuel_level : null;
-  })();
+  // Mileage / fuel can land on either a record (driver NEW ENTRY) or a note,
+  // so merge both streams by timestamp and pick the most recent of each.
+  const mfStream = [
+    ...records.map(r => ({ ts: r.ts ? +new Date(r.ts) : 0, mileage: r.mileage, fuel_level: r.fuel_level })),
+    ...notes.map(n => ({ ts: n.created_at ? +new Date(n.created_at) : 0, mileage: n.mileage, fuel_level: n.fuel_level }))
+  ].sort((a, b) => b.ts - a.ts);
+  const latestMileage = mfStream.find(x => Number.isFinite(x.mileage))?.mileage ?? null;
+  const latestFuel    = mfStream.find(x => x.fuel_level)?.fuel_level ?? null;
   const FUEL_PCT = { "EMPTY": 0, "1/4": 25, "1/2": 50, "3/4": 75, "FULL": 100 };
   const fuelGauge = latestFuel ? (() => {
     const pct = FUEL_PCT[latestFuel] ?? 0;
@@ -2643,10 +2756,57 @@ async function renderVinTimeline(vin, opts) {
       ${headerVehicle}
       <div class="vin-tl-count">${events.length} event${events.length === 1 ? "" : "s"}</div>
       ${fuelGauge}
+      <div id="vinTlRecalls" class="vin-tl-recalls" hidden></div>
     </div>
+    <div class="vin-tl-actions">
+      <button type="button" class="btn btn-primary vin-tl-new-entry" onclick="openInlineNewEntry('${esc(vin)}')">+ New Entry</button>
+    </div>
+    <div id="vinTlEntrySlot" class="vin-tl-entry-slot"></div>
     <div id="vinTimelineNotes"></div>
+    <div class="vin-tl-notes-heading">NOTES</div>
     <div class="vin-tl-list">${html}</div>
   `;
+  // Fetch NHTSA open recalls for this year/make/model and inject a badge +
+  // collapsible detail panel into the header once results land. Fire-and-forget
+  // so the timeline renders immediately even if the API is slow.
+  if (headerVin?.year && headerVin?.make && headerVin?.model) {
+    getRecalls(headerVin.year, headerVin.make, headerVin.model).then(list => {
+      const panel = container.querySelector('#vinTlRecalls');
+      if (!panel || !list.length) return;
+      const rows = list.map(r => {
+        const id = sanitizeText(r.NHTSACampaignNumber || "");
+        const comp = sanitizeText(r.Component || "Recall");
+        const summary = sanitizeText(r.Summary || "");
+        const link = id ? `https://www.nhtsa.gov/recalls?nhtsaId=${encodeURIComponent(id)}` : "";
+        const titleHtml = link
+          ? `<a class="recall-title" href="${link}" target="_blank" rel="noopener">${comp}</a>`
+          : `<span class="recall-title">${comp}</span>`;
+        return `
+          <li class="recall-row">
+            ${titleHtml}
+            ${id ? `<span class="recall-id">${id}</span>` : ""}
+            ${summary ? `<div class="recall-summary">${summary}</div>` : ""}
+          </li>`;
+      }).join("");
+      panel.hidden = false;
+      panel.innerHTML = `
+        <button type="button" class="recall-toggle" aria-expanded="false">
+          <span class="recall-badge">${list.length}</span>
+          <span class="recall-toggle-label">OPEN RECALL${list.length === 1 ? "" : "S"}</span>
+          <span class="recall-chevron" aria-hidden="true">▾</span>
+        </button>
+        <ul class="recall-list" hidden>${rows}</ul>
+      `;
+      const btn = panel.querySelector('.recall-toggle');
+      const ul = panel.querySelector('.recall-list');
+      btn.addEventListener('click', () => {
+        const open = ul.hasAttribute('hidden');
+        if (open) ul.removeAttribute('hidden'); else ul.setAttribute('hidden', '');
+        btn.setAttribute('aria-expanded', String(open));
+      });
+    });
+  }
+
   // Mount the shared notes widget so any signed-in user (managers included)
   // can leave a note on this VIN without needing to tap into a record first.
   if (window.DT_VNOTES) {
@@ -2667,17 +2827,12 @@ async function renderVinTimeline(vin, opts) {
     });
   });
 
-  // Wire note-row clicks → open the note detail overlay (from vehicle-notes.js).
-  container.querySelectorAll('.vin-tl-note').forEach(row => {
-    if (row._wired) return;
-    row._wired = true;
-    row.style.cursor = 'pointer';
-    row.addEventListener('click', (e) => {
-      if (e.target.closest('a, button')) return;
-      const id = row.dataset.noteId;
-      if (id && window.DT_VNOTES?.openNoteDetail) DT_VNOTES.openNoteDetail(id);
-    });
-  });
+  // Wire note-card clicks (photo zoom, delete, open detail) via the shared
+  // delegation used by every other notes view, so behavior matches.
+  const tlList = container.querySelector('.vin-tl-list');
+  if (tlList && window.DT_VNOTES?.wireCards) {
+    DT_VNOTES.wireCards(tlList, () => renderVinTimeline(vin, opts));
+  }
 
   // When a note is added for this VIN, re-render the timeline so the VIN HISTORY
   // header (current status, mileage, fuel gauge) reflects the new note immediately.
@@ -3020,7 +3175,7 @@ function renderPersonalRecords() {
 
   const all = getRecords();
   if (all.length === 0) {
-    el.innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px">No records yet - start scanning to build your stats.</p>';
+    el.innerHTML = '<p class="u-empty">No records yet - start scanning to build your stats.</p>';
     return;
   }
 
@@ -3242,25 +3397,25 @@ function renderRangeTable(elId, all, days, groupFn, labelFn, today) {
   });
   const nonZero = days.filter(d => byDay[d] > 0);
   if (!nonZero.length) {
-    document.getElementById(elId).innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px">No entries in this period</p>';
+    document.getElementById(elId).innerHTML = '<p class="u-empty">No entries in this period</p>';
     return;
   }
   const max = Math.max(...nonZero.map(d => byDay[d]));
   document.getElementById(elId).innerHTML = `
-    <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <table class="stat-table">
       <thead><tr>
-        <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:700;font-size:10px;text-transform:uppercase">Date</th>
-        <th style="padding:6px 8px;color:var(--muted);font-weight:700;font-size:10px;text-transform:uppercase"></th>
-        <th style="text-align:right;padding:6px 8px;color:var(--muted);font-weight:700;font-size:10px;text-transform:uppercase">Cars</th>
+        <th>Date</th>
+        <th></th>
+        <th class="right">Cars</th>
       </tr></thead>
       <tbody>
         ${nonZero.map(d => `
-          <tr style="cursor:pointer" onclick="viewByDate('${d}')">
-            <td style="padding:6px 8px;color:${d===today?'var(--accent)':'var(--text2)'};white-space:nowrap;font-weight:${d===today?'700':'400'}">${labelFn(d)}${d===today?' (today)':''}</td>
-            <td style="padding:6px 8px;width:55%">
+          <tr class="u-cursor-pointer" onclick="viewByDate('${d}')">
+            <td class="nowrap${d===today?" u-text-accent":""}" style="font-weight:${d===today?700:400}">${labelFn(d)}${d===today?' (today)':''}</td>
+            <td class="label">
               <div style="background:var(--accent);height:8px;border-radius:4px;width:${Math.round((byDay[d]/max)*100)}%;min-width:4px"></div>
             </td>
-            <td style="padding:6px 8px;text-align:right;font-weight:700;color:var(--text)">${byDay[d]}</td>
+            <td class="right">${byDay[d]}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
@@ -3276,25 +3431,25 @@ function renderRangeWeekTable(elId, all, weeks, today) {
   }).filter(w => w.count > 0);
 
   if (!byWeek.length) {
-    document.getElementById(elId).innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px">No entries in this period</p>';
+    document.getElementById(elId).innerHTML = '<p class="u-empty">No entries in this period</p>';
     return;
   }
   const max = Math.max(...byWeek.map(w => w.count));
   document.getElementById(elId).innerHTML = `
-    <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <table class="stat-table">
       <thead><tr>
-        <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:700;font-size:10px;text-transform:uppercase">Week</th>
-        <th style="padding:6px 8px;color:var(--muted);font-weight:700;font-size:10px;text-transform:uppercase"></th>
-        <th style="text-align:right;padding:6px 8px;color:var(--muted);font-weight:700;font-size:10px;text-transform:uppercase">Cars</th>
+        <th>Week</th>
+        <th></th>
+        <th class="right">Cars</th>
       </tr></thead>
       <tbody>
         ${byWeek.map(w => `
-          <tr style="cursor:pointer" onclick="viewByWeek('${w.start}','${w.end}','${w.start} to ${w.end}')">
-            <td style="padding:6px 8px;color:var(--text2);white-space:nowrap">${w.start.slice(5)} - ${w.end.slice(5)}</td>
-            <td style="padding:6px 8px;width:55%">
+          <tr class="u-cursor-pointer" onclick="viewByWeek('${w.start}','${w.end}','${w.start} to ${w.end}')">
+            <td class="nowrap">${w.start.slice(5)} - ${w.end.slice(5)}</td>
+            <td class="label">
               <div style="background:var(--accent);height:8px;border-radius:4px;width:${Math.round((w.count/max)*100)}%;min-width:4px"></div>
             </td>
-            <td style="padding:6px 8px;text-align:right;font-weight:700;color:var(--text)">${w.count}</td>
+            <td class="right">${w.count}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
@@ -3302,7 +3457,7 @@ function renderRangeWeekTable(elId, all, weeks, today) {
 
 function renderRangeMonthTable(elId, all, months) {
   if (!months.length) {
-    document.getElementById(elId).innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px">No entries in this period</p>';
+    document.getElementById(elId).innerHTML = '<p class="u-empty">No entries in this period</p>';
     return;
   }
   const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -3317,18 +3472,18 @@ function renderRangeMonthTable(elId, all, months) {
   }).filter(m => m.count > 0);
 
   if (!byMonth.length) {
-    document.getElementById(elId).innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px">No entries in this period</p>';
+    document.getElementById(elId).innerHTML = '<p class="u-empty">No entries in this period</p>';
     return;
   }
   const max = Math.max(...byMonth.map(m => m.count));
   const now = new Date();
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   document.getElementById(elId).innerHTML = `
-    <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <table class="stat-table">
       <thead><tr>
-        <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:700;font-size:10px;text-transform:uppercase">Month</th>
-        <th style="padding:6px 8px;color:var(--muted);font-weight:700;font-size:10px;text-transform:uppercase"></th>
-        <th style="text-align:right;padding:6px 8px;color:var(--muted);font-weight:700;font-size:10px;text-transform:uppercase">Cars</th>
+        <th>Month</th>
+        <th></th>
+        <th class="right">Cars</th>
       </tr></thead>
       <tbody>
         ${byMonth.map(m => {
@@ -3336,12 +3491,12 @@ function renderRangeMonthTable(elId, all, months) {
           const fromDate = `${m.key}-01`;
           const toDate = new Date(parseInt(yr), parseInt(mo), 0);
           const toStr = `${yr}-${mo}-${String(toDate.getDate()).padStart(2,'0')}`;
-          return `<tr style="cursor:pointer" onclick="viewByWeek('${fromDate}','${toStr}','${m.label}')">
-            <td style="padding:6px 8px;color:${m.key===thisMonth?'var(--accent)':'var(--text2)'};font-weight:${m.key===thisMonth?'700':'400'}">${m.label}${m.key===thisMonth?' ·':''}</td>
-            <td style="padding:6px 8px;width:55%">
+          return `<tr class="u-cursor-pointer" onclick="viewByWeek('${fromDate}','${toStr}','${m.label}')">
+            <td class="${m.key===thisMonth?'u-text-accent':''}" style="font-weight:${m.key===thisMonth?700:400}">${m.label}${m.key===thisMonth?' ·':''}</td>
+            <td class="label">
               <div style="background:var(--accent);height:8px;border-radius:4px;width:${Math.round((m.count/max)*100)}%;min-width:4px"></div>
             </td>
-            <td style="padding:6px 8px;text-align:right;font-weight:700;color:var(--text)">${m.count}</td>
+            <td class="right">${m.count}</td>
           </tr>`;
         }).join('')}
       </tbody>
@@ -3378,13 +3533,25 @@ function renderVinDetailList(items) {
     const n = new Date(t).getTime();
     return Number.isFinite(n) ? n : 0;
   };
+  // Dedup by VIN — collapse multiple events into one row. Keep the values
+  // from the most recent event for status / destination / location, since the
+  // user wants to see "what's true right now" not the aggregate.
   (items || []).forEach(it => {
     if (!it || !it.vin) return;
     const key = String(it.vin).toUpperCase();
     const t = tsNum(it.ts);
-    const cur = seen.get(key) || { vin: key, count: 0, last: t, vehicle: it.vehicle || "" };
-    cur.count += 1;
-    if (t > cur.last) cur.last = t;
+    const cur = seen.get(key) || { vin: key, last: -Infinity, vehicle: it.vehicle || "" };
+    if (t > cur.last) {
+      cur.last = t;
+      // Carry forward only fields the new event actually provided.
+      if (it.status) cur.status = it.status;
+      if (it.statusOther) cur.statusOther = it.statusOther;
+      if (it.destination) cur.destination = it.destination;
+      if (it.destinationOther) cur.destinationOther = it.destinationOther;
+      if (Number.isFinite(it.lat) && Number.isFinite(it.lng)) {
+        cur.lat = it.lat; cur.lng = it.lng;
+      }
+    }
     if (!cur.vehicle && it.vehicle) cur.vehicle = it.vehicle;
     seen.set(key, cur);
   });
@@ -3395,18 +3562,82 @@ function renderVinDetailList(items) {
   }
   const esc = (s) => sanitizeText(s);
   const ago = (input) => input ? DT_FORMAT.timeAgo(input) : "";
-  el.innerHTML = rows.map(r => `
-    <div class="vin-detail-row" data-vin="${esc(r.vin)}">
-      <div>
-        <div class="vin-detail-vin">${esc(r.vin)}</div>
-        <div class="vin-detail-sub">${esc(r.vehicle || "")}${r.vehicle && r.last ? " · " : ""}${esc(ago(r.last))}</div>
-      </div>
-      <div class="vin-detail-count">${r.count}</div>
-    </div>
-  `).join("");
+  el.innerHTML = rows.map(r => {
+    const statusDisp = r.status === "OTHER" && r.statusOther
+      ? `OTHER: ${r.statusOther}`
+      : (r.status ? statusLabel(r.status) : "");
+    const statusPill = r.status
+      ? `<span class="record-status ${statusClass(r.status)}">${esc(statusDisp)}</span>`
+      : "";
+    const destDisp = r.destination === "OTHER" && r.destinationOther
+      ? `OTHER: ${r.destinationOther}`
+      : (r.destination || "");
+    const pin = (Number.isFinite(r.lat) && Number.isFinite(r.lng))
+      ? `<a class="vin-tl-gps" href="https://www.google.com/maps?q=${r.lat},${r.lng}" target="_blank" rel="noopener" onclick="event.stopPropagation()" aria-label="Open last location in Maps"><svg class="ico-pin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12 22s-7-7.58-7-13a7 7 0 0 1 14 0c0 5.42-7 13-7 13zM12 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg></a>`
+      : "";
+    const subParts = [
+      r.vehicle ? esc(r.vehicle) : "",
+      destDisp ? esc(destDisp) : "",
+      r.last ? esc(ago(r.last)) : ""
+    ].filter(Boolean).join(" · ");
+    return `
+      <div class="vin-detail-row" data-vin="${esc(r.vin)}">
+        <div class="vin-detail-main">
+          <div class="vin-detail-vin">${esc(r.vin)}</div>
+          ${subParts ? `<div class="vin-detail-sub">${subParts}</div>` : ""}
+        </div>
+        <div class="vin-detail-side">
+          ${statusPill}
+          ${pin}
+        </div>
+      </div>`;
+  }).join("");
   el.querySelectorAll('.vin-detail-row').forEach(row => {
     row.addEventListener('click', () => openVinDetailPanel(row.dataset.vin));
   });
+}
+
+// Move the New Entry form into the VIN-detail view so the user can submit
+// without leaving the VIN history context. The form node is the live DOM
+// (#entryFormBody) — moving it preserves IDs, event handlers, and any
+// in-progress state. restoreInlineNewEntry() puts it back in #entryFormHome.
+function openInlineNewEntry(vin) {
+  const slot = document.getElementById("vinTlEntrySlot");
+  const body = document.getElementById("entryFormBody");
+  if (!slot || !body) return;
+  if (body.parentElement !== slot) {
+    slot.innerHTML = `<div class="vin-tl-entry-close-row"><button type="button" class="btn btn-secondary" onclick="restoreInlineNewEntry()">Close</button></div>`;
+    slot.appendChild(body);
+  }
+  // Prefill VIN and make sure the manual-entry section is visible so the
+  // serial field can be edited without forcing the user to tap "Enter Manually".
+  const serial = document.getElementById("serial");
+  if (serial) serial.value = vin || "";
+  const manualSection = document.getElementById("manualEntrySection");
+  if (manualSection) manualSection.style.display = "";
+  // The scan + manual-toggle buttons aren't useful inline — VIN is already
+  // known. Hide them while the form lives in the VIN history view.
+  const headerBtns = document.getElementById("entryHeaderButtons");
+  if (headerBtns) headerBtns.style.display = "none";
+  if (typeof toggleClearBtn === "function") toggleClearBtn();
+  if (typeof updateVinCount === "function") updateVinCount();
+  // Hide the New Entry trigger button while the form is open.
+  const trigger = document.querySelector(".vin-tl-new-entry");
+  if (trigger) trigger.style.display = "none";
+  slot.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function restoreInlineNewEntry() {
+  const home = document.getElementById("entryFormHome");
+  const body = document.getElementById("entryFormBody");
+  if (!home || !body) return;
+  if (body.parentElement !== home) home.appendChild(body);
+  const slot = document.getElementById("vinTlEntrySlot");
+  if (slot) slot.innerHTML = "";
+  const trigger = document.querySelector(".vin-tl-new-entry");
+  if (trigger) trigger.style.display = "";
+  const headerBtns = document.getElementById("entryHeaderButtons");
+  if (headerBtns) headerBtns.style.display = "";
 }
 
 async function openVinDetailPanel(vin) {
@@ -3465,7 +3696,7 @@ function renderRecordsMap() {
             <div style="font-size:12px;color:#555;margin-bottom:4px">${sanitizeText(statusLabel(r.status))}${r.destination ? ' · ' + sanitizeText(r.destination) : ''}</div>
             <div style="font-size:11px;color:#888;margin-bottom:8px">${time}</div>
             <button onclick="document.getElementById('recordsMap')._openDetail('${r.id}')"
-              style="background:#00a651;color:#fff;border:none;padding:5px 12px;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;width:100%">
+              style="background:var(--accent);color:#fff;border:none;padding:5px 12px;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;width:100%">
               View Record
             </button>
           </div>`, { maxWidth: 200 });
@@ -3565,7 +3796,7 @@ function renderShiftMap(shiftIndex) {
           <div style="font-size:12px;color:#555;margin-bottom:6px">${sanitizeText(statusLabel(r.status))}${r.destination ? " · " + sanitizeText(r.destination) : ""}</div>
           <div style="font-size:11px;color:#888;margin-bottom:8px">${time}</div>
           <button onclick="document.getElementById('shiftMap')._openDetail('${r.id}')"
-            style="background:#00a651;color:#fff;border:none;padding:5px 12px;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;width:100%">
+            style="background:var(--accent);color:#fff;border:none;padding:5px 12px;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;width:100%">
             View Record
           </button>
         </div>
@@ -4830,53 +5061,97 @@ async function renderEntryCurrentState(vin) {
   el.classList.remove("is-empty");
   el.innerHTML = `<div class="ecs-label">Current state</div><div>Loading…</div>`;
   const sb = DT_AUTH.client;
-  const [vehRes, latestMF] = await Promise.all([
+  // The vehicles row may lag behind records (it's populated by an out-of-band
+  // process). Fetching the latest record directly means a VIN with history
+  // always shows real state, even before the vehicles row catches up.
+  const [vehRes, latestRecRes, latestMF] = await Promise.all([
     sb.from("vehicles")
       .select("current_status,current_status_other,current_destination,current_destination_other,last_seen_at,vin_data,current_conditions,needs_new_tag")
       .eq("serial_id", vin).maybeSingle(),
+    sb.from("records")
+      .select("status,status_other,destination,destination_other,ts")
+      .eq("serial_id", vin)
+      .order("ts", { ascending: false })
+      .limit(1).maybeSingle(),
     window.DT_VNOTES ? DT_VNOTES.getLatestMileageAndFuel?.(vin) : Promise.resolve({ mileage: null, fuel: null })
   ]);
   const v = vehRes?.data;
-  if (!v) {
+  const r = latestRecRes?.data;
+  const hasHistory = !!v || !!r || Number.isFinite(latestMF?.mileage) || !!latestMF?.fuel;
+  if (!hasHistory) {
     el.classList.add("is-empty");
     el.innerHTML = `<div class="ecs-label">Current state</div><div>New to inventory — no history yet.</div>`;
     return;
   }
   const esc = (s) => sanitizeText(s);
-  const statusDisp = v.current_status === "OTHER" && v.current_status_other
-    ? `OTHER: ${v.current_status_other}` : statusLabel(v.current_status);
-  const destDisp = v.current_destination === "OTHER" && v.current_destination_other
-    ? `OTHER: ${v.current_destination_other}` : (v.current_destination || "");
+  // Prefer the vehicles snapshot when present; fall back to the most recent record.
+  const curStatus      = v?.current_status      ?? r?.status      ?? "";
+  const curStatusOther = v?.current_status_other ?? r?.status_other ?? "";
+  const curDest        = v?.current_destination ?? r?.destination ?? "";
+  const curDestOther   = v?.current_destination_other ?? r?.destination_other ?? "";
+  const lastSeenAt     = v?.last_seen_at ?? r?.ts ?? null;
+  const statusDisp = curStatus === "OTHER" && curStatusOther
+    ? `OTHER: ${curStatusOther}` : statusLabel(curStatus);
+  const destDisp = curDest === "OTHER" && curDestOther
+    ? `OTHER: ${curDestOther}` : (curDest || "");
   const parts = [];
   if (statusDisp)        parts.push(`<span class="ecs-val">${esc(statusDisp)}</span>`);
   if (destDisp)          parts.push(`<span class="ecs-val">${esc(destDisp)}</span>`);
   if (Number.isFinite(latestMF?.mileage)) parts.push(`<span class="ecs-val">${latestMF.mileage.toLocaleString()} mi</span>`);
   if (latestMF?.fuel)    parts.push(`<span class="ecs-val">${esc(latestMF.fuel)}</span>`);
-  if (Array.isArray(v.current_conditions) && v.current_conditions.length) {
+  if (Array.isArray(v?.current_conditions) && v.current_conditions.length) {
     const labels = v.current_conditions.map(id => (DT_OPTIONS.CONDITIONS.find(c => c.id === id)?.label) || id);
     parts.push(`<span class="ecs-val">${esc(labels.join(", "))}</span>`);
   }
-  if (v.needs_new_tag) {
+  if (v?.needs_new_tag) {
     parts.push(`<span class="badge-notag">BAD TAG</span>`);
   }
-  const ago = v.last_seen_at ? DT_FORMAT.timeAgo(v.last_seen_at) : "";
+  const ago = lastSeenAt ? DT_FORMAT.timeAgo(lastSeenAt) : "";
   el.innerHTML = `
     <div class="ecs-label">Current state${ago ? ` · ${esc(ago)}` : ""}</div>
     <div>${parts.length ? parts.join('<span class="ecs-sep">·</span>') : "No prior status."}</div>
   `;
 
-  // Pre-fill Destination only if the user hasn't already picked one this entry.
-  const destSel = document.getElementById("destination");
-  if (destSel && !destSel.value && v.current_destination &&
-      DT_OPTIONS.DESTINATIONS.includes(v.current_destination)) {
-    destSel.value = v.current_destination;
-  }
+  // Hint prior known state via placeholders on each field — the values stay
+  // empty so the user has to make a deliberate pick, but the previous answer
+  // is right there for reference. The first <option> of each <select> is
+  // used as the "placeholder" since native selects don't have one.
+  setSelectPlaceholderHint("status",      "-- STATUS --",   curStatus
+    ? (curStatus === "OTHER" && curStatusOther ? `OTHER: ${curStatusOther}` : statusLabel(curStatus))
+    : "");
+  setSelectPlaceholderHint("destination", "-- LOCATION --", curDest
+    ? (curDest === "OTHER" && curDestOther ? `OTHER: ${curDestOther}` : curDest)
+    : "");
+  setInputPlaceholderHint("mileage", "optional", Number.isFinite(latestMF?.mileage)
+    ? latestMF.mileage.toLocaleString()
+    : "");
+  setSelectPlaceholderHint("fuelLevel",   "-- FUEL --",     latestMF?.fuel || "");
+}
+
+// Replace the first option's label with the prior value when one exists,
+// otherwise restore the original default label.
+function setSelectPlaceholderHint(id, defaultLabel, lastVal) {
+  const sel = document.getElementById(id);
+  if (!sel || !sel.options.length) return;
+  sel.options[0].text = lastVal || defaultLabel;
+}
+
+function setInputPlaceholderHint(id, defaultPlaceholder, lastVal) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.placeholder = lastVal || defaultPlaceholder;
 }
 
 // Clear the banner when the entry form resets (after save, after clearing serial).
+// Also restore the field placeholders so stale "last: X" hints don't leak
+// onto the next VIN's pre-fill.
 function clearEntryCurrentState() {
   const el = document.getElementById("entryCurrentState");
   if (el) { el.style.display = "none"; el.innerHTML = ""; }
+  setSelectPlaceholderHint("status",      "-- STATUS --",   "");
+  setSelectPlaceholderHint("destination", "-- LOCATION --", "");
+  setSelectPlaceholderHint("fuelLevel",   "-- FUEL --",     "");
+  setInputPlaceholderHint("mileage", "optional", "");
 }
 
 // Force a manual sync — push any queued local changes, then pull cloud state.

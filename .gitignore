@@ -7,6 +7,9 @@ __MACOSX/
 .LSOverride
 Icon[
 ]
+node_modules/
+env
+*.sql
 
 # Resource forks
 ._*

@@ -1,6 +1,6 @@
 // DriverTrax Service Worker
 // Provides offline support and caches app assets
-const CACHE_VERSION = "drivertrax-v3.2-push";
+const CACHE_VERSION = "drivertrax-v3.3-sw-fix";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -139,6 +139,17 @@ self.addEventListener("fetch", (event) => {
   // Skip non-GET requests
   if (event.request.method !== "GET") return;
 
+  // Bypass entirely for backend / dynamic origins. Supabase realtime
+  // (wss) is bypassed automatically because it's not a fetch; REST and
+  // storage GETs we leave to the browser so CORS + auth behave normally
+  // and we don't try to cache user-data responses.
+  if (
+    url.hostname.endsWith(".supabase.co") ||
+    url.hostname.endsWith(".supabase.in")
+  ) {
+    return;
+  }
+
   // Network-first for API calls (NHTSA VIN, NHTSA recalls, NWS weather, Open-Meteo)
   if (
     url.hostname.includes("nhtsa.dot.gov") ||
@@ -148,7 +159,10 @@ self.addEventListener("fetch", (event) => {
     url.hostname.includes("openstreetmap.org")
   ) {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
+      fetch(event.request).catch(async () => {
+        const cached = await caches.match(event.request);
+        return cached || new Response("", { status: 504, statusText: "Offline" });
+      })
     );
     return;
   }
@@ -172,11 +186,14 @@ self.addEventListener("fetch", (event) => {
           caches.open(CACHE_VERSION).then((c) => c.put(event.request, clone));
         }
         return res;
-      }).catch(() => {
-        // Offline fallback
+      }).catch(async () => {
+        // Offline fallback. Must always return a Response — otherwise
+        // respondWith throws "Failed to convert value to 'Response'".
         if (event.request.mode === "navigate") {
-          return caches.match("./index.html");
+          const shell = await caches.match("./index.html");
+          if (shell) return shell;
         }
+        return new Response("", { status: 504, statusText: "Offline" });
       });
     })
   );

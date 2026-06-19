@@ -163,22 +163,51 @@
     }
 
     try {
-      if (upserts.length) {
-        const { error } = await sb.from("records").upsert(upserts, { onConflict: "id" });
+      let workingUpserts = upserts;
+      if (workingUpserts.length) {
+        let { error } = await sb.from("records").upsert(workingUpserts, { onConflict: "id" });
+        if (error && (error.code === "42501" || /row-level security/i.test(error.message || ""))) {
+          // RLS blocked one or more rows. Find which queued ids already exist
+          // in the cloud under a different user_id, drop those from the queue,
+          // and retry the rest. This stops a single orphaned record (account
+          // switch, shared device) from wedging the whole sync.
+          const ids = workingUpserts.map(r => r.id);
+          const { data: existing, error: lookupErr } = await sb
+            .from("records").select("id,user_id").in("id", ids);
+          if (lookupErr) {
+            console.warn("[Sync] RLS recovery lookup failed", lookupErr);
+            throw error;
+          }
+          const orphanIds = new Set((existing || [])
+            .filter(r => r.user_id && r.user_id !== user.id)
+            .map(r => r.id));
+          if (orphanIds.size > 0) {
+            console.warn("[Sync] dropping queued ids owned by another user:",
+              [...orphanIds]);
+            const q = readQueue();
+            for (const id of orphanIds) delete q[id];
+            writeQueue(q);
+            workingUpserts = workingUpserts.filter(r => !orphanIds.has(r.id));
+            if (typeof window.showToast === "function") {
+              window.showToast(
+                `Skipped ${orphanIds.size} record${orphanIds.size === 1 ? "" : "s"} owned by another account`,
+                "warn"
+              );
+            }
+            if (workingUpserts.length) {
+              const retry = await sb.from("records").upsert(workingUpserts, { onConflict: "id" });
+              error = retry.error;
+            } else {
+              error = null;
+            }
+          }
+        }
         if (error) {
-          // RLS rejection: log the offending rows + ids so the cause is
-          // diagnosable. The most common reason is a stale queue entry whose
-          // row in the cloud is owned by a different user_id than the
-          // current session — fix is to clear DT_SYNC.clearQueue() or
-          // sign out and back in.
           if (error.code === "42501" || /row-level security/i.test(error.message || "")) {
-            const mismatched = upserts.filter(r => r.user_id !== user.id);
             console.warn("[Sync] RLS blocked upsert.",
               "current user.id =", user.id,
-              "rows being sent =", upserts.length,
-              "rows with mismatched user_id =", mismatched.length,
-              "queued ids =", upserts.map(r => r.id));
-            if (mismatched.length) console.warn("[Sync] mismatched rows:", mismatched);
+              "rows being sent =", workingUpserts.length,
+              "queued ids =", workingUpserts.map(r => r.id));
           }
           throw error;
         }
@@ -189,7 +218,7 @@
       }
       // Success: clear queue, refresh snapshot
       const snap = readSnapshot();
-      for (const row of upserts) snap[row.id] = row;
+      for (const row of workingUpserts) snap[row.id] = row;
       for (const id of deletes) delete snap[id];
       writeSnapshot(snap);
       writeQueue({});

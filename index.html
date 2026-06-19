@@ -592,6 +592,29 @@
     color: var(--muted); text-align: center;
     padding: 30px 16px; font-size: 14px;
   }
+  .vin-recent-wrap { padding: 18px 14px 24px; }
+  .vin-recent-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .vin-recent-label {
+    font-size: 11px; color: var(--muted);
+    letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700;
+  }
+  .vin-recent-clear {
+    background: transparent; color: var(--muted); border: 0;
+    font-size: 12px; cursor: pointer; padding: 4px 6px;
+  }
+  .vin-recent-clear:hover { color: var(--accent); }
+  .vin-recent-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .vin-recent-chip {
+    background: #1a1e24; color: #fff;
+    border: 1px solid #2a313a; border-radius: 999px;
+    padding: 8px 14px; font: 600 13px/1 monospace, system-ui;
+    cursor: pointer; transition: background .15s, border-color .15s;
+  }
+  .vin-recent-chip:hover { background: #232a32; border-color: var(--accent); }
+  .vin-recent-chip:active { transform: scale(0.97); }
   .records-search-section { margin-top: 12px; }
   .records-section-label {
     font-size: 11px; color: var(--muted);
@@ -1768,7 +1791,7 @@
 <!-- ==================== RECORDS PANEL ==================== -->
 <div class="panel" id="panel-records">
   <div class="records-search-row">
-    <input type="text" id="fSearch" placeholder="Search VIN or notes…" autocomplete="off" oninput="debouncedSearchUpdate()">
+    <input type="text" id="fSearch" placeholder="Search VIN or notes…" autocomplete="off" oninput="debouncedSearchUpdate()" onblur="onSearchBlur()">
     <button type="button" class="records-scan-btn" onclick="openScannerForSearch()" aria-label="Scan VIN to search">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="4" height="4"/><rect x="17" y="3" width="4" height="4"/><rect x="3" y="17" width="4" height="4"/><line x1="7" y1="5" x2="17" y2="5"/><line x1="19" y1="7" x2="19" y2="17"/><line x1="7" y1="19" x2="17" y2="19"/><line x1="5" y1="7" x2="5" y2="17"/><line x1="10" y1="12" x2="14" y2="12"/><line x1="12" y1="10" x2="12" y2="14"/></svg>
     </button>

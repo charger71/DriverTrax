@@ -486,6 +486,31 @@ function debouncedSearchUpdate() {
   }, 200);
 }
 
+// Recent VIN search history shown on the VIN LOOKUP empty state. Persisted
+// per-device in localStorage; capped so a noisy day doesn't grow forever.
+const RECENT_VIN_KEY = "dt_recent_vin_searches";
+const RECENT_VIN_MAX = 10;
+function getRecentVinSearches() {
+  try { const v = JSON.parse(localStorage.getItem(RECENT_VIN_KEY) || "[]"); return Array.isArray(v) ? v : []; }
+  catch { return []; }
+}
+function pushRecentVinSearch(term) {
+  const t = (term || "").trim();
+  if (!t) return;
+  const upper = t.toUpperCase();
+  const list = getRecentVinSearches().filter(x => x.toUpperCase() !== upper);
+  list.unshift(t);
+  if (list.length > RECENT_VIN_MAX) list.length = RECENT_VIN_MAX;
+  try { localStorage.setItem(RECENT_VIN_KEY, JSON.stringify(list)); } catch {}
+}
+// Save partial searches (anything ≥3 chars that didn't go through the
+// full-VIN path) when the input loses focus, so chips fill in even
+// for note/fuzzy searches.
+function onSearchBlur() {
+  const v = (document.getElementById("fSearch")?.value || "").trim();
+  if (v.length >= 3 && !isFullVin(v)) pushRecentVinSearch(v);
+}
+
 function getFiltered() {
   const search = document.getElementById("fSearch").value.trim().toUpperCase();
   const status = document.getElementById("fStatus").value;
@@ -2187,6 +2212,42 @@ document.addEventListener("dt-vehicle-note-added", (e) => {
   if (cur && cur === (e.detail?.vin || "").toUpperCase()) renderVinTimeline(cur);
 });
 
+// Empty-state for the VIN LOOKUP search panel: show up to 5 recent
+// searches as clickable chips, or fall back to the original prompt if
+// the user hasn't searched anything yet on this device.
+function renderRecentVinEmptyState(container) {
+  const recent = getRecentVinSearches().slice(0, 5);
+  if (!recent.length) {
+    container.innerHTML = `<p class="records-prompt">Type a VIN or search notes to start.</p>`;
+    return;
+  }
+  const chips = recent.map(t =>
+    `<button type="button" class="vin-recent-chip" data-term="${sanitizeText(t)}">${sanitizeText(t)}</button>`
+  ).join("");
+  container.innerHTML = `
+    <div class="vin-recent-wrap">
+      <div class="vin-recent-head">
+        <span class="vin-recent-label">Recent searches</span>
+        <button type="button" class="vin-recent-clear" id="vinRecentClear">Clear</button>
+      </div>
+      <div class="vin-recent-row">${chips}</div>
+    </div>`;
+  container.querySelectorAll(".vin-recent-chip").forEach(b => {
+    b.addEventListener("click", () => {
+      const input = document.getElementById("fSearch");
+      if (!input) return;
+      input.value = b.dataset.term;
+      resetRecordsPage();
+      renderRecords();
+    });
+  });
+  const clearBtn = container.querySelector("#vinRecentClear");
+  if (clearBtn) clearBtn.addEventListener("click", () => {
+    try { localStorage.removeItem(RECENT_VIN_KEY); } catch {}
+    renderRecentVinEmptyState(container);
+  });
+}
+
 function renderRecords() {
   const searchVal = (document.getElementById("fSearch")?.value || "").trim();
   const countEl   = document.getElementById("resultsCount");
@@ -2195,7 +2256,7 @@ function renderRecords() {
   // No search → empty state, no list, no markers.
   if (!searchVal) {
     if (countEl)   countEl.textContent = "";
-    if (container) container.innerHTML = `<p class="records-prompt">Type a VIN or search notes to start.</p>`;
+    if (container) renderRecentVinEmptyState(container);
     _renderRecordsMapMarkers([]);
     renderVinDetailList([]);
     return;
@@ -2203,6 +2264,7 @@ function renderRecords() {
 
   // Full VIN → timeline view
   if (isFullVin(searchVal)) {
+    pushRecentVinSearch(searchVal.toUpperCase());
     return renderVinTimeline(searchVal.toUpperCase());
   }
 

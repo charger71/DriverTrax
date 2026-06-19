@@ -130,7 +130,8 @@
       const { data, error } = await sb.from("vehicle_notes")
         .select("id,body,author_id,created_at,lat,lng,photo_url,mileage,fuel_level")
         .eq("id", id).maybeSingle();
-      if (error || !data) { console.warn("[VNotes] detail fetch", error); return; }
+      if (DT_ERR.isMissing(error, data)) { DT_TOAST.missing("note"); return; }
+      if (error) { console.warn("[VNotes] detail fetch", error); DT_TOAST.show("Couldn't load note", "error"); return; }
       n = { ...data };
       if (data.photo_url) {
         const signed = await signPhotoPaths([data.photo_url]);

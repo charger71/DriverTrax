@@ -134,6 +134,13 @@
       });
       // Check for updates periodically while the app is open.
       setInterval(() => reg.update().catch(() => {}), 60 * 60 * 1000);
+      // iOS PWAs spend most of their life suspended — the hourly timer
+      // rarely fires. Re-check whenever the app comes back to the front.
+      const checkOnResume = () => {
+        if (document.visibilityState === "visible") reg.update().catch(() => {});
+      };
+      document.addEventListener("visibilitychange", checkOnResume);
+      window.addEventListener("pageshow", checkOnResume);
     }).catch(() => {});
   }
 

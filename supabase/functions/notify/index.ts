@@ -1,8 +1,10 @@
 // DriverTrax notify edge function
 //
-// Invoked by a database webhook on INSERT to either:
+// Invoked by a database webhook on INSERT to any of:
 //   - public.announcements           → audience = all push subscriptions
 //   - public.extra_driver_requests   → audience = subs where role = row.position
+//   - public.announcement_replies    → audience = the alert's author
+//   - public.extra_driver_responses  → audience = the request's manager (only on yes)
 //
 // Webhook payload shape (Supabase database webhooks):
 //   { type: "INSERT", table: "...", record: {...}, schema: "public", old_record: null }
@@ -34,16 +36,34 @@ type Payload = {
   schema: string;
 };
 
-function buildMessage(table: string, row: any) {
+type Audience = { role?: string; userId?: string };
+type Message = {
+  title: string;
+  body: string;
+  tag: string;
+  tab: string;
+  audience: Audience;
+  actorId?: string | null;
+};
+
+async function profileName(id: string | null | undefined): Promise<string | null> {
+  if (!id) return null;
+  const { data } = await sb.from("profiles").select("display_name").eq("id", id).maybeSingle();
+  return (data?.display_name as string) || null;
+}
+
+async function buildMessage(table: string, row: any): Promise<Message | null> {
   if (table === "announcements") {
     return {
       title: "New alert",
       body: String(row.body || "").slice(0, 180),
       tag: `ann-${row.id}`,
       tab: "announcements",
-      audienceRole: null // all subscribers
+      audience: {}, // all subscribers
+      actorId: row.author_id || null
     };
   }
+
   if (table === "extra_driver_requests") {
     const when = row.shift_time
       ? new Date(row.shift_time).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
@@ -55,9 +75,55 @@ function buildMessage(table: string, row: any) {
       body: [when && `${when}${shifts}`, need, row.note].filter(Boolean).join(" — "),
       tag: `edr-${row.id}`,
       tab: "announcements",
-      audienceRole: row.position || "driver"
+      audience: { role: row.position || "driver" },
+      actorId: row.manager_id || null
     };
   }
+
+  if (table === "announcement_replies") {
+    // Notify only the original alert's author.
+    const { data: parent } = await sb
+      .from("announcements")
+      .select("author_id,body")
+      .eq("id", row.announcement_id)
+      .maybeSingle();
+    if (!parent?.author_id) return null;
+    const who = (await profileName(row.author_id)) || "Someone";
+    return {
+      title: `${who} replied to your alert`,
+      body: String(row.body || "").slice(0, 180),
+      tag: `ann-${row.announcement_id}-reply`,
+      tab: "announcements",
+      audience: { userId: parent.author_id as string },
+      actorId: row.author_id || null
+    };
+  }
+
+  if (table === "extra_driver_responses") {
+    // Only notify on accepts; declines are noise for the manager.
+    if (row.response !== "yes") return null;
+    const { data: parent } = await sb
+      .from("extra_driver_requests")
+      .select("manager_id,shift_time,shifts")
+      .eq("id", row.request_id)
+      .maybeSingle();
+    if (!parent?.manager_id) return null;
+    const who = (await profileName(row.driver_id)) || "Someone";
+    const when = parent.shift_time
+      ? new Date(parent.shift_time as string).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+      : "";
+    const responseShifts = Array.isArray(row.shifts) && row.shifts.length ? row.shifts.join(", ") : "";
+    const tail = [when, responseShifts].filter(Boolean).join(" — ");
+    return {
+      title: "Coverage accepted",
+      body: `${who} accepted${tail ? ` · ${tail}` : ""}`,
+      tag: `edr-${row.request_id}-${row.driver_id}`,
+      tab: "backlot-announce",
+      audience: { userId: parent.manager_id as string },
+      actorId: row.driver_id || null
+    };
+  }
+
   return null;
 }
 
@@ -66,13 +132,12 @@ Deno.serve(async (req) => {
     const payload = await req.json() as Payload;
     if (payload.type !== "INSERT") return new Response("ignored", { status: 200 });
 
-    const msg = buildMessage(payload.table, payload.record);
-    if (!msg) return new Response("unhandled table", { status: 200 });
+    const msg = await buildMessage(payload.table, payload.record);
+    if (!msg) return new Response("unhandled or filtered", { status: 200 });
 
     let query = sb.from("push_subscriptions").select("endpoint,p256dh,auth,user_id,role");
-    if (msg.audienceRole) query = query.eq("role", msg.audienceRole);
-    // Skip notifying the actor (e.g., manager who posted the alert)
-    const actorId = (payload.record as any).author_id || (payload.record as any).manager_id;
+    if (msg.audience.userId) query = query.eq("user_id", msg.audience.userId);
+    else if (msg.audience.role) query = query.eq("role", msg.audience.role);
 
     const { data: subs, error } = await query;
     if (error) {
@@ -80,7 +145,7 @@ Deno.serve(async (req) => {
       return new Response("subs select failed", { status: 500 });
     }
 
-    const targets = (subs || []).filter(s => !actorId || s.user_id !== actorId);
+    const targets = (subs || []).filter(s => !msg.actorId || s.user_id !== msg.actorId);
     const body = JSON.stringify({
       title: msg.title,
       body: msg.body,
@@ -108,6 +173,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({
+      table: payload.table,
       sent: results.filter(r => r.status === "fulfilled").length,
       failed: results.filter(r => r.status === "rejected").length,
       pruned: dead.length

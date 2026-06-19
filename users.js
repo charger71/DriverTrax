@@ -96,7 +96,7 @@
 
   function openEdit(id) {
     const u = users.find(x => x.id === id);
-    if (!u) return;
+    if (!u) { DT_TOAST.missing("user"); return; }
     mode = "edit";
     $("usersModalTitle").textContent = "Edit User";
     $("usersModalSubmit").textContent = "Save";

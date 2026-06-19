@@ -48,6 +48,25 @@
   window.DT_TOAST = {
     show(msg, type) {
       if (typeof window.showToast === "function") window.showToast(msg, type);
+    },
+    // Standardized "this record is gone" alert. Use when a Supabase
+    // fetch-by-id comes back empty or returns PGRST116, instead of
+    // surfacing the raw error to the user.
+    missing(label) {
+      const what = label || "record";
+      this.show(`This ${what} no longer exists — it may have been deleted.`, "error");
+    }
+  };
+
+  // Detect Supabase "row not found" responses so callers can branch to
+  // DT_TOAST.missing() instead of showing the raw error. Covers both
+  // .single() (PGRST116) and .maybeSingle()/list shapes (data is null
+  // or empty array with no error).
+  window.DT_ERR = {
+    isMissing(error, data) {
+      if (error && (error.code === "PGRST116" || error.status === 406)) return true;
+      if (!error && (data == null || (Array.isArray(data) && data.length === 0))) return true;
+      return false;
     }
   };
 

@@ -95,7 +95,7 @@
 
   function openEdit(id) {
     const n = notes.find(x => x.id === id);
-    if (!n) return;
+    if (!n) { DT_TOAST.missing("note"); return; }
     const form = $("notesEditForm");
     form.elements.id.value = n.id;
     form.elements.body.value = n.body || "";

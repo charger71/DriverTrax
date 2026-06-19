@@ -19,10 +19,12 @@
     const user = DT_AUTH.getUser();
     if (!user) return;
 
+    const role = DT_AUTH.getProfile()?.role || "driver";
     const { data: requests, error } = await sb
       .from("extra_driver_requests")
-      .select("id,shift_time,shifts,needed_count,note,status,created_at, extra_driver_responses(response,driver_id,shifts,created_at)")
+      .select("id,shift_time,shifts,needed_count,note,status,position,created_at, extra_driver_responses(response,driver_id,shifts,created_at)")
       .eq("status", "open")
+      .eq("position", role)
       .order("shift_time", { ascending: true });
     if (error) { console.warn("[Requests] load", error); return; }
 
@@ -33,9 +35,15 @@
     if (!requests || !requests.length) {
       section.style.display = "none";
       list.innerHTML = "";
+      window.DT_PWA?.setBadgeSource?.("coverage", 0);
       return;
     }
     section.style.display = "";
+
+    const unresponded = requests.filter(r =>
+      !(r.extra_driver_responses || []).some(x => x.driver_id === user.id)
+    ).length;
+    window.DT_PWA?.setBadgeSource?.("coverage", unresponded);
 
     list.innerHTML = requests.map(r => {
       const responses = r.extra_driver_responses || [];
@@ -47,6 +55,7 @@
       const when = new Date(r.shift_time).toLocaleDateString([], {
         weekday: "short", month: "short", day: "numeric"
       });
+      const positionLabel = { driver: "driver", detailer: "detailer", cxr: "CXR" }[r.position] || "person";
       const progress = `${yesCount}/${r.needed_count} accepted · ${noCount} declined`;
       const requestedShifts = (r.shifts || []).map(s => `<span class="edr-shift-tag">${esc(s)}</span>`).join("");
       const checkboxes = (r.shifts || []).map(s => `
@@ -61,7 +70,7 @@
       return `
         <div class="edr-card ${myRes ? "responded" : ""}" data-id="${r.id}">
           <div class="when">${esc(when)}</div>
-          <div class="meta">${r.needed_count} driver${r.needed_count === 1 ? "" : "s"} needed</div>
+          <div class="meta">${r.needed_count} ${esc(positionLabel)}${r.needed_count === 1 || positionLabel === "CXR" ? "" : "s"} needed</div>
           <div class="edr-shift-tags">${requestedShifts}</div>
           ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}
           <div class="progress">${esc(progress)}</div>
@@ -121,15 +130,15 @@
     if (realtimeChan) { sb.removeChannel(realtimeChan); realtimeChan = null; }
     const section = $("edrDriverSection");
     if (section) section.style.display = "none";
+    window.DT_PWA?.setBadgeSource?.("coverage", 0);
   }
 
-  // Drivers + CXRs see coverage requests; managers see the manager-side list instead.
+  // Coverage requests are visible to all front-line roles (driver, detailer, CXR).
+  // Managers see the manager-side list in the Alerts panel instead.
   function shouldRun() {
     const p = DT_AUTH.getProfile();
     if (!p) return false;
-    // Coverage Requests responder is for drivers only — CXR + managers see
-    // the manager Alerts panel which already lists open requests.
-    return p.role === "driver";
+    return p.role === "driver" || p.role === "detailer" || p.role === "cxr";
   }
 
   document.addEventListener("dt-auth-change", () => { shouldRun() ? start() : stop(); });

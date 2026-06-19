@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="DriverTrax" />
 <meta name="theme-color" content="#13161a" />
+<meta name="description" content="Mobile-first lot operations app for Enterprise Rental Car — VIN scanning, fleet stats, alerts, and coverage requests.">
 <title>DriverTrax</title>
 <link rel="apple-touch-icon" sizes="180x180" href="icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icon.png">
@@ -1962,10 +1963,17 @@
     <div id="blAnnList"><div class="bl-empty">Loading…</div></div>
   </div>
   <div class="dash-section cxr-hide">
-    <div class="dash-title">Request Extra Drivers</div>
+    <div class="dash-title">Request Coverage</div>
     <form class="bl-form" id="blEdrForm">
+      <label>Position
+        <select name="position" required>
+          <option value="driver">Driver</option>
+          <option value="detailer">Detailer</option>
+          <option value="cxr">CXR</option>
+        </select>
+      </label>
       <label>Shift date<input type="date" name="shift_date" required></label>
-      <label>Drivers needed<input type="number" name="needed_count" min="1" max="20" value="1" required></label>
+      <label>How many needed<input type="number" name="needed_count" min="1" max="20" value="1" required></label>
       <div class="shift-picker">
         <span class="shift-picker-label">Shifts needed</span>
         <label class="shift-chip"><input type="checkbox" name="shifts" value="AM"><span>AM <small>Morning</small></span></label>
@@ -2279,5 +2287,7 @@
 <script src="notes.js"></script>
 <script src="detailer.js"></script>
 <script src="elearning.js"></script>
+<script src="notifications.js"></script>
+<script src="pwa.js"></script>
 </body>
 </html>

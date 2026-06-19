@@ -228,6 +228,7 @@
       if (n > 0) { el.textContent = n; el.classList.remove("hidden"); }
       else { el.classList.add("hidden"); }
     });
+    window.DT_PWA?.setBadgeSource?.("alerts", n);
   }
 
   function renderDriverPanel() {
@@ -311,6 +312,7 @@
     $("annBanner")?.classList.add("hidden");
     $("annUnreadBadge")?.classList.add("hidden");
     $("tabAlertsBadge")?.classList.add("hidden");
+    window.DT_PWA?.setBadgeSource?.("alerts", 0);
   }
 
   function shouldRunDriverUI() {

@@ -450,6 +450,8 @@ function getShiftGroups(sortedRecords) {
 // AVG BANNER
 // ============================
 function updateAvgBanner() {
+  // Driver banner — skip if a manager/detailer view owns the banner.
+  if (document.body.classList.contains("is-manager") || document.body.classList.contains("is-detailer")) return;
   const shiftRecords = getCurrentShiftRecords();
   const banner = document.getElementById("avgBanner");
   if (shiftRecords.length < 2) { banner.style.display = "none"; return; }

@@ -1,33 +1,111 @@
 {
+  "id": "/",
   "name": "DriverTrax",
   "short_name": "DriverTrax",
   "description": "Mobile-first lot operations app for Enterprise Rental Car",
   "version": "3.0-beta",
+  "lang": "en-US",
+  "dir": "ltr",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
   "background_color": "#1a1d21",
   "theme_color": "#13161a",
   "icons": [
     {
       "src": "icon.png",
-      "sizes": "180x180",
+      "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
       "src": "icon.png",
-      "sizes": "192x192",
+      "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "icon.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
-  "categories": ["business", "productivity", "utilities"]
+  "categories": ["business", "productivity", "utilities"],
+  "share_target": {
+    "action": "./?share=1",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "files": [
+        {
+          "name": "photo",
+          "accept": ["image/*"]
+        }
+      ]
+    }
+  },
+  "shortcuts": [
+    {
+      "name": "New Entry",
+      "short_name": "Entry",
+      "description": "Scan a VIN and start a new entry",
+      "url": "./?tab=entry",
+      "icons": [{ "src": "icon.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Alerts",
+      "short_name": "Alerts",
+      "description": "View announcements and coverage requests",
+      "url": "./?tab=announcements",
+      "icons": [{ "src": "icon.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "VIN Lookup",
+      "short_name": "Lookup",
+      "description": "Search vehicle records",
+      "url": "./?tab=records",
+      "icons": [{ "src": "icon.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dash",
+      "description": "Open the dashboard",
+      "url": "./?tab=dashboard",
+      "icons": [{ "src": "icon.png", "sizes": "192x192" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "assets/screenshots/entry-narrow.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "New Entry — scan a VIN and capture vehicle details"
+    },
+    {
+      "src": "assets/screenshots/alerts-narrow.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Alerts and coverage requests"
+    },
+    {
+      "src": "assets/screenshots/backlot-wide.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Manager backlot dashboard"
+    }
+  ]
 }

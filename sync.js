@@ -29,6 +29,14 @@
   function writeQueue(q) {
     localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
     updateBadge();
+    // Background Sync: ask the SW to wake us when connectivity returns.
+    // The queue itself lives in localStorage (page-scope only), so the SW
+    // can only nudge any visible client to flush — it can't flush solo
+    // until the queue moves to IndexedDB. Still useful for tab-suspended
+    // / app-backgrounded cases.
+    if (Object.keys(q).length > 0 && "serviceWorker" in navigator && "SyncManager" in window) {
+      navigator.serviceWorker.ready.then(reg => reg.sync?.register?.("drivertrax-flush")).catch(() => {});
+    }
   }
   function readSnapshot() {
     try { return JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || "{}"); }
@@ -291,6 +299,9 @@
   });
   window.addEventListener("online",  () => { if (shouldRunSync()) scheduleFlush(); });
   window.addEventListener("offline", () => { if (shouldRunSync()) updateBadge(); });
+  navigator.serviceWorker?.addEventListener?.("message", (e) => {
+    if (e.data?.type === "dt-sync-flush" && shouldRunSync()) scheduleFlush();
+  });
 
   // If auth fires before this file loads, kick off immediately (drivers only)
   if (DT_AUTH.getUser() && shouldRunSync()) pullAndMerge();

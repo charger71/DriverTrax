@@ -117,6 +117,8 @@
   }
 
   function updateFleetAvgBanner(records) {
+    // Manager-owned banner — leave it alone for other roles.
+    if (!document.body.classList.contains("is-manager")) return;
     const banner = document.getElementById("avgBanner");
     if (!banner) return;
     if (!records || records.length < 2) { banner.style.display = "none"; return; }
@@ -454,10 +456,11 @@
         : `<button class="edr-act-fill"   data-id="${r.id}">Mark Filled</button>
            <button class="edr-act-cancel" data-id="${r.id}">Cancel</button>
            <button class="edr-act-del"    data-id="${r.id}">Delete</button>`;
+      const positionLabel = { driver: "Driver", detailer: "Detailer", cxr: "CXR" }[r.position] || "Driver";
       return `<div class="bl-edr-item" data-id="${r.id}">
         <div class="row"><div>${esc(when)}</div><div class="status status-${esc(r.status)}">${esc(r.status)}</div></div>
         <div class="edr-shift-tags">${shiftTags}</div>
-        <div class="row u-mt-2"><div>${r.needed_count} needed</div><div>${esc(r.note || "")}</div></div>
+        <div class="row u-mt-2"><div>${r.needed_count} ${esc(positionLabel)}${r.needed_count === 1 ? "" : "s"} needed</div><div>${esc(r.note || "")}</div></div>
         <div class="responses">✅ ${accepted.length} accepted · ❌ ${declined} declined</div>
         ${acceptedHtml}
         <div class="edr-admin-actions">${actions}</div>
@@ -570,11 +573,13 @@
       // Store as midnight local time on the chosen date
       const shiftDate = new Date(dateStr + "T00:00:00");
       const user = DT_AUTH.getUser();
+      const position = fd.get("position") || "driver";
       const { error } = await sb.from("extra_driver_requests").insert({
         manager_id: user.id,
         shift_time: shiftDate.toISOString(),
         needed_count: parseInt(fd.get("needed_count"), 10),
         shifts,
+        position,
         note: (fd.get("note") || "").trim() || null
       });
       if (error) { alert(error.message); return; }

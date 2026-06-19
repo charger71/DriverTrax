@@ -548,6 +548,8 @@
   // Cars/hour for detailers = completed jobs today ÷ elapsed hours between
   // first and last completion (matches the driver-side formula in app.js).
   function updateDetailerAvgBanner(done, todayStart, avgStr) {
+    // Detailer-owned banner — leave it alone for other roles.
+    if (!document.body.classList.contains("is-detailer")) return;
     const banner = document.getElementById("avgBanner");
     if (!banner) return;
     const todayDone = done.filter(j => new Date(j.completed_at) >= todayStart);

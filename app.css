@@ -112,7 +112,7 @@
   input[type=text], input[type=number], select, textarea {
     width: 100%; padding: var(--space-3) var(--space-4); font-size: var(--font-md);
     color: var(--text);
-    margin-bottom: var(--space-6);
+    margin-bottom: var(--space-2);
     transition: border-color 0.15s;
   }
   /* Consistent height for single-line form controls across the app */

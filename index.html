@@ -420,6 +420,12 @@
   .cond-chip.checked {
     background: #161028; border-color: #b76eff; color: #d9c0ff;
   }
+  .cond-chip.checked:has(input[value="QUICK_FLIP"]) {
+    background: #2a1c08; border-color: #f59e0b; color: #fcd34d;
+  }
+  .cond-chip.checked:has(input[value="PRIORITY"]) {
+    background: #2a0f10; border-color: #e85550; color: #ffb3b0;
+  }
 
   /* Todo rows */
   .todo-item {
@@ -878,6 +884,13 @@
 
   .bl-map { width: 100%; height: 70vh; min-height: 360px; border-radius: 10px; border: 1px solid #2a313a; }
 
+  .dash-section:has(> .bl-form) {
+    border: 1px solid #2a313a;
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: #14181d;
+  }
+  .dash-section:has(> .bl-form) > .dash-title { margin-top: 0; }
   .bl-form { display: flex; flex-direction: column; gap: 10px; }
   .bl-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #b0b8c1; font-weight: 600; }
   .bl-form input, .bl-form textarea, .bl-form select {
@@ -886,6 +899,21 @@
     font-size: 14px; font-family: inherit;
   }
   .bl-form textarea { min-height: 70px; resize: vertical; }
+  .bl-form .btn-save {
+    flex: 0 0 auto;
+    width: 200px;
+    min-width: 0;
+    height: 44px;
+    margin: 8px auto 0;
+    padding: 0 14px;
+    border-radius: var(--radius);
+    background: var(--accent); color: #000;
+    border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px; letter-spacing: normal;
+  }
+  .bl-form .btn-save:hover { background: var(--accent); }
+  .bl-form .btn-save:active { transform: scale(0.97); background: var(--accent); }
   .bl-ann-item { background: #20252c; border-radius: 8px; padding: 10px 12px; margin-top: 8px; border-left: 3px solid #00a651; }
   .bl-ann-item .meta { font-size: 11px; color: #6b7785; margin-bottom: 4px; }
   .bl-ann-item .body { font-size: 14px; white-space: pre-wrap; }

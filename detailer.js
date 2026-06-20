@@ -50,16 +50,16 @@
   // CONDITION_TASKS above maps each id to the auto-generated todo items;
   // any condition without a tasks entry is descriptive only.
   const CONDITIONS = (window.DT_OPTIONS?.CONDITIONS) || [
-    { id: "PET_HAIR",     label: "Pet Hair"     },
     { id: "REGULAR",      label: "Regular"      },
     { id: "DETAIL",       label: "Detail"       },
+    { id: "PET_HAIR",     label: "Pet Hair"     },
     { id: "SPIFFY",       label: "Spiffy"       },
-    { id: "FUEL",         label: "Fuel"         },
-    { id: "CHARGE",       label: "Charge"       },
     { id: "AIR",          label: "Air"          },
     { id: "WASHER_FLUID", label: "Washer Fluid" },
-    { id: "PRIORITY",     label: "Priority"     },
-    { id: "QUICK_FLIP",   label: "Quick Flip"   }
+    { id: "FUEL",         label: "Fuel"         },
+    { id: "CHARGE",       label: "Charge"       },
+    { id: "QUICK_FLIP",   label: "Quick Flip"   },
+    { id: "PRIORITY",     label: "Priority"     }
   ];
 
   // ---- state ----
@@ -110,6 +110,10 @@
     showLoaded();
     renderShell(currentVin);
     await tryResumeJob(currentVin);
+    if (!currentJob.id && currentJob.conditions.size === 0) {
+      currentJob.conditions.add("REGULAR");
+      rebuildTodoFromConditions();
+    }
     renderConditions();
     renderTodo();
   }

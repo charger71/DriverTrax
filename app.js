@@ -41,16 +41,16 @@ const DT_OPTIONS = {
   STATUS_DERIVED: ["DETAILING","DETAILED"],
   DESTINATIONS: ["GARAGE","QTA","BACKLOT","ATLANTIC","BRANCH","OTHER"],
   CONDITIONS: [
-    { id: "PET_HAIR",     label: "Pet Hair"     },
     { id: "REGULAR",      label: "Regular"      },
     { id: "DETAIL",       label: "Detail"       },
+    { id: "PET_HAIR",     label: "Pet Hair"     },
     { id: "SPIFFY",       label: "Spiffy"       },
-    { id: "FUEL",         label: "Fuel"         },
-    { id: "CHARGE",       label: "Charge"       },
     { id: "AIR",          label: "Air"          },
     { id: "WASHER_FLUID", label: "Washer Fluid" },
-    { id: "PRIORITY",     label: "Priority"     },
-    { id: "QUICK_FLIP",   label: "Quick Flip"   }
+    { id: "FUEL",         label: "Fuel"         },
+    { id: "CHARGE",       label: "Charge"       },
+    { id: "QUICK_FLIP",   label: "Quick Flip"   },
+    { id: "PRIORITY",     label: "Priority"     }
   ],
   FUEL_LEVELS: ["EMPTY","1/4","1/2","3/4","FULL"]
 };

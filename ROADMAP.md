@@ -179,6 +179,38 @@
 
 ---
 
+## ♿ Accessibility (WCAG 2.1 AA)
+
+> Started June 2026. Contrast pass, keyboard retrofit via `a11y.js`, and `<button>` conversion for tabs + notag/shuttle/transport rows are already shipped. Items below are the remaining structural work.
+
+### Convert remaining `<div onclick>` to real buttons
+- `.dash-range-tab` (6 collapsible date-range tabs on dashboard) — add `aria-expanded` since they're disclosure toggles, not tabs
+- `.stat-card.clickable` — used on dashboard tiles that drill into details
+- `.map-legend-row` — list rows under the shift map
+- `.record` cards — open the detail overlay on tap
+- `.quiz-author-item`, `.quiz-recent-row`, `.day-table tr.has-entries`
+- Skip `.tire-btn` — tire selector is being replaced
+
+### Modal accessibility (detail / record-detail / note-detail / vin-keypad / scanner / slide-menu)
+- Focus trap: cycle Tab within the open dialog
+- Save the previously-focused element on open, restore it on close
+- Move initial focus into the dialog when it opens (currently focus stays on the trigger)
+- `aria-modal="true"` is already set by `a11y.js`; the trap is the remaining piece
+
+### Touch targets
+- `.tab` is currently ~38px tall — needs design review to bump to 44px without disrupting the active-state underline
+- `.quiz-move-btn` (22×18px) — left alone since it sits next to the drag handle; revisit if drag is dropped
+
+### Tabs — full ARIA pattern
+- Arrow-key navigation between tabs (left/right cycles, Home/End jump)
+- Currently Tab/Shift-Tab still works, which meets AA
+
+### Lint / regression guard
+- Add a CI grep (or pre-commit hook) that fails on new `<div onclick=` so the `a11y.js` retrofit doesn't grow indefinitely
+- Goal: retrofit becomes vestigial as div→button conversion lands; eventually delete `a11y.js`
+
+---
+
 ## 💡 Under Consideration
 
 - Admin dashboard — fleet-wide analytics across all branches

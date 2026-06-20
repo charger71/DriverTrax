@@ -870,9 +870,15 @@ function showTab(name) {
   const visualTab = name; // for the active-class lookup
   if (name === "dashboard" && window.DT_AUTH?.isDetailer?.()) name = "dashboard-detailer";
   document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
-  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t => {
+    t.classList.remove("active");
+    if (t.hasAttribute("aria-selected")) t.setAttribute("aria-selected", "false");
+  });
   document.getElementById("panel-" + name)?.classList.add("active");
-  document.querySelectorAll(`.tab[data-tab="${visualTab}"]`).forEach(t => t.classList.add("active"));
+  document.querySelectorAll(`.tab[data-tab="${visualTab}"]`).forEach(t => {
+    t.classList.add("active");
+    if (t.hasAttribute("aria-selected")) t.setAttribute("aria-selected", "true");
+  });
   if (name === "entry") { restoreInlineNewEntry(); renderTodayEntries(); }
   if (name === "records") {
     // Search-driven view: don't auto-populate dates, don't render anything

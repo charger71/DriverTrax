@@ -139,7 +139,7 @@
   body.is-manager .btn-hamburger span   { background: #0b1015; }
   /* Manager tabs: dark inactive with grey text, white active sitting on
      the header's full-width white underline */
-  body.is-manager .tab           { background: #0b1015; color: #6b7785; }
+  body.is-manager .tab           { background: #0b1015; color: #8a94a1; }
   body.is-manager .tab.active    { background: #fff; color: #0b1015; }
   /* Fleet avg-trip-time / cars-per-hour banner — white strip, flush edges,
      matches the driver banner's placement (no top/side margin, no radius) */
@@ -407,11 +407,12 @@
     box-sizing: border-box; height: var(--dt-input-h);
     /* Four pills per row: (100% - 3 × 8px gap) / 4. flex-grow lets the last
        row stretch evenly when fewer than 4 chips fall on it. */
-    flex: 1 1 calc((100% - 24px) / 4);
+    flex: 1 1 calc((100% - 16px) / 3);
     background: #2a313a; color: #b0b8c1;
     border: 1px solid #2a313a; border-radius: var(--radius);
     padding: 0 14px; font-size: 13px; font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.5px;
+    text-align: center;
     transition: background 0.15s, border-color 0.15s, color 0.15s;
   }
   .cond-chip input { display: none; }
@@ -1210,19 +1211,19 @@
       <span></span><span></span><span></span>
     </button>
   </div>
-  <div class="tabs">
-    <div class="tab active driver-only" data-tab="entry"              onclick="showTab('entry')">NEW ENTRY</div>
-    <div class="tab driver-only"        data-tab="announcements" onclick="showTab('announcements')">ALERTS<span class="tab-badge hidden" id="tabAlertsBadge"></span></div>
-    <div class="tab driver-only"        data-tab="records"          onclick="showTab('records')">VIN LOOKUP</div>
-    <div class="tab driver-only"        data-tab="dashboard" onclick="showTab('dashboard')">DASHBOARD</div>
-    <div class="tab manager-only"       data-tab="entry"            onclick="showTab('entry')">NEW ENTRY</div>
-    <div class="tab manager-only"       data-tab="backlot-stats"    onclick="showTab('backlot-stats')">FLEET STATS</div>
-    <div class="tab manager-only"        data-tab="backlot-announce" onclick="showTab('backlot-announce')">ALERTS<span class="tab-badge hidden" id="tabAlertsMgrBadge"></span></div>
-    <div class="tab manager-only"       data-tab="records"          onclick="showTab('records')">VIN LOOKUP</div>
-    <div class="tab detailer-only"      data-tab="detail-scan"      onclick="showTab('detail-scan')">NEW ENTRY</div>
-    <div class="tab detailer-only"      data-tab="announcements"    onclick="showTab('announcements')">ALERTS<span class="tab-badge hidden" id="tabAlertsDetBadge"></span></div>
-    <div class="tab detailer-only"      data-tab="records"          onclick="showTab('records')">VIN LOOKUP</div>
-    <div class="tab detailer-only"      data-tab="dashboard"        onclick="showTab('dashboard')">DASHBOARD</div>
+  <div class="tabs" role="tablist" aria-label="Main navigation">
+    <button type="button" class="tab active driver-only" role="tab" aria-selected="true"  aria-controls="panel-entry"             data-tab="entry"              onclick="showTab('entry')">NEW ENTRY</button>
+    <button type="button" class="tab driver-only"        role="tab" aria-selected="false" aria-controls="panel-announcements"     data-tab="announcements"      onclick="showTab('announcements')">ALERTS<span class="tab-badge hidden" id="tabAlertsBadge"></span></button>
+    <button type="button" class="tab driver-only"        role="tab" aria-selected="false" aria-controls="panel-records"           data-tab="records"            onclick="showTab('records')">VIN LOOKUP</button>
+    <button type="button" class="tab driver-only"        role="tab" aria-selected="false" aria-controls="panel-dashboard"         data-tab="dashboard"          onclick="showTab('dashboard')">DASHBOARD</button>
+    <button type="button" class="tab manager-only"       role="tab" aria-selected="false" aria-controls="panel-entry"             data-tab="entry"              onclick="showTab('entry')">NEW ENTRY</button>
+    <button type="button" class="tab manager-only"       role="tab" aria-selected="false" aria-controls="panel-backlot-stats"     data-tab="backlot-stats"      onclick="showTab('backlot-stats')">FLEET STATS</button>
+    <button type="button" class="tab manager-only"       role="tab" aria-selected="false" aria-controls="panel-backlot-announce"  data-tab="backlot-announce"   onclick="showTab('backlot-announce')">ALERTS<span class="tab-badge hidden" id="tabAlertsMgrBadge"></span></button>
+    <button type="button" class="tab manager-only"       role="tab" aria-selected="false" aria-controls="panel-records"           data-tab="records"            onclick="showTab('records')">VIN LOOKUP</button>
+    <button type="button" class="tab detailer-only"      role="tab" aria-selected="false" aria-controls="panel-detail-scan"       data-tab="detail-scan"        onclick="showTab('detail-scan')">NEW ENTRY</button>
+    <button type="button" class="tab detailer-only"      role="tab" aria-selected="false" aria-controls="panel-announcements"     data-tab="announcements"      onclick="showTab('announcements')">ALERTS<span class="tab-badge hidden" id="tabAlertsDetBadge"></span></button>
+    <button type="button" class="tab detailer-only"      role="tab" aria-selected="false" aria-controls="panel-records"           data-tab="records"            onclick="showTab('records')">VIN LOOKUP</button>
+    <button type="button" class="tab detailer-only"      role="tab" aria-selected="false" aria-controls="panel-dashboard"         data-tab="dashboard"          onclick="showTab('dashboard')">DASHBOARD</button>
   </div>
 </header>
 
@@ -1344,9 +1345,6 @@
     <a class="menu-item manager-only" onclick="showTab('bcounter'); closeMenu()">
       <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="1"/><path d="M3 8l3-5h12l3 5"/><line x1="9" y1="13" x2="15" y2="13"/></svg></span> Backlot Counter
     </a>
-    <a class="menu-item manager-only" onclick="showTab('notes'); closeMenu()">
-      <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg></span> Vehicle Notes
-    </a>
     <a class="menu-item manager-only" onclick="showTab('users'); closeMenu()">
       <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Users
     </a>
@@ -1374,7 +1372,7 @@
 </div>
 
 <!-- ==================== TRAINING PANEL ==================== -->
-<div class="panel" id="panel-training">
+<div class="panel" id="panel-training" role="region" aria-label="Training">
   <div class="training-header">
     <div class="dash-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg> Training</div>
   </div>
@@ -1443,7 +1441,7 @@
 </div>
 
 <!-- ==================== KEY UP PANEL ==================== -->
-<div class="panel" id="panel-keyup">
+<div class="panel" id="panel-keyup" role="region" aria-label="Key up">
   <div class="dash-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><circle cx="8" cy="15" r="4"/><path d="M10.85 12.15L19 4"/><path d="M18 5l2 2"/><path d="M15 8l2 2"/></svg> Key Up (QTA)</div>
   <p class="dash-section-desc">End-of-shift QTA vehicle count by key type. Tap +/&minus; or type a number.</p>
 
@@ -1503,7 +1501,7 @@
 </div>
 
 <!-- ==================== GARAGE COUNTER PANEL ==================== -->
-<div class="panel" id="panel-garage">
+<div class="panel" id="panel-garage" role="region" aria-label="Garage">
   <div class="dash-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M3 10l9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M7 21V12h10v9"/><line x1="7" y1="15" x2="17" y2="15"/></svg> Garage Counter</div>
   <p class="dash-section-desc">Tally cars in the garage by category. Tap +/&minus; to count.</p>
 
@@ -1531,7 +1529,7 @@
 </div>
 
 <!-- ==================== BACKLOT COUNTER PANEL ==================== -->
-<div class="panel" id="panel-bcounter">
+<div class="panel" id="panel-bcounter" role="region" aria-label="B counter">
   <div class="dash-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><rect x="3" y="8" width="18" height="13" rx="1"/><path d="M3 8l3-5h12l3 5"/><line x1="9" y1="13" x2="15" y2="13"/></svg> Backlot Counter</div>
   <p class="dash-section-desc">Tally cars in the backlot by category. Tap +/&minus; to count.</p>
 
@@ -1559,7 +1557,7 @@
 </div>
 
 <!-- ==================== ANNOUNCEMENTS PANEL (driver read view) ==================== -->
-<div class="panel" id="panel-announcements">
+<div class="panel" id="panel-announcements" role="tabpanel" aria-label="Alerts">
   <!-- Coverage requests (extra drivers needed). Hidden when there are none. -->
   <div class="dash-section" id="edrDriverSection" style="display:none">
     <div class="dash-title">
@@ -1578,7 +1576,7 @@
   </div>
 </div>
 
-<div class="panel" id="panel-data">
+<div class="panel" id="panel-data" role="region" aria-label="Data and backup">
   <div class="dash-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg> Data & Backup</div>
   <div class="data-section">
     <div class="data-section-title">Auto Backup</div>
@@ -1603,10 +1601,10 @@
 </div>
 
 <!-- ==================== PROFILE PANEL ==================== -->
-<div class="panel" id="panel-profile">
+<div class="panel" id="panel-profile" role="region" aria-label="Profile">
   <div class="dash-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Profile</div>
   <div class="data-section">
-    <div class="data-section-title">Name</div>
+    <div class="data-section-title is-required">Name</div>
     <div class="data-section-desc">Your name will appear in the dashboard and in exported file names.</div>
     <input type="text" id="profileName" placeholder="Enter your name" autocomplete="off" style="text-transform:none;margin-bottom:0" oninput="previewProfileName()">
   </div>
@@ -1648,10 +1646,10 @@
       <option>Tampa (TPA)</option><option>Washington Reagan (DCA)</option>
     </select>
   </div>
-  <button class="btn btn-primary" onclick="saveProfile()">Save Profile</button>
+  <button class="btn btn-primary btn-save" onclick="saveProfile()">Save Profile</button>
 </div>
 
-<div class="panel active" id="panel-entry">
+<div class="panel active" id="panel-entry" role="tabpanel" aria-label="New entry">
  <div id="entryFormHome"><div id="entryFormBody">
   <div id="entryHeaderButtons">
   <button class="btn-scan-primary" onclick="openScanner()">
@@ -1667,7 +1665,7 @@
   <button class="btn-manual-toggle" onclick="toggleManualEntry()">Enter Manually</button>
   </div>
   <div id="manualEntrySection" style="display:none">
-    <div class="field-label">Serial ID</div>
+    <div class="field-label is-required">Serial ID</div>
     <div class="input-with-clear">
       <input type="text" id="serial" placeholder="Type Serial ID" autocomplete="off" autocorrect="off" spellcheck="false" readonly onfocus="openVinKeypad('serial')" onclick="openVinKeypad('serial')">
       <button type="button" class="input-clear-btn" id="serialClearBtn" onclick="clearSerial()" aria-label="Clear">&times;</button>
@@ -1691,7 +1689,7 @@
 
   <div class="u-row u-gap-3 u-mt-5">
     <div class="u-flex-1">
-      <div class="field-label u-mt-0">Status</div>
+      <div class="field-label u-mt-0 is-required">Status</div>
       <select class="u-mb-0" id="status" onchange="handleStatusChange()">
         <option value="">-- STATUS --</option>
         <option value="CLEAN">CLEAN</option>
@@ -1725,32 +1723,32 @@
   <div class="u-row u-gap-3 u-mt-4">
     <div class="u-flex-1">
       <div class="field-label u-mt-0">Mileage</div>
-      <input class="u-mb-0" type="number" id="mileage" inputmode="numeric" min="0" step="1" placeholder="optional" autocomplete="off">
+      <input class="u-mb-0" type="number" id="mileage" inputmode="numeric" min="0" step="1" placeholder="000000" autocomplete="off">
     </div>
     <div class="u-flex-1">
       <div class="field-label u-mt-0">Fuel</div>
       <select class="u-mb-0" id="fuelLevel">
         <option value="">-- FUEL --</option>
-        <option value="EMPTY">EMPTY</option>
-        <option value="1/4">1/4</option>
-        <option value="1/2">1/2</option>
-        <option value="3/4">3/4</option>
         <option value="FULL">FULL</option>
+        <option value="3/4">3/4</option>
+        <option value="1/2">1/2</option>
+        <option value="1/4">1/4</option>
+        <option value="EMPTY">EMPTY</option>
       </select>
     </div>
   </div>
 
   <div class="field-label">Options</div>
   <div class="checkbox-row u-row u-gap-3 u-mt-0">
-    <div class="notag-row u-flex-1 u-mt-0" id="noTagRow" onclick="document.getElementById('noTag').checked=!document.getElementById('noTag').checked; toggleNoTagStyle()">
-      <input class="u-no-pointer" type="checkbox" id="noTag"><label for="noTag">Bad Tag</label>
-    </div>
-    <div class="notag-row shuttle-row u-flex-1 u-mt-0" id="shuttleRow" onclick="document.getElementById('shuttle').checked=!document.getElementById('shuttle').checked; toggleShuttleStyle()">
-      <input class="u-no-pointer" type="checkbox" id="shuttle"><label for="shuttle">Shuttle</label>
-    </div>
-    <div class="notag-row transport-row u-flex-1 u-mt-0" id="transportRow" onclick="document.getElementById('transport').checked=!document.getElementById('transport').checked; toggleTransportStyle()">
-      <input class="u-no-pointer" type="checkbox" id="transport"><label for="transport">Transport</label>
-    </div>
+    <label class="notag-row u-flex-1 u-mt-0" id="noTagRow">
+      <input type="checkbox" id="noTag" class="visually-hidden" onchange="toggleNoTagStyle()"><span class="notag-label">Bad Tag</span>
+    </label>
+    <label class="notag-row shuttle-row u-flex-1 u-mt-0" id="shuttleRow">
+      <input type="checkbox" id="shuttle" class="visually-hidden" onchange="toggleShuttleStyle()"><span class="notag-label">Shuttle</span>
+    </label>
+    <label class="notag-row transport-row u-flex-1 u-mt-0" id="transportRow">
+      <input type="checkbox" id="transport" class="visually-hidden" onchange="toggleTransportStyle()"><span class="notag-label">Transport</span>
+    </label>
   </div>
 
   <div id="cxrConditionsSection">
@@ -1777,7 +1775,7 @@
   </div>
 
   <div class="u-row-end">
-    <button id="saveBtn" class="btn btn-primary" onclick="saveRecord()">Save</button>
+    <button id="saveBtn" class="btn btn-primary btn-save" onclick="saveRecord()">Save</button>
   </div>
   <div id="gpsStatus" class="gps-status"></div>
  </div></div>
@@ -1789,7 +1787,7 @@
 </div>
 
 <!-- ==================== RECORDS PANEL ==================== -->
-<div class="panel" id="panel-records">
+<div class="panel" id="panel-records" role="tabpanel" aria-label="VIN lookup">
   <div class="records-search-row">
     <input type="text" id="fSearch" placeholder="Search VIN or notes…" autocomplete="off" oninput="debouncedSearchUpdate()" onblur="onSearchBlur()">
     <button type="button" class="records-scan-btn" onclick="openScannerForSearch()" aria-label="Scan VIN to search">
@@ -1859,7 +1857,7 @@
 </div>
 
 <!-- VIN Detail panel — opened from the VIN Detail list on the VIN LOOKUP page -->
-<div class="panel" id="panel-vin-detail">
+<div class="panel" id="panel-vin-detail" role="region" aria-label="VIN detail">
   <div class="u-mb-3">
     <button type="button" class="btn btn-secondary" onclick="showTab('records')" aria-label="Back" style="width:auto;display:inline-block;padding-left:14px;padding-right:14px">&larr; Back</button>
   </div>
@@ -1883,7 +1881,7 @@
 </div>
 
 <!-- ==================== DASHBOARD PANEL ==================== -->
-<div class="panel" id="panel-dashboard">
+<div class="panel" id="panel-dashboard" role="tabpanel" aria-label="Dashboard">
   <div id="dashQuote" class="dash-quote"></div>
   <div id="dashDriverName" style="display:none;margin-bottom:20px">
     <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700">Driver</div>
@@ -1919,7 +1917,7 @@
 <!-- ===================================================== -->
 <!-- BACKLOT — manager-only panels (data loaded by backlot.js) -->
 <!-- ===================================================== -->
-<div class="panel" id="panel-backlot-stats">
+<div class="panel" id="panel-backlot-stats" role="tabpanel" aria-label="Fleet stats">
   <div class="dash-section">
     <div class="dash-title">Today's Fleet</div>
     <div class="stat-grid">
@@ -1943,7 +1941,7 @@
   </div>
 </div>
 
-<div class="panel" id="panel-backlot-leaderboard">
+<div class="panel" id="panel-backlot-leaderboard" role="region" aria-label="Backlot leaderboard">
   <div class="dash-section">
     <div class="dash-title" id="blLeaderboardTitle">Today's Leaders</div>
     <div class="bl-lb-controls">
@@ -1962,7 +1960,7 @@
   </div>
 </div>
 
-<div class="panel" id="panel-backlot-announce">
+<div class="panel" id="panel-backlot-announce" role="tabpanel" aria-label="Alerts">
   <div class="dash-section">
     <div class="dash-title">Fleet Counts</div>
     <form class="bl-form" id="fcForm">
@@ -1971,14 +1969,14 @@
         <label class="u-flex-1">Rentals<input type="number" name="rentals_count" min="0" step="1" inputmode="numeric" required></label>
       </div>
       <label>Note (optional)<input type="text" name="note" maxlength="120" placeholder="e.g. heavy returns expected after 3pm"></label>
-      <button type="submit" class="btn btn-primary">Update counts</button>
+      <button type="submit" class="btn btn-primary btn-save">Update counts</button>
     </form>
   </div>
   <div class="dash-section">
     <div class="dash-title">Post Alert</div>
     <form class="bl-form" id="blAnnForm">
       <textarea name="body" placeholder="Type a message visible to all drivers…" required maxlength="500"></textarea>
-      <button type="submit" class="btn btn-primary">Post</button>
+      <button type="submit" class="btn btn-primary btn-save">Post</button>
     </form>
   </div>
   <div class="dash-section">
@@ -2004,7 +2002,7 @@
         <label class="shift-chip"><input type="checkbox" name="shifts" value="PM"><span>PM <small>Closing</small></span></label>
       </div>
       <label>Note<textarea name="note" placeholder="Incentive, location, etc." maxlength="200"></textarea></label>
-      <button type="submit" class="btn btn-primary">Send request</button>
+      <button type="submit" class="btn btn-primary btn-save">Send request</button>
     </form>
   </div>
   <div class="dash-section">
@@ -2016,7 +2014,7 @@
 <!-- ===================================================== -->
 <!-- USERS — manager-only -->
 <!-- ===================================================== -->
-<div class="panel" id="panel-users">
+<div class="panel" id="panel-users" role="region" aria-label="Users">
   <div class="users-actions">
     <button type="button" class="btn btn-primary users-invite-btn" id="usersInviteBtn" aria-label="Invite user">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -2031,63 +2029,9 @@
 </div>
 
 <!-- ===================================================== -->
-<!-- VEHICLE NOTES — manager-only -->
-<!-- ===================================================== -->
-<div class="panel" id="panel-notes">
-  <div class="users-actions">
-    <button type="button" class="btn btn-primary users-invite-btn" id="notesAddBtn" aria-label="Add note">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      <span>Add Note</span>
-    </button>
-  </div>
-  <div class="dash-section">
-    <div class="dash-title">Vehicle Notes</div>
-    <input type="text" id="notesSearch" class="users-search" placeholder="Filter by VIN or text" autocomplete="off">
-    <label class="notes-archived-toggle">
-      <input type="checkbox" id="notesShowArchived"> Show archived
-    </label>
-    <div id="notesAdminList"><div class="bl-empty">Loading…</div></div>
-  </div>
-</div>
-
-<!-- "Add Note" modal — manager picks a VIN, then mounts DT_VNOTES for the body+media -->
-<div class="users-modal" id="notesAddModal" aria-hidden="true">
-  <div class="users-modal-card">
-    <div class="users-modal-header">
-      <span>Add Note</span>
-      <button type="button" class="users-modal-close" id="notesAddClose" aria-label="Close">&times;</button>
-    </div>
-    <form id="notesAddVinForm">
-      <label>VIN<input type="text" name="vin" autocomplete="off" maxlength="17" placeholder="17-char VIN" required></label>
-      <div class="users-modal-msg" id="notesAddMsg"></div>
-    </form>
-    <div class="u-mt-3" id="notesAddMount"></div>
-  </div>
-</div>
-
-<!-- Notes edit modal -->
-<div class="users-modal" id="notesEditModal" aria-hidden="true">
-  <div class="users-modal-card">
-    <div class="users-modal-header">
-      <span>Edit Note</span>
-      <button type="button" class="users-modal-close" id="notesEditClose" aria-label="Close">&times;</button>
-    </div>
-    <form id="notesEditForm">
-      <input type="hidden" name="id">
-      <label>Body<textarea name="body" maxlength="1000" required style="min-height:100px"></textarea></label>
-      <div class="users-modal-msg" id="notesEditMsg"></div>
-      <div class="users-modal-actions">
-        <button type="button" class="btn btn-secondary" id="notesEditCancel">Cancel</button>
-        <button type="submit" class="btn btn-primary">Save</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- ===================================================== -->
 <!-- DETAILER — scan VIN, see notes, run todo -->
 <!-- ===================================================== -->
-<div class="panel" id="panel-detail-scan">
+<div class="panel" id="panel-detail-scan" role="tabpanel" aria-label="New entry">
   <div id="detailScanEmpty">
     <button class="btn-scan-primary" id="detailScanBtn">
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="4" height="4"/><rect x="17" y="3" width="4" height="4"/><rect x="3" y="17" width="4" height="4"/><line x1="7" y1="5" x2="17" y2="5"/><line x1="19" y1="7" x2="19" y2="17"/><line x1="7" y1="19" x2="17" y2="19"/><line x1="5" y1="7" x2="5" y2="17"/><line x1="10" y1="12" x2="14" y2="12"/><line x1="12" y1="10" x2="12" y2="14"/></svg>
@@ -2104,7 +2048,7 @@
 </div>
 
 <!-- Detailer personal dashboard — same structural pattern as the driver dashboard -->
-<div class="panel" id="panel-dashboard-detailer">
+<div class="panel" id="panel-dashboard-detailer" role="tabpanel" aria-label="Dashboard">
   <div class="dash-section">
     <div class="dash-title">Detailer Dashboard</div>
     <div class="stat-grid" id="detailStatGrid">
@@ -2176,7 +2120,7 @@
       <div class="users-modal-msg" id="usersModalMsg"></div>
       <div class="users-modal-actions">
         <button type="button" class="btn btn-secondary" id="usersModalCancel">Cancel</button>
-        <button type="submit" class="btn btn-primary" id="usersModalSubmit">Save</button>
+        <button type="submit" class="btn btn-primary btn-save" id="usersModalSubmit">Save</button>
       </div>
     </form>
   </div>
@@ -2243,7 +2187,7 @@
       <div id="editVinStatus" class="gps-status" style="display:none"></div>
       <div class="detail-actions" style="padding:16px 0 0">
         <button class="btn btn-secondary" onclick="closeEdit()">Cancel</button>
-        <button class="btn btn-primary" id="editSaveBtn" onclick="saveEdit()">Save Changes</button>
+        <button class="btn btn-primary btn-save" id="editSaveBtn" onclick="saveEdit()">Save Changes</button>
       </div>
     </div>
   </div>
@@ -2298,6 +2242,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="supabase-config.js"></script>
 <script src="utils.js"></script>
+<script src="a11y.js"></script>
 <script src="auth.js"></script>
 <script src="app.js"></script>
 <script src="sync.js"></script>
@@ -2307,7 +2252,6 @@
 <script src="requests.js"></script>
 <script src="vehicle-notes.js"></script>
 <script src="users.js"></script>
-<script src="notes.js"></script>
 <script src="detailer.js"></script>
 <script src="elearning.js"></script>
 <script src="notifications.js"></script>

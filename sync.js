@@ -1,8 +1,10 @@
 // ============================================================
-// DriverTrax Cloud Sync (Supabase)
+// DriverTrax Cloud Sync (Supabase) — IDB-backed queue
 // Diffs every local setRecords() call against the previous state
 // and queues changed/deleted records for the cloud. The queue
-// persists in localStorage so offline saves flush on reconnect.
+// persists in IndexedDB so it survives tab crashes and is ready
+// for solo SW flush (currently the SW still wakes a visible
+// client, but the data layer no longer needs a tab to read it).
 // ============================================================
 
 (function () {
@@ -14,37 +16,74 @@
     console.error("[Sync] getRecords/setRecords not found — load order issue");
     return;
   }
+  if (!window.DT_IDB) {
+    console.error("[Sync] DT_IDB not loaded — make sure idb.js runs first");
+    return;
+  }
 
   const sb = DT_AUTH.client;
-  const QUEUE_KEY = "drivertrax_sync_queue";   // { [id]: "upsert" | "delete" }
-  const SNAPSHOT_KEY = "drivertrax_sync_snapshot"; // last-known cloud-side JSON per id
+  const IDB = DT_IDB;
+  const QUEUE_KEY = "sync_queue";       // in `kv` store: { [id]: "upsert" | "delete" }
+  const SNAPSHOT_KEY = "sync_snapshot"; // in `kv` store: { [id]: lastCloudRow }
+  const LS_QUEUE_KEY = "drivertrax_sync_queue";       // legacy
+  const LS_SNAPSHOT_KEY = "drivertrax_sync_snapshot"; // legacy
+
+  // In-memory mirror of the queue so setRecords() can update synchronously.
+  // IDB writes are fire-and-forget; we await them only when flushing.
+  let queue = {};
+  let queueReady = false;
   let flushing = false;
   let pendingFlush = null;
+  let prevById = indexBy(getRecords());
 
-  // ----- queue helpers -----
-  function readQueue() {
-    try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || "{}"); }
-    catch { return {}; }
-  }
-  function writeQueue(q) {
-    localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
-    updateBadge();
-    // Background Sync: ask the SW to wake us when connectivity returns.
-    // The queue itself lives in localStorage (page-scope only), so the SW
-    // can only nudge any visible client to flush — it can't flush solo
-    // until the queue moves to IndexedDB. Still useful for tab-suspended
-    // / app-backgrounded cases.
-    if (Object.keys(q).length > 0 && "serviceWorker" in navigator && "SyncManager" in window) {
-      navigator.serviceWorker.ready.then(reg => reg.sync?.register?.("drivertrax-flush")).catch(() => {});
+  // ----- one-time migration from localStorage to IDB -----
+  async function migrateFromLocalStorage() {
+    try {
+      const rawQ = localStorage.getItem(LS_QUEUE_KEY);
+      const rawS = localStorage.getItem(LS_SNAPSHOT_KEY);
+      if (rawQ) {
+        const parsed = JSON.parse(rawQ);
+        const existing = (await IDB.get("kv", QUEUE_KEY)) || {};
+        await IDB.set("kv", QUEUE_KEY, { ...parsed, ...existing });
+        localStorage.removeItem(LS_QUEUE_KEY);
+      }
+      if (rawS) {
+        const parsed = JSON.parse(rawS);
+        if (!(await IDB.get("kv", SNAPSHOT_KEY))) {
+          await IDB.set("kv", SNAPSHOT_KEY, parsed);
+        }
+        localStorage.removeItem(LS_SNAPSHOT_KEY);
+      }
+    } catch (e) {
+      console.warn("[Sync] migration skipped:", e.message);
     }
   }
-  function readSnapshot() {
-    try { return JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || "{}"); }
-    catch { return {}; }
+
+  async function loadQueue() {
+    await migrateFromLocalStorage();
+    queue = (await IDB.get("kv", QUEUE_KEY)) || {};
+    queueReady = true;
+    updateBadge();
+    // If anything queued before we finished loading, schedule a flush.
+    if (Object.keys(queue).length > 0) scheduleFlush();
   }
-  function writeSnapshot(s) {
-    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(s));
+
+  function persistQueue() {
+    // Fire-and-forget; reads always go through the in-memory `queue`.
+    IDB.set("kv", QUEUE_KEY, queue).catch(() => {});
+    updateBadge();
+    // Background Sync: ask the SW to wake any client when connectivity
+    // returns. The queue lives in IDB now, so a future SW could flush
+    // solo with a stored auth token — today it still pings clients.
+    if (Object.keys(queue).length > 0 && "serviceWorker" in navigator && "SyncManager" in window) {
+      navigator.serviceWorker.ready
+        .then(reg => reg.sync?.register?.("drivertrax-flush"))
+        .catch(() => {});
+    }
   }
+
+  async function readSnapshot() { return (await IDB.get("kv", SNAPSHOT_KEY)) || {}; }
+  function writeSnapshot(s) { IDB.set("kv", SNAPSHOT_KEY, s).catch(() => {}); }
 
   // ----- mapping local record <-> Supabase row -----
   function toRow(rec, userId) {
@@ -99,13 +138,17 @@
     };
   }
 
+  function indexBy(arr) {
+    const m = {};
+    for (const r of arr) m[String(r.id)] = r;
+    return m;
+  }
+
   // ----- diff & queue on every local write -----
   const origSetRecords = window.setRecords;
-  let prevById = indexBy(getRecords());
   window.setRecords = function (records) {
     origSetRecords(records);
     const nextById = indexBy(records);
-    const queue = readQueue();
     // Inserts + updates
     for (const id in nextById) {
       const prev = prevById[id];
@@ -118,15 +161,9 @@
       if (!nextById[id]) queue[id] = "delete";
     }
     prevById = nextById;
-    writeQueue(queue);
+    persistQueue();
     scheduleFlush();
   };
-
-  function indexBy(arr) {
-    const m = {};
-    for (const r of arr) m[String(r.id)] = r;
-    return m;
-  }
 
   // ----- flush queue to Supabase -----
   function scheduleFlush() {
@@ -138,16 +175,14 @@
   }
 
   async function flushQueue() {
-    if (flushing) return;
+    if (flushing || !queueReady) return;
     const user = DT_AUTH.getUser();
     if (!user) return;
     // Detailers don't write records directly — the detailer flow inserts
-    // them through detail_jobs. Everyone else (driver/CXR/manager/admin)
-    // uses the NEW ENTRY form and needs sync.
+    // them through detail_jobs. Everyone else needs sync.
     const p = DT_AUTH.getProfile();
     if (p && p.role === "detailer") return;
     if (!navigator.onLine) { updateBadge(); return; }
-    const queue = readQueue();
     const ids = Object.keys(queue);
     if (ids.length === 0) { updateBadge("ok"); return; }
 
@@ -155,25 +190,28 @@
     updateBadge("syncing");
 
     const recordsById = indexBy(getRecords());
-    const upserts = [];
+    let upserts = [];
     const deletes = [];
+    // Capture the snapshot of queue entries we're flushing so concurrent
+    // edits added to `queue` while we're awaiting Supabase aren't dropped.
+    const inflight = {};
     for (const id of ids) {
+      inflight[id] = queue[id];
       if (queue[id] === "upsert" && recordsById[id]) upserts.push(toRow(recordsById[id], user.id));
       else if (queue[id] === "delete") deletes.push(id);
     }
 
     try {
-      let workingUpserts = upserts;
-      if (workingUpserts.length) {
-        let { error } = await sb.from("records").upsert(workingUpserts, { onConflict: "id" });
+      if (upserts.length) {
+        let { error } = await sb.from("records").upsert(upserts, { onConflict: "id" });
         if (error && (error.code === "42501" || /row-level security/i.test(error.message || ""))) {
-          // RLS blocked one or more rows. Find which queued ids already exist
-          // in the cloud under a different user_id, drop those from the queue,
-          // and retry the rest. This stops a single orphaned record (account
-          // switch, shared device) from wedging the whole sync.
-          const ids = workingUpserts.map(r => r.id);
+          // RLS blocked one or more rows. Find which queued ids already
+          // exist in the cloud under a different user_id, drop those from
+          // the queue, and retry the rest. Stops a single orphaned record
+          // (account switch, shared device) from wedging the whole sync.
+          const upIds = upserts.map(r => r.id);
           const { data: existing, error: lookupErr } = await sb
-            .from("records").select("id,user_id").in("id", ids);
+            .from("records").select("id,user_id").in("id", upIds);
           if (lookupErr) {
             console.warn("[Sync] RLS recovery lookup failed", lookupErr);
             throw error;
@@ -182,20 +220,18 @@
             .filter(r => r.user_id && r.user_id !== user.id)
             .map(r => r.id));
           if (orphanIds.size > 0) {
-            console.warn("[Sync] dropping queued ids owned by another user:",
-              [...orphanIds]);
-            const q = readQueue();
-            for (const id of orphanIds) delete q[id];
-            writeQueue(q);
-            workingUpserts = workingUpserts.filter(r => !orphanIds.has(r.id));
+            console.warn("[Sync] dropping queued ids owned by another user:", [...orphanIds]);
+            for (const id of orphanIds) { delete queue[id]; delete inflight[id]; }
+            persistQueue();
+            upserts = upserts.filter(r => !orphanIds.has(r.id));
             if (typeof window.showToast === "function") {
               window.showToast(
                 `Skipped ${orphanIds.size} record${orphanIds.size === 1 ? "" : "s"} owned by another account`,
                 "warn"
               );
             }
-            if (workingUpserts.length) {
-              const retry = await sb.from("records").upsert(workingUpserts, { onConflict: "id" });
+            if (upserts.length) {
+              const retry = await sb.from("records").upsert(upserts, { onConflict: "id" });
               error = retry.error;
             } else {
               error = null;
@@ -206,8 +242,8 @@
           if (error.code === "42501" || /row-level security/i.test(error.message || "")) {
             console.warn("[Sync] RLS blocked upsert.",
               "current user.id =", user.id,
-              "rows being sent =", workingUpserts.length,
-              "queued ids =", workingUpserts.map(r => r.id));
+              "rows being sent =", upserts.length,
+              "queued ids =", upserts.map(r => r.id));
           }
           throw error;
         }
@@ -216,12 +252,16 @@
         const { error } = await sb.from("records").delete().in("id", deletes);
         if (error) throw error;
       }
-      // Success: clear queue, refresh snapshot
-      const snap = readSnapshot();
-      for (const row of workingUpserts) snap[row.id] = row;
+      // Success: drop only the inflight entries (preserve concurrent edits)
+      // and refresh the snapshot.
+      const snap = await readSnapshot();
+      for (const row of upserts) snap[row.id] = row;
       for (const id of deletes) delete snap[id];
       writeSnapshot(snap);
-      writeQueue({});
+      for (const id in inflight) {
+        if (queue[id] === inflight[id]) delete queue[id];
+      }
+      persistQueue();
       updateBadge("ok");
     } catch (err) {
       console.warn("[Sync] flush failed", err);
@@ -235,7 +275,6 @@
   async function pullAndMerge() {
     const user = DT_AUTH.getUser();
     if (!user) return;
-    // Same skip logic as flushQueue — detailers don't own personal records.
     const p = DT_AUTH.getProfile();
     if (p && p.role === "detailer") return;
     updateBadge("syncing");
@@ -254,15 +293,14 @@
       const local = getRecords();
       const localById = indexBy(local);
 
-      // Cloud wins on conflict; keep local-only rows for upload
+      // Cloud wins on conflict; keep local-only rows for upload.
       const merged = { ...localById, ...cloudById };
       const mergedArr = Object.values(merged).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
       // Push local-only rows
       const localOnly = Object.keys(localById).filter(id => !cloudById[id]);
-      const queue = readQueue();
       for (const id of localOnly) queue[id] = "upsert";
-      writeQueue(queue);
+      persistQueue();
 
       // Snapshot for future diffs
       const snap = {};
@@ -271,20 +309,15 @@
 
       // Write merged set without re-queueing everything: skip our wrapper
       origSetRecords(mergedArr);
-      invalidateRecordsCacheIfDefined();
+      if (typeof invalidateRecordsCache === "function") invalidateRecordsCache();
       prevById = indexBy(mergedArr);
 
-      // Re-render any visible lists
       tryRender();
       scheduleFlush();
     } catch (err) {
       console.warn("[Sync] pull failed", err);
       updateBadge("err");
     }
-  }
-
-  function invalidateRecordsCacheIfDefined() {
-    if (typeof invalidateRecordsCache === "function") invalidateRecordsCache();
   }
 
   function tryRender() {
@@ -297,7 +330,6 @@
   function updateBadge(state) {
     const el = document.getElementById("menuSyncStatus");
     if (!el) return;
-    const queue = readQueue();
     const pending = Object.keys(queue).length;
     if (!DT_AUTH.getUser()) { el.textContent = "Not signed in"; return; }
     if (state === "syncing") { el.textContent = "Syncing…"; return; }
@@ -307,10 +339,6 @@
     el.textContent = "Synced ✓";
   }
 
-  // ----- role gating -----
-  // Anyone who uses the NEW ENTRY form (driver/CXR/manager/admin) syncs
-  // their records. Detailers go through detail_jobs instead — they don't
-  // produce rows in the local records cache.
   function shouldRunSync() {
     const p = DT_AUTH.getProfile();
     return p && p.role !== "detailer";
@@ -332,17 +360,19 @@
     if (e.data?.type === "dt-sync-flush" && shouldRunSync()) scheduleFlush();
   });
 
-  // If auth fires before this file loads, kick off immediately (drivers only)
-  if (DT_AUTH.getUser() && shouldRunSync()) pullAndMerge();
+  // Boot: load queue from IDB, then kick off pull if already signed in.
+  loadQueue().then(() => {
+    if (DT_AUTH.getUser() && shouldRunSync()) pullAndMerge();
+  });
 
   // Expose for debugging
   window.DT_SYNC = {
     flush: flushQueue,
     pull: pullAndMerge,
-    queue: readQueue,
-    // Console escape hatch: when the queue is wedged on rows whose cloud
-    // copy is owned by a different user, clear the queue without touching
-    // local cache. Reload after running.
-    clearQueue() { writeQueue({}); updateBadge("ok"); console.info("[Sync] queue cleared"); }
+    queue: () => ({ ...queue }),
+    // Escape hatch: when the queue is wedged on rows whose cloud copy is
+    // owned by a different user, clear the queue without touching local
+    // cache. Reload after running.
+    clearQueue() { queue = {}; persistQueue(); updateBadge("ok"); console.info("[Sync] queue cleared"); }
   };
 })();

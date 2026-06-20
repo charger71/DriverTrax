@@ -3226,10 +3226,12 @@ function exportCSV() {
   ]));
   const csv = rows.map(row => row.map(csvEscape).join(",")).join("\r\n");
   const blob = new Blob([csv], {type:"text/csv"});
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
+  a.href = url;
   a.download = getDriverFileName("drivertrax", "csv");
   a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ============================
@@ -5306,89 +5308,220 @@ function getDriverFileName(base, ext) {
   const date = new Date().toISOString().slice(0,10);
   return `${base}${name}_${date}.${ext}`;
 }
-const BACKUP_KEY = "drivertrax_backup";
-const BACKUP_TIME_KEY = "drivertrax_backup_time";
-const BACKUP_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+// ============================
+// BACKUP / EXPORT / IMPORT
+// ============================
+// Snapshots are stored in IndexedDB (rotating, last 3 slots) plus one
+// reserved "pre-restore" slot that's written automatically before any
+// restore so the user can always undo. A small timestamp marker in
+// localStorage drives the "Last backup" status row without needing an
+// async IDB hit on every render.
+const BACKUP_TIME_KEY = "drivertrax_backup_time";   // ms timestamp of newest slot
+const BACKUP_INTERVAL_MS = 30 * 60 * 1000;          // 30 min
+const BACKUP_STALE_MS = 24 * 60 * 60 * 1000;        // 24 h → warn user
+const BACKUP_MAX_SLOTS = 3;
+const PRE_RESTORE_KEY = "pre_restore";              // string key in `backups` store
+// Legacy localStorage key from the v1 single-slot backup. Migrated into
+// IDB on first run, then deleted.
+const LEGACY_BACKUP_KEY = "drivertrax_backup";
 
-function runBackup(manual = false) {
-  const records = getRecords();
-  // Guard: don't auto-clobber a good backup with a smaller/empty one.
-  // If records were just wiped by a bug, the prior backup is the only
-  // recovery path — preserve it unless the user explicitly confirms.
-  if (!manual) {
-    try {
-      const prevRaw = localStorage.getItem(BACKUP_KEY);
-      if (prevRaw) {
-        const prev = JSON.parse(prevRaw);
-        const prevCount = prev && prev.records ? prev.records.length : 0;
-        if (records.length < prevCount) {
-          updateBackupStatus();
-          return;
-        }
-      }
-    } catch(e) { /* fall through and overwrite a corrupt backup */ }
+// Every localStorage key the user has any business backing up. Anything
+// that doesn't match these prefixes (sync queues, transient counters)
+// is excluded so we never round-trip stale internal state on restore.
+const BACKUP_KEY_PREFIXES = ["drivertrax_", "dt_"];
+const BACKUP_EXCLUDE_KEYS = new Set([
+  LEGACY_BACKUP_KEY,
+  BACKUP_TIME_KEY,
+  "drivertrax_sync_queue",
+  "drivertrax_sync_snapshot"
+]);
+
+function snapshotLocalStorage() {
+  const snap = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k || BACKUP_EXCLUDE_KEYS.has(k)) continue;
+    if (!BACKUP_KEY_PREFIXES.some(p => k.startsWith(p))) continue;
+    snap[k] = localStorage.getItem(k);
   }
-  const backupData = { records, timestamp: Date.now(), version: 1 };
-  try {
-    localStorage.setItem(BACKUP_KEY, JSON.stringify(backupData));
-    localStorage.setItem(BACKUP_TIME_KEY, Date.now().toString());
-    updateBackupStatus();
-    if (manual) showToast("Backup saved", "success");
-  } catch(e) {
+  return snap;
+}
+
+function snapshotRecordCount(snap) {
+  try { return JSON.parse(snap[DB_KEY] || "[]").length; } catch { return 0; }
+}
+
+async function runBackup(manual = false) {
+  if (!window.DT_IDB) {
+    if (manual) showToast("Backup unavailable - storage locked", "error");
+    return;
+  }
+  const ts = Date.now();
+  const snap = snapshotLocalStorage();
+  const entry = {
+    ts,
+    version: 2,
+    recordCount: snapshotRecordCount(snap),
+    keys: snap
+  };
+  const ok = await DT_IDB.set("backups", ts, entry);
+  if (!ok) {
     if (manual) showToast("Backup failed - storage may be full", "error");
+    return;
   }
+  // Rotate: keep newest BACKUP_MAX_SLOTS plus the reserved pre_restore key.
+  try {
+    const allKeys = await DT_IDB.keys("backups");
+    const numericKeys = allKeys.filter(k => typeof k === "number").sort((a, b) => b - a);
+    for (const old of numericKeys.slice(BACKUP_MAX_SLOTS)) {
+      await DT_IDB.del("backups", old);
+    }
+  } catch {}
+  localStorage.setItem(BACKUP_TIME_KEY, ts.toString());
+  updateBackupStatus();
+  renderBackupSlots();
+  if (manual) showToast("Backup saved", "success");
 }
 
 function updateBackupStatus() {
   const ts = localStorage.getItem(BACKUP_TIME_KEY);
-  const backup = localStorage.getItem(BACKUP_KEY);
   const timeEl = document.getElementById("lastBackupTime");
-  const countEl = document.getElementById("backupRecordCount");
-  const menuStatus = document.getElementById("menuSyncStatus");
+  const staleEl = document.getElementById("backupStaleWarning");
 
-  if (!ts || !timeEl) return;
+  if (!ts) {
+    if (timeEl) timeEl.textContent = "—";
+    if (staleEl) staleEl.style.display = "none";
+    return;
+  }
 
-  const d = new Date(parseInt(ts));
+  const tsNum = parseInt(ts);
+  const d = new Date(tsNum);
   const timeStr = d.toLocaleTimeString("en-US", {hour:"numeric", minute:"2-digit", timeZone:"America/New_York"});
   const dateStr = d.toLocaleDateString("en-US", {month:"short", day:"numeric", timeZone:"America/New_York"});
 
   if (timeEl) timeEl.textContent = `${dateStr} at ${timeStr}`;
 
-  if (backup && countEl) {
-    try {
-      const parsed = JSON.parse(backup);
-      countEl.textContent = parsed.records ? parsed.records.length + " records" : "-";
-    } catch(e) { countEl.textContent = "-"; }
+  // Stale warning: if we haven't backed up in > 24h, the auto-backup is
+  // probably failing (quota, locked storage). Surface it.
+  if (staleEl) {
+    const stale = (Date.now() - tsNum) > BACKUP_STALE_MS;
+    staleEl.style.display = stale ? "" : "none";
   }
-
-  if (menuStatus) menuStatus.textContent = `Backed up ${timeStr}`;
 }
 
-function restoreBackup() {
-  const backup = localStorage.getItem(BACKUP_KEY);
-  if (!backup) { showToast("No backup found", "error"); return; }
-  if (!confirm("Restore from last backup? This will overwrite your current records.")) return;
-  try {
-    const parsed = JSON.parse(backup);
-    if (!parsed.records) throw new Error("Invalid backup");
-    setRecords(parsed.records);
-    renderTodayEntries();
-    updateBackupStatus();
-    showToast(`Restored ${parsed.records.length} records`, "success");
-  } catch(e) {
-    showToast("Restore failed - backup may be corrupt", "error");
+async function listBackups() {
+  if (!window.DT_IDB) return [];
+  const all = await DT_IDB.values("backups");
+  return all
+    .filter(b => b && typeof b.ts === "number")
+    .sort((a, b) => b.ts - a.ts);
+}
+
+async function renderBackupSlots() {
+  const el = document.getElementById("backupSlots");
+  if (!el) return;
+  const slots = await listBackups();
+  if (slots.length === 0) {
+    el.innerHTML = '<div class="data-status-row"><span class="data-label">No snapshots yet.</span></div>';
+    return;
   }
+  el.innerHTML = slots.map((s, i) => {
+    const d = new Date(s.ts);
+    const time = d.toLocaleTimeString("en-US", {hour:"numeric", minute:"2-digit", timeZone:"America/New_York"});
+    const date = d.toLocaleDateString("en-US", {month:"short", day:"numeric", timeZone:"America/New_York"});
+    const label = i === 0 ? "Latest" : `Slot ${i + 1}`;
+    return `
+      <div class="data-status-row" style="align-items:center;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div class="data-label" style="font-weight:600">${label} · ${sanitizeText(date)} at ${sanitizeText(time)}</div>
+          <div class="data-value" style="font-size:12px;color:#888">${s.recordCount} records</div>
+        </div>
+        <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px" onclick="restoreFromBackup(${s.ts})">Restore</button>
+      </div>`;
+  }).join("");
+}
+
+async function restoreFromBackup(ts) {
+  if (!window.DT_IDB) { showToast("Restore unavailable", "error"); return; }
+  const entry = await DT_IDB.get("backups", ts);
+  if (!entry || !entry.keys) { showToast("Snapshot not found", "error"); return; }
+  if (!confirm(`Restore ${entry.recordCount} records from ${new Date(ts).toLocaleString()}? Your current state will be saved as an undo point.`)) return;
+
+  // Save current state as the pre-restore undo slot before mutating.
+  const undo = {
+    ts: Date.now(),
+    version: 2,
+    recordCount: getRecords().length,
+    keys: snapshotLocalStorage()
+  };
+  await DT_IDB.set("backups", PRE_RESTORE_KEY, undo);
+
+  applySnapshot(entry.keys);
+  showToast(`Restored ${entry.recordCount} records — use Undo if this was wrong`, "success");
+  renderBackupSlots();
+  updatePreRestoreUI();
+}
+
+async function undoRestore() {
+  if (!window.DT_IDB) return;
+  const undo = await DT_IDB.get("backups", PRE_RESTORE_KEY);
+  if (!undo || !undo.keys) { showToast("Nothing to undo", "error"); return; }
+  if (!confirm("Undo the last restore? Current state will be replaced.")) return;
+  applySnapshot(undo.keys);
+  await DT_IDB.del("backups", PRE_RESTORE_KEY);
+  updatePreRestoreUI();
+  showToast("Restore undone", "success");
+}
+
+async function updatePreRestoreUI() {
+  const btn = document.getElementById("undoRestoreBtn");
+  if (!btn || !window.DT_IDB) return;
+  const undo = await DT_IDB.get("backups", PRE_RESTORE_KEY);
+  btn.style.display = undo ? "" : "none";
+}
+
+// Overwrite local state with a captured key/value map, then re-render.
+function applySnapshot(keys) {
+  // Remove any backup-eligible key not present in the snapshot so the
+  // restore is a true replacement, not a merge.
+  const toDelete = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k || BACKUP_EXCLUDE_KEYS.has(k)) continue;
+    if (!BACKUP_KEY_PREFIXES.some(p => k.startsWith(p))) continue;
+    if (!(k in keys)) toDelete.push(k);
+  }
+  for (const k of toDelete) localStorage.removeItem(k);
+  for (const k in keys) localStorage.setItem(k, keys[k]);
+
+  invalidateRecordsCache();
+  applyProfile();
+  renderTodayEntries();
+  try { if (typeof renderRecords === "function") renderRecords(); } catch {}
+  try { if (typeof renderDashboard === "function") renderDashboard(); } catch {}
 }
 
 function exportJSON() {
   const records = getRecords();
   if (records.length === 0) { showToast("No records to export", "error"); return; }
-  const data = { records, profile: getProfile(), exportedAt: new Date().toISOString(), version: 1 };
+  const snap = snapshotLocalStorage();
+  const data = {
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    recordCount: snapshotRecordCount(snap),
+    keys: snap,
+    // Back-compat fields so an older client can still read its own records
+    // out of a v2 file without choking.
+    records,
+    profile: getProfile()
+  };
   const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
+  a.href = url;
   a.download = getDriverFileName("drivertrax_backup", "json");
   a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
   showToast(`Exported ${records.length} records`, "success");
 }
 
@@ -5396,19 +5529,21 @@ function importJSON(event) {
   const file = event.target.files[0];
   if (!file) return;
   const statusEl = document.getElementById("importStatus");
-  statusEl.textContent = "Reading file...";
+  if (statusEl) statusEl.textContent = "Reading file...";
 
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
       const parsed = JSON.parse(e.target.result);
-      if (!parsed.records || !Array.isArray(parsed.records)) throw new Error("Invalid format");
+      const isV2 = parsed.version === 2 && parsed.keys;
+      const rawRecords = parsed.records || (isV2 ? safeParseRecords(parsed.keys[DB_KEY]) : null);
+      if (!Array.isArray(rawRecords)) throw new Error("Invalid format");
 
       // Validate/coerce id on every record. ids flow into inline onclick
       // strings elsewhere, so untrusted values would be an XSS vector.
       const cleanRecords = [];
       let rejected = 0;
-      for (const r of parsed.records) {
+      for (const r of rawRecords) {
         if (!r || typeof r !== "object") { rejected++; continue; }
         const idStr = String(r.id);
         if (!/^\d+$/.test(idStr)) { rejected++; continue; }
@@ -5416,34 +5551,79 @@ function importJSON(event) {
       }
 
       const existing = getRecords();
-      // Merge - avoid duplicates by id
       const existingIds = new Set(existing.map(r => r.id));
       const newRecords = cleanRecords.filter(r => !existingIds.has(r.id));
       const merged = [...existing, ...newRecords].sort((a,b) => b.timestamp - a.timestamp);
 
       const dupCount = cleanRecords.length - newRecords.length;
-      const msg = `Import ${newRecords.length} new records? (${dupCount} duplicates skipped${rejected ? `, ${rejected} invalid rejected` : ""})`;
-      if (!confirm(msg)) {
-        statusEl.textContent = "";
+      const baseMsg = `Import ${newRecords.length} new records? (${dupCount} duplicates skipped${rejected ? `, ${rejected} invalid rejected` : ""})`;
+      if (!confirm(baseMsg)) {
+        if (statusEl) statusEl.textContent = "";
         event.target.value = "";
         return;
       }
 
       setRecords(merged);
-      if (parsed.profile) localStorage.setItem(PROFILE_KEY, JSON.stringify(parsed.profile));
-      applyProfile();
+
+      // Profile clobber guard: only overwrite the local profile if the
+      // current user has no name set, or explicitly opts in.
+      const incomingProfile = parsed.profile
+        || (isV2 && parsed.keys[PROFILE_KEY] ? safeParseObj(parsed.keys[PROFILE_KEY]) : null);
+      if (incomingProfile) {
+        const current = getProfile();
+        const currentName = (current.name || "").trim();
+        const incomingName = (incomingProfile.name || "").trim();
+        const namesDiffer = currentName && incomingName && currentName !== incomingName;
+        const shouldOverwrite = !currentName ||
+          (namesDiffer && confirm(`Overwrite profile "${currentName}" with "${incomingName}" from the file?`));
+        if (shouldOverwrite) {
+          localStorage.setItem(PROFILE_KEY, JSON.stringify(incomingProfile));
+          applyProfile();
+        }
+      }
+
       renderTodayEntries();
       runBackup();
-      statusEl.textContent = `Imported ${newRecords.length} new records`;
+      if (statusEl) statusEl.textContent = `Imported ${newRecords.length} new records`;
       showToast(`Imported ${newRecords.length} records`, "success");
     } catch(err) {
-      statusEl.textContent = "Invalid file - could not import";
+      if (statusEl) statusEl.textContent = "Invalid file - could not import";
       showToast("Import failed - invalid file", "error");
     }
     event.target.value = "";
   };
   reader.readAsText(file);
 }
+
+function safeParseRecords(raw) { try { return JSON.parse(raw || "[]"); } catch { return null; } }
+function safeParseObj(raw) { try { return JSON.parse(raw); } catch { return null; } }
+
+// One-time: migrate the v1 single-slot backup from localStorage into IDB
+// so users who haven't backed up since the rewrite still have a snapshot.
+async function migrateLegacyBackup() {
+  if (!window.DT_IDB) return;
+  const raw = localStorage.getItem(LEGACY_BACKUP_KEY);
+  if (!raw) return;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && Array.isArray(parsed.records)) {
+      const ts = parsed.timestamp || Date.now();
+      const keys = { [DB_KEY]: JSON.stringify(parsed.records) };
+      await DT_IDB.set("backups", ts, {
+        ts,
+        version: 2,
+        recordCount: parsed.records.length,
+        keys
+      });
+    }
+  } catch {}
+  localStorage.removeItem(LEGACY_BACKUP_KEY);
+}
+
+// Re-render the slot list whenever the user opens the Data panel.
+document.addEventListener("dt-tab-shown", (e) => {
+  if (e.detail === "data") { renderBackupSlots(); updatePreRestoreUI(); }
+});
 
 // ============================
 // WEATHER ALERT (SDF / Louisville 40213)
@@ -5531,8 +5711,10 @@ if (localStorage.getItem(TRANSPORT_KEY) === "1") {
 }
 checkWeatherAlert();
 setInterval(checkWeatherAlert, 15 * 60 * 1000);
-runBackup();
-setInterval(runBackup, BACKUP_INTERVAL_MS);
+migrateLegacyBackup().then(() => {
+  runBackup();
+  setInterval(runBackup, BACKUP_INTERVAL_MS);
+});
 updateBackupStatus();
 applyProfile();
 renderTodayEntries();

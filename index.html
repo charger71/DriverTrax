@@ -1580,14 +1580,16 @@
   <div class="dash-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg> Data & Backup</div>
   <div class="data-section">
     <div class="data-section-title">Auto Backup</div>
-    <div class="data-section-desc">A snapshot of all records is automatically saved every 30 minutes.</div>
+    <div class="data-section-desc">A full snapshot is saved every 30 minutes. The last 3 snapshots are kept locally.</div>
     <div class="data-status-row"><span class="data-label">Last backup:</span><span id="lastBackupTime" class="data-value">&mdash;</span></div>
-    <div class="data-status-row"><span class="data-label">Records in backup:</span><span id="backupRecordCount" class="data-value">&mdash;</span></div>
+    <div id="backupStaleWarning" class="data-status-row u-text-danger" style="display:none">
+      <span class="data-label">&#9888; Last backup is over 24h old &mdash; storage may be full.</span>
+    </div>
     <button class="btn btn-secondary" onclick="runBackup(true)">Back Up Now</button>
   </div>
   <div class="data-section">
     <div class="data-section-title">Export & Import</div>
-    <div class="data-section-desc">Export all records as a JSON file. Import a previously exported file to restore records.</div>
+    <div class="data-section-desc">Export the full snapshot as a JSON file, or import a previous export to merge records.</div>
     <button class="btn btn-primary" onclick="exportJSON()">Export All Data</button>
     <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">Import Data</button>
     <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)">
@@ -1595,8 +1597,9 @@
   </div>
   <div class="data-section data-section-danger">
     <div class="data-section-title u-text-danger">Restore from Backup</div>
-    <div class="data-section-desc">Restore from the last auto backup. This will overwrite current records.</div>
-    <button class="btn btn-danger" style="width:100%;margin-top:10px" onclick="restoreBackup()">Restore from Last Backup</button>
+    <div class="data-section-desc">Pick a snapshot to restore. Your current state is saved as an undo point first.</div>
+    <div id="backupSlots" style="margin-top:8px"></div>
+    <button id="undoRestoreBtn" class="btn btn-secondary" style="width:100%;margin-top:10px;display:none" onclick="undoRestore()">Undo Last Restore</button>
   </div>
 </div>
 
@@ -2243,6 +2246,7 @@
 <script src="supabase-config.js"></script>
 <script src="utils.js"></script>
 <script src="a11y.js"></script>
+<script src="idb.js"></script>
 <script src="auth.js"></script>
 <script src="app.js"></script>
 <script src="sync.js"></script>

@@ -132,26 +132,16 @@
         </form>
 
         <form class="dt-auth-form hidden" id="dt-form-signup">
+          <div class="dt-auth-sub">New accounts start as drivers. A manager will set your role after they approve you.</div>
           <label>Display name<input type="text" name="display_name" required maxlength="40"></label>
           <label>Email<input type="email" name="email" autocomplete="email" required></label>
           <label>Password<input type="password" name="password" autocomplete="new-password" required minlength="6"></label>
-          <label>Role
-            <select name="role" required>
-              <option value="driver">Driver</option>
-              <option value="cxr">CXR</option>
-              <option value="detailer">Detailer</option>
-              <option value="manager">Manager</option>
-            </select>
-          </label>
-          <label class="dt-shuttle-row" id="dt-shuttle-row">Shuttle sub-role (optional)
-            <select name="shuttle_subrole">
-              <option value="">—</option>
-              <option value="driver">Shuttle Driver</option>
-              <option value="passenger">Passenger</option>
-            </select>
-          </label>
-          <label>Home airport (optional)<input type="text" name="home_airport" maxlength="6" placeholder="SDF"></label>
           <button type="submit" class="dt-auth-submit">Create account</button>
+        </form>
+
+        <form class="dt-auth-form hidden" id="dt-form-pending" onsubmit="return false">
+          <div class="dt-auth-sub">Your account is waiting on manager approval. You'll get access as soon as someone confirms it.</div>
+          <button type="button" class="dt-auth-submit" id="dt-pending-signout">Sign out</button>
         </form>
 
         <div class="dt-auth-msg" id="dt-auth-msg"></div>
@@ -170,13 +160,11 @@
       });
     });
 
-    // Hide shuttle sub-role unless role = driver
-    const signupForm = document.getElementById("dt-form-signup");
-    const roleSel = signupForm.querySelector('select[name="role"]');
-    const shuttleRow = document.getElementById("dt-shuttle-row");
-    const syncShuttle = () => { shuttleRow.style.display = roleSel.value === "driver" ? "" : "none"; };
-    roleSel.addEventListener("change", syncShuttle);
-    syncShuttle();
+    document.getElementById("dt-pending-signout").addEventListener("click", async () => {
+      await sb.auth.signOut();
+      clearUnlocked();
+      location.reload();
+    });
 
     document.getElementById("dt-form-signin").addEventListener("submit", onSignIn);
     document.getElementById("dt-form-signup").addEventListener("submit", onSignUp);
@@ -198,7 +186,7 @@
   }
 
   function showForm(which) {
-    const forms = ["signin", "signup", "forgot", "reset", "pin-unlock", "pin-setup"];
+    const forms = ["signin", "signup", "forgot", "reset", "pin-unlock", "pin-setup", "pending"];
     forms.forEach(name => {
       const f = document.getElementById("dt-form-" + name);
       if (f) f.classList.toggle("hidden", name !== which);
@@ -248,24 +236,19 @@
     const email = fd.get("email").trim();
     const password = fd.get("password");
     const display_name = fd.get("display_name").trim();
-    const role = fd.get("role");
-    const shuttle_subrole = role === "driver" ? (fd.get("shuttle_subrole") || null) : null;
-    const home_airport = (fd.get("home_airport") || "").trim().toUpperCase() || null;
 
     const { data, error } = await sb.auth.signUp({ email, password });
     if (error) { setMsg(error.message, "err"); return; }
-    if (!data.user) { setMsg("Check your email to confirm your account.", "ok"); return; }
+    if (!data.user) { setMsg("Check your email to confirm your account. A manager will approve it next.", "ok"); return; }
 
-    // Profile row was auto-created by the on_auth_user_created trigger.
-    // Fill in the details now.
+    // Profile row was auto-created by the on_auth_user_created trigger
+    // with role='driver' and approved=false. Set the display name only.
     const { error: pErr } = await sb
       .from("profiles")
-      .update({ display_name, role, shuttle_subrole, home_airport })
+      .update({ display_name })
       .eq("id", data.user.id);
     if (pErr) { setMsg("Account created, but profile update failed: " + pErr.message, "err"); return; }
-    setMsg("Account created.", "ok");
-    // Encourage setting a PIN right away on this device
-    setTimeout(() => showForm("pin-setup"), 600);
+    setMsg("Account created — waiting on manager approval.", "ok");
   }
 
   async function onForgot(e) {
@@ -329,6 +312,21 @@
     if (session && session.user) {
       state.user = session.user;
       state.profile = await loadProfile(session.user.id);
+      // Gate signed-in but unapproved accounts behind the "pending" screen.
+      // approved=true is the live state; older rows without the column are
+      // treated as approved so we don't lock everyone out before the
+      // migration runs.
+      const approved = !state.profile || state.profile.approved !== false;
+      if (!approved) {
+        ensureModal();
+        showForm("pending");
+        document.getElementById("dt-auth-modal").classList.add("show");
+        if (!state.ready) {
+          state.ready = true;
+          state.listeners.splice(0).forEach(fn => { try { fn(); } catch (e) { console.error(e); } });
+        }
+        return;
+      }
       const hasPin = !!getStoredPinHash(session.user.id);
       if (hasPin && !isUnlockedThisSession()) {
         // Show the lock screen — keep the session, just gate the UI

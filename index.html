@@ -247,6 +247,29 @@
   .users-row.row-cxr      .role-pill { color: #f0b429; }
   .users-row.row-driver   .role-pill { color: #cfe4ff; }
   .users-row.row-detailer .role-pill { color: #b76eff; }
+  .users-row.is-pending { background: #1f1a0d; }
+  .users-row .pending-pill {
+    display: inline-block; margin-left: 6px;
+    font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+    color: #f0b429; border: 1px solid #f0b429; background: #1a1408;
+    padding: 1px 6px; border-radius: 10px; vertical-align: middle;
+  }
+  .users-row .approve {
+    background: #00a651; color: #fff; border: none;
+    border-radius: 6px; padding: 6px 10px; font-weight: 700; cursor: pointer;
+    margin-right: 6px;
+  }
+  .users-row .approve:hover { background: #00b85a; }
+  .users-invite-channel {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    font-size: 13px; color: #b0b8c1;
+    background: #20252c; border: 1px solid #2a313a; border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .users-invite-channel label {
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    color: #e8eaed;
+  }
 
   /* Detailer panels */
   .detail-scan-empty { text-align: center; padding: 24px 0; color: #b0b8c1; }
@@ -2117,6 +2140,12 @@
       <input type="hidden" name="id">
       <label>Display name<input type="text" name="display_name" maxlength="40"></label>
       <label class="users-email-row">Email<input type="email" name="email" autocomplete="email"></label>
+      <label class="users-phone-row">Phone<input type="tel" name="phone" autocomplete="tel" placeholder="+1 555 555 1212"></label>
+      <div class="users-invite-channel" id="usersInviteChannel" style="display:none">
+        <span>Send invite via</span>
+        <label><input type="radio" name="invite_channel" value="email" checked> Email</label>
+        <label><input type="radio" name="invite_channel" value="phone"> Text (SMS)</label>
+      </div>
       <label>Role
         <select name="role" required>
           <option value="driver">Driver</option>

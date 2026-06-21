@@ -15,10 +15,8 @@
     box-sizing: border-box;
 }
 
-html,
-body {
-    width: 100%;
-    min-height: 100%;
+html {
+    scroll-behavior: smooth;
 }
 
 body {
@@ -30,46 +28,75 @@ body {
 }
 
 .container {
-    max-width: 900px;
+    max-width: 1000px;
     margin: 0 auto;
 }
 
 h1 {
-    margin-bottom: 0.5rem;
-    font-size: 2rem;
+    margin-bottom: 10px;
+    font-size: 2.5rem;
 }
 
 h2 {
-    margin-top: 2rem;
-    margin-bottom: 0.75rem;
-    font-size: 1.35rem;
+    margin-top: 40px;
+    margin-bottom: 15px;
+    border-bottom: 1px solid rgba(232, 234, 237, 0.15);
+    padding-bottom: 8px;
 }
 
 p {
-    margin-bottom: 1rem;
+    margin-bottom: 15px;
 }
 
 ul {
-    margin-left: 1.5rem;
-    margin-bottom: 1rem;
+    margin-left: 25px;
+    margin-bottom: 15px;
 }
 
 li {
-    margin-bottom: 0.5rem;
+    margin-bottom: 8px;
 }
 
-strong {
-    font-weight: 700;
+a {
+    color: rgb(138, 180, 248);
+    text-decoration: none;
 }
 
-.contact {
-    margin-top: 1rem;
+a:hover {
+    text-decoration: underline;
 }
 
-hr {
+.toc {
+    margin: 30px 0;
+    padding: 20px;
+    border: 1px solid rgba(232, 234, 237, 0.15);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.03);
+}
+
+.toc h2 {
+    margin-top: 0;
     border: none;
-    border-top: 1px solid rgba(232, 234, 237, 0.15);
-    margin: 2rem 0;
+    padding-bottom: 0;
+}
+
+.toc ul {
+    list-style: none;
+    margin-left: 0;
+}
+
+.toc li {
+    margin-bottom: 8px;
+}
+
+.back-top {
+    margin-top: 20px;
+    font-size: 0.9rem;
+}
+
+.effective-date {
+    margin-bottom: 20px;
+    opacity: 0.9;
 }
 
 .header-logo {
@@ -93,31 +120,60 @@ hr {
 
 <div class="container">
 
-    <h1 class="header-logo">
+<h1 class="header-logo">
         <svg class="logo-icon" width="26" height="26" viewBox="14952.496 7440 1477.2065 1477.207" style="vertical-align:middle;margin-right:8px;margin-bottom:3px" xmlns="http://www.w3.org/2000/svg">
             <path fill="#00a651" d="m 15657.9,8916.9469 c -31.53,-1.0624 -64.724,-4.7817 -95.984,-10.7554 -3.969,-0.7584 -12.413,-2.3722 -18.764,-3.5861 -28.586,-5.4642 -70.304,-17.165 -97.447,-27.332 -3.561,-1.3338 -10.048,-3.7323 -14.414,-5.3301 -4.367,-1.5978 -9.887,-3.7515 -12.269,-4.786 -2.381,-1.0343 -9.42,-3.8937 -15.643,-6.354 -20.208,-7.991 -69.397,-32.9998 -82.766,-42.0811 -3.318,-2.2541 -6.413,-4.0985 -6.878,-4.0985 -0.464,0 -4.57,-2.375 -9.122,-5.2778 -4.552,-2.9028 -12.824,-8.1701 -18.382,-11.7053 -5.556,-3.5352 -13.675,-9.0644 -18.041,-12.2873 -4.367,-3.2228 -11.51,-8.4897 -15.876,-11.7042 -32.596,-24 -52.738,-41.5984 -86.603,-75.6675 -42.623,-42.8794 -76.695,-86.3721 -107.814,-137.6224 -35.052,-57.7282 -64.681,-126.9457 -80.469,-187.9973 -0.511,-1.9808 -1.805,-6.8428 -2.873,-10.8044 -10.39,-38.5376 -18.034,-91.5123 -21.176,-146.7382 -2.799,-49.234 1.092,-106.9261 11.237,-166.5906 5.999,-35.2772 19.841,-85.6002 35.069,-127.4922 6.002,-16.5096 16.59,-40.4731 28.639,-64.8267 37.32,-75.4163 80.115,-135.0069 140.273,-195.3201 40.611,-40.714 77.909,-71.3397 121.41,-99.6889 116.612,-75.9923 245.059,-115.6434 384.492,-118.6908 100.693,-2.2008 188.16,12.8233 282.901,48.5931 22.922,8.6544 60.688,26.4841 86.939,41.0457 115.188,63.8934 211.831,156.3323 277.8,265.717 34.329,56.9221 56.335,105.5949 74.573,164.9477 6.98,22.7179 14.659,52.2721 17.405,66.9875 0.959,5.1502 2.31,11.957 2.999,15.1264 0.69,3.1693 1.983,10.9484 2.876,17.287 0.893,6.3386 2.198,15.4143 2.899,20.1683 1.545,10.4814 3.69,34.8567 5.953,67.7077 2.395,34.7285 -0.343,91.4282 -6.64,137.5766 -2.249,16.476 -8.243,49.0465 -10.869,59.0643 -1.63,6.2185 -5.606,22.0289 -7.245,28.8118 -4.632,19.1727 -19.616,64.7496 -22.103,67.2322 -0.527,0.5257 -0.958,1.801 -0.958,2.8339 0,1.033 -1.542,5.3008 -3.425,9.4841 -1.884,4.1831 -5.905,13.4319 -8.937,20.5525 -5.117,12.0228 -20.984,43.8667 -27.644,55.4813 -18.576,32.4047 -24.147,41.525 -38.109,62.4114 -14.453,21.6193 -28.06,39.7395 -43.898,58.464 -2.409,2.8471 -6.294,7.7694 -8.637,10.9388 -2.342,3.1692 -17.258,18.7887 -33.148,34.7099 -29.601,29.6579 -46.852,45.0047 -77.274,68.7415 -18.09,14.1153 -56.755,40.5022 -69.974,47.7543 -3.971,2.1777 -7.867,4.4836 -8.66,5.1246 -6.271,5.0632 -63.414,34.3111 -79.065,40.4677 -4.018,1.5809 -10.28,4.2293 -13.917,5.8856 -16.967,7.7274 -74.313,26.905 -91.049,30.4482 -1.984,0.42 -6.206,1.4654 -9.382,2.3228 -8.144,2.1996 -28.385,6.5776 -40.414,8.7419 -25.933,4.6661 -44.269,7.4772 -60.832,9.3264 -18.619,2.0788 -81.731,3.6936 -108.764,2.7827 z m 160.106,-150.556 c 82.772,-19.7959 146.981,-48.2763 216.237,-95.915 74.79,-51.4447 138.048,-122.2128 184.298,-206.1783 37.636,-68.3243 64.311,-154.323 69.53,-224.1555 l 0.959,-12.8116 -26.532,1.0005 c -47.875,1.8056 -76.776,3.6095 -94.367,5.8905 -23.369,3.0304 -57.04,10.0779 -77.131,16.144 -122.962,37.1267 -221.174,128.0233 -268.966,248.9294 -20.608,52.135 -30.991,102.2032 -34.206,164.9478 -1.599,31.187 -1.937,99.6656 -0.518,104.954 1.087,4.0518 2.602,3.9132 30.696,-2.8058 z m -223.298,-29.7585 c 1.143,-60.0315 -1.907,-108.9894 -9.18,-147.3005 -25.102,-132.2313 -98.992,-239.3423 -207.935,-301.4196 -20.566,-11.7183 -48.989,-25.0003 -65.52,-30.6163 -35.665,-12.1156 -77.524,-21.0628 -114.543,-24.4832 -28.339,-2.6184 -100.421,-5.6587 -102.58,-4.3268 -2.263,1.3954 -0.709,19.5328 4.506,52.5592 2.102,13.3266 4.23,23.8327 8.676,42.8577 4.745,20.2945 20.667,68.2863 28.319,85.3551 1.6,3.5654 4.759,10.6963 7.021,15.8465 31.959,72.7781 91.412,152.5492 152.864,205.1045 46.738,39.9718 76.208,59.928 125.573,85.0353 45.806,23.2969 91.135,39.7492 137.12,49.769 7.939,1.7297 15.732,3.7059 17.321,4.3915 1.587,0.6856 6.22,1.2906 10.296,1.3441 l 7.411,0.098 z m 123.652,-431.9911 c 27.912,-6.4377 51.703,-21.2852 69.537,-43.3969 15.264,-18.9265 22.898,-35.8806 26.756,-59.4317 2.731,-16.6595 2.537,-25.0972 -0.968,-42.2712 -7.766,-38.0345 -34.391,-72.5927 -68.416,-88.8015 -18.136,-8.6394 -33.763,-11.9787 -55.615,-11.8853 -20.74,0.088 -33.527,2.839 -51.295,11.0324 -45.738,21.0917 -75.468,69.7558 -72.458,118.61 2.048,33.248 11.579,55.969 33.118,78.9499 31.43,33.5347 75.567,47.2902 119.341,37.1943 z m -546.154,-259.9218 c 71.267,-18.0897 204.88,-50.4335 230.939,-55.9045 75.943,-15.9425 131.198,-23.9613 202.072,-29.3254 32.284,-2.4433 142.443,-2.4423 173.205,0 113.073,8.9835 182.415,22.4723 406.308,79.0384 47.972,12.12 76.674,18.7656 86.891,20.1181 8.507,1.1264 8.415,1.9618 2.457,-22.3003 -6.76,-27.5247 -18.471,-63.828 -25.974,-80.516 -2.7,-6.0087 -5.506,-12.2959 -11.568,-25.9305 -12.183,-27.4056 -35.356,-68.1082 -52.128,-91.5676 -73.607,-102.956 -169.482,-177.72 -285.465,-222.6044 -30.982,-11.99 -68.325,-22.4823 -98.149,-27.5779 -5.161,-0.8815 -12.63,-2.1853 -16.6,-2.8974 -3.969,-0.712 -11.762,-1.949 -17.319,-2.7488 -5.557,-0.7999 -14.975,-2.2204 -20.93,-3.1569 -14.396,-2.2644 -92.221,-2.2904 -107.53,-0.037 -6.351,0.9352 -16.094,2.3516 -21.652,3.1475 -33.375,4.78 -37.967,5.6686 -77.941,15.089 -12.398,2.922 -43.882,13.3455 -58.294,19.3004 -5.863,2.4231 -11.283,4.4055 -12.039,4.4055 -2.513,0 -56.45,26.708 -71.117,35.2156 -7.939,4.6044 -16.708,9.664 -19.486,11.2435 -19.634,11.1618 -58.632,40.2915 -84.458,63.0907 -91.548,80.8103 -159.749,194.6465 -187.023,312.1598 -1.697,7.316 -2.733,14.2232 -2.299,15.3495 0.969,2.5177 18.094,-0.9008 68.1,-13.5938 z"></path>
         </svg>
         DRIVERTRAX
     </h1>
 
+    <a id="top"></a>
 
-    <h1>Privacy Policy</h1>
+    <h2>DriverTrax Privacy Policy</h2>
 
-    <p><strong>Effective Date:</strong> June 1, 2026</p>
+    <p class="effective-date">
+        <strong>Effective Date:</strong> June 1, 2026
+    </p>
 
-    <h2>Introduction</h2>
+    <div class="toc">
+        <h2>Table of Contents</h2>
+        <ul>
+            <li><a href="#introduction">1. Introduction</a></li>
+            <li><a href="#information-we-collect">2. Information We Collect</a></li>
+            <li><a href="#how-we-use-information">3. How We Use Your Information</a></li>
+            <li><a href="#text-messages">4. Text Messages and Phone Communications</a></li>
+            <li><a href="#sms-consent">5. SMS Consent</a></li>
+            <li><a href="#consent-to-receive-texts">6. Consent to Receive Text Messages</a></li>
+            <li><a href="#information-sharing">7. Information Sharing</a></li>
+            <li><a href="#data-security">8. Data Security</a></li>
+            <li><a href="#data-retention">9. Data Retention</a></li>
+            <li><a href="#your-rights">10. Your Rights</a></li>
+            <li><a href="#children">11. Children's Privacy</a></li>
+            <li><a href="#changes">12. Changes to This Privacy Policy</a></li>
+            <li><a href="#contact">13. Contact Us</a></li>
+            <li><a href="#commitment">14. Privacy Commitment</a></li>
+        </ul>
+    </div>
+
+    <h2 id="introduction">1. Introduction</h2>
+
     <p>
         DriverTrax ("DriverTrax," "we," "our," or "us") respects your privacy and is
         committed to protecting the personal information you provide when using our
         software and related services.
     </p>
+
     <p>
         This Privacy Policy explains what information we collect, how we use it,
         and the choices available to you regarding your information.
     </p>
 
-    <h2>Information We Collect</h2>
+    <div class="back-top"><a href="#top">Back to Top</a></div>
+
+    <h2 id="information-we-collect">2. Information We Collect</h2>
+
     <p>We may collect the following information:</p>
+
     <ul>
         <li>Name</li>
         <li>Email address</li>
@@ -125,11 +181,15 @@ hr {
         <li>Username and account credentials</li>
         <li>Account activity and login information</li>
         <li>Technical information necessary to operate, maintain, and secure DriverTrax</li>
-        <li>Information you voluntarily provide while using the software</li>
+        <li>Information voluntarily provided while using DriverTrax</li>
     </ul>
 
-    <h2>How We Use Your Information</h2>
+    <div class="back-top"><a href="#top">Back to Top</a></div>
+
+    <h2 id="how-we-use-information">3. How We Use Your Information</h2>
+
     <p>We use your information solely to:</p>
+
     <ul>
         <li>Create and manage your DriverTrax account</li>
         <li>Authenticate your identity</li>
@@ -139,10 +199,14 @@ hr {
         <li>Comply with legal obligations</li>
     </ul>
 
-    <h2>Text Messages and Phone Communications</h2>
+    <div class="back-top"><a href="#top">Back to Top</a></div>
+
+    <h2 id="text-messages">4. Text Messages and Phone Communications</h2>
+
     <p>
         If you provide a mobile phone number, DriverTrax may send text messages related to:
     </p>
+
     <ul>
         <li>Two-factor authentication (2FA) security codes</li>
         <li>Login verification requests</li>
@@ -164,108 +228,175 @@ hr {
         Message and data rates may apply depending on your mobile carrier plan.
     </p>
 
-    <h2>SMS Consent</h2>
+    <div class="back-top"><a href="#top">Back to Top</a></div>
+
+    <h2 id="sms-consent">5. SMS Consent</h2>
+
     <p>
         By providing your mobile phone number, you consent to receive account-related
         text messages from DriverTrax, including two-factor authentication codes,
-        security alerts, and account notifications.
+        security alerts, password reset messages, and account notifications.
     </p>
 
     <p>
-        <strong>SMS consent is not shared with third parties or affiliates for marketing purposes.</strong>
+        SMS consent is not shared with third parties or affiliates for marketing
+        purposes. DriverTrax does not sell, rent, or distribute mobile phone numbers
+        or SMS consent data for advertising or promotional use.
     </p>
 
     <p>
         Message frequency varies based on account activity. Message and data rates
-        may apply. You may update or remove your phone number by contacting support;
-        however, doing so may limit certain account security features.
+        may apply.
     </p>
 
-    <h2>Information Sharing</h2>
+    <div class="back-top"><a href="#top">Back to Top</a></div>
+
+    <h2 id="consent-to-receive-texts">6. Consent to Receive Text Messages</h2>
+
     <p>
-        DriverTrax does not sell, rent, trade, or otherwise share your personal
+        By creating an account with DriverTrax and voluntarily providing your mobile
+        phone number, you expressly consent to receive text messages for account-related
+        purposes, including:
+    </p>
+
+    <ul>
+        <li>Two-factor authentication (2FA) codes</li>
+        <li>Login verification requests</li>
+        <li>Password reset instructions</li>
+        <li>Security alerts</li>
+        <li>Account notifications</li>
+        <li>Other service-related communications necessary for the operation and security of your account</li>
+    </ul>
+
+    <p>
+        Consent to receive these messages is not a condition of purchasing any goods
+        or services.
+    </p>
+
+    <p>
+        User consent is collected during account registration, when enabling
+        two-factor authentication, or when a user adds or updates a mobile phone
+        number within DriverTrax. DriverTrax may maintain records of consent,
+        including the date, time, IP address, and method by which consent was
+        provided, where permitted or required by applicable law.
+    </p>
+
+    <p>
+        Users may update or remove their mobile phone number at any time. Removing
+        a phone number may disable certain security features, including two-factor
+        authentication and account recovery capabilities.
+    </p>
+
+    <div class="back-top"><a href="#top">Back to Top</a></div>
+
+    <h2 id="information-sharing">7. Information Sharing</h2>
+
+    <p>
+        DriverTrax does not sell, rent, trade, or otherwise share personal
         information with third parties for marketing purposes.
     </p>
 
-    <p>We may share information only with:</p>
+    <p>Information may be shared only with:</p>
+
     <ul>
-        <li>Service providers that help us operate DriverTrax, such as hosting, authentication, cloud storage, and messaging providers</li>
+        <li>Service providers assisting with hosting, authentication, security, cloud services, and messaging delivery</li>
         <li>Government authorities when required by law</li>
-        <li>Parties involved in a merger, acquisition, or business transfer, subject to appropriate confidentiality protections</li>
+        <li>Parties involved in a merger, acquisition, or business transfer, subject to confidentiality obligations</li>
     </ul>
 
-    <h2>Data Security</h2>
+    <div class="back-top"><a href="#top">Back to Top</a></div>
+
+    <h2 id="data-security">8. Data Security</h2>
+
     <p>
         We implement reasonable administrative, technical, and physical safeguards
-        designed to protect your personal information from unauthorized access,
+        designed to protect personal information from unauthorized access,
         disclosure, alteration, or destruction.
     </p>
 
     <p>
-        While we strive to protect your information, no method of electronic
-        transmission or storage is completely secure, and we cannot guarantee
-        absolute security.
+        No method of electronic transmission or storage is completely secure, and
+        we cannot guarantee absolute security.
     </p>
 
-    <h2>Data Retention</h2>
-    <p>We retain personal information only as long as necessary to:</p>
+    <div class="back-top"><a href="#top">Back to Top</a></div>
+
+    <h2 id="data-retention">9. Data Retention</h2>
+
+    <p>
+        Personal information is retained only as long as necessary to:
+    </p>
+
     <ul>
         <li>Provide DriverTrax services</li>
         <li>Maintain account security</li>
         <li>Comply with legal obligations</li>
         <li>Resolve disputes</li>
-        <li>Enforce our agreements</li>
+        <li>Enforce agreements and policies</li>
     </ul>
 
-    <h2>Your Rights</h2>
-    <p>
-        Depending on your jurisdiction, you may have the right to:
-    </p>
+    <div class="back-top"><a href="#top">Back to Top</a></div>
+
+    <h2 id="your-rights">10. Your Rights</h2>
+
+    <p>Depending on applicable law, you may have the right to:</p>
+
     <ul>
         <li>Access your personal information</li>
         <li>Correct inaccurate information</li>
-        <li>Request deletion of your information</li>
-        <li>Request information about how your data is used</li>
+        <li>Request deletion of personal information</li>
+        <li>Request information regarding how your data is used</li>
     </ul>
 
+    <div class="back-top"><a href="#top">Back to Top</a></div>
+
+    <h2 id="children">11. Children's Privacy</h2>
+
     <p>
-        To exercise these rights, contact us using the information provided below.
+        DriverTrax is not intended for use by children under the age of 13, and
+        we do not knowingly collect personal information from children.
     </p>
 
-    <h2>Children's Privacy</h2>
+    <div class="back-top"><a href="#top">Back to Top</a></div>
+
+    <h2 id="changes">12. Changes to This Privacy Policy</h2>
+
     <p>
-        DriverTrax is not intended for use by children under the age of 13, and we
-        do not knowingly collect personal information from children.
+        We may update this Privacy Policy periodically. Any changes will be posted
+        with a revised Effective Date. Continued use of DriverTrax after such
+        changes constitutes acceptance of the updated policy.
     </p>
 
-    <h2>Changes to This Privacy Policy</h2>
-    <p>
-        We may update this Privacy Policy from time to time. Any changes will be
-        posted with an updated Effective Date. Continued use of DriverTrax after
-        changes are posted constitutes acceptance of the revised Privacy Policy.
-    </p>
+    <div class="back-top"><a href="#top">Back to Top</a></div>
 
-    <h2>Contact Us</h2>
+    <h2 id="contact">13. Contact Us</h2>
 
-    <div class="contact">
-        <p><strong>DriverTrax Support</strong></p>
-        <p>Email: support@drivertrax.com</p>
-    </div>
+    <p><strong>DriverTrax</strong></p>
+    <p>Email: [support@drivertrax.com]</p>
+    <p>Phone: [Your Phone Number]</p>
+    <p>Address: [Your Business Address]</p>
 
-    <hr>
+    <div class="back-top"><a href="#top">Back to Top</a></div>
 
-    <h2>Privacy Commitment</h2>
+    <h2 id="commitment">14. Privacy Commitment</h2>
+
     <p>
         DriverTrax is designed to support driver management and operational workflows.
-        We are committed to protecting user privacy. We do not sell personal
-        information, do not share personal information for marketing purposes, and
-        do not use user data for advertising or promotional activities.
+        We are committed to protecting user privacy.
+    </p>
+
+    <p>
+        We do not sell personal information, do not share personal information for
+        marketing purposes, and do not use user data for advertising or promotional
+        activities.
     </p>
 
     <p>
         Information collected through DriverTrax is used only to provide, secure,
         maintain, and improve the service.
     </p>
+
+    <div class="back-top"><a href="#top">Back to Top</a></div>
 
 </div>
 

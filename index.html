@@ -304,6 +304,25 @@
     text-transform: uppercase; font-weight: 700;
     margin-top: 14px; margin-bottom: 8px;
   }
+  .detail-locked-banner {
+    margin: 8px 0 4px;
+    padding: 8px 12px;
+    background: rgba(0, 166, 81, 0.12);
+    border: 1px solid rgba(0, 166, 81, 0.5);
+    color: #4ade80;
+    border-radius: 8px;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.5px;
+  }
+  .cond-chip.is-locked,
+  .todo-item.is-locked { cursor: default; opacity: 0.6; }
+  .cond-chip.is-locked input,
+  .todo-item.is-locked input,
+  .todo-item.is-locked textarea { cursor: default; }
+  .todo-note-locked {
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--muted);
+  }
+  .todo-note-locked svg { width: 14px; height: 14px; }
 
   /* Note cards on the VIN view */
   .note-card {
@@ -320,7 +339,7 @@
   .note-author { font-weight: 700; color: #e8eaed; }
   .note-time   { color: #6b7785; font-size: 11px; white-space: nowrap; }
   .note-body   { font-size: 14px; color: #e8eaed; white-space: pre-wrap; }
-  .note-body-more { margin-top: 6px; font-size: 12px; color: var(--accent); font-weight: 700; letter-spacing: 0.5px; }
+  .note-body-more { margin-top: 6px; font-size: 12px; color: var(--accent); font-weight: 700; letter-spacing: 0.5px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
   /* Inline NHTSA-derived vehicle summary printed under each note's time row */
   .note-vehicle {
     font-size: 11px; color: var(--text2);
@@ -352,6 +371,7 @@
     list-style: none; padding: 8px 4px 0; margin: 6px 0 0;
     display: flex; flex-direction: column; gap: 8px;
   }
+  .recall-list[hidden] { display: none; }
   .recall-row {
     background: #20252c; border: 1px solid #2a313a;
     border-left: 3px solid #d97706;
@@ -386,12 +406,12 @@
   .note-role.role-detailer { color: #b76eff; }
 
   .note-del {
-    background: #2a313a; border: 1px solid #2a313a; color: #e85550;
-    font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
-    cursor: pointer; padding: 4px 10px; border-radius: 6px;
-    transition: background 0.15s;
+    text-transform: uppercase;
+    min-width: 0; min-height: 0;
+    padding: 4px 10px;
+    font-size: 11px; letter-spacing: 0.5px;
+    border-radius: 6px;
   }
-  .note-del:hover { background: #2f1c1c; }
   .note-gps { display: inline-flex; align-items: center; color: #4a9eff; text-decoration: none; }
   .ico-gps { width: 14px; height: 14px; }
 
@@ -431,15 +451,15 @@
     /* Four pills per row: (100% - 3 × 8px gap) / 4. flex-grow lets the last
        row stretch evenly when fewer than 4 chips fall on it. */
     flex: 1 1 calc((100% - 16px) / 3);
-    background: #2a313a; color: #b0b8c1;
-    border: 1px solid #2a313a; border-radius: var(--radius);
+    background: var(--card); color: var(--text2);
+    border: 1.5px solid var(--border); border-radius: var(--radius);
     padding: 0 14px; font-size: 13px; font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.5px;
     text-align: center;
     transition: background 0.15s, border-color 0.15s, color 0.15s;
   }
   .cond-chip input { display: none; }
-  .cond-chip:hover { background: #353d47; }
+  .cond-chip:hover { border-color: var(--text2); }
   .cond-chip.checked {
     background: #161028; border-color: #b76eff; color: #d9c0ff;
   }
@@ -605,6 +625,27 @@
     width: 200px;
   }
   .records-search-row .records-scan-btn:active { transform: scale(0.97); }
+  .entry-collapse {
+    margin: 12px 0;
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .entry-collapse-summary {
+    cursor: pointer; list-style: none;
+    padding: 10px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .entry-collapse-summary::-webkit-details-marker { display: none; }
+  .entry-collapse-summary::after {
+    content: "▸"; color: var(--muted); font-size: 12px;
+    transition: transform .15s ease;
+  }
+  .entry-collapse[open] > .entry-collapse-summary::after {
+    transform: rotate(90deg); color: var(--accent);
+  }
+  .entry-collapse-summary .field-label { margin: 0; }
+  .entry-collapse-body { padding: 0 14px 14px; }
+
   .records-filters {
     margin-bottom: 12px;
     background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
@@ -694,7 +735,15 @@
     letter-spacing: 0.5px; text-transform: uppercase;
   }
   .vin-tl-mileage{ font-size: 13px; color: #cfe4ff; margin-top: 4px; font-weight: 600; }
-  .vin-tl-count  { font-size: 11px; color: #6b7785; margin-top: 6px; }
+  .vin-tl-cond-row { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 6px; }
+  .vin-tl-cond-chip {
+    background: #2a1f08; color: #f0b04a;
+    border: 1px solid #f0b04a; border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+    text-transform: uppercase; white-space: nowrap;
+  }
+  .vin-tl-count  { font-size: 11px; color: #6b7785; }
   .vin-tl-list   { display: flex; flex-direction: column; gap: 8px; }
   .vin-tl-empty  { color: #6b7785; text-align: center; padding: 30px 16px; font-size: 14px; }
   .vin-tl-row {
@@ -842,10 +891,7 @@
     margin-bottom: 14px;
     font-size: 16px; font-weight: 800; letter-spacing: 1px;
   }
-  .users-modal-close {
-    background: none; border: none; color: #6b7785;
-    font-size: 22px; cursor: pointer; padding: 0 4px;
-  }
+  .users-modal-close { font-size: 22px; }
   #usersForm { display: flex; flex-direction: column; gap: 10px; }
   #usersForm label {
     display: flex; flex-direction: column; gap: 4px;
@@ -1018,11 +1064,7 @@
   .ann-banner-body .ann-body-text { grid-column: 1 / -1; font-size: 13px; color: #f0d080; white-space: pre-wrap; margin-top: 4px; }
   /* legacy span kept for back-compat if any banner still uses .meta */
   .ann-banner-body .meta { grid-column: 1 / -1; font-size: 11px; color: #b09060; }
-  .ann-banner-close {
-    background: none; border: none; color: #b09060; cursor: pointer;
-    font-size: 22px; line-height: 1; padding: 0 4px; flex-shrink: 0;
-  }
-  .ann-banner-close:hover { color: #f0d080; }
+  .ann-banner-close { font-size: 22px; line-height: 1; flex-shrink: 0; }
 
   /* Unread badge on the menu item */
   .ann-badge {
@@ -1758,7 +1800,8 @@
         <option value="WI/DELETE">WI/DELETE</option>
         <option value="GLASS">GLASS</option>
         <option value="TI">TI(TIRE)</option>
-        <!-- Privileged options (CHECK_IN, CHECK_OUT, HOLD, DNR) are injected
+        <option value="CHECK_IN">CUSTOMER CHECK IN</option>
+        <!-- Privileged options (CHECK_OUT, HOLD, DNR) are injected
              by gateCxrStatusOption() in app.js for CXR/manager/admin. -->
         <option value="OTHER">OTHER</option>
       </select>
@@ -1792,23 +1835,31 @@
     </div>
   </div>
 
-  <div class="field-label">Options</div>
-  <div class="checkbox-row u-row u-gap-3 u-mt-0">
-    <label class="notag-row u-flex-1 u-mt-0" id="noTagRow">
-      <input type="checkbox" id="noTag" class="visually-hidden" onchange="toggleNoTagStyle()"><span class="notag-label">Bad Tag</span>
-    </label>
-    <label class="notag-row shuttle-row u-flex-1 u-mt-0" id="shuttleRow">
-      <input type="checkbox" id="shuttle" class="visually-hidden" onchange="toggleShuttleStyle()"><span class="notag-label">Shuttle</span>
-    </label>
-    <label class="notag-row transport-row u-flex-1 u-mt-0" id="transportRow">
-      <input type="checkbox" id="transport" class="visually-hidden" onchange="toggleTransportStyle()"><span class="notag-label">Transport</span>
-    </label>
-  </div>
+  <details class="entry-collapse" id="entryOptionsCollapse" data-collapse-key="options">
+    <summary class="entry-collapse-summary"><span class="field-label u-mt-0">Options</span></summary>
+    <div class="entry-collapse-body">
+      <div class="checkbox-row u-row u-gap-3 u-mt-0">
+        <label class="notag-row u-flex-1 u-mt-0" id="noTagRow">
+          <input type="checkbox" id="noTag" class="visually-hidden" onchange="toggleNoTagStyle()"><span class="notag-label">Bad Tag</span>
+        </label>
+        <label class="notag-row shuttle-row u-flex-1 u-mt-0" id="shuttleRow">
+          <input type="checkbox" id="shuttle" class="visually-hidden" onchange="toggleShuttleStyle()"><span class="notag-label">Shuttle</span>
+        </label>
+        <label class="notag-row transport-row u-flex-1 u-mt-0" id="transportRow">
+          <input type="checkbox" id="transport" class="visually-hidden" onchange="toggleTransportStyle()"><span class="notag-label">Transport</span>
+        </label>
+      </div>
+    </div>
+  </details>
 
-  <div id="cxrConditionsSection">
-    <div class="field-label">Conditions</div>
-    <div class="detail-conditions" id="cxrConditions"></div>
-  </div>
+  <details class="entry-collapse" id="entryConditionsCollapse" data-collapse-key="conditions">
+    <summary class="entry-collapse-summary"><span class="field-label u-mt-0">Conditions</span></summary>
+    <div class="entry-collapse-body">
+      <div id="cxrConditionsSection">
+        <div class="detail-conditions" id="cxrConditions"></div>
+      </div>
+    </div>
+  </details>
 
   <div class="field-label">Notes</div>
   <textarea class="u-mb-0" id="notes" placeholder="Optional notes..."></textarea>
@@ -1843,7 +1894,7 @@
 <!-- ==================== RECORDS PANEL ==================== -->
 <div class="panel" id="panel-records" role="tabpanel" aria-label="VIN lookup">
   <div class="records-search-row">
-    <input type="text" id="fSearch" placeholder="Search VIN or notes…" autocomplete="off" oninput="debouncedSearchUpdate()" onblur="onSearchBlur()">
+    <input type="text" id="fSearch" placeholder="Search VIN, make, model, or notes…" autocomplete="off" oninput="debouncedSearchUpdate()" onblur="onSearchBlur()">
     <button type="button" class="records-scan-btn" onclick="openScannerForSearch()" aria-label="Scan VIN to search">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="4" height="4"/><rect x="17" y="3" width="4" height="4"/><rect x="3" y="17" width="4" height="4"/><line x1="7" y1="5" x2="17" y2="5"/><line x1="19" y1="7" x2="19" y2="17"/><line x1="7" y1="19" x2="17" y2="19"/><line x1="5" y1="7" x2="5" y2="17"/><line x1="10" y1="12" x2="14" y2="12"/><line x1="12" y1="10" x2="12" y2="14"/></svg>
     </button>
@@ -2095,6 +2146,9 @@
 
     <div class="today-header"><span class="today-title">Open Jobs</span><span class="today-count" id="detailOpenJobsCount">0</span></div>
     <div id="detailOpenJobsList"><div class="bl-empty">Loading…</div></div>
+
+    <div class="today-header"><span class="today-title">This Shift</span><span class="today-count" id="detailShiftJobsCount">0</span></div>
+    <div id="detailShiftJobsList"><div class="bl-empty">Loading…</div></div>
   </div>
   <div id="detailScanLoaded" style="display:none">
     <!-- populated by detailer.js once a VIN is loaded -->
@@ -2179,7 +2233,7 @@
       <label class="users-callbacks-row"><input type="checkbox" name="callbacks_opt_in"> Available for callback requests</label>
       <div class="users-modal-msg" id="usersModalMsg"></div>
       <div class="users-modal-actions">
-        <button type="button" class="btn btn-secondary" id="usersModalCancel">Cancel</button>
+        <button type="button" class="btn-cancel" id="usersModalCancel">Cancel</button>
         <button type="submit" class="btn btn-primary btn-save" id="usersModalSubmit">Save</button>
       </div>
     </form>
@@ -2197,14 +2251,17 @@
   <div class="detail-sheet" id="detailSheet">
     <div class="detail-handle"></div>
     <div class="detail-header">
-      <div><div class="detail-serial" id="detailSerial"></div><div class="detail-time" id="detailTime"></div></div>
+      <div class="detail-time" id="detailTime"></div>
       <button class="detail-close" onclick="closeDetail()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
-    <div class="detail-badges" id="detailBadges"></div>
-    <div id="detailVinSection" style="display:none" class="detail-vin-section">
-      <div class="detail-vin-icon" id="detailVinIcon"></div>
-      <div class="detail-vin-info"><div class="detail-vin-name" id="detailVinName"></div><div class="detail-vin-specs" id="detailVinSpecs"></div></div>
+    <div class="detail-vin-section">
+      <div class="detail-vin-container">
+        <div class="detail-vin-icon" id="detailVinIcon"></div>
+        <div class="detail-serial" id="detailSerial"></div>
+        <div class="detail-vin-info"><div class="detail-vin-name" id="detailVinName"></div><div class="detail-vin-specs" id="detailVinSpecs"></div></div>
+      </div>
     </div>
+    <div class="detail-badges" id="detailBadges"></div>
     <div class="detail-body">
       <div class="detail-row" id="detailTiresRow" style="display:none"><span class="detail-label">Tires</span><span class="detail-val" id="detailTires"></span></div>
       <div class="detail-row" id="detailDestRow" style="display:none"><span class="detail-label">Location</span><span class="detail-val" id="detailDest"></span></div>
@@ -2246,7 +2303,7 @@
       <textarea id="editNotes" placeholder="Optional notes..."></textarea>
       <div id="editVinStatus" class="gps-status" style="display:none"></div>
       <div class="detail-actions" style="padding:16px 0 0">
-        <button class="btn btn-secondary" onclick="closeEdit()">Cancel</button>
+        <button class="btn-cancel" onclick="closeEdit()">Cancel</button>
         <button class="btn btn-primary btn-save" id="editSaveBtn" onclick="saveEdit()">Save Changes</button>
       </div>
     </div>

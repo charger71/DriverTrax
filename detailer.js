@@ -101,6 +101,7 @@
     currentVin = null;
     currentJob = null;
     loadOpenJobs();
+    loadShiftJobs();
   }
 
   async function loadVin(serialId) {
@@ -110,12 +111,32 @@
     showLoaded();
     renderShell(currentVin);
     await tryResumeJob(currentVin);
+    // No in-progress job to resume — fall back to the vehicle's last known
+    // conditions (set by any prior entry/detail job) so the detailer sees the
+    // todo carried over instead of always starting at REGULAR.
+    if (!currentJob.id && currentJob.conditions.size === 0) {
+      await seedConditionsFromVehicle(currentVin);
+    }
     if (!currentJob.id && currentJob.conditions.size === 0) {
       currentJob.conditions.add("REGULAR");
-      rebuildTodoFromConditions();
     }
+    rebuildTodoFromConditions();
     renderConditions();
     renderTodo();
+  }
+
+  async function seedConditionsFromVehicle(vin) {
+    try {
+      const { data } = await sb
+        .from("vehicles")
+        .select("current_conditions")
+        .eq("serial_id", vin)
+        .maybeSingle();
+      const list = Array.isArray(data?.current_conditions) ? data.current_conditions : [];
+      list.forEach(id => currentJob.conditions.add(id));
+    } catch (e) {
+      console.warn("[Detail] seed conditions from vehicle", e);
+    }
   }
 
   async function createTrackingRecord() {
@@ -142,19 +163,23 @@
   }
 
   function renderShell(vin) {
+    const lockedBanner = isJobLocked()
+      ? `<div class="detail-locked-banner">🔒 Job completed ${esc(ago(currentJob.completed_at))} — read-only.</div>`
+      : "";
     $("detailScanLoaded").innerHTML = `
       <div class="detail-vin-header">
         <div>
           <div class="detail-vin-label">VIN</div>
           <div class="detail-vin-value">${esc(vin)}</div>
         </div>
-        <button type="button" class="btn btn-danger" id="detailVinCancel">Cancel</button>
+        <button type="button" class="detail-close" id="detailVinCancel" aria-label="Cancel"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
+      ${lockedBanner}
 
       <div class="detail-subhead">Conditions</div>
       <div class="detail-conditions" id="detailConditions"></div>
 
-      <div class="detail-subhead">Today's todo</div>
+      <div class="detail-subhead">Job Checklist</div>
       <div id="detailTodo"><div class="bl-empty">Pick a condition to generate the list.</div></div>
 
       <div class="detail-job-actions" id="detailJobActions" style="display:none">
@@ -203,15 +228,21 @@
   }
 
   // ---- conditions ----
+  function isJobLocked() {
+    return !!(currentJob && currentJob.completed_at);
+  }
+
   function renderConditions() {
     const el = $("detailConditions");
     if (!el) return;
+    const locked = isJobLocked();
     el.innerHTML = CONDITIONS.map(c => `
-      <label class="cond-chip ${currentJob.conditions.has(c.id) ? "checked" : ""}">
-        <input type="checkbox" value="${c.id}" ${currentJob.conditions.has(c.id) ? "checked" : ""}>
+      <label class="cond-chip ${currentJob.conditions.has(c.id) ? "checked" : ""} ${locked ? "is-locked" : ""}">
+        <input type="checkbox" value="${c.id}" ${currentJob.conditions.has(c.id) ? "checked" : ""} ${locked ? "disabled" : ""}>
         <span>${esc(c.label)}</span>
       </label>
     `).join("");
+    if (locked) return;
     el.querySelectorAll("input").forEach(inp => {
       inp.addEventListener("change", () => {
         if (inp.checked) currentJob.conditions.add(inp.value);
@@ -243,21 +274,28 @@
     const el = $("detailTodo");
     const actions = $("detailJobActions");
     if (!el) return;
+    const locked = isJobLocked();
     if (!currentJob.todo.length) {
       el.innerHTML = `<div class="bl-empty">Pick a condition to generate the list.</div>`;
       if (actions) actions.style.display = "none";
       return;
     }
     el.innerHTML = currentJob.todo.map((t, idx) => `
-      <div class="todo-item ${t.done ? "done" : ""}" data-idx="${idx}">
+      <div class="todo-item ${t.done ? "done" : ""} ${locked ? "is-locked" : ""}" data-idx="${idx}">
         <label class="todo-check">
-          <input type="checkbox" ${t.done ? "checked" : ""}>
+          <input type="checkbox" ${t.done ? "checked" : ""} ${locked ? "disabled" : ""}>
           <span class="todo-label">${esc(t.label)}</span>
         </label>
-        <button type="button" class="todo-note-toggle" title="Add note">${t.note ? "📝" : "➕"}</button>
-        <textarea class="todo-note ${t.note ? "" : "hidden"}" placeholder="Optional note" maxlength="200">${esc(t.note)}</textarea>
+        ${locked
+          ? (t.note ? `<span class="todo-note-locked" aria-label="Note"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>` : "")
+          : `<button type="button" class="todo-note-toggle" title="Add note">${t.note ? "📝" : "➕"}</button>`}
+        <textarea class="todo-note ${t.note ? "" : "hidden"}" placeholder="Optional note" maxlength="200" ${locked ? "readonly" : ""}>${esc(t.note)}</textarea>
       </div>
     `).join("");
+    if (locked) {
+      if (actions) actions.style.display = "none";
+      return;
+    }
     el.querySelectorAll(".todo-item").forEach(row => {
       const idx = parseInt(row.dataset.idx, 10);
       row.querySelector("input[type=checkbox]").addEventListener("change", (e) => {
@@ -295,6 +333,7 @@
 
   // ---- persistence (auto-save) ----
   function scheduleSave() {
+    if (isJobLocked()) return;
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(saveJob, 500);
   }
@@ -322,7 +361,18 @@
 
   function revealCompleteJob() {
     const btn = $("detailCompleteBtn");
-    if (btn) btn.style.display = "";
+    if (!btn) return;
+    // Completed jobs are read-only — neither Save Job nor Complete Job should
+    // re-appear when the user opens one from history.
+    if (isJobLocked()) {
+      btn.style.display = "none";
+      const saveBtn = $("detailSaveJobBtn");
+      if (saveBtn) saveBtn.style.display = "none";
+      const actions = $("detailJobActions");
+      if (actions) actions.style.display = "none";
+      return;
+    }
+    btn.style.display = "";
     updateCompleteBtnState();
   }
 
@@ -379,9 +429,13 @@
     const { error } = await sb.from("detail_jobs").update(jobUpdate).eq("id", currentJob.id);
     if (error) { alert(error.message); return; }
 
-    // Stamp the linked tracking record with the completion GPS + a final status.
+    // Stamp the linked tracking record with the completion GPS + final status.
+    // CLEAN (rather than the legacy DETAILED) so the VIN's current_status —
+    // which the inventory derives from the latest record — flips to CLEAN as
+    // soon as the detailer submits, matching how the rest of the app reads
+    // "ready to roll".
     if (currentJob.record_id) {
-      const recordUpdate = { status: "DETAILED" };
+      const recordUpdate = { status: "CLEAN" };
       if (loc) { recordUpdate.lat = loc.lat; recordUpdate.lng = loc.lng; recordUpdate.gps_error = false; }
       const { error: rErr } = await sb.from("records").update(recordUpdate).eq("id", currentJob.record_id);
       if (rErr) console.warn("[Detail] record update on complete", rErr);
@@ -440,6 +494,78 @@
     });
   }
 
+  // ---- This Shift (today's jobs, open + closed, with VIN current status) ----
+  async function loadShiftJobs() {
+    const user = DT_AUTH.getUser();
+    if (!user) return;
+    const el = $("detailShiftJobsList");
+    const countEl = $("detailShiftJobsCount");
+    if (!el) return;
+    // Shift window = since EST start-of-day. Matches how the rest of the app
+    // talks about "today's" work for drivers and managers.
+    const now = new Date();
+    const estParts = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+    const shiftStart = new Date(estParts.getFullYear(), estParts.getMonth(), estParts.getDate()).toISOString();
+
+    const { data: jobs, error } = await sb
+      .from("detail_jobs")
+      .select("id,serial_id,condition_tags,started_at,completed_at")
+      .eq("detailer_id", user.id)
+      .gte("started_at", shiftStart)
+      .order("started_at", { ascending: false })
+      .limit(100);
+    if (error) { el.innerHTML = `<div class="bl-empty">${esc(error.message)}</div>`; if (countEl) countEl.textContent = "0"; return; }
+    if (!jobs || !jobs.length) {
+      el.innerHTML = `<div class="bl-empty">No jobs this shift yet.</div>`;
+      if (countEl) countEl.textContent = "0";
+      return;
+    }
+    if (countEl) countEl.textContent = String(jobs.length);
+
+    // Cross-reference VIN current status from the vehicles inventory table so
+    // the detailer can see whether the asset they worked on has changed state
+    // since (e.g. moved to CHECK_OUT or HOLD after their job completed).
+    const vins = [...new Set(jobs.map(j => j.serial_id).filter(Boolean))];
+    const statusByVin = {};
+    if (vins.length) {
+      const { data: vehs } = await sb
+        .from("vehicles")
+        .select("serial_id,current_status,current_status_other")
+        .in("serial_id", vins);
+      (vehs || []).forEach(v => {
+        const disp = v.current_status === "OTHER" && v.current_status_other
+          ? `OTHER: ${v.current_status_other}`
+          : (typeof statusLabel === "function" ? statusLabel(v.current_status) : v.current_status || "");
+        statusByVin[v.serial_id] = { code: v.current_status || "", disp };
+      });
+    }
+
+    el.innerHTML = jobs.map(j => {
+      const done = !!j.completed_at;
+      const when = ago(done ? j.completed_at : j.started_at);
+      const vinStatus = statusByVin[j.serial_id];
+      const statusPill = vinStatus?.code
+        ? `<span class="record-status ${typeof statusClass === "function" ? statusClass(vinStatus.code) : ""}">${esc(vinStatus.disp)}</span>`
+        : "";
+      const condChips = j.condition_tags && j.condition_tags.length
+        ? j.condition_tags.map(esc).join(" · ")
+        : "";
+      return `
+        <div class="detail-history-row ${done ? "done" : "open"}" data-job-id="${esc(j.id)}">
+          <div class="detail-history-serial">${esc(j.serial_id)}</div>
+          <div class="detail-history-meta">
+            ${done ? "Done" : "In progress"} · ${esc(when)}
+            ${condChips ? " · " + condChips : ""}
+          </div>
+          ${statusPill ? `<div class="detail-history-status" style="margin-top:6px">VIN status: ${statusPill}</div>` : ""}
+        </div>
+      `;
+    }).join("");
+    el.querySelectorAll(".detail-history-row").forEach(row => {
+      row.addEventListener("click", () => openJobFromHistory(row.dataset.jobId));
+    });
+  }
+
   async function openJobFromHistory(jobId) {
     const { data, error } = await sb
       .from("detail_jobs")
@@ -469,7 +595,7 @@
   if (DT_AUTH.isDetailer && DT_AUTH.isDetailer()) start();
 
   document.addEventListener("dt-tab-shown", (e) => {
-    if (e.detail === "detail-scan")    loadOpenJobs();
+    if (e.detail === "detail-scan")    { loadOpenJobs(); loadShiftJobs(); }
     if (e.detail === "dashboard")      renderDashboard();
   });
 
@@ -570,5 +696,5 @@
   function startOfDay(d) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
   function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
 
-  window.DT_DETAIL = { loadVin, loadOpenJobs, renderDashboard, TASKS, CONDITIONS, CONDITION_TASKS };
+  window.DT_DETAIL = { loadVin, loadOpenJobs, loadShiftJobs, renderDashboard, TASKS, CONDITIONS, CONDITION_TASKS };
 })();

@@ -35,7 +35,7 @@ const DT_OPTIONS = {
     "AUDIT FAIL","WI/DELETE","GLASS","TI","OTHER"
   ],
   // Selectable only by CXR / manager / admin.
-  STATUS_PRIVILEGED: ["CHECK_IN","CHECK_OUT","HOLD","DNR"],
+  STATUS_PRIVILEGED: ["CHECK_OUT","HOLD","DNR"],
   // System-set by the detailer flow. Not selectable from any form,
   // but appears as a filter option in the records view.
   STATUS_DERIVED: ["DETAILING","DETAILED"],
@@ -1508,6 +1508,38 @@ function renderCxrConditions() {
 // Render the chip row once on load so they're visible regardless of status.
 document.addEventListener("DOMContentLoaded", renderCxrConditions);
 
+// Per-user persistence for the collapsible Options / Conditions sections in
+// the New Entry form. Default closed; each signed-in user's preference is
+// keyed by their auth id so it survives across sessions but doesn't leak
+// between accounts on a shared device.
+function entryCollapseStorageKey() {
+  const uid = window.DT_AUTH?.getUser?.()?.id || "anon";
+  return `dt-entry-collapse:${uid}`;
+}
+function loadEntryCollapseState() {
+  try { return JSON.parse(localStorage.getItem(entryCollapseStorageKey()) || "{}") || {}; }
+  catch { return {}; }
+}
+function saveEntryCollapseState(state) {
+  try { localStorage.setItem(entryCollapseStorageKey(), JSON.stringify(state)); } catch {}
+}
+function applyEntryCollapseState() {
+  const state = loadEntryCollapseState();
+  document.querySelectorAll(".entry-collapse[data-collapse-key]").forEach(el => {
+    const key = el.dataset.collapseKey;
+    el.open = !!state[key];
+    if (el._collapseWired) return;
+    el._collapseWired = true;
+    el.addEventListener("toggle", () => {
+      const cur = loadEntryCollapseState();
+      cur[key] = el.open;
+      saveEntryCollapseState(cur);
+    });
+  });
+}
+document.addEventListener("DOMContentLoaded", applyEntryCollapseState);
+document.addEventListener("dt-auth-change", applyEntryCollapseState);
+
 // Privileged status options (CHECK_IN, CHECK_OUT, HOLD, DNR) are CXR /
 // manager / admin only. `display:none` on <option> is unreliable across
 // browsers, so we add/remove the nodes from the DOM as role changes.
@@ -2060,7 +2092,10 @@ function getVehicleSVG(vinData) {
   if (!vinData) return { vehicle: "", fuel: "" };
   const body = (vinData.bodyClass || "").toLowerCase();
   const fuel = (vinData.fuelType || "").toLowerCase();
-  const size = vinData._size || 28;
+  // _size is the icon's rendered WIDTH. Height scales from the viewBox so every
+  // body type occupies the same horizontal footprint (consistent across pickups,
+  // SUVs, sedans, etc.).
+  const size = vinData._size || 40;
   const c = "var(--accent)";
   const uid = "v" + Math.random().toString(36).slice(2,7);
 
@@ -2100,12 +2135,9 @@ function getVehicleSVG(vinData) {
     svg = `<g transform="translate(-56.96902,-76.384689)"><path d="m 68.423077,145.20961 c -9.09036,-1.29416 -10.10311,-1.98967 -10.85189,-7.45257 -0.93502,-6.82175 -0.80647,-10.18877 0.56363,-14.76174 3.11904,-10.41044 13.8862,-14.7864 49.788263,-20.2348 10.23944,-1.55391 10.88463,-1.81195 26,-10.398338 25.48518,-14.47704 27.22399,-14.98748 53.66525,-15.75385 29.09734,-0.84336 34.14334,0.18086 60.58452,12.29725 13.83657,6.34046 21.15155,8.40213 29.81144,8.40213 2.86071,0 5.15962,0.56116 5.88638,1.43685 0.65586,0.79026 1.83105,5.094678 2.61153,9.565368 0.78047,4.47069 2.09896,9.09923 2.92996,10.28566 2.30814,3.29532 2.02624,13.78727 -0.45519,16.9419 -2.66787,3.39165 -5.70748,4.49509 -18.28488,6.63777 l -10.74901,1.8312 -0.006,-2.59938 c -0.0155,-7.24904 -4.88866,-15.44196 -11.0932,-18.65045 -1.54063,-0.79691 -5.22168,-1.44892 -8.1797,-1.44892 -4.27623,0 -6.28415,0.6008 -9.79966,2.93221 -5.69899,3.77944 -7.99567,7.79484 -8.6621,15.14437 l -0.53712,5.92342 -30.11111,0.002 c -16.56111,0.001 -39.84173,0.2963 -51.73472,0.65545 l -21.6236,0.653 -0.42386,-6.40545 c -1.68985,-25.53687 -36.828933,-24.66836 -36.828933,0.91072 v 5.18428 l -3.25,-0.12194 c -1.7875,-0.0671 -5.95,-0.50633 -9.25,-0.97614 z m 89.415763,-41.89129 c 11.90375,-0.51637 21.6861,-1.36643 22.02443,-1.91385 0.90214,-1.459698 4.3634,-19.126518 3.84818,-19.641738 -0.8434,-0.8434 -16.80468,1.61507 -23.09049,3.55656 -5.70314,1.76152 -24.40087,12.11862 -30.69788,17.004258 l -2.5,1.93967 4.5,-0.008 c 2.475,-0.004 14.13709,-0.426 25.91576,-0.93694 z m 64.37991,-2.61562 c 13.13989,-0.57604 13.87043,-0.718878 15.36829,-3.004908 2.12488,-3.24296 1.09723,-4.30733 -8.97342,-9.29406 -9.10908,-4.51058 -13.73953,-5.61848 -27.77057,-6.64454 l -9.58003,-0.70056 -1.06123,9.87453 c -0.58367,5.43099 -0.8668,10.198768 -0.62917,10.595058 0.23764,0.39629 4.5762,0.50874 9.64126,0.24989 5.06506,-0.25884 15.41725,-0.74278 23.00487,-1.07541 z" fill="${c}"/></g>`;
   }
 
-  // Height-driven sizing: height = size, width scales to preserve the
-  // viewBox's native aspect ratio so wide silhouettes fill the row
-  // instead of letterboxing inside a square.
   const [, , vbW, vbH] = viewBox.split(/\s+/).map(Number);
-  const iconW = Math.round(size * (vbW / vbH));
-  const vehicleIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${iconW}" height="${size}" style="vertical-align:middle;flex-shrink:0">${svg}</svg>`;
+  const iconH = Math.round(size * (vbH / vbW));
+  const vehicleIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${size}" height="${iconH}" style="vertical-align:middle;flex-shrink:0">${svg}</svg>`;
   return { vehicle: vehicleIcon, fuel: fuelIcon };
 }
 
@@ -2113,38 +2145,51 @@ function getVehicleSVG(vinData) {
 // RECORD CARD HTML (shared)
 // ============================
 function recordCard(r, onDelete, onClickAttr) {
-  let vinInfo = "";
+  const esc = sanitizeText;
+  let vehicleLine = "";
   if (r.vinData) {
-    const icons = getVehicleSVG(r.vinData);
-    const name = [r.vinData.year, r.vinData.make, r.vinData.model].filter(Boolean).map(sanitizeText).join(" ");
-    const trim = r.vinData.trim ? `<span style="color:var(--muted);font-size:12px"> ${sanitizeText(r.vinData.trim)}</span>` : "";
-    vinInfo = `<div class="record-vin" style="display:flex;align-items:center;gap:6px">${icons.vehicle}${icons.fuel}<span><b>${name}</b>${trim}</span></div>`;
+    const icons = getVehicleSVG({ ...r.vinData, _size: 36 });
+    const name = [r.vinData.year, r.vinData.make, r.vinData.model, r.vinData.trim]
+      .filter(Boolean).map(esc).join(" ");
+    if (name) {
+      vehicleLine = `<div class="vin-tl-vehicle">${icons.vehicle}${icons.fuel}<span class="vin-tl-vehicle-name">${name}</span></div>`;
+    }
   }
-  const safeSerial = sanitizeText(r.serialId || "");
+  const safeSerial = esc(r.serialId || "");
   const statusDisplay = r.status === "OTHER" && r.statusOther ? `OTHER: ${r.statusOther}` : statusLabel(r.status);
   const destDisplay = r.destination === "OTHER" && r.destinationOther ? `OTHER: ${r.destinationOther}` : (r.destination || "");
-  const safeStatus = sanitizeText(statusDisplay);
-  const safeDest = destDisplay ? sanitizeText(destDisplay) : "";
-  const safeNotes = r.notes ? sanitizeText(r.notes) : "";
-  const safeTires = r.tires && r.tires.length > 0 ? r.tires.map(sanitizeText).join(", ") : "";
+  const safeStatus = esc(statusDisplay);
+  const safeDest = destDisplay ? esc(destDisplay) : "";
+  const safeNotes = r.notes ? esc(r.notes) : "";
+  const safeTires = r.tires && r.tires.length > 0 ? r.tires.map(esc).join(", ") : "";
+
+  const headerMod = r.status === "HOLD" ? "vin-tl-header--hold"
+                  : r.status === "DNR"  ? "vin-tl-header--dnr"
+                  : "";
+  const mileageLine = Number.isFinite(r.mileage)
+    ? `<div class="vin-tl-mileage"><svg class="ico-mileage" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16a9 9 0 0 1 18 0"/><path d="M12 16 16 10"/><circle cx="12" cy="16" r="1.2" fill="currentColor"/></svg>${r.mileage.toLocaleString()} mi</div>` : "";
+  const headerRight = `<div class="vin-tl-header-right"><span class="vin-tl-status-pill ${statusClass(r.status)}">${safeStatus}</span>${mileageLine}</div>`;
+
+  const extraBadges = [
+    safeDest ? `<span class="badge-dest"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${safeDest}</span>` : "",
+    r.shuttle ? `<span class="badge-shuttle"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="6" width="22" height="12" rx="2"/><path d="M16 6V4a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v2"/><line x1="12" y1="6" x2="12" y2="18"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><line x1="1" y1="12" x2="23" y2="12"/></svg> SHUTTLE</span>` : "",
+    r.transport ? '<span class="badge-transport">TRANSPORT</span>' : "",
+    r.noTag ? '<span class="badge-notag">BAD TAG</span>' : ""
+  ].filter(Boolean).join("");
+
+  const countLine = `<div class="vin-tl-count"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${DT_FORMAT.timeAgoOrClock(r.timestamp)}${r._driverName ? ` · <b style="color:var(--text2)">${esc(r._driverName)}</b>` : ""}${r.fuel_level ? ` · Fuel <b style="color:var(--text2)">${esc(r.fuel_level)}</b>` : ""}</div>`;
 
   return `
-    <div class="record" onclick="${onClickAttr || `openDetail('${r.id}', '${onDelete}')`}">
-      <div class="record-header">
-        <div class="record-serial">${safeSerial}</div>
-        <div class="record-badges">
-          <span class="record-status ${statusClass(r.status)}">${safeStatus}</span>
-          ${safeDest ? `<span class="badge-dest"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${safeDest}</span>` : ""}
-          ${r.shuttle ? `<span class="badge-shuttle"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="6" width="22" height="12" rx="2"/><path d="M16 6V4a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v2"/><line x1="12" y1="6" x2="12" y2="18"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><line x1="1" y1="12" x2="23" y2="12"/></svg> SHUTTLE</span>` : ""}
-          ${r.transport ? '<span class="badge-transport">TRANSPORT</span>' : ""}
-          ${r.noTag ? '<span class="badge-notag">BAD TAG</span>' : ""}
-        </div>
+    <div class="record vin-tl-header ${headerMod}" onclick="${onClickAttr || `openDetail('${r.id}', '${onDelete}')`}">
+      <div class="vin-tl-header-top">
+        ${countLine}
+        ${headerRight}
       </div>
-      ${vinInfo}
-      <div class="record-meta"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${DT_FORMAT.timeAgoOrClock(r.timestamp)}${r._driverName ? ` · <b style="color:var(--text2)">${sanitizeText(r._driverName)}</b>` : ""}</div>
-      ${safeTires ? `<div class="record-meta" style="margin-top:4px">Tires: <b style="color:var(--danger)">${safeTires}</b></div>` : ""}
-      ${(Number.isFinite(r.mileage) || r.fuel_level) ? `<div class="record-meta" style="margin-top:4px">${Number.isFinite(r.mileage) ? `<b style="color:var(--text2)">${r.mileage.toLocaleString()} mi</b>` : ""}${(Number.isFinite(r.mileage) && r.fuel_level) ? " · " : ""}${r.fuel_level ? `Fuel <b style="color:var(--text2)">${sanitizeText(r.fuel_level)}</b>` : ""}</div>` : ""}
-      ${safeNotes ? `<div class="record-notes">${safeNotes}</div>` : ""}
+      <div class="vin-tl-vin">${safeSerial}</div>
+      ${vehicleLine}
+      ${extraBadges ? `<div class="record-badges" style="margin-top:6px">${extraBadges}</div>` : ""}
+      ${safeTires ? `<div class="vin-tl-count" style="margin-top:4px">Tires: <b style="color:var(--danger)">${safeTires}</b></div>` : ""}
+      ${safeNotes ? `<div class="record-notes" style="margin-top:8px">${safeNotes}</div>` : ""}
     </div>`;
 }
 
@@ -2302,7 +2347,7 @@ async function renderFuzzyResults(term) {
 
   let recsQ = sb.from("records")
     .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,tires,gps_error,shift_num,mileage,fuel_level,photo_url")
-    .or(`serial_id.ilike.%${upTerm}%,notes.ilike.%${safe}%`)
+    .or(`serial_id.ilike.%${upTerm}%,notes.ilike.%${safe}%,vin_data->>make.ilike.%${safe}%,vin_data->>model.ilike.%${safe}%`)
     .order("ts", { ascending: false })
     .limit(200);
   if (fStatus) recsQ = recsQ.eq("status", fStatus);
@@ -2322,7 +2367,7 @@ async function renderFuzzyResults(term) {
       .limit(200),
     sb.from("vehicles")
       .select("serial_id,current_status,current_status_other,current_destination,current_destination_other,last_lat,last_lng,last_seen_at,vin_data,entered_inventory_at")
-      .ilike("serial_id", `%${upTerm}%`)
+      .or(`serial_id.ilike.%${upTerm}%,vin_data->>make.ilike.%${safe}%,vin_data->>model.ilike.%${safe}%,vin_data->>year.ilike.%${safe}%`)
       .order("last_seen_at", { ascending: false, nullsFirst: false })
       .limit(100)
   ]);
@@ -2568,33 +2613,71 @@ function openVinRecordDetail(r, profileCache) {
     r.no_tag ? '<span class="badge-notag">BAD TAG</span>' : ""
   ].filter(Boolean).join("");
 
-  const gpsAction = (Number.isFinite(r.lat) && Number.isFinite(r.lng))
+  const hasGps = Number.isFinite(r.lat) && Number.isFinite(r.lng);
+  const gpsAction = hasGps
     ? `<a class="btn btn-secondary" href="https://www.google.com/maps?q=${r.lat},${r.lng}" target="_blank" rel="noopener">Open in Maps</a>` : "";
+
+  const vinSpecs = vd
+    ? [vd.bodyClass, vd.engine, vd.fuelType].filter(Boolean).map(esc).join("  ·  ")
+    : "";
+  const vehicleIcon = vd ? getVehicleSVG({ ...vd, _size: 48 }) : null;
+
+  const condList = Array.isArray(r.conditions) && r.conditions.length
+    ? r.conditions.map(id => esc(DT_OPTIONS.CONDITIONS.find(c => c.id === id)?.label || id)).join(", ")
+    : "";
+
+  const rows = [
+    `<div class="detail-row"><span class="detail-label">Author</span><span class="detail-val">${name}${role}</span></div>`,
+    Number.isFinite(r.mileage) ? `<div class="detail-row"><span class="detail-label">Mileage</span><span class="detail-val">${r.mileage.toLocaleString()} mi</span></div>` : "",
+    r.fuel_level ? `<div class="detail-row"><span class="detail-label">Fuel</span><span class="detail-val">${esc(r.fuel_level)}</span></div>` : "",
+    condList ? `<div class="detail-row"><span class="detail-label">Conditions</span><span class="detail-val">${condList}</span></div>` : "",
+    r.notes ? `<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-val">${esc(r.notes)}</span></div>` : "",
+    r.source ? `<div class="detail-row"><span class="detail-label">Source</span><span class="detail-val">${esc(r.source)}</span></div>` : "",
+    hasGps ? `<div class="detail-row"><span class="detail-label">GPS</span><span class="detail-val">${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}</span></div>` : ""
+  ].filter(Boolean).join("");
+
+  const photoBlock = r.photo_url
+    ? `<div class="detail-map-section"><img src="${esc(r.photo_url)}" alt="Record photo" style="display:block;width:100%;border-radius:var(--radius);cursor:zoom-in" onclick="window.open('${esc(r.photo_url)}','_blank','noopener')"></div>` : "";
+
+  const mapBlock = hasGps
+    ? `<div class="detail-map-section">
+         <div class="detail-map-title">Location</div>
+         <div id="vinRecordDetailMap" class="detail-map"></div>
+       </div>` : "";
 
   body.innerHTML = `
     <div class="detail-header">
-      <div>
-        <div class="detail-serial">${esc(r.serial_id || "")}</div>
-        <div class="detail-time">${esc(when)}</div>
-      </div>
+      <div class="detail-time">${esc(when)}</div>
       <button class="detail-close" onclick="closeRecordDetailOverlay()" aria-label="Close"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
-    ${badges ? `<div class="detail-badges">${badges}</div>` : ""}
-    ${vehicle ? `
-      <div class="detail-vin-section">
-        <div class="detail-vin-info">
-          <div class="detail-vin-name">${esc(vehicle)}</div>
-          ${vd?.trim ? `<div class="detail-vin-specs">${esc(vd.trim)}</div>` : ""}
-        </div>
-      </div>` : ""}
-    <div class="detail-body">
-      <div class="detail-row"><span class="detail-label">Author</span><span class="detail-val">${name}${role}</span></div>
-      ${r.notes ? `<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-val">${esc(r.notes)}</span></div>` : ""}
-      ${r.source ? `<div class="detail-row"><span class="detail-label">Source</span><span class="detail-val">${esc(r.source)}</span></div>` : ""}
+    <div class="detail-vin-section">
+      <div class="detail-vin-container">
+        ${vehicleIcon ? `<div class="detail-vin-icon">${vehicleIcon.vehicle}${vehicleIcon.fuel}</div>` : ""}
+        <div class="detail-serial">${esc(r.serial_id || "")}</div>
+        ${vehicle ? `<div class="detail-vin-info">
+          <div class="detail-vin-name">${esc(vehicle)}${vd?.trim ? `  ${esc(vd.trim)}` : ""}</div>
+          ${vinSpecs ? `<div class="detail-vin-specs">${vinSpecs}</div>` : ""}
+        </div>` : ""}
+      </div>
     </div>
-    ${gpsAction ? `<div class="detail-actions" style="grid-template-columns:1fr">${gpsAction}</div>` : ""}
+    ${badges ? `<div class="detail-badges">${badges}</div>` : ""}
+    <div class="detail-body">${rows}</div>
+    ${photoBlock}
+    ${mapBlock}
+    ${gpsAction ? `<div class="detail-actions" style="grid-template-columns:1fr;margin-top:12px">${gpsAction}</div>` : ""}
   `;
   document.getElementById("recordDetailOverlay").classList.add("open");
+
+  if (hasGps && window.L) {
+    setTimeout(() => {
+      const m = createMap("vinRecordDetailMap");
+      if (!m) return;
+      m.setView([r.lat, r.lng], 17);
+      const color = statusMapColor(r.status);
+      const icon = createNumberedMarker("P", color, 32);
+      L.marker([r.lat, r.lng], { icon }).addTo(m);
+    }, 80);
+  }
 }
 
 function closeRecordDetailOverlay() {
@@ -2633,7 +2716,7 @@ async function renderVinTimeline(vin, opts) {
 
   const [recordsRes, notesRes] = await Promise.all([
     sb.from("records")
-      .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,source,note_id,mileage,fuel_level,photo_url")
+      .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,source,note_id,mileage,fuel_level,photo_url,conditions")
       .eq("serial_id", vin)
       .order("ts", { ascending: false }),
     sb.from("vehicle_notes")
@@ -2716,7 +2799,7 @@ async function renderVinTimeline(vin, opts) {
           .filter(Boolean).map(esc);
         const name = nameParts.join(" ");
         if (!name) return "";
-        const icons = getVehicleSVG({ ...v, _size: 18 });
+        const icons = getVehicleSVG({ ...v, _size: 36 });
         // Secondary line: body / engine / fuel / drivetrain / doors. Each cell
         // becomes a small chip so it stays readable when the VIN has lots of
         // decoded fields.
@@ -2749,6 +2832,11 @@ async function renderVinTimeline(vin, opts) {
       const destDisp   = r.destination === "OTHER" && r.destination_other ? `OTHER: ${r.destination_other}` : (r.destination || "");
       const gps = (Number.isFinite(r.lat) && Number.isFinite(r.lng))
         ? ` · <a href="https://www.google.com/maps?q=${r.lat},${r.lng}" target="_blank" rel="noopener" class="vin-tl-gps"><svg class="ico-pin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12 22s-7-7.58-7-13a7 7 0 0 1 14 0c0 5.42-7 13-7 13zM12 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg></a>` : "";
+      const condChips = Array.isArray(r.conditions) && r.conditions.length
+        ? `<div class="vin-tl-cond-row">${r.conditions.map(id => {
+            const label = DT_OPTIONS.CONDITIONS.find(c => c.id === id)?.label || id;
+            return `<span class="vin-tl-cond-chip">${esc(label)}</span>`;
+          }).join("")}</div>` : "";
       return `
         <div class="vin-tl-row vin-tl-record" data-record-id="${esc(r.id)}">
           <div class="vin-tl-head">
@@ -2756,6 +2844,7 @@ async function renderVinTimeline(vin, opts) {
             <span class="vin-tl-time">${esc(ago(ev.ts))}${gps}</span>
           </div>
           <div class="vin-tl-meta">${name}${role}${destDisp ? ` · ${esc(destDisp)}` : ""}</div>
+          ${condChips}
           ${r.notes ? `<div class="vin-tl-body">${esc(r.notes)}</div>` : ""}
         </div>`;
     }
@@ -2995,7 +3084,7 @@ function openDetail(id, onDelete) {
     const name = [r.vinData.year, r.vinData.make, r.vinData.model].filter(Boolean).map(sanitizeText).join(" ");
     const trim = sanitizeText(r.vinData.trim || "");
     const specs = [r.vinData.bodyClass, r.vinData.engine, r.vinData.fuelType].filter(Boolean).map(sanitizeText).join("  ·  ");
-    const icons = getVehicleSVG({...r.vinData, _size: 36});
+    const icons = getVehicleSVG({...r.vinData, _size: 72});
     document.getElementById("detailVinIcon").innerHTML = icons.vehicle + icons.fuel;
     document.getElementById("detailVinName").textContent = name + (trim ? "  " + trim : "");
     document.getElementById("detailVinSpecs").textContent = specs;
@@ -3686,7 +3775,7 @@ function openInlineNewEntry(vin) {
   const body = document.getElementById("entryFormBody");
   if (!slot || !body) return;
   if (body.parentElement !== slot) {
-    slot.innerHTML = `<div class="vin-tl-entry-close-row"><button type="button" class="btn btn-secondary" onclick="restoreInlineNewEntry()">Close</button></div>`;
+    slot.innerHTML = `<div class="vin-tl-entry-close-row"><button type="button" class="btn-cancel" onclick="restoreInlineNewEntry()">Close</button></div>`;
     slot.appendChild(body);
   }
   // Prefill VIN and make sure the manual-entry section is visible so the
@@ -5209,13 +5298,23 @@ async function renderEntryCurrentState(vin) {
     <div>${parts.length ? parts.join('<span class="ecs-sep">·</span>') : "No prior status."}</div>
   `;
 
-  // Hint prior known state via placeholders on each field — the values stay
-  // empty so the user has to make a deliberate pick, but the previous answer
-  // is right there for reference. The first <option> of each <select> is
-  // used as the "placeholder" since native selects don't have one.
-  setSelectPlaceholderHint("status",      "-- STATUS --",   curStatus
-    ? (curStatus === "OTHER" && curStatusOther ? `OTHER: ${curStatusOther}` : statusLabel(curStatus))
-    : "");
+  // Pre-select the current status (when one exists and matches an option) so
+  // the user can submit without changing it. Previously we overloaded the
+  // placeholder text with the current value, which made the same status
+  // appear twice in the dropdown and left the form un-submittable until the
+  // user re-picked it.
+  const statusSel = document.getElementById("status");
+  if (statusSel?.options.length) {
+    statusSel.options[0].text = "-- STATUS --";
+    if (curStatus && Array.from(statusSel.options).some(o => o.value === curStatus)) {
+      statusSel.value = curStatus;
+      if (curStatus === "OTHER" && curStatusOther) {
+        const so = document.getElementById("statusOther");
+        if (so) so.value = curStatusOther;
+      }
+      if (typeof handleStatusChange === "function") handleStatusChange();
+    }
+  }
   setSelectPlaceholderHint("destination", "-- LOCATION --", curDest
     ? (curDest === "OTHER" && curDestOther ? `OTHER: ${curDestOther}` : curDest)
     : "");
@@ -5223,6 +5322,18 @@ async function renderEntryCurrentState(vin) {
     ? latestMF.mileage.toLocaleString()
     : "");
   setSelectPlaceholderHint("fuelLevel",   "-- FUEL --",     latestMF?.fuel || "");
+
+  // Carry over the vehicle's current conditions into the entry form so the
+  // detailer doesn't have to re-tick every chip on a follow-up visit. They can
+  // still uncheck any that no longer apply before saving.
+  if (Array.isArray(v?.current_conditions) && v.current_conditions.length) {
+    selectedCxrConditions = v.current_conditions.slice();
+    if (typeof renderCxrConditions === "function") renderCxrConditions();
+    // Force the Conditions collapsible open so the carried-over chips are
+    // actually visible — otherwise the panel hides what the user just inherited.
+    const condCollapse = document.getElementById("entryConditionsCollapse");
+    if (condCollapse) condCollapse.open = true;
+  }
 }
 
 // Replace the first option's label with the prior value when one exists,
@@ -5249,6 +5360,9 @@ function clearEntryCurrentState() {
   setSelectPlaceholderHint("destination", "-- LOCATION --", "");
   setSelectPlaceholderHint("fuelLevel",   "-- FUEL --",     "");
   setInputPlaceholderHint("mileage", "optional", "");
+  // Drop any carried-over conditions so the next VIN doesn't inherit them.
+  selectedCxrConditions = [];
+  if (typeof renderCxrConditions === "function") renderCxrConditions();
 }
 
 // Force a manual sync — push any queued local changes, then pull cloud state.

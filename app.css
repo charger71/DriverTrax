@@ -161,17 +161,9 @@
 
   /* Input with clear button (X) */
   .input-with-clear { position: relative; margin-bottom: var(--space-6); }
-  .input-with-clear input[type=text] { padding-right: 64px; cursor: pointer; margin-bottom: 0; }
-  .input-clear-btn {
-    position: absolute; right: 8px; top: 0; bottom: 0; margin: auto 0;
-    width: 56px; height: 36px; min-height: 36px; border-radius: 6px;
-    background: var(--card2); color: var(--text2);
-    border: none; cursor: pointer; display: none;
-    align-items: center; justify-content: center;
-    font-size: var(--font-xl); line-height: 1; padding: 0 0 3px;
-    transition: background 0.15s, color 0.15s;
-  }
-  .input-clear-btn:active { background: var(--danger); color: #fff; }
+  .input-with-clear input[type=text] { padding-right: 88px; cursor: pointer; margin-bottom: 0; }
+  /* .input-clear-btn sizing lives further down (after the shared close-button
+     block) so its dimensions actually win the cascade. */
 
   .vin-charcount {
     font-size: var(--font-sm); color: var(--muted); margin-top: var(--space-2); text-align: right;
@@ -563,16 +555,58 @@
     padding: var(--space-4) var(--space-5) var(--space-3);
   }
   .detail-serial { font-size: var(--font-xl); font-weight: 900; letter-spacing: 1px; color: var(--text); }
-  .detail-time { font-size: var(--font-sm); color: var(--muted); margin-top: var(--space-1); }
-  .detail-close { background: var(--card2); border: none; color: var(--muted); font-size: var(--font-md); cursor: pointer; padding: var(--space-2) var(--space-3); border-radius: 8px; min-width: 44px; min-height: 44px; }
+  .detail-time { font-size: var(--font-sm); color: var(--muted); margin-bottom: var(--space-5); }
+  /* Shared close/cancel button look — semi-transparent red background, white
+     glyph. Applies to all overlay/modal close icons and to text "Cancel"
+     buttons (via .btn-cancel) so the dismiss action looks the same everywhere. */
+  .detail-close,
+  .menu-close,
+  .weather-alert-close,
+  .ann-banner-close,
+  .users-modal-close,
+  .btn-cancel,
+  .note-del,
+  .input-clear-btn {
+    background: rgba(220, 38, 38, 0.2);
+    border: 1px solid rgba(220, 38, 38, 0.5);
+    color: #fff;
+    font-size: var(--font-md);
+    cursor: pointer;
+    padding: var(--space-2) var(--space-3);
+    border-radius: 8px;
+    min-width: 44px; min-height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .detail-close:hover,
+  .menu-close:hover,
+  .weather-alert-close:hover,
+  .ann-banner-close:hover,
+  .users-modal-close:hover,
+  .btn-cancel:hover,
+  .note-del:hover,
+  .input-clear-btn:hover {
+    background: rgba(220, 38, 38, 0.32);
+  }
+  .btn-cancel { font-weight: 700; letter-spacing: 0.5px; }
+  .input-clear-btn {
+    position: absolute; right: 8px; top: 0; bottom: 0; margin: auto 0;
+    /* Shorter than the 44×44 default so the input stays compact, wider so
+       the touch target remains comfortable to hit on mobile. */
+    width: 72px; min-width: 72px; height: 36px; min-height: 36px;
+    border-radius: 6px;
+    font-size: var(--font-xl); line-height: 1; padding: 0 0 3px;
+    display: none;
+  }
   .detail-badges { display: flex; gap: var(--space-2); flex-wrap: wrap; padding: 0 var(--space-5) var(--space-4); }
   .detail-body { padding: var(--space-4) var(--space-5) 0; border-top: 1px solid var(--border); }
-  .detail-vin-section {
-    display: flex; align-items: center; gap: var(--space-4);
-    margin: var(--space-3) var(--space-5); padding: var(--space-3) var(--space-4);
-    background: var(--card2); border-radius: var(--radius);
-    border-left: 3px solid var(--accent);
+  .detail-vin-section { display: contents; }
+  .detail-vin-container {
+    display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2);
+    border-radius: var(--radius);
+    padding: var(--space-4) var(--space-5) var(--space-6);
+    margin: 0;
   }
+  .detail-vin-icon svg { max-height: 28px; width: auto; }
   .detail-vin-icon { flex-shrink: 0; display: flex; align-items: center; gap: var(--space-1); }
   .detail-vin-name { font-size: var(--font-md); font-weight: 700; color: var(--text); line-height: var(--leading-tight); }
   .detail-vin-specs { font-size: var(--font-sm); color: var(--muted); margin-top: var(--space-1); }
@@ -711,12 +745,6 @@
     70%  { box-shadow: 0 0 0 12px rgba(255,200,0,0); }
     100% { box-shadow: 0 0 0 0   rgba(255,200,0,0); }
   }
-  .btn-cancel {
-    flex: 1; background: var(--card2); color: var(--accent);
-    border: 1px solid var(--accent); border-radius: var(--radius);
-    padding: var(--space-3); font-size: var(--font-base); font-weight: 700;
-    cursor: pointer; letter-spacing: 0.5px;
-  }
 
   /* TOAST */
   .toast {
@@ -740,7 +768,7 @@
   .weather-alert-text { display: flex; align-items: center; gap: var(--space-2); flex: 1; }
   .weather-alert-icon { font-size: var(--font-md); flex-shrink: 0; }
   .weather-alert-msg { font-size: var(--font-sm); font-weight: 600; color: #f0b080; letter-spacing: 0.3px; line-height: var(--leading-base); }
-  .weather-alert-close { background: none; border: none; color: #f0b080; font-size: var(--font-md); cursor: pointer; padding: 0 var(--space-1); flex-shrink: 0; opacity: 0.7; min-width: 44px; min-height: 44px; }
+  .weather-alert-close { flex-shrink: 0; }
 
   /* HEADER TOP ROW */
   .header-top { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
@@ -790,7 +818,7 @@
     padding: var(--space-4) var(--space-4); border-bottom: 2px solid var(--accent);
   }
   .menu-title { font-size: var(--font-base); font-weight: 800; letter-spacing: 2px; color: var(--accent); }
-  .menu-close { background: none; border: none; color: var(--muted); font-size: var(--font-xl); cursor: pointer; padding: 0; min-width: 44px; min-height: 44px; }
+  .menu-close { font-size: var(--font-xl); }
 
   .menu-nav { flex: 1; padding: var(--space-3) 0; }
   .menu-item {

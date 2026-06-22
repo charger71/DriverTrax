@@ -107,6 +107,7 @@
       conditions: rec.conditions && rec.conditions.length ? rec.conditions : null,
       vin_data: rec.vinData || null,
       photo_url: rec.photo_url || null,
+      photo_urls: Array.isArray(rec.photo_urls) && rec.photo_urls.length ? rec.photo_urls : null,
       mileage: Number.isFinite(rec.mileage) ? rec.mileage : null,
       fuel_level: rec.fuel_level || null,
       ts: new Date(rec.timestamp || Date.now()).toISOString()
@@ -132,6 +133,7 @@
       conditions: row.conditions || [],
       vinData: row.vin_data || undefined,
       photo_url: row.photo_url || "",
+      photo_urls: Array.isArray(row.photo_urls) ? row.photo_urls : (row.photo_urls ? [].concat(row.photo_urls) : []),
       mileage: Number.isFinite(row.mileage) ? row.mileage : null,
       fuel_level: row.fuel_level || "",
       timestamp: row.ts ? new Date(row.ts).getTime() : Date.now()

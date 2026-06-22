@@ -263,7 +263,7 @@ async function fetchFleetRecords() {
 
       const { data, error } = await DT_AUTH.client
         .from("records")
-        .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,shift_num,notes,lat,lng,gps_error,tires,vin_data,ts,mileage,fuel_level,photo_url")
+        .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,shift_num,notes,lat,lng,gps_error,tires,vin_data,ts,mileage,fuel_level,photo_url,photo_urls")
         .gte("ts", sinceISO)
         .lte("ts", untilISO)
         .order("ts", { ascending: false })
@@ -296,6 +296,7 @@ async function fetchFleetRecords() {
         mileage: Number.isFinite(row.mileage) ? row.mileage : null,
         fuel_level: row.fuel_level || "",
         photo_url: row.photo_url || "",
+        photo_urls: Array.isArray(row.photo_urls) ? row.photo_urls : [],
         timestamp: row.ts ? new Date(row.ts).getTime() : Date.now(),
         _driverName: names[row.user_id] || "Driver"
       }));
@@ -639,55 +640,74 @@ async function getRecalls(year, make, model) {
 // ============================
 // SAVE RECORD
 // ============================
-// Photo attached to the current NEW ENTRY form (resized blob, pre-upload).
+// Photos attached to the current NEW ENTRY form (array of resized blobs, pre-upload).
 // Wired by initEntryPhotoInput() at boot.
-let pendingEntryPhoto = null;
+let pendingEntryPhotos = [];
+
+function renderEntryPhotoStrip() {
+  const strip = document.getElementById("entryPhotoStrip");
+  if (!strip) return;
+  if (!pendingEntryPhotos.length) {
+    strip.style.display = "none";
+    strip.innerHTML = "";
+    return;
+  }
+  strip.style.display = "";
+  strip.innerHTML = "";
+  pendingEntryPhotos.forEach((blob, idx) => {
+    const thumb = document.createElement("div");
+    thumb.className = "entry-photo-thumb";
+    const img = document.createElement("img");
+    img.alt = "";
+    img.src = URL.createObjectURL(blob);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.setAttribute("aria-label", "Remove photo");
+    btn.textContent = "✕";
+    btn.addEventListener("click", () => {
+      pendingEntryPhotos.splice(idx, 1);
+      renderEntryPhotoStrip();
+    });
+    thumb.appendChild(img);
+    thumb.appendChild(btn);
+    strip.appendChild(thumb);
+  });
+}
 
 function initEntryPhotoInput() {
-  const input   = document.getElementById("entryPhotoInput");
-  const preview = document.getElementById("entryPhotoPreview");
-  const img     = document.getElementById("entryPhotoImg");
-  const remove  = document.getElementById("entryPhotoRemove");
+  const input = document.getElementById("entryPhotoInput");
   if (!input || input.dataset.wired) return;
   input.dataset.wired = "1";
 
   input.addEventListener("change", async () => {
-    const file = input.files?.[0];
-    if (!file) return;
+    const files = Array.from(input.files || []);
+    if (!files.length) return;
     const MAX_BYTES = 15 * 1024 * 1024;
-    if (file.size > MAX_BYTES) {
-      alert("That photo is too large (over 15MB). Please pick a smaller one.");
-      input.value = "";
-      return;
+    for (const file of files) {
+      if (file.size > MAX_BYTES) {
+        alert(`"${file.name}" is too large (over 15MB). Skipping.`);
+        continue;
+      }
+      try {
+        const blob = await (window.DT_VNOTES?.resizeImageBlob?.(file, 1920, 1080, 0.85) ?? file);
+        pendingEntryPhotos.push(blob);
+      } catch (e) {
+        console.warn("[Entry] photo resize", e);
+        alert(`Couldn't process "${file.name}".`);
+      }
     }
-    try {
-      const blob = await (window.DT_VNOTES?.resizeImageBlob?.(file, 1920, 1080, 0.85) ?? file);
-      pendingEntryPhoto = blob;
-      img.src = URL.createObjectURL(blob);
-      preview.style.display = "";
-    } catch (e) {
-      console.warn("[Entry] photo resize", e);
-      alert("Couldn't process that image.");
-    }
-  });
-
-  remove?.addEventListener("click", () => {
-    pendingEntryPhoto = null;
     input.value = "";
-    preview.style.display = "none";
-    img.src = "";
+    renderEntryPhotoStrip();
   });
 }
 document.addEventListener("DOMContentLoaded", initEntryPhotoInput);
 
 function resetEntryPhotoUI() {
-  pendingEntryPhoto = null;
+  pendingEntryPhotos = [];
   const input = document.getElementById("entryPhotoInput");
-  const preview = document.getElementById("entryPhotoPreview");
-  const img = document.getElementById("entryPhotoImg");
+  const strip = document.getElementById("entryPhotoStrip");
   if (input) input.value = "";
-  if (preview) preview.style.display = "none";
-  if (img) img.src = "";
+  if (strip) { strip.style.display = "none"; strip.innerHTML = ""; }
 }
 
 function saveRecord() {
@@ -702,7 +722,7 @@ function saveRecord() {
   const saveBtn = document.getElementById("saveBtn");
   const gpsEl = document.getElementById("gpsStatus");
   saveBtn.disabled = true;
-  saveBtn.innerHTML = pendingEntryPhoto ? "Uploading photo..." : "Getting location...";
+  saveBtn.innerHTML = pendingEntryPhotos.length ? "Uploading photos..." : "Getting location...";
   gpsEl.className = "gps-status acquiring";
   gpsEl.textContent = "Acquiring GPS coordinates...";
 
@@ -810,12 +830,20 @@ function saveRecord() {
   }
 
   (async () => {
-    if (pendingEntryPhoto) {
-      try {
-        recordData.photo_url = await window.DT_VNOTES.uploadPhoto(pendingEntryPhoto, serial);
-      } catch (e) {
-        console.warn("[Entry] photo upload", e);
-        showToast("Photo upload failed — saving without photo", "warn");
+    if (pendingEntryPhotos.length) {
+      const paths = [];
+      for (const blob of pendingEntryPhotos) {
+        try {
+          const path = await window.DT_VNOTES.uploadPhoto(blob, serial);
+          if (path) paths.push(path);
+        } catch (e) {
+          console.warn("[Entry] photo upload", e);
+        }
+      }
+      if (paths.length) {
+        recordData.photo_urls = paths;
+      } else {
+        showToast("Photo upload failed — saving without photos", "warn");
       }
       saveBtn.innerHTML = "Getting location...";
     }
@@ -2163,13 +2191,10 @@ function recordCard(r, onDelete, onClickAttr) {
   const safeNotes = r.notes ? esc(r.notes) : "";
   const safeTires = r.tires && r.tires.length > 0 ? r.tires.map(esc).join(", ") : "";
 
-  const headerMod = r.status === "HOLD" ? "vin-tl-header--hold"
-                  : r.status === "DNR"  ? "vin-tl-header--dnr"
-                  : "";
-  const mileageLine = Number.isFinite(r.mileage)
-    ? `<div class="vin-tl-mileage"><svg class="ico-mileage" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16a9 9 0 0 1 18 0"/><path d="M12 16 16 10"/><circle cx="12" cy="16" r="1.2" fill="currentColor"/></svg>${r.mileage.toLocaleString()} mi</div>` : "";
-  const headerRight = `<div class="vin-tl-header-right"><span class="vin-tl-status-pill ${statusClass(r.status)}">${safeStatus}</span>${mileageLine}</div>`;
-
+  const isPriority = Array.isArray(r.conditions) && r.conditions.includes("PRIORITY");
+  const priorityPill = isPriority ? `<span class="vin-tl-priority-pill">PRIORITY</span>` : "";
+  const mileagePart = Number.isFinite(r.mileage) ? `<span class="vin-tl-mileage-val">${r.mileage.toLocaleString()}<span class="vin-tl-mileage-unit"> mi</span></span>` : "";
+  const meterLine   = mileagePart ? `<div class="vin-tl-meters">${mileagePart}</div>` : "";
   const extraBadges = [
     safeDest ? `<span class="badge-dest"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${safeDest}</span>` : "",
     r.shuttle ? `<span class="badge-shuttle"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="6" width="22" height="12" rx="2"/><path d="M16 6V4a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v2"/><line x1="12" y1="6" x2="12" y2="18"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><line x1="1" y1="12" x2="23" y2="12"/></svg> SHUTTLE</span>` : "",
@@ -2177,18 +2202,21 @@ function recordCard(r, onDelete, onClickAttr) {
     r.noTag ? '<span class="badge-notag">BAD TAG</span>' : ""
   ].filter(Boolean).join("");
 
-  const countLine = `<div class="vin-tl-count"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${DT_FORMAT.timeAgoOrClock(r.timestamp)}${r._driverName ? ` · <b style="color:var(--text2)">${esc(r._driverName)}</b>` : ""}${r.fuel_level ? ` · Fuel <b style="color:var(--text2)">${esc(r.fuel_level)}</b>` : ""}</div>`;
+  const countLine = `<div class="vin-tl-count"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${DT_FORMAT.timeAgoOrClock(r.timestamp)}${r._driverName ? ` · <b style="color:var(--text2)">${esc(r._driverName)}</b>` : ""}</div>`;
+
+  const headerRight = `<div class="vin-tl-header-right">${countLine}${meterLine}</div>`;
+
+  const pillRow = `<div class="vin-tl-pill-row vin-tl-pill-row--bottom"><span class="vin-tl-status-pill ${statusClass(r.status)}">${safeStatus}</span>${priorityPill}${extraBadges}</div>`;
 
   return `
-    <div class="record vin-tl-header ${headerMod}" onclick="${onClickAttr || `openDetail('${r.id}', '${onDelete}')`}">
+    <div class="record vin-tl-header" onclick="${onClickAttr || `openDetail('${r.id}', '${onDelete}')`}">
       <div class="vin-tl-header-top">
-        ${countLine}
         ${headerRight}
       </div>
       <div class="vin-tl-vin">${safeSerial}</div>
       ${vehicleLine}
-      ${extraBadges ? `<div class="record-badges" style="margin-top:6px">${extraBadges}</div>` : ""}
       ${safeTires ? `<div class="vin-tl-count" style="margin-top:4px">Tires: <b style="color:var(--danger)">${safeTires}</b></div>` : ""}
+      ${pillRow}
       ${safeNotes ? `<div class="record-notes" style="margin-top:8px">${safeNotes}</div>` : ""}
     </div>`;
 }
@@ -2346,7 +2374,7 @@ async function renderFuzzyResults(term) {
   const upTerm = safe.toUpperCase();
 
   let recsQ = sb.from("records")
-    .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,tires,gps_error,shift_num,mileage,fuel_level,photo_url")
+    .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,tires,gps_error,shift_num,mileage,fuel_level,photo_url,photo_urls")
     .or(`serial_id.ilike.%${upTerm}%,notes.ilike.%${safe}%,vin_data->>make.ilike.%${safe}%,vin_data->>model.ilike.%${safe}%`)
     .order("ts", { ascending: false })
     .limit(200);
@@ -2409,6 +2437,7 @@ async function renderFuzzyResults(term) {
     mileage: Number.isFinite(row.mileage) ? row.mileage : null,
     fuel_level: row.fuel_level || "",
     photo_url: row.photo_url || "",
+    photo_urls: Array.isArray(row.photo_urls) ? row.photo_urls : [],
     timestamp: row.ts ? new Date(row.ts).getTime() : Date.now(),
     _driverName: names[row.user_id]
   }));
@@ -2598,7 +2627,20 @@ function openVinRecordDetail(r, profileCache) {
   const esc = (s) => sanitizeText(s);
   const p = profileCache?.get?.(r.user_id) || null;
   const name = esc(p?.display_name || "Someone");
-  const role = p?.role ? `<span class="note-role role-${esc(p.role)}">${esc(p.role)}</span>` : "";
+  const roleRaw = p?.role ? esc(p.role) : "";
+  const authorId = esc(r.user_id || "");
+  const avatarUrl = p?.avatar_url ? esc(p.avatar_url) : "";
+  const initials = (p?.display_name || "?").trim().split(/\s+/).slice(0,2).map(s => s[0] || "").join("").toUpperCase() || "?";
+  const avatarHtml = avatarUrl
+    ? `<div class="detail-author-avatar"><img src="${avatarUrl}" alt=""></div>`
+    : `<div class="detail-author-avatar">${esc(initials)}</div>`;
+  const authorBlock = `<div class="detail-author">
+    ${avatarHtml}
+    <div class="detail-author-text">
+      <button type="button" class="detail-author-name" onclick="openContactCard('${authorId}')">${name}</button>
+      ${roleRaw ? `<div class="detail-author-role role-${roleRaw}">${roleRaw}</div>` : ""}
+    </div>
+  </div>`;
   const statusDisp = r.status === "OTHER" && r.status_other ? `OTHER: ${r.status_other}` : statusLabel(r.status);
   const destDisp   = r.destination === "OTHER" && r.destination_other ? `OTHER: ${r.destination_other}` : (r.destination || "");
   const when = (() => { try { return new Date(r.ts).toLocaleString(); } catch { return ""; } })();
@@ -2627,7 +2669,6 @@ function openVinRecordDetail(r, profileCache) {
     : "";
 
   const rows = [
-    `<div class="detail-row"><span class="detail-label">Author</span><span class="detail-val">${name}${role}</span></div>`,
     Number.isFinite(r.mileage) ? `<div class="detail-row"><span class="detail-label">Mileage</span><span class="detail-val">${r.mileage.toLocaleString()} mi</span></div>` : "",
     r.fuel_level ? `<div class="detail-row"><span class="detail-label">Fuel</span><span class="detail-val">${esc(r.fuel_level)}</span></div>` : "",
     condList ? `<div class="detail-row"><span class="detail-label">Conditions</span><span class="detail-val">${condList}</span></div>` : "",
@@ -2636,8 +2677,30 @@ function openVinRecordDetail(r, profileCache) {
     hasGps ? `<div class="detail-row"><span class="detail-label">GPS</span><span class="detail-val">${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}</span></div>` : ""
   ].filter(Boolean).join("");
 
-  const photoBlock = r.photo_url
-    ? `<div class="detail-map-section"><img src="${esc(r.photo_url)}" alt="Record photo" style="display:block;width:100%;border-radius:var(--radius);cursor:zoom-in" onclick="window.open('${esc(r.photo_url)}','_blank','noopener')"></div>` : "";
+  // photo_urls is the canonical multi-photo list; legacy rows may still have
+  // a single photo_url. Paths are storage keys — sign them and inject after render.
+  const photoPaths = (Array.isArray(r.photo_urls) && r.photo_urls.length)
+    ? r.photo_urls
+    : (r.photo_url ? [r.photo_url] : []);
+  const galleryId = photoPaths.length ? `recordPhotoGallery_${r.id}` : "";
+  const photoBlock = photoPaths.length
+    ? `<div class="detail-map-section"><div id="${galleryId}" class="record-photo-gallery">${
+        photoPaths.map((_, i) => `<img data-idx="${i}" alt="Record photo" role="button" tabindex="0" data-a11y-kb="1">`).join("")
+      }</div></div>` : "";
+  if (photoPaths.length && window.DT_VNOTES?.signPhotoPaths) {
+    DT_VNOTES.signPhotoPaths(photoPaths).then(signed => {
+      const root = document.getElementById(galleryId);
+      if (!root) return;
+      photoPaths.forEach((path, i) => {
+        const url = signed[path];
+        if (!url) return;
+        const el = root.querySelector(`img[data-idx="${i}"]`);
+        if (!el) return;
+        el.src = url;
+        el.onclick = () => window.open(url, "_blank", "noopener");
+      });
+    }).catch(() => {});
+  }
 
   const mapBlock = hasGps
     ? `<div class="detail-map-section">
@@ -2647,7 +2710,10 @@ function openVinRecordDetail(r, profileCache) {
 
   body.innerHTML = `
     <div class="detail-header">
-      <div class="detail-time">${esc(when)}</div>
+      <div class="detail-header-left">
+        <div class="detail-time">${esc(when)}</div>
+        ${authorBlock}
+      </div>
       <button class="detail-close" onclick="closeRecordDetailOverlay()" aria-label="Close"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="detail-vin-section">
@@ -2688,9 +2754,62 @@ function closeNoteDetailOverlay() {
 }
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
+  if (document.getElementById("contactOverlay")?.classList.contains("open")) closeContactCard();
   if (document.getElementById("recordDetailOverlay")?.classList.contains("open")) closeRecordDetailOverlay();
   if (document.getElementById("noteDetailOverlay")?.classList.contains("open")) closeNoteDetailOverlay();
 });
+
+// ============================
+// CONTACT CARD — opened by clicking an author name on a record detail.
+// Fetches the full profile (name/email/phone/role/home_airport) and renders
+// a simple read-only sheet with click-to-call/click-to-email actions.
+// ============================
+window.openContactCard = async function openContactCard(userId) {
+  if (!userId) return;
+  const body = document.getElementById("contactBody");
+  const overlay = document.getElementById("contactOverlay");
+  if (!body || !overlay || !window.DT_AUTH) return;
+  body.innerHTML = `<div class="bl-empty u-p-5">Loading…</div>`;
+  overlay.classList.add("open");
+  const esc = (s) => sanitizeText(s);
+  try {
+    const { data } = await DT_AUTH.client
+      .from("profiles")
+      .select("id,display_name,email,phone,role,home_airport,avatar_url")
+      .eq("id", userId).maybeSingle();
+    if (!data) {
+      body.innerHTML = `<div class="bl-empty u-p-5">Contact not found.</div>`;
+      return;
+    }
+    const name  = esc(data.display_name || "Unknown");
+    const role  = data.role ? esc(data.role) : "";
+    const email = data.email ? esc(data.email) : "";
+    const phone = data.phone ? esc(data.phone) : "";
+    const loc   = data.home_airport ? esc(data.home_airport) : "";
+    const avatar = data.avatar_url
+      ? `<div class="contact-avatar"><img src="${esc(data.avatar_url)}" alt=""></div>`
+      : `<div class="contact-avatar">${esc((data.display_name || "?").trim().split(/\s+/).slice(0,2).map(s=>s[0]||"").join("").toUpperCase() || "?")}</div>`;
+    const rows = [
+      email ? `<div class="contact-row"><span class="contact-row-label">Email</span><span class="contact-row-val"><a href="mailto:${email}">${email}</a></span></div>` : "",
+      phone ? `<div class="contact-row"><span class="contact-row-label">Phone</span><span class="contact-row-val"><a href="tel:${phone}">${phone}</a></span></div>` : "",
+      loc   ? `<div class="contact-row"><span class="contact-row-label">Location</span><span class="contact-row-val">${loc}</span></div>` : ""
+    ].filter(Boolean).join("");
+    body.innerHTML = `
+      <div class="contact-card">
+        ${avatar}
+        <div class="contact-name">${name}</div>
+        ${role ? `<div class="contact-role role-${role}">${role}</div>` : ""}
+        ${rows ? `<div class="contact-rows">${rows}</div>` : ""}
+      </div>
+    `;
+  } catch (e) {
+    console.warn("[contact] load failed", e);
+    body.innerHTML = `<div class="bl-empty u-p-5">Couldn't load contact.</div>`;
+  }
+};
+window.closeContactCard = function closeContactCard() {
+  document.getElementById("contactOverlay")?.classList.remove("open");
+};
 
 // ============================
 // VIN TIMELINE — every event for a single asset, oldest visit last
@@ -2701,7 +2820,7 @@ async function _vinFetchProfiles(ids) {
   const sb = DT_AUTH.client;
   const missing = [...new Set(ids)].filter(id => id && !_vinProfileCache.has(id));
   if (!missing.length) return;
-  const { data } = await sb.from("profiles").select("id,display_name,role").in("id", missing);
+  const { data } = await sb.from("profiles").select("id,display_name,role,avatar_url").in("id", missing);
   (data || []).forEach(p => _vinProfileCache.set(p.id, p));
 }
 
@@ -2716,7 +2835,7 @@ async function renderVinTimeline(vin, opts) {
 
   const [recordsRes, notesRes] = await Promise.all([
     sb.from("records")
-      .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,source,note_id,mileage,fuel_level,photo_url,conditions")
+      .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,source,note_id,mileage,fuel_level,photo_url,photo_urls,conditions")
       .eq("serial_id", vin)
       .order("ts", { ascending: false }),
     sb.from("vehicle_notes")
@@ -2835,7 +2954,7 @@ async function renderVinTimeline(vin, opts) {
       const condChips = Array.isArray(r.conditions) && r.conditions.length
         ? `<div class="vin-tl-cond-row">${r.conditions.map(id => {
             const label = DT_OPTIONS.CONDITIONS.find(c => c.id === id)?.label || id;
-            return `<span class="vin-tl-cond-chip">${esc(label)}</span>`;
+            return `<span class="vin-tl-cond-chip" data-cond="${esc(id)}">${esc(label)}</span>`;
           }).join("")}</div>` : "";
       return `
         <div class="vin-tl-row vin-tl-record" data-record-id="${esc(r.id)}">
@@ -2843,7 +2962,7 @@ async function renderVinTimeline(vin, opts) {
             <span class="record-status ${statusClass(r.status)}">${esc(statusDisp)}</span>
             <span class="vin-tl-time">${esc(ago(ev.ts))}${gps}</span>
           </div>
-          <div class="vin-tl-meta">${name}${role}${destDisp ? ` · ${esc(destDisp)}` : ""}</div>
+          ${destDisp ? `<div class="vin-tl-meta">${esc(destDisp)}</div>` : ""}
           ${condChips}
           ${r.notes ? `<div class="vin-tl-body">${esc(r.notes)}</div>` : ""}
         </div>`;
@@ -2902,8 +3021,10 @@ async function renderVinTimeline(vin, opts) {
         <div class="vin-tl-fuel-scale"><span>E</span><span>¼</span><span>½</span><span>¾</span><span>F</span></div>
       </div>`;
   })() : "";
-  const headerMod = latestStatus === "HOLD" ? "vin-tl-header--hold"
-                  : latestStatus === "DNR"  ? "vin-tl-header--dnr"
+  const latestIsPriority = Array.isArray(latestRec?.conditions) && latestRec.conditions.includes("PRIORITY");
+  const headerMod = latestIsPriority         ? "vin-tl-header--priority"
+                  : latestStatus === "HOLD"  ? "vin-tl-header--hold"
+                  : latestStatus === "DNR"   ? "vin-tl-header--dnr"
                   : "";
   const statusPill = latestStatus
     ? `<span class="vin-tl-status-pill ${statusClass(latestStatus)}">${esc(latestStatusDisp)}</span>`
@@ -5231,6 +5352,10 @@ function applyProfile() {
     roleEl.className = "profile-role-pill" + (role ? " role-" + role : "");
   }
 
+  // Avatar preview — falls back to initials when no headshot is uploaded.
+  renderProfileAvatarPreview();
+  initProfileAvatarHandlers();
+
   // PIN status + button visibility
   const pinStatus = document.getElementById("profilePinStatus");
   const btnSet    = document.getElementById("btnSetPin");
@@ -5248,6 +5373,91 @@ function applyProfile() {
 
 // Refresh Profile when the PIN state changes
 document.addEventListener("dt-pin-change", () => applyProfile());
+
+// ============================
+// PROFILE AVATAR — upload/remove. Stored at profile-avatars/{userId}/avatar.jpg
+// in a public bucket; profiles.avatar_url holds the resolved public URL.
+// ============================
+function renderProfileAvatarPreview() {
+  const el = document.getElementById("profileAvatarPreview");
+  const removeBtn = document.getElementById("profileAvatarRemove");
+  if (!el) return;
+  const cp = window.DT_AUTH?.getProfile?.() || null;
+  const url = cp?.avatar_url || "";
+  if (url) {
+    el.innerHTML = `<img src="${sanitizeText(url)}" alt="">`;
+    if (removeBtn) removeBtn.style.display = "";
+  } else {
+    const initials = (cp?.display_name || "?").trim().split(/\s+/).slice(0,2).map(s => s[0] || "").join("").toUpperCase() || "?";
+    el.textContent = initials;
+    if (removeBtn) removeBtn.style.display = "none";
+  }
+}
+
+function initProfileAvatarHandlers() {
+  const input = document.getElementById("profileAvatarInput");
+  const removeBtn = document.getElementById("profileAvatarRemove");
+  if (!input || input.dataset.wired) return;
+  input.dataset.wired = "1";
+
+  const setStatus = (msg, isErr) => {
+    const s = document.getElementById("profileAvatarStatus");
+    if (!s) return;
+    s.textContent = msg || "";
+    s.style.color = isErr ? "var(--danger)" : "var(--muted)";
+  };
+
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    if (!window.DT_AUTH || !DT_AUTH.getUser()) { setStatus("Sign in first.", true); return; }
+    const MAX = 10 * 1024 * 1024;
+    if (file.size > MAX) { setStatus("Photo too large (>10MB).", true); input.value = ""; return; }
+    try {
+      setStatus("Uploading…");
+      const blob = await (window.DT_VNOTES?.resizeImageBlob?.(file, 512, 512, 0.85) ?? file);
+      const userId = DT_AUTH.getUser().id;
+      const path = `${userId}/avatar.jpg`;
+      const sb = DT_AUTH.client;
+      const { error: upErr } = await sb.storage.from("profile-avatars")
+        .upload(path, blob, { upsert: true, contentType: "image/jpeg", cacheControl: "0" });
+      if (upErr) throw upErr;
+      const { data: pub } = sb.storage.from("profile-avatars").getPublicUrl(path);
+      const bust = `${pub.publicUrl}?v=${Date.now()}`;
+      const { error: updErr } = await sb.from("profiles").update({ avatar_url: bust }).eq("id", userId);
+      if (updErr) throw updErr;
+      const { data: fresh } = await sb.from("profiles").select("*").eq("id", userId).maybeSingle();
+      if (fresh && DT_AUTH._setProfile) DT_AUTH._setProfile(fresh);
+      renderProfileAvatarPreview();
+      setStatus("Photo updated.");
+    } catch (e) {
+      console.warn("[Profile] avatar upload", e);
+      setStatus("Upload failed.", true);
+    } finally {
+      input.value = "";
+    }
+  });
+
+  removeBtn?.addEventListener("click", async () => {
+    if (!window.DT_AUTH || !DT_AUTH.getUser()) return;
+    if (!confirm("Remove your profile photo?")) return;
+    try {
+      setStatus("Removing…");
+      const userId = DT_AUTH.getUser().id;
+      const sb = DT_AUTH.client;
+      await sb.storage.from("profile-avatars").remove([`${userId}/avatar.jpg`]).catch(() => {});
+      const { error } = await sb.from("profiles").update({ avatar_url: null }).eq("id", userId);
+      if (error) throw error;
+      const { data: fresh } = await sb.from("profiles").select("*").eq("id", userId).maybeSingle();
+      if (fresh && DT_AUTH._setProfile) DT_AUTH._setProfile(fresh);
+      renderProfileAvatarPreview();
+      setStatus("Photo removed.");
+    } catch (e) {
+      console.warn("[Profile] avatar remove", e);
+      setStatus("Remove failed.", true);
+    }
+  });
+}
 
 // Show the full VIN history (records + notes) for the VIN just scanned/typed
 // into the entry panel. Previously this only mounted the notes widget, so the
@@ -5273,6 +5483,7 @@ async function renderEntryCurrentState(vin) {
   if (!vin) { el.style.display = "none"; el.innerHTML = ""; return; }
   el.style.display = "";
   el.classList.remove("is-empty");
+  el.classList.remove("is-priority");
   el.innerHTML = `<div class="ecs-label">Current state</div><div>Loading…</div>`;
   const sb = DT_AUTH.client;
   // The vehicles row may lag behind records (it's populated by an out-of-band
@@ -5322,6 +5533,7 @@ async function renderEntryCurrentState(vin) {
   if (Array.isArray(v?.current_conditions) && v.current_conditions.length) {
     const labels = v.current_conditions.map(id => (DT_OPTIONS.CONDITIONS.find(c => c.id === id)?.label) || id);
     parts.push(`<span class="ecs-val">${esc(labels.join(", "))}</span>`);
+    if (v.current_conditions.includes("PRIORITY")) el.classList.add("is-priority");
   }
   if (v?.needs_new_tag) {
     parts.push(`<span class="badge-notag">BAD TAG</span>`);

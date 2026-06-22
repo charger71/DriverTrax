@@ -152,14 +152,14 @@
   }
   body.is-manager #avgBanner .avg-banner-divider { background: rgba(0,0,0,0.12); }
 
-  /* 4px role-colored border at top of body so the logged-in role is visible at a glance. */
-  body { border-top: 4px solid transparent; }
-  body.is-admin    { border-top-color: #e85550; }
-  body.is-manager  { border-top-color: #00a651; }
-  body.is-manager.is-admin { border-top-color: #e85550; }
-  body.is-cxr      { border-top-color: #f0b429; }
-  body.is-detailer { border-top-color: #b76eff; }
-  body:not(.is-admin):not(.is-manager):not(.is-cxr):not(.is-detailer) { border-top-color: #4a9eff; }
+  /* 4px role-colored border at top of header so the logged-in role is visible at a glance. */
+  header { border-top: 4px solid transparent; }
+  body.is-admin    header { border-top-color: #e85550; }
+  body.is-manager  header { border-top-color: #00a651; }
+  body.is-manager.is-admin header { border-top-color: #e85550; }
+  body.is-cxr      header { border-top-color: #f0b429; }
+  body.is-detailer header { border-top-color: #b76eff; }
+  body:not(.is-admin):not(.is-manager):not(.is-cxr):not(.is-detailer) header { border-top-color: #4a9eff; }
 
   /* Profile role pill — read-only display of the role pulled from Supabase */
   .profile-role-pill {
@@ -405,6 +405,69 @@
   .note-role.role-admin    { color: #e85550; }
   .note-role.role-detailer { color: #b76eff; }
 
+  .detail-header-left { display: flex; flex-direction: column; gap: 6px; }
+  .detail-header-left .detail-time { margin-bottom: 0; }
+  .detail-author { display: flex; align-items: center; gap: 10px; }
+  .detail-author-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--card2); color: var(--accent);
+    font-size: 13px; font-weight: 800; letter-spacing: 0.5px;
+    overflow: hidden; flex-shrink: 0;
+  }
+  .detail-author-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .detail-author-text { display: flex; flex-direction: column; gap: 1px; }
+  .detail-author-name {
+    background: none; border: none; padding: 0; margin: 0;
+    font: inherit; font-size: 12px; color: var(--muted);
+    text-align: left; text-decoration: underline; text-underline-offset: 2px;
+    cursor: pointer;
+  }
+  .detail-author-name:hover { color: var(--text); }
+  .detail-author-role { font-size: 10px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .detail-author-role.role-driver   { color: #cfe4ff; }
+  .detail-author-role.role-cxr      { color: #f0b429; }
+  .detail-author-role.role-manager  { color: #00a651; }
+  .detail-author-role.role-admin    { color: #e85550; }
+  .detail-author-role.role-detailer { color: #b76eff; }
+
+  /* Profile photo block on the Profile panel. */
+  .profile-avatar-row { display: flex; align-items: center; gap: 14px; }
+  .profile-avatar-preview {
+    width: 72px; height: 72px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--card2); color: var(--accent);
+    font-size: 24px; font-weight: 800; letter-spacing: 1px;
+    overflow: hidden; flex-shrink: 0;
+  }
+  .profile-avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
+  .profile-avatar-actions { display: flex; flex-direction: column; gap: 6px; }
+  .profile-avatar-status { font-size: 12px; color: var(--muted); }
+
+  /* Contact card modal opened by clicking an author name on a record detail. */
+  .contact-card { padding: 20px 20px 24px; text-align: center; }
+  .contact-avatar {
+    width: 84px; height: 84px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--card2); color: var(--accent);
+    font-size: 28px; font-weight: 800; letter-spacing: 1px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .contact-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .contact-name { font-size: 20px; font-weight: 700; color: var(--text); }
+  .contact-role { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; color: var(--muted); }
+  .contact-role.role-driver   { color: #cfe4ff; }
+  .contact-role.role-cxr      { color: #f0b429; }
+  .contact-role.role-manager  { color: #00a651; }
+  .contact-role.role-admin    { color: #e85550; }
+  .contact-role.role-detailer { color: #b76eff; }
+  .contact-rows { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 16px; text-align: left; }
+  .contact-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); }
+  .contact-row-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .contact-row-val { font-size: 14px; color: var(--text); text-align: right; word-break: break-word; }
+  .contact-row-val a { color: var(--accent); text-decoration: none; }
+
   .note-del {
     text-transform: uppercase;
     min-width: 0; min-height: 0;
@@ -463,11 +526,18 @@
   .cond-chip.checked {
     background: #161028; border-color: #b76eff; color: #d9c0ff;
   }
+  .cond-chip.checked:has(input[value="REGULAR"]),
+  .cond-chip.checked:has(input[value="AIR"]),
+  .cond-chip.checked:has(input[value="WASHER_FLUID"]),
+  .cond-chip.checked:has(input[value="FUEL"]),
+  .cond-chip.checked:has(input[value="CHARGE"]) {
+    background: #0a1e1e; border-color: #3dcfcf; color: #3dcfcf;
+  }
   .cond-chip.checked:has(input[value="QUICK_FLIP"]) {
     background: #2a1c08; border-color: #f59e0b; color: #fcd34d;
   }
   .cond-chip.checked:has(input[value="PRIORITY"]) {
-    background: #2a0f10; border-color: #e85550; color: #ffb3b0;
+    background: rgba(255,255,255,0.55); border-color: #ffffff; color: #1a1d21;
   }
 
   /* Todo rows */
@@ -699,14 +769,42 @@
     border-radius: var(--radius);
     padding: 14px 16px; margin-bottom: 12px;
   }
-  .vin-tl-header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .vin-tl-header-top { display: flex; align-items: flex-start; justify-content: flex-end; gap: 10px; }
   .vin-tl-header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .vin-tl-header-right > .vin-tl-count { margin-bottom: 4px; }
+  .vin-tl-pill-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .vin-tl-pill-row--bottom { justify-content: flex-start; margin-top: 8px; }
+  .vin-tl-meters { display: flex; align-items: baseline; gap: 10px; justify-content: flex-end; }
+  .vin-tl-fuel-val { font-size: 12px; color: var(--text2); }
+  .vin-tl-fuel-val b { color: var(--text); font-weight: 700; }
+  .vin-tl-mileage-val {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 18px; font-weight: 700; color: var(--text); letter-spacing: 0.5px;
+  }
+  .vin-tl-mileage-unit { font-size: 11px; color: var(--muted); font-weight: 600; margin-left: 2px; }
+  .vin-tl-priority-pill {
+    background: rgba(255,255,255,0.55);
+    color: #1a1d21;
+    border: 1px solid #ffffff;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
   .vin-tl-label  { font-size: 11px; color: #6b7785; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; }
   .vin-tl-status-pill { display: inline-block; padding: 4px 12px; border-radius: 999px; background: #20252c; color: #cfe4ff; border: 1px solid #2a4060; font-weight: 800; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
   .vin-tl-header--hold { background: #3a2a10; border-color: #d97706; }
   .vin-tl-header--hold .vin-tl-status-pill { background: #d97706; color: #1a1300; border-color: #f59e0b; }
   .vin-tl-header--dnr  { background: #3a1313; border-color: #dc2626; }
   .vin-tl-header--dnr  .vin-tl-status-pill { background: #dc2626; color: #fff; border-color: #ef4444; }
+  .vin-tl-header--priority { background: rgba(255,255,255,0.55); border-color: #ffffff; color: #1a1d21; }
+  .vin-tl-header--priority .vin-tl-count,
+  .vin-tl-header--priority .vin-tl-vin,
+  .vin-tl-header--priority .vin-tl-label,
+  .vin-tl-header--priority .vin-tl-mileage { color: #1a1d21; }
   .vin-tl-vin    { font-size: 20px; font-weight: 900; letter-spacing: 2px; color: #e8eaed; font-family: ui-monospace, "SF Mono", Menlo, monospace; margin-top: 2px; }
   .vin-tl-vehicle{
     font-size: 13px; color: #b0b8c1; margin-top: 4px; font-weight: 600;
@@ -737,11 +835,21 @@
   .vin-tl-mileage{ font-size: 13px; color: #cfe4ff; margin-top: 4px; font-weight: 600; }
   .vin-tl-cond-row { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 6px; }
   .vin-tl-cond-chip {
-    background: #2a1f08; color: #f0b04a;
-    border: 1px solid #f0b04a; border-radius: 999px;
+    background: #2a1c08; color: #fcd34d;
+    border: 1px solid #f59e0b; border-radius: 999px;
     padding: 2px 8px;
     font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
     text-transform: uppercase; white-space: nowrap;
+  }
+  .vin-tl-cond-chip[data-cond="REGULAR"],
+  .vin-tl-cond-chip[data-cond="AIR"],
+  .vin-tl-cond-chip[data-cond="WASHER_FLUID"],
+  .vin-tl-cond-chip[data-cond="FUEL"],
+  .vin-tl-cond-chip[data-cond="CHARGE"] {
+    background: #0a1e1e; color: #3dcfcf; border-color: #3dcfcf;
+  }
+  .vin-tl-cond-chip[data-cond="PRIORITY"] {
+    background: #e8eaed; color: #1a1d21; border-color: #ffffff;
   }
   .vin-tl-count  { font-size: 11px; color: #6b7785; }
   .vin-tl-list   { display: flex; flex-direction: column; gap: 8px; }
@@ -820,6 +928,10 @@
   .entry-current-state .ecs-val { font-weight: 700; color: #e8eaed; }
   .entry-current-state .ecs-sep { color: #4a5563; padding: 0 6px; }
   .entry-current-state.is-empty { background: #20252c; border-color: #2a313a; color: #6b7785; }
+  .entry-current-state.is-priority { background: rgba(255,255,255,0.55); border-color: #ffffff; color: #1a1d21; }
+  .entry-current-state.is-priority .ecs-label,
+  .entry-current-state.is-priority .ecs-val,
+  .entry-current-state.is-priority .ecs-sep { color: #1a1d21; }
   .vn-status-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
   .vn-status-label { font-size: 11px; color: #6b7785; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; }
   .vn-status-pill { display: inline-block; padding: 4px 10px; border-radius: 999px; background: #1a2330; color: #cfe4ff; border: 1px solid #2a4060; font-weight: 800; font-size: 12px; letter-spacing: .05em; }
@@ -1286,6 +1398,51 @@
     margin-bottom: 4px;
   }
 
+  /* Multi-photo strip on the New Entry form: horizontally-scrolling row of
+     thumbnails, each with its own remove button. */
+  .entry-photo-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .entry-photo-strip .entry-photo-thumb {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: #000;
+  }
+  .entry-photo-strip .entry-photo-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .entry-photo-strip .entry-photo-thumb button {
+    position: absolute;
+    top: 2px; right: 2px;
+    width: 22px; height: 22px;
+    border: none; border-radius: 50%;
+    background: rgba(0,0,0,0.7); color: #fff;
+    font-size: 13px; line-height: 1;
+    cursor: pointer;
+  }
+
+  /* Photo gallery shown on the record detail panel. */
+  .record-photo-gallery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .record-photo-gallery img {
+    width: 100px;
+    height: 100px;
+    object-fit: cover;
+    border-radius: var(--radius);
+    cursor: zoom-in;
+  }
+
   /* Dark gradient that fades in at the top of the viewport on scroll, so
      content scrolling under the device's status bar / notch area reads
      against a dim backdrop instead of clashing with the header. */
@@ -1731,6 +1888,19 @@
 <div class="panel" id="panel-profile" role="region" aria-label="Profile">
   <div class="dash-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Profile</div>
   <div class="data-section">
+    <div class="data-section-title">Photo</div>
+    <div class="data-section-desc">Headshot shown on your contact card. Square works best.</div>
+    <div class="profile-avatar-row">
+      <div class="profile-avatar-preview" id="profileAvatarPreview">?</div>
+      <div class="profile-avatar-actions">
+        <label for="profileAvatarInput" class="btn btn-secondary">Upload photo</label>
+        <input type="file" id="profileAvatarInput" accept="image/*" class="visually-hidden">
+        <button type="button" class="btn btn-secondary" id="profileAvatarRemove" style="display:none">Remove</button>
+        <div class="profile-avatar-status" id="profileAvatarStatus"></div>
+      </div>
+    </div>
+  </div>
+  <div class="data-section">
     <div class="data-section-title is-required">Name</div>
     <div class="data-section-desc">Your name will appear in the dashboard and in exported file names.</div>
     <input type="text" id="profileName" placeholder="Enter your name" autocomplete="off" style="text-transform:none;margin-bottom:0" oninput="previewProfileName()">
@@ -1901,14 +2071,11 @@
          hidden input in a real <label> means the picker is opened by a native
          click on a labeled control, which iOS handles reliably. -->
     <label for="entryPhotoInput" class="btn btn-secondary vn-photo-btn">
-      <input type="file" name="photo" id="entryPhotoInput" accept="image/*" class="visually-hidden">
-      📷 Add photo
+      <input type="file" name="photo" id="entryPhotoInput" accept="image/*" multiple class="visually-hidden">
+      📷 Add photos
     </label>
   </div>
-  <div class="note-photo-preview" id="entryPhotoPreview" style="display:none;margin-top:10px">
-    <img id="entryPhotoImg" alt="">
-    <button type="button" id="entryPhotoRemove" aria-label="Remove">✕</button>
-  </div>
+  <div class="entry-photo-strip" id="entryPhotoStrip" style="display:none;margin-top:10px"></div>
 
   <div class="u-row-end">
     <button id="saveBtn" class="btn btn-primary btn-save" onclick="saveRecord()">Save</button>
@@ -2005,6 +2172,18 @@
   <div class="detail-sheet" id="noteDetailSheet">
     <div class="detail-handle"></div>
     <div id="noteDetailBody"><div class="bl-empty u-p-5">Loading…</div></div>
+  </div>
+</div>
+
+<!-- CONTACT CARD OVERLAY (opened from author name on a record detail) -->
+<div id="contactOverlay" class="detail-overlay" style="z-index:950" onclick="if(event.target===this)closeContactCard()">
+  <div class="detail-sheet" id="contactSheet">
+    <div class="detail-handle"></div>
+    <div class="detail-header">
+      <div class="detail-time">Contact</div>
+      <button class="detail-close" onclick="closeContactCard()" aria-label="Close"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div id="contactBody"><div class="bl-empty u-p-5">Loading…</div></div>
   </div>
 </div>
 

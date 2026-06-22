@@ -397,27 +397,25 @@
   .transport-row:has(input:checked) .notag-label { color: #f0b04a; }
   .transport-row.transport-checked { border-color: #f0b04a; background: #2a1f08; }
   .transport-row.transport-checked .notag-label { color: #f0b04a; }
-  .status-CLEAN { background: #0d2e1a; color: #34c76a; }
-  .status-DIRTY { background: #2d1515; color: #e87070; }
-  .status-REWASH { background: #0a1e1e; color: #3dcfcf; }
-  .status-TOPOFFFLUID { background: #0d1e36; color: #6aadff; }
-  .status-PM { background: #0d1e36; color: #6aadff; }
-  .status-MK { background: #2a1f08; color: #f0b04a; }
-  .status-MR { background: #2a1f08; color: #f0b04a; }
-  .status-OM { background: #1e0d2e; color: #c89aee; }
-  .status-AUDITFAIL { background: #2d1515; color: #e85550; border: 1px solid #e85550; }
-  .status-OTHER { background: var(--card2); color: var(--muted); }
-  .status-GLASS { background: #0a1e1e; color: #3dcfcf; }
-  .status-TI { background: #2d1515; color: #e85550; border: 1px solid #e85550; }
-  .status-WIDELETE { background: #2d1515; color: #e87070; }
-  .status-BODY { background: #2a1f08; color: #f0b04a; border: 1px solid #f0b04a; }
-  .status-BACKLOT { background: #0a1e1e; color: #3dcfcf; }
-  .status-DETAILING { background: #1e0d2e; color: #c89aee; }
-  .status-DETAILED { background: #0d2e1a; color: #34c76a; }
-  .status-CHECKIN { background: #0d2e1a; color: #34c76a; border: 1px solid #34c76a; }
-  .status-CHECKOUT { background: #0f1a36; color: #4d9bff; border: 1px solid #4d9bff; }
-  .status-HOLD { background: #3a2a10; color: #f59e0b; border: 1px solid #f59e0b; }
-  .status-DNR { background: #3a1313; color: #ef4444; border: 1px solid #ef4444; }
+  .status-CLEAN     { background: #0d2e1a; color: #34c76a; border: 1px solid #34c76a; }
+  .status-DIRTY     { background: #514114; color: #fde68a; border: 1px solid #fde68a; }
+  .status-CHECKIN   { background: #514114; color: #fde68a; border: 1px solid #fde68a; }
+  .status-REWASH    { background: #0a1e1e; color: #3dcfcf; border: 1px solid #3dcfcf; }
+  .status-AUDITFAIL { background: #0a1e1e; color: #3dcfcf; border: 1px solid #3dcfcf; }
+  .status-DETAILING { background: #0a1e1e; color: #3dcfcf; border: 1px solid #3dcfcf; }
+  .status-DETAILED  { background: #0a1e1e; color: #3dcfcf; border: 1px solid #3dcfcf; }
+  .status-GLASS     { background: #2a1f08; color: #f0b04a; border: 1px solid #f0b04a; }
+  .status-PM        { background: #2a1f08; color: #f0b04a; border: 1px solid #f0b04a; }
+  .status-MK        { background: #2a1f08; color: #f0b04a; border: 1px solid #f0b04a; }
+  .status-MR        { background: #2a1f08; color: #f0b04a; border: 1px solid #f0b04a; }
+  .status-BODY      { background: #2a1f08; color: #f0b04a; border: 1px solid #f0b04a; }
+  .status-TI        { background: #2a1f08; color: #f0b04a; border: 1px solid #f0b04a; }
+  .status-OM        { background: #2a1408; color: #fb923c; border: 1px solid #fb923c; }
+  .status-WIDELETE  { background: #2a1408; color: #fb923c; border: 1px solid #fb923c; }
+  .status-CHECKOUT  { background: #0f1a36; color: #4d9bff; border: 1px solid #4d9bff; }
+  .status-HOLD      { background: #3a2a10; color: #f59e0b; border: 1px solid #f59e0b; }
+  .status-DNR       { background: #3a1313; color: #ef4444; border: 1px solid #ef4444; }
+  .status-OTHER     { background: var(--card2); color: var(--muted); }
   /* Fallback so unknown statuses still render with a visible chip */
   .record-status:not([class*=" status-"]):not([class^="status-"]) { background: var(--card2); color: var(--text2); }
   .record-meta { font-size: var(--font-sm); color: var(--muted); margin-top: var(--space-2); }

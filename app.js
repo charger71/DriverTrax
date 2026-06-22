@@ -4236,8 +4236,8 @@ function isIOS() {
          (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); // iPadOS posing as Mac
 }
 const IS_IOS = isIOS();
-const IOS_TARGET_WIDTH = 1920;
-const IOS_TARGET_HEIGHT = 1080;
+const IOS_TARGET_WIDTH = 1280;
+const IOS_TARGET_HEIGHT = 720;
 const IOS_CONFIRM_WINDOW_MS = 500;
 const ROI_DECODE_INTERVAL_MS = 90;     // ZXing ROI decode tick on iOS path
 
@@ -4260,9 +4260,19 @@ const ROI = { xPct: 0.04, yPct: 0.33, wPct: 0.92, hPct: 0.34 };
 const ALLOWED_1D = new Set(["code_39", "code_128"]);
 const ALLOWED_2D = new Set(["qr_code", "data_matrix", "pdf417", "aztec"]);
 
+// Reuse a single AudioContext across scans. iOS Safari caps live contexts at
+// ~4-6; allocating one per beep silently kills audio (and slows the page) after
+// a handful of scans.
+let _beepCtx = null;
 function playScanBeep() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (!_beepCtx) {
+      _beepCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (_beepCtx.state === "suspended") {
+      try { _beepCtx.resume(); } catch(e) {}
+    }
+    const ctx = _beepCtx;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -4273,6 +4283,7 @@ function playScanBeep() {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.12);
+    osc.onended = () => { try { osc.disconnect(); gain.disconnect(); } catch(e) {} };
   } catch(e) {}
 }
 
@@ -4754,6 +4765,14 @@ function openScannerForSearch() {
 }
 
 async function openScanner() {
+  // Guard against re-entry: if a previous session is still considered active
+  // (e.g. the page was backgrounded and the camera track died without us
+  // tearing down), close it first so we start from a clean state instead of
+  // running two decode loops against a dead stream.
+  if (scannerActive) {
+    try { closeScanner(); } catch(e) {}
+  }
+
   const overlay = document.getElementById("scannerOverlay");
   const hint = document.getElementById("scannerHint");
   const dotSvg = '<span class="scanner-dot"><svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8" style="vertical-align:middle;display:inline-block"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg></span>';
@@ -4859,6 +4878,21 @@ function closeScanner() {
   lastCandidate = null;
   document.getElementById("scannerOverlay").classList.remove("open");
 }
+
+// iOS Safari ends the camera track when the tab is hidden (lock screen, app
+// switch, incoming notification). The decode loop would keep running against
+// a dead stream and the user would have to force-close the app to recover.
+// Tear down on hide so the next openScanner() acquires a fresh stream.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden" && scannerActive) {
+    try { closeScanner(); } catch(e) {}
+  }
+});
+window.addEventListener("pagehide", () => {
+  if (scannerActive) {
+    try { closeScanner(); } catch(e) {}
+  }
+});
 
 // ============================
 // SCANBOT SDK (DISABLED — kept for future re-enable)

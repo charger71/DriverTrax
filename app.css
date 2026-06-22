@@ -74,7 +74,7 @@
     font-size: var(--font-xs);
   }
 
-  header { background: #13161a; color: #fff; padding: var(--space-4) var(--space) 0; border-bottom: 2px solid var(--accent); }
+  header { background: #13161a; color: #fff; padding: calc(var(--space-4) + env(safe-area-inset-top, 0px)) var(--space) 0; border-bottom: 2px solid var(--accent); }
   header h1 { font-size: var(--font-xl); letter-spacing: 2px; color: var(--accent); font-weight: 900; }
 
   .tabs { display: flex; gap: 6px; margin-top: var(--space-3); }

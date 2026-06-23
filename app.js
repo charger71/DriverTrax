@@ -5259,9 +5259,62 @@ async function toggleTorch() {
 // PROFILE
 // ============================
 const PROFILE_KEY = "drivertrax_profile";
+const THEME_KEY = "dt_theme";
 
 function getProfile() {
   try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || "{}"); } catch(e) { return {}; }
+}
+
+// ============================
+// THEME — system | dark | light. Persisted to localStorage immediately
+// and synced to profiles.theme_preference on the next saveProfile() call.
+// Pre-paint init lives inline in index.html <head> to avoid flash on load.
+// ============================
+function getTheme() {
+  try {
+    const t = localStorage.getItem(THEME_KEY);
+    return (t === "light" || t === "dark" || t === "system") ? t : "system";
+  } catch(e) { return "system"; }
+}
+
+function resolveTheme(pref) {
+  if (pref === "system") {
+    return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  }
+  return pref;
+}
+
+function applyTheme(pref) {
+  document.documentElement.setAttribute("data-theme", pref);
+  const meta = document.getElementById("metaThemeColor")
+            || document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", resolveTheme(pref) === "light" ? "#ffffff" : "#13161a");
+  // Reflect selection in the segmented control if it's mounted
+  document.querySelectorAll(".theme-toggle-btn").forEach(btn => {
+    const on = btn.dataset.themeValue === pref;
+    btn.setAttribute("aria-checked", on ? "true" : "false");
+  });
+}
+
+async function setTheme(pref) {
+  try { localStorage.setItem(THEME_KEY, pref); } catch(e) {}
+  applyTheme(pref);
+  // Cloud sync — fire-and-forget; falls back silently if offline or no auth
+  if (window.DT_AUTH && DT_AUTH.getUser()) {
+    try {
+      await DT_AUTH.client
+        .from("profiles")
+        .update({ theme_preference: pref })
+        .eq("id", DT_AUTH.getUser().id);
+    } catch(e) { /* offline / RLS / column missing — local pref still wins */ }
+  }
+}
+
+// React to OS-level theme changes when user is on "system"
+if (window.matchMedia) {
+  window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
+    if (getTheme() === "system") applyTheme("system");
+  });
 }
 
 function extractAirportCode(text) {
@@ -5309,6 +5362,17 @@ function syncProfileFromCloud() {
     location: cp.home_airport  || current.location || ""
   };
   localStorage.setItem(PROFILE_KEY, JSON.stringify(merged));
+
+  // Theme: cloud wins on initial sign-in (so the pref follows the user across devices),
+  // but only when nothing is locally set yet — otherwise the local choice stays authoritative.
+  if (cp.theme_preference && !localStorage.getItem(THEME_KEY)) {
+    const pref = cp.theme_preference;
+    if (pref === "light" || pref === "dark" || pref === "system") {
+      try { localStorage.setItem(THEME_KEY, pref); } catch(e) {}
+      applyTheme(pref);
+    }
+  }
+
   applyProfile();
 }
 document.addEventListener("dt-auth-change", syncProfileFromCloud);
@@ -5355,6 +5419,9 @@ function applyProfile() {
   // Avatar preview — falls back to initials when no headshot is uploaded.
   renderProfileAvatarPreview();
   initProfileAvatarHandlers();
+
+  // Theme toggle — reflect current preference in the segmented control
+  applyTheme(getTheme());
 
   // PIN status + button visibility
   const pinStatus = document.getElementById("profilePinStatus");

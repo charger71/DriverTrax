@@ -50,8 +50,8 @@
     --card-soft:         #2a2f36;
     --surface-hover:     #353d47;
     --surface-selected:  rgba(0, 166, 81, 0.12);
-    --overlay-bg:        var(--text-on-accent)000;   /* fullscreen camera overlay — fixed in both themes */
-    --overlay-text:      var(--text-on-status)fff;
+    --overlay-bg:        #000000;   /* fullscreen camera overlay — fixed in both themes */
+    --overlay-text:      #ffffff;
 
     /* Lines */
     --border:            #333b45;
@@ -62,7 +62,7 @@
     --text-soft:         #b0b8c1;
     --muted:             #8a94a1;
     --text-on-accent:    #0a0c0e;
-    --text-on-status:    var(--text-on-status)fff;   /* white text on saturated danger/warn/info button bgs */
+    --text-on-status:    #ffffff;   /* white text on saturated danger/warn/info button bgs */
 
     /* Accent (brand green) */
     --accent:            #00a651;
@@ -126,133 +126,86 @@
 
   }
 
+  /* Shared inline icon class — use with <svg class="icon"><use href="#icon-..."/></svg>.
+     Sizes from current font-size and picks up text color. Add modifiers for size. */
+  .icon { width: 1em; height: 1em; flex: 0 0 auto; vertical-align: -0.15em; fill: currentColor; stroke: currentColor; }
+  .icon--sm { width: 0.85em; height: 0.85em; }
+  .icon--lg { width: 1.4em; height: 1.4em; }
+  .icon--xl { width: 32px; height: 32px; }
+
   /* ============================
      LIGHT THEME OVERRIDES
      Applied when <html data-theme="light"> or system preference (when data-theme="system" or unset).
      ============================ */
+  /* Warm "paper" light theme — soft cream/gray base, distinct white-tinted cards.
+     The data-theme attribute is always set to the RESOLVED value ("light"/"dark")
+     by the pre-paint script in index.html. User preference ("system") is stored
+     separately in localStorage.dt_theme and re-resolved on OS theme change. */
   :root[data-theme="light"] {
-    --header-bg:         var(--text-on-status)fff;
-    --bg:                #f5f7fa;
-    --panel:             var(--text-on-status)fff;
-    --card:              var(--text-on-status)fff;
-    --card-soft:         #f0f2f5;
-    --surface-hover:     #e8ecf1;
-    --surface-selected:  rgba(0, 122, 61, 0.10);
-    --overlay-bg:        var(--text-on-accent)000;
-    --overlay-text:      var(--text-on-status)fff;
+    color-scheme: light;
 
-    --border:            #d4d9df;
-    --divider:           #e3e7ec;
+    --header-bg:         #f1ede5;
+    --bg:                #e8e4dc;
+    --panel:             #f3efe8;
+    --card:              #fcfaf5;
+    --card-soft:         #ede9e0;
+    --surface-hover:     #dcd7cc;
+    --surface-selected:  rgba(0, 122, 61, 0.12);
+    --overlay-bg:        #000000;
+    --overlay-text:      #ffffff;
 
-    --text:              #1a1d21;
-    --text-soft:         #4a5563;
-    --muted:             #6b7785;
-    --text-on-accent:    var(--text-on-status)fff;
-    --text-on-status:    var(--text-on-status)fff;
+    --border:            #c2bcb0;
+    --divider:           #d8d3c6;
+
+    --text:              #2a2520;
+    --text-soft:         #5a544c;
+    --muted:             #7e7770;
+    --text-on-accent:    #ffffff;
+    --text-on-status:    #ffffff;
 
     --accent:            #007a3d;
-    --accent-strong:     #006030;
+    --accent-strong:     #00582b;
     --accent-pressed:    #00a651;
-    --accent-muted:      #d4f0e1;
-    --accent-soft:       rgba(0, 122, 61, 0.10);
+    --accent-muted:      #c8e6d3;
+    --accent-soft:       rgba(0, 122, 61, 0.12);
 
     --warn:              #b45309;
-    --warn-strong:       #92400e;
-    --warn-soft:         rgba(180, 83, 9, 0.10);
-    --warn-text:         #92400e;
+    --warn-strong:       #7c3a08;
+    --warn-soft:         rgba(180, 83, 9, 0.12);
+    --warn-text:         #7c3a08;
 
-    --danger:            #dc2626;
-    --danger-strong:     #b91c1c;
-    --danger-soft:       rgba(220, 38, 38, 0.08);
-    --danger-text:       #b91c1c;
+    --danger:            #c1232c;
+    --danger-strong:     #991b1b;
+    --danger-soft:       rgba(193, 35, 44, 0.10);
+    --danger-text:       #991b1b;
 
-    --info:              #2563eb;
-    --info-strong:       #1d4ed8;
-    --info-soft:         rgba(37, 99, 235, 0.08);
-    --info-text:         #1d4ed8;
+    --info:              #1d4ed8;
+    --info-strong:       #1e3a8a;
+    --info-soft:         rgba(29, 78, 216, 0.10);
+    --info-text:         #1e3a8a;
 
     --success-text:      #15803d;
 
     --role-manager:      #007a3d;
     --role-cxr:          #b45309;
-    --role-driver:       #2563eb;
-    --role-admin:        #dc2626;
-    --role-detailer:     #7c3aed;
+    --role-driver:       #1d4ed8;
+    --role-admin:        #c1232c;
+    --role-detailer:     #6d28d9;
 
-    --focus-ring:        rgba(37, 99, 235, 0.4);
-    --disabled-bg:       rgba(0, 0, 0, 0.04);
-    --disabled-text:     #9aa3af;
+    --focus-ring:        rgba(29, 78, 216, 0.4);
+    --disabled-bg:       rgba(0, 0, 0, 0.05);
+    --disabled-text:     #948e85;
 
-    --shadow-sm:         0 1px 2px rgba(0, 0, 0, 0.06);
-    --shadow-md:         0 4px 12px rgba(0, 0, 0, 0.08);
-    --shadow-lg:         0 8px 24px rgba(0, 0, 0, 0.12);
-    --scrim:             rgba(0, 0, 0, 0.4);
+    --shadow-sm:         0 1px 2px rgba(60, 50, 30, 0.08);
+    --shadow-md:         0 4px 12px rgba(60, 50, 30, 0.10);
+    --shadow-lg:         0 8px 24px rgba(60, 50, 30, 0.14);
+    --scrim:             rgba(40, 30, 15, 0.45);
 
     --chart-1:           #007a3d;
-    --chart-2:           #2563eb;
+    --chart-2:           #1d4ed8;
     --chart-3:           #b45309;
     --chart-4:           #0e7490;
-    --chart-5:           #7c3aed;
-  }
-
-  /* System theme: follow OS preference */
-  :root[data-theme="system"] {
-    color-scheme: light dark;
-  }
-  @media (prefers-color-scheme: light) {
-    :root[data-theme="system"] {
-      --header-bg:         var(--text-on-status)fff;
-      --bg:                #f5f7fa;
-      --panel:             var(--text-on-status)fff;
-      --card:              var(--text-on-status)fff;
-      --card-soft:         #f0f2f5;
-      --surface-hover:     #e8ecf1;
-      --surface-selected:  rgba(0, 122, 61, 0.10);
-      --overlay-bg:        var(--text-on-accent)000;
-      --overlay-text:      var(--text-on-status)fff;
-      --border:            #d4d9df;
-      --divider:           #e3e7ec;
-      --text:              #1a1d21;
-      --text-soft:         #4a5563;
-      --muted:             #6b7785;
-      --text-on-accent:    var(--text-on-status)fff;
-      --text-on-status:    var(--text-on-status)fff;
-      --accent:            #007a3d;
-      --accent-strong:     #006030;
-      --accent-pressed:    #00a651;
-      --accent-muted:      #d4f0e1;
-      --accent-soft:       rgba(0, 122, 61, 0.10);
-      --warn:              #b45309;
-      --warn-strong:       #92400e;
-      --warn-soft:         rgba(180, 83, 9, 0.10);
-      --warn-text:         #92400e;
-      --danger:            #dc2626;
-      --danger-strong:     #b91c1c;
-      --danger-soft:       rgba(220, 38, 38, 0.08);
-      --danger-text:       #b91c1c;
-      --info:              #2563eb;
-      --info-strong:       #1d4ed8;
-      --info-soft:         rgba(37, 99, 235, 0.08);
-      --info-text:         #1d4ed8;
-      --success-text:      #15803d;
-      --role-manager:      #007a3d;
-      --role-cxr:          #b45309;
-      --role-driver:       #2563eb;
-      --role-admin:        #dc2626;
-      --role-detailer:     #7c3aed;
-      --focus-ring:        rgba(37, 99, 235, 0.4);
-      --disabled-bg:       rgba(0, 0, 0, 0.04);
-      --disabled-text:     #9aa3af;
-      --shadow-sm:         0 1px 2px rgba(0, 0, 0, 0.06);
-      --shadow-md:         0 4px 12px rgba(0, 0, 0, 0.08);
-      --shadow-lg:         0 8px 24px rgba(0, 0, 0, 0.12);
-      --scrim:             rgba(0, 0, 0, 0.4);
-      --chart-1:           #007a3d;
-      --chart-2:           #2563eb;
-      --chart-3:           #b45309;
-      --chart-4:           #0e7490;
-      --chart-5:           #7c3aed;
-    }
+    --chart-5:           #6d28d9;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: var(--bg); color: var(--text); max-width: 600px; margin: 0 auto; padding-top: env(safe-area-inset-top, 0px); line-height: var(--leading-base); }
@@ -260,7 +213,7 @@
   /* === Shared bases (consolidated duplication) === */
   /* Card surface: dark card bg + bordered + rounded. Per-rule padding/margin still applies. */
   input[type=text], input[type=number], select, textarea,
-  .record, .filter-bar, .stat-card, .bar-chart, .day-table {
+  .record, .stat-card, .bar-chart, .day-table {
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -308,8 +261,17 @@
   .panel.active { display: block; }
 
   .field-label {
-    margin-bottom: var(--space-2); margin-top: var(--space-5);
+    margin-bottom: var(--space-2);
+    margin-top: 0;
   }
+  /* Field labels that follow another field still want top breathing room — only
+     the first label in a group sits flush. */
+  .field-label + .field-label,
+  * + .field-label {
+    margin-top: var(--space-5);
+  }
+  /* Inside flex rows (form layouts) the row gap handles spacing, no top margin. */
+  .u-row .field-label { margin-top: 0; }
 
   input[type=text], input[type=number], select, textarea {
     width: 100%; padding: var(--space-3) var(--space-4); font-size: var(--font-md);
@@ -317,6 +279,64 @@
     margin-bottom: var(--space-2);
     transition: border-color 0.15s;
   }
+  /* Form controls inside flex rows: the row gap handles spacing, no bottom margin. */
+  .u-row input, .u-row select, .u-row textarea { margin-bottom: 0; }
+  /* Last control before a button row sits flush with its container. */
+  #panel-profile select,
+  #notes { margin-bottom: 0; }
+
+  /* ============================
+     LAYOUT COMPONENTS (replace spacing-utility classes)
+     ============================ */
+
+  /* Entry-style header: SCAN BARCODE hero + "Enter Manually" secondary, stacked with breathing room.
+     Used on both the driver New Entry tab and the detailer New Entry tab. */
+  .entry-header-buttons {
+    display: flex; flex-direction: column; align-items: center;
+    gap: var(--space-5);
+    margin-bottom: var(--space-5);
+  }
+  .entry-header-buttons .btn-manual-toggle {
+    max-width: 50%;
+  }
+
+  /* Entry-form row: side-by-side field groups (Status/Location, Mileage/Fuel). */
+  .entry-form-row { display: flex; gap: var(--space-3); margin-top: var(--space-5); }
+  .entry-form-row + .entry-form-row { margin-top: var(--space-4); }
+  .entry-form-row > .u-flex-1 > .field-label:first-child { margin-top: 0; }
+
+  /* Checkbox row inside the entry-options collapse panel. */
+  .checkbox-row { display: flex; gap: var(--space-3); }
+  .checkbox-row > .notag-row { margin-top: 0; }
+
+  /* Records-filter button stack (Clear Filters / Export CSV). */
+  .records-filters > .disclosure-body > .btn        { margin-top: var(--space-2); }
+  .records-filters > .disclosure-body > .btn + .btn { margin-top: var(--space-1); }
+
+  /* Bottom spacing on the Back-button row in the VIN-detail panel. */
+  .panel-back-row { margin-bottom: var(--space-3); }
+
+  /* VIN-lookup "VIN Detail" sub-header sits well below the list above. */
+  .dash-title--vin { margin-top: var(--space-5); }
+
+  /* Backlot endorse-item: second row inside the card pushes off the shift-tags. */
+  .bl-edr-item > * + .row { margin-top: var(--space-2); }
+
+  /* Shift picker (requests panel) sits below the form label. */
+  .shift-picker { margin-top: var(--space-3); }
+
+  /* Elearning-admin: description textarea + answer row spacing. */
+  .quiz-admin-desc          { margin-top: var(--space-2); }
+  .quiz-admin-answer-row    { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+
+  /* Vehicle-notes timeline section label */
+  .vin-tl-label { margin-top: var(--space-4); margin-bottom: var(--space-2); }
+
+  /* Backlot fleet-counts form: returns/rentals side-by-side. */
+  .bl-form-row { display: flex; gap: var(--space-3); }
+
+  /* Elearning admin toolbar row (button group). */
+  .admin-toolbar { display: flex; gap: var(--space-2); }
   /* Consistent height for single-line form controls across the app */
   input[type=text], input[type=number], input[type=date], input[type=time], input[type=email], input[type=password], input[type=search], input[type=tel], input[type=url], select {
     box-sizing: border-box; height: var(--dt-input-h); line-height: 1.2;
@@ -354,20 +374,19 @@
           (and same for .data-section-title for the Profile-page sections).
      Keep both rules visually identical so the form looks consistent
      regardless of which markup pattern the field uses. */
-  label:has(> [required])::before,
-  .field-label.is-required::after,
-  .data-section-title.is-required::after {
+  /* Required-field asterisk — one rule covers every form pattern.
+     Add the .is-required class to whichever element holds the visible label text
+     (a <label>, a <span class="field-label">, a <div class="data-section-title">, …). */
+  .is-required::after {
     content: " *"; color: var(--danger); font-weight: 700; margin-left: 2px;
   }
-  label:has(> [required])::before { content: "* "; margin-left: 0; margin-right: 2px; }
 
   /* Input with clear button (X) */
-  .input-with-clear { position: relative; margin-bottom: var(--space-6); }
+  .input-with-clear { display: block; position: relative; margin-bottom: var(--space-6); }
   .input-with-clear input[type=text] { padding-right: 88px; cursor: pointer; margin-bottom: 0; }
-  /* .input-clear-btn sizing lives further down (after the shared close-button
-     block) so its dimensions actually win the cascade. */
 
   .vin-charcount {
+    display: block;
     font-size: var(--font-sm); color: var(--muted); margin-top: var(--space-2); text-align: right;
     font-weight: 600; letter-spacing: 0.5px;
   }
@@ -501,68 +520,140 @@
   .shuttle-row.shuttle-checked { border-color: var(--info); background: var(--info-soft); }
   .shuttle-row.shuttle-checked .notag-label { color: var(--info); }
 
+  /* ============================
+     BUTTONS — 5-recipe system
+     Base (.btn) + variants (primary/secondary/ghost/destructive/icon) +
+     modifiers (--sm/--hero/--block/--pulse/--dashed/--overlay/--pill).
+     Use as: <button class="btn btn-primary btn--hero btn--block">.
+     ============================ */
   .btn {
-    /* Use flex so the button height stays predictable regardless of inner
-       content (text only, icon+text, etc.). Matches single-line input height
-       (var(--dt-input-h)) so buttons sit flush with form controls in rows. */
-    display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
-    box-sizing: border-box; height: var(--dt-input-h);
-    padding: 0 var(--space-4); font-size: var(--font-base);
-    border: none; border-radius: var(--radius); cursor: pointer;
-    font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
-    margin-top: var(--space-4);
-    /* Standard buttons size to content with a comfortable minimum. Large
-       "hero" buttons (e.g. .btn-scan-primary, .detail-actions .btn) set
-       their own width: 100% to stay full-width. */
-    min-width: 180px;
-    /* Smooth fade between resting (85% fill) and hover (95% fill). */
-    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: var(--space-2);
+    box-sizing: border-box;
+    height: var(--dt-input-h);
+    padding: 0 var(--space-4);
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    font-size: var(--font-base);
+    font-weight: var(--weight-bold);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
   }
+  .btn:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+  .btn:disabled, .btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: transparent;
+    border-color: var(--border);
+    color: var(--muted);
+  }
+
+  /* 1. PRIMARY — translucent fill + bright accent border (DriverTrax house style) */
   .btn-primary {
     background: color-mix(in srgb, var(--accent) 20%, transparent);
-    color: var(--text); font-weight: 900;
-    border: 1px solid var(--accent);
+    color: var(--text);
+    border-color: var(--accent);
+    font-weight: var(--weight-bold);
   }
-  .btn-primary:hover { background: color-mix(in srgb, var(--accent) 35%, transparent); }
-  .btn-primary:active { background: color-mix(in srgb, var(--accent-pressed) 50%, transparent); }
-  /* Disabled: same shape, just dimmed + non-interactive. */
-  .btn-primary:disabled,
-  .btn-primary[disabled] {
-    background: transparent;
-    color: var(--muted);
-    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-  /* Save-action buttons: bigger tap target than a stock .btn, full-width,
-     centered. Apply alongside .btn .btn-primary on any form's primary
-     submit/save button. */
-  .btn-save {
-    display: flex;
-    width: 60%; min-width: 0;
-    margin: var(--space-7) auto 0;
-    height: 56px; font-size: var(--font-lg);
-    letter-spacing: 1px;
-    justify-content: center; text-align: center;
-  }
+  .btn-primary:hover  { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+  .btn-primary:active { background: color-mix(in srgb, var(--accent-pressed) 50%, transparent); border-color: var(--accent-pressed); }
+
+  /* 2. SECONDARY — alternate action on a surface */
   .btn-secondary {
-    background: color-mix(in srgb, var(--card-soft) 85%, transparent);
-    color: var(--accent);
-    border: 1px solid color-mix(in srgb, var(--border) 95%, transparent);
-    margin-top: var(--space-3);
+    background: var(--card-soft);
+    color: var(--text);
+    border-color: var(--border);
   }
-  .btn-secondary:hover {
-    background: color-mix(in srgb, var(--card-soft) 95%, transparent);
-    border-color: color-mix(in srgb, var(--border) 99%, transparent);
+  .btn-secondary:hover  { background: var(--surface-hover); }
+  .btn-secondary:active { background: var(--card); }
+
+  /* 3. GHOST — low-emphasis, transparent (segmented controls, toggles) */
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-soft);
   }
-  .btn-danger {
-    background: color-mix(in srgb, var(--danger) 85%, transparent);
-    color: var(--text-on-status);
-    padding: var(--space-2) var(--space-3); font-size: var(--font-sm);
-    width: auto; margin-top: 0; border-radius: 6px;
-    min-height: 44px; min-width: 44px;
+  .btn-ghost:hover  { background: var(--surface-hover); color: var(--text); }
+  .btn-ghost:active { background: var(--card-soft); }
+  .btn-ghost.is-active {
+    background: var(--accent);
+    color: var(--text-on-accent);
   }
-  .btn-danger:hover { background: color-mix(in srgb, var(--danger) 95%, transparent); }
+
+  /* 4. DESTRUCTIVE — delete, remove, cancel, close */
+  .btn-destructive {
+    background: var(--danger-soft);
+    color: var(--danger);
+    border-color: color-mix(in srgb, var(--danger) 50%, transparent);
+  }
+  .btn-destructive:hover  { background: var(--danger); color: var(--text-on-status); border-color: var(--danger); }
+  .btn-destructive:active { background: var(--danger-strong); border-color: var(--danger-strong); }
+
+  /* 5. ICON — square tap-target, no text, transparent by default */
+  .btn-icon {
+    width: var(--dt-input-h);
+    min-width: var(--dt-input-h);
+    padding: 0;
+    background: transparent;
+    color: var(--text-soft);
+  }
+  .btn-icon:hover  { background: var(--surface-hover); color: var(--text); }
+  .btn-icon:active { background: var(--card-soft); }
+
+  /* Size modifiers */
+  .btn--sm   { height: 36px; min-width: 36px; padding: 0 var(--space-3); font-size: var(--font-sm); }
+  .btn--hero { height: 64px; padding: 0 var(--space-5); font-size: var(--font-xl); font-weight: var(--weight-bold); letter-spacing: 1px; }
+
+  /* Layout modifier */
+  /* Default block button: fills its container but caps at 50% so big save-buttons
+     don't span the whole viewport. Use .btn--full for buttons that should take
+     the entire row (SCAN BARCODE etc.). */
+  .btn--block { display: flex; width: 100%; max-width: 50%; margin-inline: auto; }
+  .btn--full  { display: flex; width: 100%; }
+
+  /* Style variants */
+  .btn--dashed { border-style: dashed; }
+  .btn--pill   { border-radius: 999px; }
+
+  /* Camera overlay context — fixed colors regardless of theme */
+  .btn--overlay {
+    background: var(--card-soft);
+    color: var(--overlay-text);
+    border-color: var(--border);
+  }
+  .btn--overlay.is-on,
+  .btn--overlay.on {
+    background: var(--overlay-text);
+    color: var(--overlay-bg);
+    border-color: var(--overlay-text);
+  }
+
+  /* Animation modifier — slow attention pulse (hero scan button) */
+  .btn--pulse { animation: btn-scan-pulse 2.6s ease-in-out infinite; }
+  @keyframes btn-scan-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 40%, transparent); border-color: var(--accent); }
+    50%      { box-shadow: 0 0 0 10px color-mix(in srgb, var(--accent)  0%, transparent); border-color: color-mix(in srgb, var(--accent) 70%, transparent); }
+  }
+  /* Torch-specific pulse (camera flashlight pre-on attention) */
+  .btn--pulse-torch { animation: torch-pulse 1.2s ease-in-out infinite; box-shadow: 0 0 0 0 rgba(255,200,0,0.6); }
+  @keyframes torch-pulse {
+    0%   { box-shadow: 0 0 0 0   rgba(255,200,0,0.6); }
+    70%  { box-shadow: 0 0 0 12px rgba(255,200,0,0); }
+    100% { box-shadow: 0 0 0 0   rgba(255,200,0,0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .btn--pulse, .btn--pulse-torch { animation: none; }
+  }
+
+  /* Position helper for X-clear buttons inside an input wrapper */
+  .btn-icon--input-clear {
+    position: absolute; right: 8px; top: 0; bottom: 0; margin: auto 0;
+    display: none;
+  }
 
   /* TODAY'S ENTRIES SECTION */
   .today-header {
@@ -625,7 +716,6 @@
   .record-notes { font-size: var(--font-base); margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border); color: var(--text-soft); line-height: var(--leading-relaxed); }
 
   /* RECORDS TAB */
-  .filter-bar { padding: var(--space-4) var(--space-4); margin-bottom: var(--space-4); }
   .filter-row { display: flex; gap: var(--space-2); margin-bottom: var(--space-2); }
   .filter-row input, .filter-row select { margin: 0; font-size: var(--font-base); padding: var(--space-2) var(--space-3); text-transform: none; flex: 1; }
   .results-count {
@@ -690,50 +780,6 @@
   .gps-status.got { color: var(--accent); }
   .gps-status.err { color: var(--danger); }
 
-  /* LARGE SCAN BUTTON */
-  .btn-scan-primary {
-    width: 100%; padding: 26px;
-    background: color-mix(in srgb, var(--accent) 20%, transparent);
-    color: var(--text);
-    border: 2px solid var(--accent);
-    border-radius: var(--radius); font-size: var(--font-xl); font-weight: 900;
-    letter-spacing: 1.5px; cursor: pointer;
-    display: flex; align-items: center; justify-content: center; gap: var(--space-3);
-    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
-    animation: btn-scan-pulse 2.6s ease-in-out infinite;
-  }
-  .btn-scan-primary:hover  { background: color-mix(in srgb, var(--accent) 35%, transparent); }
-  .btn-scan-primary:active { background: color-mix(in srgb, var(--accent-pressed) 50%, transparent); animation: none; }
-  /* Slow, subtle attention pulse: soft glow grows and the border breathes. */
-  @keyframes btn-scan-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 40%, transparent); border-color: var(--accent); }
-    50%      { box-shadow: 0 0 0 10px color-mix(in srgb, var(--accent)  0%, transparent); border-color: color-mix(in srgb, var(--accent) 70%, transparent); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .btn-scan-primary { animation: none; }
-  }
-
-  /* Beta secondary scan button (Scanbot SDK) */
-  .btn-scan-beta {
-    width: 100%; padding: var(--space-3); margin-top: var(--space-3);
-    background: transparent; color: var(--accent);
-    border: 1px dashed var(--accent);
-    border-radius: var(--radius); font-size: 13px; font-weight: 800;
-    letter-spacing: 1.5px; cursor: pointer; text-transform: uppercase;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .btn-scan-beta:active { background: rgba(0,166,81,0.1); }
-
-  .btn-manual-toggle {
-    width: 50%; padding: var(--space-3); margin-top: var(--space-4);
-    display: block; margin-left: auto; margin-right: auto;
-    background: transparent; color: var(--muted);
-    border: 1px solid var(--border); border-radius: var(--radius);
-    font-size: var(--font-base); cursor: pointer; letter-spacing: 0.5px;
-    text-align: center;
-  }
-  .btn-manual-toggle:active { color: var(--text); border-color: var(--text); }
-
   /* RECORD DETAIL OVERLAY */
   .detail-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.6);
@@ -756,47 +802,8 @@
   }
   .detail-serial { font-size: var(--font-xl); font-weight: 900; letter-spacing: 1px; color: var(--text); }
   .detail-time { font-size: var(--font-sm); color: var(--muted); margin-bottom: var(--space-5); }
-  /* Shared close/cancel button look — semi-transparent red background, white
-     glyph. Applies to all overlay/modal close icons and to text "Cancel"
-     buttons (via .btn-cancel) so the dismiss action looks the same everywhere. */
-  .detail-close,
-  .menu-close,
-  .weather-alert-close,
-  .ann-banner-close,
-  .users-modal-close,
-  .btn-cancel,
-  .note-del,
-  .input-clear-btn {
-    background: rgba(220, 38, 38, 0.2);
-    border: 1px solid rgba(220, 38, 38, 0.5);
-    color: var(--text-on-status);
-    font-size: var(--font-md);
-    cursor: pointer;
-    padding: var(--space-2) var(--space-3);
-    border-radius: 8px;
-    min-width: 44px; min-height: 44px;
-    display: inline-flex; align-items: center; justify-content: center;
-  }
-  .detail-close:hover,
-  .menu-close:hover,
-  .weather-alert-close:hover,
-  .ann-banner-close:hover,
-  .users-modal-close:hover,
-  .btn-cancel:hover,
-  .note-del:hover,
-  .input-clear-btn:hover {
-    background: rgba(220, 38, 38, 0.32);
-  }
-  .btn-cancel { font-weight: 700; letter-spacing: 0.5px; }
-  .input-clear-btn {
-    position: absolute; right: 8px; top: 0; bottom: 0; margin: auto 0;
-    /* Shorter than the 44×44 default so the input stays compact, wider so
-       the touch target remains comfortable to hit on mobile. */
-    width: 72px; min-width: 72px; height: 36px; min-height: 36px;
-    border-radius: 6px;
-    font-size: var(--font-xl); line-height: 1; padding: 0 0 3px;
-    display: none;
-  }
+  /* Close/cancel buttons use .btn .btn-destructive .btn-icon — no per-element rules needed.
+     Position helper for X-clear inside an input lives in the button system above. */
   .detail-badges { display: flex; gap: var(--space-2); flex-wrap: wrap; padding: 0 var(--space-5) var(--space-4); }
   .detail-body { padding: var(--space-4) var(--space-5) 0; border-top: 1px solid var(--border); }
   .detail-vin-section { display: contents; }
@@ -933,18 +940,7 @@
   }
   .scanner-actions { display: flex; gap: var(--space-2); align-items: stretch; }
   .scanner-actions > button { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; }
-  .btn-torch {
-    background: var(--card-soft); color: var(--text); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: var(--space-3) var(--space-4); font-size: var(--font-lg);
-    cursor: pointer;
-  }
-  .btn-torch.on { background: var(--overlay-text); color: var(--overlay-bg); border-color: var(--overlay-text); }
-  .btn-torch.pulse { animation: torch-pulse 1.2s ease-in-out infinite; box-shadow: 0 0 0 0 rgba(255,200,0,0.6); }
-  @keyframes torch-pulse {
-    0%   { box-shadow: 0 0 0 0   rgba(255,200,0,0.6); }
-    70%  { box-shadow: 0 0 0 12px rgba(255,200,0,0); }
-    100% { box-shadow: 0 0 0 0   rgba(255,200,0,0); }
-  }
+  /* Torch button: .btn .btn-icon .btn--overlay (+ .btn--pulse-torch + .on/.is-on for active). */
 
   /* TOAST */
   .toast {
@@ -1163,18 +1159,6 @@
     font-size: var(--font-sm); color: var(--muted); margin-top: 2px; line-height: var(--leading-base);
   }
 
-  /* COLLAPSIBLE RANGE TABS */
-  .dash-range-tab {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: var(--space-3) var(--space-1); cursor: pointer; user-select: none;
-    font-size: var(--font-base); font-weight: 700; color: var(--text-soft);
-    border-bottom: 1px solid var(--border);
-    transition: color 0.15s;
-  }
-  .dash-range-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-  .dash-range-tab:active { opacity: 0.7; }
-  .range-chevron { font-size: var(--font-sm); color: var(--muted); }
-  .dash-range-body { padding-top: var(--space-3); }
 
   /* SHIFT MAP */
   .shift-map-controls {
@@ -1204,9 +1188,17 @@
 
   /* DATA & BACKUP */
   .data-section {
+    display: block;                /* works as <div> or <label> */
     background: var(--card); border: 1px solid var(--border);
     border-radius: var(--radius); padding: var(--space-4); margin-bottom: var(--space-4);
   }
+  /* Form-field wrapper used inside entry/edit panels — labels wrap title + input. */
+  .field-row {
+    display: block;
+    margin-top: var(--space-5);
+  }
+  .field-row .field-label { margin-top: 0; }
+  .entry-form-row .field-row { margin-top: 0; flex: 1; min-width: 0; }
   .data-section-danger { border-color: var(--danger); }
   .data-section-title { font-size: var(--font-sm); font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--text); margin-bottom: var(--space-2); }
   .data-section-desc { font-size: var(--font-base); color: var(--muted); line-height: var(--leading-relaxed); margin-bottom: var(--space-4); }
@@ -1221,6 +1213,7 @@
   .training-placeholder {
     background: var(--card); border: 1px solid var(--border);
     border-radius: var(--radius); padding: var(--space-5);
+    margin-top: var(--space-4);
     color: var(--text-soft); font-size: var(--font-md); line-height: var(--leading-relaxed);
   }
 
@@ -1626,27 +1619,10 @@
 
   /* Inline SVG icon alignment next to text */
   .u-icon { vertical-align: middle; display: inline-block; }
-  .u-icon-mr-1 { vertical-align: middle; display: inline-block; margin-right: var(--space-1); }
   .u-icon-mr-2 { vertical-align: middle; display: inline-block; margin-right: 6px; }
 
   /* Margin */
-  .u-m-0  { margin: 0; }
-  .u-mt-0 { margin-top: 0; }
-  .u-mb-0 { margin-bottom: 0; }
-  .u-mt-1 { margin-top: var(--space-1); }
-  .u-mt-2 { margin-top: var(--space-2); }
-  .u-mt-3 { margin-top: var(--space-3); }
-  .u-mt-4 { margin-top: var(--space-4); }
-  .u-mt-5 { margin-top: var(--space-5); }
-  .u-mb-1 { margin-bottom: var(--space-1); }
-  .u-mb-2 { margin-bottom: var(--space-2); }
-  .u-mb-3 { margin-bottom: var(--space-3); }
-  .u-mb-4 { margin-bottom: var(--space-4); }
   .u-ml-auto { margin-left: auto; }
-
-  /* Padding */
-  .u-p-4 { padding: var(--space-4); }
-  .u-p-5 { padding: var(--space-5); }
 
   /* Text color / alignment */
   .u-text-accent { color: var(--accent); }
@@ -1665,8 +1641,6 @@
   .u-row { display: flex; }
   .u-row-between { display: flex; justify-content: space-between; align-items: center; }
   .u-row-end { display: flex; justify-content: space-between; align-items: flex-end; }
-  .u-gap-2 { gap: var(--space-2); }
-  .u-gap-3 { gap: var(--space-3); }
 
   /* Interaction */
   .u-cursor-pointer { cursor: pointer; }

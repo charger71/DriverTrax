@@ -663,7 +663,7 @@ function renderEntryPhotoStrip() {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.setAttribute("aria-label", "Remove photo");
-    btn.textContent = "✕";
+    btn.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#icon-x"/></svg>`;
     btn.addEventListener("click", () => {
       pendingEntryPhotos.splice(idx, 1);
       renderEntryPhotoStrip();
@@ -867,7 +867,7 @@ function updateMenuGreeting() {
   const h = new Date().getHours();
   let text;
   if (h >= 1 && h < 5) {
-    text = name ? `GIT TO BED '${name.toUpperCase()}'! 🌙` : "GIT TO BED! 🌙";
+    text = name ? `GIT TO BED '${name.toUpperCase()}'!` : "GIT TO BED!";
   } else {
     let salutation;
     if (h >= 5 && h < 12) salutation = "Good morning";
@@ -2714,7 +2714,7 @@ function openVinRecordDetail(r, profileCache) {
         <div class="detail-time">${esc(when)}</div>
         ${authorBlock}
       </div>
-      <button class="detail-close" onclick="closeRecordDetailOverlay()" aria-label="Close"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="btn btn-destructive btn-icon detail-close" onclick="closeRecordDetailOverlay()" aria-label="Close"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="detail-vin-section">
       <div class="detail-vin-container">
@@ -2769,7 +2769,7 @@ window.openContactCard = async function openContactCard(userId) {
   const body = document.getElementById("contactBody");
   const overlay = document.getElementById("contactOverlay");
   if (!body || !overlay || !window.DT_AUTH) return;
-  body.innerHTML = `<div class="bl-empty u-p-5">Loading…</div>`;
+  body.innerHTML = `<div class="bl-empty">Loading…</div>`;
   overlay.classList.add("open");
   const esc = (s) => sanitizeText(s);
   try {
@@ -2778,7 +2778,7 @@ window.openContactCard = async function openContactCard(userId) {
       .select("id,display_name,email,phone,role,home_airport,avatar_url")
       .eq("id", userId).maybeSingle();
     if (!data) {
-      body.innerHTML = `<div class="bl-empty u-p-5">Contact not found.</div>`;
+      body.innerHTML = `<div class="bl-empty">Contact not found.</div>`;
       return;
     }
     const name  = esc(data.display_name || "Unknown");
@@ -2804,7 +2804,7 @@ window.openContactCard = async function openContactCard(userId) {
     `;
   } catch (e) {
     console.warn("[contact] load failed", e);
-    body.innerHTML = `<div class="bl-empty u-p-5">Couldn't load contact.</div>`;
+    body.innerHTML = `<div class="bl-empty">Couldn't load contact.</div>`;
   }
 };
 window.closeContactCard = function closeContactCard() {
@@ -3081,7 +3081,7 @@ async function renderVinTimeline(vin, opts) {
         <button type="button" class="recall-toggle" aria-expanded="false">
           <span class="recall-badge">${list.length}</span>
           <span class="recall-toggle-label">OPEN RECALL${list.length === 1 ? "" : "S"}</span>
-          <span class="recall-chevron" aria-hidden="true">▾</span>
+          <svg class="recall-chevron icon icon--sm" aria-hidden="true"><use href="#icon-chevron-down"/></svg>
         </button>
         <ul class="recall-list" hidden>${rows}</ul>
       `;
@@ -3587,28 +3587,15 @@ function renderPersonalRecords() {
 // ============================
 // COLLAPSIBLE RANGE VIEWS
 // ============================
-const RANGES = ['7days','30days','3months','6months','1year','alltime'];
-
-function toggleRange(id) {
-  const body = document.getElementById('body-' + id);
-  const chev = document.getElementById('chev-' + id);
-  const tab  = document.getElementById('tab-' + id);
-  const isOpen = body.style.display !== 'none';
-
-  // Close all
-  RANGES.forEach(r => {
-    document.getElementById('body-' + r).style.display = 'none';
-    document.getElementById('chev-' + r).innerHTML = '&#9654;';
-    document.getElementById('tab-'  + r).classList.remove('active');
+// The radio-group behavior (only one open at a time) is handled natively by
+// <details name="dash-range">. We just listen for opens to lazy-render each range.
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll('.dash-range[data-range]').forEach(el => {
+    el.addEventListener('toggle', () => {
+      if (el.open) renderRange(el.dataset.range);
+    });
   });
-
-  if (!isOpen) {
-    body.style.display = 'block';
-    chev.innerHTML = '&#9660;';
-    tab.classList.add('active');
-    renderRange(id);
-  }
-}
+});
 
 function renderRange(id) {
   const now = new Date();
@@ -3798,18 +3785,12 @@ function renderRangeMonthTable(elId, all, months) {
 // ============================
 let recordsLeafletMap = null;
 let recordsMapMarkers = [];
-let recordsMapOpen = false;
-
-function toggleRecordsMap() {
-  const body = document.getElementById('body-recordsMap');
-  const chev = document.getElementById('chev-recordsMap');
-  const tab  = document.getElementById('tab-recordsMap');
-  recordsMapOpen = body.style.display === 'none';
-  body.style.display = recordsMapOpen ? 'block' : 'none';
-  chev.innerHTML = recordsMapOpen ? '&#9660;' : '&#9654;';
-  tab.classList.toggle('active', recordsMapOpen);
-  if (recordsMapOpen) renderRecordsMap();
-}
+// Records map view — native <details> handles the open/close; we just lazy-render on open.
+document.addEventListener("DOMContentLoaded", () => {
+  const el = document.getElementById("recordsMapDisclosure");
+  if (!el) return;
+  el.addEventListener("toggle", () => { if (el.open) renderRecordsMap(); });
+});
 
 // Build a deduped list of VINs from whatever was just rendered into #records,
 // each row linking to the VIN Detail modal.
@@ -3896,7 +3877,7 @@ function openInlineNewEntry(vin) {
   const body = document.getElementById("entryFormBody");
   if (!slot || !body) return;
   if (body.parentElement !== slot) {
-    slot.innerHTML = `<div class="vin-tl-entry-close-row"><button type="button" class="btn-cancel" onclick="restoreInlineNewEntry()">Close</button></div>`;
+    slot.innerHTML = `<div class="vin-tl-entry-close-row"><button type="button" class="btn btn-destructive" onclick="restoreInlineNewEntry()">Close</button></div>`;
     slot.appendChild(body);
   }
   // Prefill VIN and make sure the manual-entry section is visible so the
@@ -3946,7 +3927,8 @@ async function openVinDetailPanel(vin) {
 
 
 function renderRecordsMap() {
-  if (!recordsMapOpen) return;
+  const disc = document.getElementById("recordsMapDisclosure");
+  if (!disc || !disc.open) return;
   const records = getFiltered().filter(r => r.lat && r.lng);
   const mapEl = document.getElementById('recordsMap');
   const emptyEl = document.getElementById('recordsMapEmpty');
@@ -4810,7 +4792,7 @@ function startScannerEscalation() {
   // 6s: torch nudge (and auto-suggest if off)
   scannerEscalationTimers.push(setTimeout(() => {
     if (!scannerActive) return;
-    const torchHint = torchOn ? "Try a different angle" : "Try the flashlight →";
+    const torchHint = torchOn ? "Try a different angle" : "Try the flashlight";
     setScannerHint(torchHint);
     const torchBtn = document.getElementById("torchBtn");
     if (torchBtn && !torchOn) torchBtn.classList.add("pulse");
@@ -5285,11 +5267,14 @@ function resolveTheme(pref) {
 }
 
 function applyTheme(pref) {
-  document.documentElement.setAttribute("data-theme", pref);
+  // data-theme always holds the RESOLVED value (light/dark) so CSS only needs one
+  // light-theme block. The user preference (system/light/dark) lives in localStorage.
+  const resolved = resolveTheme(pref);
+  document.documentElement.setAttribute("data-theme", resolved);
   const meta = document.getElementById("metaThemeColor")
             || document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", resolveTheme(pref) === "light" ? "#ffffff" : "#13161a");
-  // Reflect selection in the segmented control if it's mounted
+  if (meta) meta.setAttribute("content", resolved === "light" ? "#f1ede5" : "#13161a");
+  // Reflect the user-facing preference in the segmented control
   document.querySelectorAll(".theme-toggle-btn").forEach(btn => {
     const on = btn.dataset.themeValue === pref;
     btn.setAttribute("aria-checked", on ? "true" : "false");

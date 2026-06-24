@@ -361,9 +361,9 @@
 
     el.innerHTML = `
       ${openHtml}
-      <details class="edr-archive">
-        <summary>Archived (${archived.length})</summary>
-        <div class="edr-archive-list">${archivedHtml}</div>
+      <details class="disclosure">
+        <summary class="disclosure-summary">Archived (${archived.length})</summary>
+        <div class="disclosure-body edr-archive-list">${archivedHtml}</div>
       </details>
     `;
 
@@ -460,7 +460,7 @@
       return `<div class="bl-edr-item" data-id="${r.id}">
         <div class="row"><div>${esc(when)}</div><div class="status status-${esc(r.status)}">${esc(r.status)}</div></div>
         <div class="edr-shift-tags">${shiftTags}</div>
-        <div class="row u-mt-2"><div>${r.needed_count} ${esc(positionLabel)}${r.needed_count === 1 ? "" : "s"} needed</div><div>${esc(r.note || "")}</div></div>
+        <div class="row"><div>${r.needed_count} ${esc(positionLabel)}${r.needed_count === 1 ? "" : "s"} needed</div><div>${esc(r.note || "")}</div></div>
         <div class="responses">✅ ${accepted.length} accepted · ❌ ${declined} declined</div>
         ${acceptedHtml}
         <div class="edr-admin-actions">${actions}</div>
@@ -472,9 +472,9 @@
 
     el.innerHTML = `
       ${openHtml}
-      <details class="edr-archive">
-        <summary>Archived (${archived.length})</summary>
-        <div class="edr-archive-list">${archivedHtml}</div>
+      <details class="disclosure">
+        <summary class="disclosure-summary">Archived (${archived.length})</summary>
+        <div class="disclosure-body edr-archive-list">${archivedHtml}</div>
       </details>
     `;
 

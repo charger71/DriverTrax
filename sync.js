@@ -338,7 +338,7 @@
     if (state === "err") { el.textContent = "Sync error — will retry"; return; }
     if (pending > 0 && !navigator.onLine) { el.textContent = `Offline · ${pending} queued`; return; }
     if (pending > 0) { el.textContent = `${pending} queued`; return; }
-    el.textContent = "Synced ✓";
+    el.innerHTML = `Synced <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-check"/></svg>`;
   }
 
   function shouldRunSync() {

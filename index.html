@@ -17,21 +17,21 @@
 <link rel="manifest" href="manifest.json">
 
 <!-- Pre-paint theme init: applies stored theme preference before CSS parses to avoid flash on light-mode load.
+     Sets data-theme to the RESOLVED value ("light"/"dark") — user preference ("system") stays in localStorage.
      Mirrored by setTheme()/applyTheme() in app.js once the page hydrates. -->
 <script>
   (function(){
     try {
       var pref = localStorage.getItem("dt_theme") || "system";
-      if (pref === "light" || pref === "dark" || pref === "system") {
-        document.documentElement.setAttribute("data-theme", pref);
-        var resolved = pref;
-        if (pref === "system") {
-          resolved = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-        }
-        var meta = document.querySelector('meta[name="theme-color"]');
-        if (meta) meta.setAttribute("content", resolved === "light" ? "#ffffff" : "#13161a");
+      if (pref !== "light" && pref !== "dark" && pref !== "system") pref = "system";
+      var resolved = pref;
+      if (pref === "system") {
+        resolved = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
       }
-    } catch (e) { /* localStorage may throw in private mode — fall back to dark */ }
+      document.documentElement.setAttribute("data-theme", resolved);
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute("content", resolved === "light" ? "#f1ede5" : "#13161a");
+    } catch (e) { /* localStorage may throw in private mode — fall back to dark default */ }
   })();
 </script>
 
@@ -140,6 +140,17 @@
   .detailer-only                                  { display: none !important; }
   body.is-detailer .detailer-only.tab             { display: block !important; }
   body.is-detailer .detailer-only.menu-item       { display: flex  !important; }
+  body.is-detailer .detailer-only.disclosure      { display: block !important; }
+  /* Detailer-only conditions chip list inside #panel-entry.
+     #entryLockedBanner is .detailer-only but its visibility is JS-controlled
+     (setLockedBanner toggles inline display), so no override here. */
+  body.is-detailer #detailConditions              { display: flex !important; }
+  /* Detailer Save/Complete footer is a flex column (see .detail-job-actions). */
+  body.is-detailer .detailer-only.detail-job-actions { display: flex !important; }
+  /* Hide CXR/driver chip list and the standard Save row for detailers — they
+     use #detailConditions and #entryJobActions instead. */
+  body.is-detailer #cxrConditionsSection          { display: none !important; }
+  body.is-detailer .u-row-end.non-detailer        { display: none !important; }
   body.is-detailer .driver-only,
   body.is-detailer .manager-only                  { display: none !important; }
 
@@ -618,13 +629,24 @@
   }
   .todo-note.hidden { display: none; }
 
-  .detail-job-actions { margin-top: 16px; text-align: center; }
-  .detail-job-actions .btn { width: 100%; }
+  .detail-job-actions {
+    margin-top: var(--space-6);
+    margin-bottom: var(--space-6);
+    display: flex; flex-direction: column;
+    gap: var(--space-4);
+  }
+  /* Save / Complete buttons use their own .btn--full / .btn--block sizing. */
+  /* Disabled option rows in the detailer Options disclosure — visible but not interactive. */
+  .notag-row[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
 
   /* Note attachments (GPS + photo) */
   .note-attach-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 8px 0 4px; }
   .note-attach-row .vn-gps-switch { flex: 1 1 auto; }
-  .vn-photo-action { margin-left: auto; }
+  .vn-photo-action { margin: var(--space-3) 0 var(--space-4); margin-left: auto; }
   .vn-photo-btn.btn { width: auto; display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; font-size: 13px; }
   .note-attach-chip {
     display: inline-flex; align-items: center; cursor: pointer;
@@ -727,52 +749,47 @@
     border: 1px solid var(--border);
   }
   .records-search-row input:focus { outline: none; border-color: var(--accent); }
-  .records-search-row .records-scan-btn {
-    flex: 0 0 auto;
-    padding: 0 14px;
+  /* records-scan-btn extends .btn .btn-primary — only the search-row width sizing is unique. */
+  .records-search-row .records-scan-btn { flex: 0 0 auto; width: 200px; }
+  /* ============================
+     DISCLOSURE — the one accordion pattern. One look everywhere.
+     For radio-group behavior (only one open at a time), add name="…" to the <details>.
+     ============================ */
+  .disclosure {
+    margin: var(--space-3) 0;
+    background: var(--card);
+    border: 1px solid var(--border);
     border-radius: var(--radius);
-    background: var(--accent); color: var(--text-on-accent);
-    border: none; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 700;
-    height: 44px;
-    width: 200px;
-  }
-  .records-search-row .records-scan-btn:active { transform: scale(0.97); }
-  .entry-collapse {
-    margin: 12px 0;
-    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
     overflow: hidden;
   }
-  .entry-collapse-summary {
+  .disclosure-summary {
     cursor: pointer; list-style: none;
-    padding: 10px 14px;
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    min-height: 44px;                  /* WCAG 2.5.5 touch target */
+    font-size: var(--font-sm); font-weight: var(--weight-bold);
+    color: var(--text-soft);
+    letter-spacing: 1px; text-transform: uppercase;
   }
-  .entry-collapse-summary::-webkit-details-marker { display: none; }
-  .entry-collapse-summary::after {
-    content: "▸"; color: var(--muted); font-size: 12px;
+  .disclosure-summary::-webkit-details-marker { display: none; }
+  .disclosure-summary:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;              /* sits inside the card edge */
+  }
+  .disclosure-summary::after {
+    content: ""; width: 12px; height: 12px; flex: 0 0 12px;
+    background-color: var(--muted);
+    -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='9 6 15 12 9 18'/></svg>") center/contain no-repeat;
+            mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='9 6 15 12 9 18'/></svg>") center/contain no-repeat;
     transition: transform .15s ease;
   }
-  .entry-collapse[open] > .entry-collapse-summary::after {
-    transform: rotate(90deg); color: var(--accent);
+  @media (prefers-reduced-motion: reduce) {
+    .disclosure-summary::after { transition: none; }
   }
-  .entry-collapse-summary .field-label { margin: 0; }
-  .entry-collapse-body { padding: 0 14px 14px; }
-
-  .records-filters {
-    margin-bottom: 12px;
-    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 6px 12px;
-  }
-  .records-filters summary {
-    cursor: pointer; font-size: 12px; color: var(--text-soft);
-    font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
-    padding: 6px 0; list-style: none;
-  }
-  .records-filters summary::-webkit-details-marker { display: none; }
-  .records-filters summary::before { content: "▸ "; color: var(--muted); }
-  .records-filters[open] summary::before { content: "▾ "; color: var(--accent); }
+  .disclosure[open] > .disclosure-summary { color: var(--text); }
+  .disclosure[open] > .disclosure-summary::after { transform: rotate(90deg); background-color: var(--accent); }
+  .disclosure-body { padding: 0 var(--space-4) var(--space-4); }
+  .disclosure-summary .field-label { margin: 0; }
   .records-prompt {
     color: var(--muted); text-align: center;
     padding: 30px 16px; font-size: 14px;
@@ -838,7 +855,7 @@
     text-transform: uppercase;
     white-space: nowrap;
   }
-  .vin-tl-label  { font-size: 11px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; }
+  .vin-tl-label  { font-size: 11px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; text-align: left; }
   .vin-tl-status-pill { display: inline-block; padding: 4px 12px; border-radius: 999px; background: var(--panel); color: var(--info-text); border: 1px solid var(--info-soft); font-weight: 800; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
   .vin-tl-header--hold { background: var(--warn-soft); border-color: var(--warn-strong); }
   .vin-tl-header--hold .vin-tl-status-pill { background: var(--warn-strong); color: var(--warn-soft); border-color: var(--warn-strong); }
@@ -1124,21 +1141,7 @@
     font-size: 14px; font-family: inherit;
   }
   .bl-form textarea { min-height: 70px; resize: vertical; }
-  .bl-form .btn-save {
-    flex: 0 0 auto;
-    width: 200px;
-    min-width: 0;
-    height: 44px;
-    margin: 8px auto 0;
-    padding: 0 14px;
-    border-radius: var(--radius);
-    background: var(--accent); color: var(--text-on-accent);
-    border: none; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 15px; letter-spacing: normal;
-  }
-  .bl-form .btn-save:hover { background: var(--accent); }
-  .bl-form .btn-save:active { transform: scale(0.97); background: var(--accent); }
+  /* bl-form save buttons now use the standard .btn .btn-primary .btn--block recipe. */
   .bl-ann-item { background: var(--panel); border-radius: 8px; padding: 10px 12px; margin-top: 8px; border-left: 3px solid var(--accent); }
   .bl-ann-item .meta { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
   .bl-ann-item .body { font-size: 14px; white-space: pre-wrap; }
@@ -1147,12 +1150,11 @@
   .bl-edr-item .row { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-soft); }
   .bl-edr-item .status { font-weight: 700; color: var(--accent); text-transform: uppercase; }
   .bl-edr-item .responses { margin-top: 6px; font-size: 13px; }
-  .bl-empty { color: var(--muted); text-align: center; padding: 20px; font-size: 13px; }
+  .bl-empty { color: var(--muted); text-align: center; padding: var(--space-5); font-size: 13px; }
   .bl-lb-controls { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
   .bl-seg { display: flex; flex-wrap: wrap; gap: 4px; background: var(--bg); border: 1px solid var(--divider); border-radius: 999px; padding: 3px; }
-  .bl-seg-btn { flex: 1 1 auto; min-width: 0; padding: 6px 10px; border: none; background: transparent; color: var(--text-soft); font-size: 12px; font-weight: 700; letter-spacing: .03em; border-radius: 999px; cursor: pointer; transition: background .15s, color .15s; }
-  .bl-seg-btn:hover { color: var(--text-on-status); }
-  .bl-seg-btn.is-active { background: var(--accent); color: var(--text-on-status); }
+  /* bl-seg-btn extends .btn .btn-ghost .btn--sm .btn--pill — only the flex-row layout is unique here. */
+  .bl-seg-btn { flex: 1 1 auto; }
   .vin-detail-list { max-height: 280px; overflow-y: auto; border: 1px solid var(--divider); border-top: none; border-radius: 0 0 var(--radius) var(--radius); padding: 4px 8px; }
   .vin-detail-list--open { border: none; border-radius: 0; padding: 0; max-height: none; overflow: visible; width: auto; }
   .vin-detail-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 4px; border-bottom: 1px solid var(--panel); cursor: pointer; }
@@ -1279,15 +1281,9 @@
   .edr-card .meta { font-size: 12px; color: var(--text-soft); margin-top: 2px; }
   .edr-card .note { font-size: 13px; color: var(--info-text); margin-top: 6px; white-space: pre-wrap; }
   .edr-card .progress { font-size: 11px; color: var(--muted); margin-top: 6px; }
+  /* edr buttons extend .btn .btn-primary/.btn-ghost .btn--sm — only the flex-row + "mine" ring are unique. */
   .edr-actions { display: flex; gap: 8px; margin-top: 10px; }
-  .edr-actions button {
-    flex: 1; padding: 10px; border-radius: 6px; border: none;
-    font-weight: 800; font-size: 13px; cursor: pointer;
-  }
-  .edr-yes  { background: var(--accent); color: var(--text-on-status); }
-  .edr-yes:hover  { background: var(--accent-strong); }
-  .edr-no   { background: var(--divider); color: var(--text-soft); }
-  .edr-no:hover   { background: var(--surface-hover); }
+  .edr-actions .btn { flex: 1; min-width: 0; }
   .edr-yes.mine   { box-shadow: inset 0 0 0 2px var(--info-text); }
   .edr-no.mine    { box-shadow: inset 0 0 0 2px var(--info-text); color: var(--info-text); }
   .edr-card.responded { border-left-color: var(--accent); }
@@ -1350,17 +1346,7 @@
   .bl-edr-item .status-filled    { color: var(--info); }
   .bl-edr-item .status-cancelled { color: var(--muted); }
 
-  /* Archived disclosure */
-  .edr-archive { margin-top: 14px; border-top: 1px dashed var(--divider); padding-top: 10px; }
-  .edr-archive summary {
-    cursor: pointer; font-size: 12px; color: var(--text-soft); font-weight: 700;
-    letter-spacing: 1px; text-transform: uppercase; padding: 6px 0;
-    list-style: none;
-  }
-  .edr-archive summary::-webkit-details-marker { display: none; }
-  .edr-archive summary::before { content: "▸ "; color: var(--muted); }
-  .edr-archive[open] summary::before { content: "▾ "; color: var(--accent); }
-  .edr-archive-list { margin-top: 8px; opacity: 0.85; }
+  .edr-archive-list { opacity: 0.85; }
   .edr-archive-list .bl-edr-item { opacity: 0.85; }
   .edr-archive-list .ann-card { opacity: 0.85; }
 
@@ -1418,18 +1404,14 @@
   .ann-reply-body { color: var(--text); white-space: pre-wrap; }
 
   .ann-reply-form {
-    display: flex; gap: 6px; margin-top: 8px; align-items: baseline; flex-direction: row;
+    display: flex; gap: var(--space-2); margin-top: var(--space-2); align-items: center;
   }
   .ann-reply-form input {
-    flex: 1; padding: 8px 10px; border-radius: 6px;
+    flex: 1; padding: var(--space-2) var(--space-3); border-radius: 6px;
     background: var(--bg); color: var(--text); border: 1px solid var(--divider);
-    font-size: 13px;
+    font-size: 13px; margin: 0;
   }
   .ann-reply-form input:focus { outline: none; border-color: var(--accent); }
-  .ann-reply-form button {
-    background: var(--accent); color: var(--text-on-status); border: none;
-    padding: 8px 14px; border-radius: 6px; font-weight: 700; font-size: 13px; cursor: pointer;
-  }
 
   .dt-auth-link {
     background: none; border: none; color: var(--info);
@@ -1505,6 +1487,35 @@
 </head>
 <body>
 
+<!-- Shared SVG icon sprite. Add a <symbol> here, reference with <svg class="icon"><use href="#icon-..."/></svg>.
+     Icons are Lucide-style strokes; .icon class in app.css sets width/height/stroke. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <g id="_icon-defaults"></g>
+  </defs>
+  <symbol id="icon-scan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 9v6"/><path d="M11 9v6"/><path d="M14 9v6"/><path d="M17 9v6"/>
+  </symbol>
+  <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
+  <symbol id="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+  <symbol id="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+  <symbol id="icon-play" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 4 20 12 6 20 6 4"/></symbol>
+  <symbol id="icon-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></symbol>
+  <symbol id="icon-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></symbol>
+  <symbol id="icon-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+  <symbol id="icon-arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></symbol>
+  <symbol id="icon-arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></symbol>
+  <symbol id="icon-rotate" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></symbol>
+  <symbol id="icon-tri-up" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="12 5 20 19 4 19 12 5"/></symbol>
+  <symbol id="icon-tri-down" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="12 19 4 5 20 5 12 19"/></symbol>
+  <symbol id="icon-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></symbol>
+  <symbol id="icon-diamond" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="12 2 22 12 12 22 2 12 12 2"/></symbol>
+  <symbol id="icon-flag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4l14 6-14 6"/></symbol>
+  <symbol id="icon-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="icon-note" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></symbol>
+  <symbol id="icon-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></symbol>
+</svg>
+
 <div id="scrollFade" aria-hidden="true"></div>
 
 <script>
@@ -1545,7 +1556,7 @@
     <button type="button" class="tab manager-only"       role="tab" aria-selected="false" aria-controls="panel-backlot-stats"     data-tab="backlot-stats"      onclick="showTab('backlot-stats')">FLEET STATS</button>
     <button type="button" class="tab manager-only"       role="tab" aria-selected="false" aria-controls="panel-backlot-announce"  data-tab="backlot-announce"   onclick="showTab('backlot-announce')">ALERTS<span class="tab-badge hidden" id="tabAlertsMgrBadge"></span></button>
     <button type="button" class="tab manager-only"       role="tab" aria-selected="false" aria-controls="panel-records"           data-tab="records"            onclick="showTab('records')">VIN LOOKUP</button>
-    <button type="button" class="tab detailer-only"      role="tab" aria-selected="false" aria-controls="panel-detail-scan"       data-tab="detail-scan"        onclick="showTab('detail-scan')">NEW ENTRY</button>
+    <button type="button" class="tab detailer-only"      role="tab" aria-selected="false" aria-controls="panel-entry"             data-tab="entry"              onclick="showTab('entry')">NEW ENTRY</button>
     <button type="button" class="tab detailer-only"      role="tab" aria-selected="false" aria-controls="panel-announcements"     data-tab="announcements"      onclick="showTab('announcements')">ALERTS<span class="tab-badge hidden" id="tabAlertsDetBadge"></span></button>
     <button type="button" class="tab detailer-only"      role="tab" aria-selected="false" aria-controls="panel-records"           data-tab="records"            onclick="showTab('records')">VIN LOOKUP</button>
     <button type="button" class="tab detailer-only"      role="tab" aria-selected="false" aria-controls="panel-dashboard"         data-tab="dashboard"          onclick="showTab('dashboard')">DASHBOARD</button>
@@ -1600,7 +1611,7 @@
       <div class="weather-alert-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
       <div class="weather-alert-msg" id="weatherAlertMsg"></div>
     </div>
-    <button class="weather-alert-close" onclick="dismissWeatherAlert()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <button class="btn btn-destructive btn-icon weather-alert-close" onclick="dismissWeatherAlert()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
 </div>
 
@@ -1610,7 +1621,7 @@
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-8-4 18-6-6-8-4z"/></svg>
   </div>
   <div class="ann-banner-body" id="annBannerBody"></div>
-  <button class="ann-banner-close" id="annBannerClose" aria-label="Dismiss">&times;</button>
+  <button class="btn btn-destructive btn-icon ann-banner-close" id="annBannerClose" aria-label="Dismiss">&times;</button>
 </div>
 
 <!-- SLIDE-OUT MENU -->
@@ -1618,7 +1629,7 @@
 <div id="slideMenu" class="slide-menu">
   <div class="menu-header">
     <span class="menu-title">MENU</span>
-    <button class="menu-close" onclick="closeMenu()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <button class="btn btn-destructive btn-icon menu-close" onclick="closeMenu()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <nav class="menu-nav">
     <a class="menu-item driver-only" onclick="showTab('entry'); closeMenu()">
@@ -1641,7 +1652,7 @@
     </a>
 
     <!-- Detailer-only menu items -->
-    <a class="menu-item detailer-only" onclick="showTab('detail-scan'); closeMenu()">
+    <a class="menu-item detailer-only" onclick="showTab('entry'); closeMenu()">
       <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2"/><rect x="7" y="2" width="10" height="7"/><rect x="8" y="14" width="8" height="8"/></svg></span> New Entry
     </a>
     <a class="menu-item detailer-only" onclick="showTab('announcements'); closeMenu()">
@@ -1729,8 +1740,8 @@
     </ul>
   </div>
 
-  <div class="training-placeholder u-mt-4">
-    <h3 class="training-card-title u-mb-1">Car SIPP Codes</h3>
+  <div class="training-placeholder">
+    <h3 class="training-card-title">Car SIPP Codes</h3>
     <p class="training-card-note">* Certain car categories are not available at all locations.</p>
     <div class="sipp-scroll">
       <table class="sipp-table">
@@ -1810,8 +1821,10 @@
     <span class="keyup-total-val" id="keyupTotal">0</span>
   </div>
 
-  <div class="field-label">Closing Shift Notes</div>
-  <textarea id="keyupNotes" placeholder="Notes for the closing manager..." oninput="saveKeyUp()"></textarea>
+  <label class="field-row">
+    <span class="field-label">Closing Shift Notes</span>
+    <textarea id="keyupNotes" placeholder="Notes for the closing manager..." oninput="saveKeyUp()"></textarea>
+  </label>
 
   <button class="btn btn-primary" onclick="shareKeyUp()">
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:6px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
@@ -1837,8 +1850,10 @@
     <span class="keyup-total-val" id="garageTotal">0</span>
   </div>
 
-  <div class="field-label">Notes</div>
-  <textarea id="garageNotes" placeholder="Notes for the closing manager..." oninput="saveGarage()"></textarea>
+  <label class="field-row">
+    <span class="field-label">Notes</span>
+    <textarea id="garageNotes" placeholder="Notes for the closing manager..." oninput="saveGarage()"></textarea>
+  </label>
 
   <button class="btn btn-primary" onclick="shareGarage()">
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:6px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
@@ -1865,8 +1880,10 @@
     <span class="keyup-total-val" id="bcounterTotal">0</span>
   </div>
 
-  <div class="field-label">Notes</div>
-  <textarea id="bcounterNotes" placeholder="Notes for the closing manager..." oninput="saveBcounter()"></textarea>
+  <label class="field-row">
+    <span class="field-label">Notes</span>
+    <textarea id="bcounterNotes" placeholder="Notes for the closing manager..." oninput="saveBcounter()"></textarea>
+  </label>
 
   <button class="btn btn-primary" onclick="shareBcounter()">
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:6px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
@@ -1944,11 +1961,11 @@
       </div>
     </div>
   </div>
-  <div class="data-section">
-    <div class="data-section-title is-required">Name</div>
-    <div class="data-section-desc">Your name will appear in the dashboard and in exported file names.</div>
+  <label class="data-section">
+    <span class="data-section-title is-required">Name</span>
+    <span class="data-section-desc">Your name will appear in the dashboard and in exported file names.</span>
     <input type="text" id="profileName" placeholder="Enter your name" autocomplete="off" style="text-transform:none;margin-bottom:0" oninput="previewProfileName()">
-  </div>
+  </label>
   <div class="data-section">
     <div class="data-section-title">Role</div>
     <div class="data-section-desc">Your assigned role. Contact a manager to change this.</div>
@@ -1971,10 +1988,10 @@
       <button type="button" id="btnRemovePin" style="display:none">Remove PIN</button>
     </div>
   </div>
-  <div class="data-section">
-    <div class="data-section-title">Home Airport / Branch</div>
-    <div class="data-section-desc">Your primary airport or branch location.</div>
-    <select class="u-mb-0" id="profileLocation">
+  <label class="data-section">
+    <span class="data-section-title">Home Airport / Branch</span>
+    <span class="data-section-desc">Your primary airport or branch location.</span>
+    <select id="profileLocation">
       <option value="">-- SELECT LOCATION --</option>
       <option>Austin-Bergstrom (AUS)</option><option>Boston Logan (BOS)</option><option>Charlotte Douglas (CLT)</option>
       <option>Chicago O'Hare (ORD)</option><option>Dallas/Fort Worth (DFW)</option><option>Denver (DEN)</option>
@@ -1986,7 +2003,7 @@
       <option>San Diego (SAN)</option><option>San Francisco (SFO)</option><option>Seattle-Tacoma (SEA)</option>
       <option>Tampa (TPA)</option><option>Washington Reagan (DCA)</option>
     </select>
-  </div>
+  </label>
   <div class="data-section">
     <div class="data-section-title">Theme</div>
     <div class="data-section-desc">Choose how DriverTrax looks. System follows your device setting.</div>
@@ -2005,32 +2022,32 @@
       </button>
     </div>
   </div>
-  <button class="btn btn-primary btn-save" onclick="saveProfile()">Save Profile</button>
+  <button class="btn btn-primary btn--block" onclick="saveProfile()">Save Profile</button>
 </div>
 
 <div class="panel active" id="panel-entry" role="tabpanel" aria-label="New entry">
  <div id="entryFormHome"><div id="entryFormBody">
-  <div id="entryHeaderButtons">
-  <button class="btn-scan-primary" onclick="openScanner()">
-    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="4" height="4"/><rect x="17" y="3" width="4" height="4"/><rect x="3" y="17" width="4" height="4"/><line x1="7" y1="5" x2="17" y2="5"/><line x1="19" y1="7" x2="19" y2="17"/><line x1="7" y1="19" x2="17" y2="19"/><line x1="5" y1="7" x2="5" y2="17"/><line x1="10" y1="12" x2="14" y2="12"/><line x1="12" y1="10" x2="12" y2="14"/></svg>
+  <div id="entryHeaderButtons" class="entry-header-buttons">
+  <button class="btn btn-primary btn--hero btn--full btn--pulse" onclick="openScanner()">
+    <svg class="icon icon--xl" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-scan"/></svg>
     SCAN BARCODE
   </button>
   <!-- Scanbot button hidden — kept here in case we re-enable the trial flow later.
-  <button class="btn-scan-beta" onclick="openScanbotScanner()" title="Experimental: Scanbot SDK (trial mode, 60s/session)">
+  <button class="btn btn-ghost btn--block btn--dashed" onclick="openScanbotScanner()" title="Experimental: Scanbot SDK (trial mode, 60s/session)">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
     Scan with Scanbot (beta)
   </button>
   -->
-  <button class="btn-manual-toggle" onclick="toggleManualEntry()">Enter Manually</button>
+  <button class="btn btn-secondary btn-manual-toggle" onclick="toggleManualEntry()">Enter Manually</button>
   </div>
-  <div id="manualEntrySection" style="display:none">
-    <div class="field-label is-required">Serial ID</div>
-    <div class="input-with-clear">
+  <label id="manualEntrySection" class="field-row" style="display:none">
+    <span class="field-label is-required">Serial ID</span>
+    <span class="input-with-clear">
       <input type="text" id="serial" placeholder="Type Serial ID" autocomplete="off" autocorrect="off" spellcheck="false" readonly onfocus="openVinKeypad('serial')" onclick="openVinKeypad('serial')">
-      <button type="button" class="input-clear-btn" id="serialClearBtn" onclick="clearSerial()" aria-label="Clear">&times;</button>
-    </div>
-    <div class="vin-charcount" id="vinCharCount">0 / 17</div>
-  </div>
+      <button type="button" class="btn btn-icon btn--sm btn-icon--input-clear input-clear-btn" id="serialClearBtn" onclick="clearSerial()" aria-label="Clear">&times;</button>
+    </span>
+    <span class="vin-charcount" id="vinCharCount">0 / 17</span>
+  </label>
 
   <div id="entryCurrentState" class="entry-current-state" style="display:none"></div>
 
@@ -2046,10 +2063,10 @@
     <div class="tire-selected-label" id="tireSelectedLabel">No tires selected</div>
   </div>
 
-  <div class="u-row u-gap-3 u-mt-5">
-    <div class="u-flex-1">
-      <div class="field-label u-mt-0 is-required">Status</div>
-      <select class="u-mb-0" id="status" onchange="handleStatusChange()">
+  <div class="entry-form-row">
+    <label class="u-flex-1">
+      <span class="field-label is-required">Status</span>
+      <select id="status" onchange="handleStatusChange()">
         <option value="">-- STATUS --</option>
         <option value="CLEAN">CLEAN</option>
         <option value="DIRTY">DIRTY</option>
@@ -2069,25 +2086,25 @@
         <option value="OTHER">OTHER</option>
       </select>
       <input type="text" id="statusOther" class="other-input" placeholder="Specify other status..." maxlength="40" autocomplete="off" style="display:none">
-    </div>
-    <div class="u-flex-1">
-      <div class="field-label u-mt-0">Location</div>
-      <select class="u-mb-0" id="destination" onchange="toggleOtherField('destination')">
+    </label>
+    <label class="u-flex-1">
+      <span class="field-label">Location</span>
+      <select id="destination" onchange="toggleOtherField('destination')">
         <option value="">-- LOCATION --</option>
         <option>GARAGE</option><option>QTA</option><option>BACKLOT</option><option>ATLANTIC</option><option>BRANCH</option><option>OTHER</option>
       </select>
       <input type="text" id="destinationOther" class="other-input" placeholder="Specify other location..." maxlength="40" autocomplete="off" style="display:none">
-    </div>
+    </label>
   </div>
 
-  <div class="u-row u-gap-3 u-mt-4">
-    <div class="u-flex-1">
-      <div class="field-label u-mt-0">Mileage</div>
-      <input class="u-mb-0" type="number" id="mileage" inputmode="numeric" min="0" step="1" placeholder="000000" autocomplete="off">
-    </div>
-    <div class="u-flex-1">
-      <div class="field-label u-mt-0">Fuel</div>
-      <select class="u-mb-0" id="fuelLevel">
+  <div class="entry-form-row">
+    <label class="u-flex-1">
+      <span class="field-label">Mileage</span>
+      <input type="number" id="mileage" inputmode="numeric" min="0" step="1" placeholder="000000" autocomplete="off">
+    </label>
+    <label class="u-flex-1">
+      <span class="field-label">Fuel</span>
+      <select id="fuelLevel">
         <option value="">-- FUEL --</option>
         <option value="FULL">FULL</option>
         <option value="3/4">3/4</option>
@@ -2095,52 +2112,76 @@
         <option value="1/4">1/4</option>
         <option value="EMPTY">EMPTY</option>
       </select>
-    </div>
+    </label>
   </div>
 
-  <details class="entry-collapse" id="entryOptionsCollapse" data-collapse-key="options">
-    <summary class="entry-collapse-summary"><span class="field-label u-mt-0">Options</span></summary>
-    <div class="entry-collapse-body">
-      <div class="checkbox-row u-row u-gap-3 u-mt-0">
-        <label class="notag-row u-flex-1 u-mt-0" id="noTagRow">
+  <details class="disclosure entry-collapse" id="entryOptionsCollapse" data-collapse-key="options">
+    <summary class="disclosure-summary"><span class="field-label">Options</span></summary>
+    <div class="disclosure-body">
+      <div class="checkbox-row">
+        <label class="notag-row u-flex-1" id="noTagRow">
           <input type="checkbox" id="noTag" class="visually-hidden" onchange="toggleNoTagStyle()"><span class="notag-label">Bad Tag</span>
         </label>
-        <label class="notag-row shuttle-row u-flex-1 u-mt-0" id="shuttleRow">
+        <label class="notag-row shuttle-row u-flex-1" id="shuttleRow">
           <input type="checkbox" id="shuttle" class="visually-hidden" onchange="toggleShuttleStyle()"><span class="notag-label">Shuttle</span>
         </label>
-        <label class="notag-row transport-row u-flex-1 u-mt-0" id="transportRow">
+        <label class="notag-row transport-row u-flex-1" id="transportRow">
           <input type="checkbox" id="transport" class="visually-hidden" onchange="toggleTransportStyle()"><span class="notag-label">Transport</span>
         </label>
       </div>
     </div>
   </details>
 
-  <details class="entry-collapse" id="entryConditionsCollapse" data-collapse-key="conditions">
-    <summary class="entry-collapse-summary"><span class="field-label u-mt-0">Conditions</span></summary>
-    <div class="entry-collapse-body">
+  <details class="disclosure entry-collapse" id="entryConditionsCollapse" data-collapse-key="conditions">
+    <summary class="disclosure-summary"><span class="field-label">Conditions</span></summary>
+    <div class="disclosure-body">
       <div id="cxrConditionsSection">
         <div class="detail-conditions" id="cxrConditions"></div>
       </div>
+      <!-- Detailer-only chip list. Mounted by detailer.js; #cxrConditionsSection
+           is hidden for detailers via the body.is-detailer rule so the two
+           chip lists never render at the same time. -->
+      <div id="detailConditions" class="detail-conditions detailer-only"></div>
     </div>
   </details>
 
-  <div class="field-label">Notes</div>
-  <textarea class="u-mb-0" id="notes" placeholder="Optional notes..."></textarea>
+  <!-- Detailer-only: auto-generated checklist from selected conditions. Lives
+       between Conditions and Notes so the checklist sits with the work-defining
+       inputs that produced it. -->
+  <details class="disclosure detailer-only" id="entryJobChecklist" open>
+    <summary class="disclosure-summary"><span class="field-label">Job Checklist</span></summary>
+    <div class="disclosure-body">
+      <div id="entryJobChecklistBody"><div class="bl-empty">Pick a condition to generate the list.</div></div>
+    </div>
+  </details>
 
-  <div class="vn-photo-action u-mt-3">
+  <!-- Read-only banner shown when a completed job is opened from history. -->
+  <div class="detail-locked-banner" id="entryLockedBanner" style="display:none"></div>
+
+  <label class="field-row">
+    <span class="field-label">Notes</span>
+    <textarea id="notes" placeholder="Optional notes..."></textarea>
+  </label>
+
+  <div class="vn-photo-action">
     <!-- iOS Safari: a JS-proxied .click() on a hidden file input is unreliable
          (esp. inside a moved/standalone PWA context). Wrapping the visually
          hidden input in a real <label> means the picker is opened by a native
          click on a labeled control, which iOS handles reliably. -->
     <label for="entryPhotoInput" class="btn btn-secondary vn-photo-btn">
       <input type="file" name="photo" id="entryPhotoInput" accept="image/*" multiple class="visually-hidden">
-      📷 Add photos
+      <svg class="icon" aria-hidden="true"><use href="#icon-camera"/></svg> Add photos
     </label>
   </div>
   <div class="entry-photo-strip" id="entryPhotoStrip" style="display:none;margin-top:10px"></div>
 
-  <div class="u-row-end">
-    <button id="saveBtn" class="btn btn-primary btn-save" onclick="saveRecord()">Save</button>
+  <div class="u-row-end non-detailer">
+    <button id="saveBtn" class="btn btn-primary btn--block" onclick="saveRecord()">Save</button>
+  </div>
+  <!-- Detailer save workflow: Save Job creates the standard entry + a
+       detail_jobs row, then Complete Job appears to finalize. -->
+  <div class="detail-job-actions detailer-only" id="entryJobActions" style="display:none">
+    <button type="button" class="btn btn-primary btn--block" id="entrySaveJobBtn" data-mode="save">Save Job</button>
   </div>
   <div id="gpsStatus" class="gps-status"></div>
  </div></div>
@@ -2155,14 +2196,15 @@
 <div class="panel" id="panel-records" role="tabpanel" aria-label="VIN lookup">
   <div class="records-search-row">
     <input type="text" id="fSearch" placeholder="Search VIN, make, model, or notes…" autocomplete="off" oninput="debouncedSearchUpdate()" onblur="onSearchBlur()">
-    <button type="button" class="records-scan-btn" onclick="openScannerForSearch()" aria-label="Scan VIN to search">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="4" height="4"/><rect x="17" y="3" width="4" height="4"/><rect x="3" y="17" width="4" height="4"/><line x1="7" y1="5" x2="17" y2="5"/><line x1="19" y1="7" x2="19" y2="17"/><line x1="7" y1="19" x2="17" y2="19"/><line x1="5" y1="7" x2="5" y2="17"/><line x1="10" y1="12" x2="14" y2="12"/><line x1="12" y1="10" x2="12" y2="14"/></svg>
+    <button type="button" class="btn btn-primary records-scan-btn" onclick="openScannerForSearch()" aria-label="Scan barcode to search">
+      <svg width="20" height="20" aria-hidden="true"><use href="#icon-scan"/></svg>
+      Scan Barcode
     </button>
   </div>
 
-  <details class="records-filters">
-    <summary>Filters</summary>
-    <div class="filter-bar u-mt-2">
+  <details class="disclosure records-filters">
+    <summary class="disclosure-summary">Filters</summary>
+    <div class="disclosure-body">
       <div class="filter-row">
         <select id="fStatus" onchange="renderRecords()">
           <option value="">All Statuses</option>
@@ -2195,35 +2237,36 @@
         <input type="date" id="fDateFrom" onchange="renderRecords()">
         <input type="date" id="fDateTo" onchange="renderRecords()">
       </div>
-      <button class="btn btn-secondary u-mt-2" onclick="clearFilters()">Clear Filters</button>
-      <button class="btn btn-primary u-mt-1" onclick="exportCSV()">EXPORT CSV</button>
+      <button class="btn btn-secondary btn--sm" onclick="clearFilters()">Clear Filters</button>
+      <button class="btn btn-primary btn--sm" onclick="exportCSV()">EXPORT CSV</button>
     </div>
   </details>
 
   <div class="results-count" id="resultsCount"></div>
 
-  <div class="dash-section" style="margin-bottom:0;padding-bottom:0">
-    <div class="dash-range-tab" onclick="toggleRecordsMap()" id="tab-recordsMap">
-      <span><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Map View</span>
-      <span class="range-chevron" id="chev-recordsMap">&#9654;</span>
-    </div>
-    <div id="body-recordsMap" style="display:none">
+  <details class="disclosure dash-range" id="recordsMapDisclosure">
+    <summary class="disclosure-summary">Map View</summary>
+    <div class="disclosure-body">
       <div id="recordsMapContainer" class="shift-map-container" style="margin-top:0;border-radius:0 0 var(--radius) var(--radius)">
         <div id="recordsMap" class="shift-map"></div>
         <div id="recordsMapEmpty" class="shift-map-empty">No GPS entries in current results</div>
       </div>
     </div>
-  </div>
+  </details>
 
-  <div class="dash-title u-mt-5">VIN Detail</div>
-  <div id="vinDetailList" class="vin-detail-list vin-detail-list--open"><div class="bl-empty">Search to list VINs.</div></div>
+  <details class="disclosure" id="vinDetailDisclosure" open>
+    <summary class="disclosure-summary">VIN Detail</summary>
+    <div class="disclosure-body">
+      <div id="vinDetailList" class="vin-detail-list vin-detail-list--open"><div class="bl-empty">Search to list VINs.</div></div>
+    </div>
+  </details>
 
   <div id="records" style="display:none"></div>
 </div>
 
 <!-- VIN Detail panel — opened from the VIN Detail list on the VIN LOOKUP page -->
 <div class="panel" id="panel-vin-detail" role="region" aria-label="VIN detail">
-  <div class="u-mb-3">
+  <div class="panel-back-row">
     <button type="button" class="btn btn-secondary" onclick="showTab('records')" aria-label="Back" style="width:auto;display:inline-block;padding-left:14px;padding-right:14px">&larr; Back</button>
   </div>
   <div id="vinDetailBody"><div class="bl-empty">Loading…</div></div>
@@ -2233,7 +2276,7 @@
 <div id="noteDetailOverlay" class="detail-overlay" onclick="if(event.target===this)closeNoteDetailOverlay()">
   <div class="detail-sheet" id="noteDetailSheet">
     <div class="detail-handle"></div>
-    <div id="noteDetailBody"><div class="bl-empty u-p-5">Loading…</div></div>
+    <div id="noteDetailBody"><div class="bl-empty">Loading…</div></div>
   </div>
 </div>
 
@@ -2243,9 +2286,9 @@
     <div class="detail-handle"></div>
     <div class="detail-header">
       <div class="detail-time">Contact</div>
-      <button class="detail-close" onclick="closeContactCard()" aria-label="Close"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="btn btn-destructive btn-icon detail-close" onclick="closeContactCard()" aria-label="Close"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
-    <div id="contactBody"><div class="bl-empty u-p-5">Loading…</div></div>
+    <div id="contactBody"><div class="bl-empty">Loading…</div></div>
   </div>
 </div>
 
@@ -2253,7 +2296,7 @@
 <div id="recordDetailOverlay" class="detail-overlay" onclick="if(event.target===this)closeRecordDetailOverlay()">
   <div class="detail-sheet" id="recordDetailSheet">
     <div class="detail-handle"></div>
-    <div id="recordDetailBody"><div class="bl-empty u-p-5">Loading…</div></div>
+    <div id="recordDetailBody"><div class="bl-empty">Loading…</div></div>
   </div>
 </div>
 
@@ -2277,12 +2320,12 @@
     </div>
   </div>
 
-  <div class="dash-section"><div class="dash-range-tab active" onclick="toggleRange('7days')" id="tab-7days"><span>Last 7 Days</span><span class="range-chevron" id="chev-7days">&#9660;</span></div><div class="dash-range-body" id="body-7days"><div id="dashDays"></div></div></div>
-  <div class="dash-section"><div class="dash-range-tab" onclick="toggleRange('30days')" id="tab-30days"><span>Last 30 Days</span><span class="range-chevron" id="chev-30days">&#9654;</span></div><div class="dash-range-body" id="body-30days" style="display:none"><div id="dash30days"></div></div></div>
-  <div class="dash-section"><div class="dash-range-tab" onclick="toggleRange('3months')" id="tab-3months"><span>Last 3 Months</span><span class="range-chevron" id="chev-3months">&#9654;</span></div><div class="dash-range-body" id="body-3months" style="display:none"><div id="dash3months"></div></div></div>
-  <div class="dash-section"><div class="dash-range-tab" onclick="toggleRange('6months')" id="tab-6months"><span>Last 6 Months</span><span class="range-chevron" id="chev-6months">&#9654;</span></div><div class="dash-range-body" id="body-6months" style="display:none"><div id="dash6months"></div></div></div>
-  <div class="dash-section"><div class="dash-range-tab" onclick="toggleRange('1year')" id="tab-1year"><span>Last 12 Months</span><span class="range-chevron" id="chev-1year">&#9654;</span></div><div class="dash-range-body" id="body-1year" style="display:none"><div id="dash1year"></div></div></div>
-  <div class="dash-section"><div class="dash-range-tab" onclick="toggleRange('alltime')" id="tab-alltime"><span>All Time</span><span class="range-chevron" id="chev-alltime">&#9654;</span></div><div class="dash-range-body" id="body-alltime" style="display:none"><div id="dashAlltime"></div></div></div>
+  <details class="disclosure dash-range" name="dash-range" data-range="7days" open><summary class="disclosure-summary">Last 7 Days</summary><div class="disclosure-body"><div id="dashDays"></div></div></details>
+  <details class="disclosure dash-range" name="dash-range" data-range="30days"><summary class="disclosure-summary">Last 30 Days</summary><div class="disclosure-body"><div id="dash30days"></div></div></details>
+  <details class="disclosure dash-range" name="dash-range" data-range="3months"><summary class="disclosure-summary">Last 3 Months</summary><div class="disclosure-body"><div id="dash3months"></div></div></details>
+  <details class="disclosure dash-range" name="dash-range" data-range="6months"><summary class="disclosure-summary">Last 6 Months</summary><div class="disclosure-body"><div id="dash6months"></div></div></details>
+  <details class="disclosure dash-range" name="dash-range" data-range="1year"><summary class="disclosure-summary">Last 12 Months</summary><div class="disclosure-body"><div id="dash1year"></div></div></details>
+  <details class="disclosure dash-range" name="dash-range" data-range="alltime"><summary class="disclosure-summary">All Time</summary><div class="disclosure-body"><div id="dashAlltime"></div></div></details>
 
   <div class="dash-section">
     <div class="dash-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Personal Records</div>
@@ -2323,14 +2366,14 @@
     <div class="dash-title" id="blLeaderboardTitle">Today's Leaders</div>
     <div class="bl-lb-controls">
       <div class="bl-seg" id="blLbRole" role="tablist" aria-label="Leaderboard role">
-        <button type="button" class="bl-seg-btn is-active" data-role="driver">Drivers</button>
-        <button type="button" class="bl-seg-btn" data-role="detailer">Detailers</button>
+        <button type="button" class="btn btn-ghost btn--sm btn--pill bl-seg-btn is-active" data-role="driver">Drivers</button>
+        <button type="button" class="btn btn-ghost btn--sm btn--pill bl-seg-btn" data-role="detailer">Detailers</button>
       </div>
       <div class="bl-seg" id="blLbPeriod" role="tablist" aria-label="Leaderboard period">
-        <button type="button" class="bl-seg-btn is-active" data-period="today">Today</button>
-        <button type="button" class="bl-seg-btn" data-period="week">Week</button>
-        <button type="button" class="bl-seg-btn" data-period="month">Month</button>
-        <button type="button" class="bl-seg-btn" data-period="quarter">Quarter</button>
+        <button type="button" class="btn btn-ghost btn--sm btn--pill bl-seg-btn is-active" data-period="today">Today</button>
+        <button type="button" class="btn btn-ghost btn--sm btn--pill bl-seg-btn" data-period="week">Week</button>
+        <button type="button" class="btn btn-ghost btn--sm btn--pill bl-seg-btn" data-period="month">Month</button>
+        <button type="button" class="btn btn-ghost btn--sm btn--pill bl-seg-btn" data-period="quarter">Quarter</button>
       </div>
     </div>
     <div id="blLeaderboard"><div class="bl-empty">Loading…</div></div>
@@ -2341,19 +2384,19 @@
   <div class="dash-section">
     <div class="dash-title">Fleet Counts</div>
     <form class="bl-form" id="fcForm">
-      <div class="u-row u-gap-3">
-        <label class="u-flex-1">Returns<input type="number" name="returns_count" min="0" step="1" inputmode="numeric" required></label>
-        <label class="u-flex-1">Rentals<input type="number" name="rentals_count" min="0" step="1" inputmode="numeric" required></label>
+      <div class="bl-form-row">
+        <label class="u-flex-1"><span class="is-required">Returns</span><input type="number" name="returns_count" min="0" step="1" inputmode="numeric" required></label>
+        <label class="u-flex-1"><span class="is-required">Rentals</span><input type="number" name="rentals_count" min="0" step="1" inputmode="numeric" required></label>
       </div>
       <label>Note (optional)<input type="text" name="note" maxlength="120" placeholder="e.g. heavy returns expected after 3pm"></label>
-      <button type="submit" class="btn btn-primary btn-save">Update counts</button>
+      <button type="submit" class="btn btn-primary btn--block">Update counts</button>
     </form>
   </div>
   <div class="dash-section">
     <div class="dash-title">Post Alert</div>
     <form class="bl-form" id="blAnnForm">
       <textarea name="body" placeholder="Type a message visible to all drivers…" required maxlength="500"></textarea>
-      <button type="submit" class="btn btn-primary btn-save">Post</button>
+      <button type="submit" class="btn btn-primary btn--block">Post</button>
     </form>
   </div>
   <div class="dash-section">
@@ -2370,8 +2413,8 @@
           <option value="cxr">CXR</option>
         </select>
       </label>
-      <label>Shift date<input type="date" name="shift_date" required></label>
-      <label>How many needed<input type="number" name="needed_count" min="1" max="20" value="1" required></label>
+      <label><span class="is-required">Shift date</span><input type="date" name="shift_date" required></label>
+      <label><span class="is-required">How many needed</span><input type="number" name="needed_count" min="1" max="20" value="1" required></label>
       <div class="shift-picker">
         <span class="shift-picker-label">Shifts needed</span>
         <label class="shift-chip"><input type="checkbox" name="shifts" value="AM"><span>AM <small>Morning</small></span></label>
@@ -2379,7 +2422,7 @@
         <label class="shift-chip"><input type="checkbox" name="shifts" value="PM"><span>PM <small>Closing</small></span></label>
       </div>
       <label>Note<textarea name="note" placeholder="Incentive, location, etc." maxlength="200"></textarea></label>
-      <button type="submit" class="btn btn-primary btn-save">Send request</button>
+      <button type="submit" class="btn btn-primary btn--block">Send request</button>
     </form>
   </div>
   <div class="dash-section">
@@ -2410,11 +2453,13 @@
 <!-- ===================================================== -->
 <div class="panel" id="panel-detail-scan" role="tabpanel" aria-label="New entry">
   <div id="detailScanEmpty">
-    <button class="btn-scan-primary" id="detailScanBtn">
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="4" height="4"/><rect x="17" y="3" width="4" height="4"/><rect x="3" y="17" width="4" height="4"/><line x1="7" y1="5" x2="17" y2="5"/><line x1="19" y1="7" x2="19" y2="17"/><line x1="7" y1="19" x2="17" y2="19"/><line x1="5" y1="7" x2="5" y2="17"/><line x1="10" y1="12" x2="14" y2="12"/><line x1="12" y1="10" x2="12" y2="14"/></svg>
+    <div class="entry-header-buttons">
+    <button class="btn btn-primary btn--hero btn--full btn--pulse" id="detailScanBtn">
+      <svg class="icon icon--xl" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-scan"/></svg>
       SCAN BARCODE
     </button>
-    <button class="btn-manual-toggle" id="detailScanManualBtn">Enter Manually</button>
+    <button class="btn btn-secondary btn-manual-toggle" id="detailScanManualBtn">Enter Manually</button>
+    </div>
 
     <div class="today-header"><span class="today-title">Open Jobs</span><span class="today-count" id="detailOpenJobsCount">0</span></div>
     <div id="detailOpenJobsList"><div class="bl-empty">Loading…</div></div>
@@ -2422,9 +2467,8 @@
     <div class="today-header"><span class="today-title">This Shift</span><span class="today-count" id="detailShiftJobsCount">0</span></div>
     <div id="detailShiftJobsList"><div class="bl-empty">Loading…</div></div>
   </div>
-  <div id="detailScanLoaded" style="display:none">
-    <!-- populated by detailer.js once a VIN is loaded -->
-  </div>
+  <!-- Loaded-VIN shell removed: detailers now use #panel-entry once a VIN is
+       picked. This panel is the open-jobs landing screen only. -->
 </div>
 
 <!-- Detailer personal dashboard — same structural pattern as the driver dashboard -->
@@ -2460,7 +2504,7 @@
   <div class="users-modal-card">
     <div class="users-modal-header">
       <span id="usersModalTitle">User</span>
-      <button type="button" class="users-modal-close" id="usersModalClose" aria-label="Close">&times;</button>
+      <button type="button" class="btn btn-destructive btn-icon users-modal-close" id="usersModalClose" aria-label="Close">&times;</button>
     </div>
     <form id="usersForm">
       <input type="hidden" name="id">
@@ -2505,8 +2549,8 @@
       <label class="users-callbacks-row"><input type="checkbox" name="callbacks_opt_in"> Available for callback requests</label>
       <div class="users-modal-msg" id="usersModalMsg"></div>
       <div class="users-modal-actions">
-        <button type="button" class="btn-cancel" id="usersModalCancel">Cancel</button>
-        <button type="submit" class="btn btn-primary btn-save" id="usersModalSubmit">Save</button>
+        <button type="button" class="btn btn-destructive" id="usersModalCancel">Cancel</button>
+        <button type="submit" class="btn btn-primary btn--block" id="usersModalSubmit">Save</button>
       </div>
     </form>
   </div>
@@ -2524,7 +2568,7 @@
     <div class="detail-handle"></div>
     <div class="detail-header">
       <div class="detail-time" id="detailTime"></div>
-      <button class="detail-close" onclick="closeDetail()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="btn btn-destructive btn-icon detail-close" onclick="closeDetail()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="detail-vin-section">
       <div class="detail-vin-container">
@@ -2562,21 +2606,25 @@
     <div class="detail-handle"></div>
     <div class="detail-header">
       <div><div class="detail-serial">Edit Record</div><div class="detail-time" id="editTime"></div></div>
-      <button class="detail-close" onclick="closeEdit()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="btn btn-destructive btn-icon detail-close" onclick="closeEdit()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div style="padding:16px 18px">
-      <div class="field-label u-mt-0">Serial ID</div>
-      <div class="input-with-clear">
-        <input type="text" id="editSerial" placeholder="Type Serial ID" autocomplete="off" autocorrect="off" spellcheck="false" readonly onfocus="openVinKeypad('editSerial')" onclick="openVinKeypad('editSerial')">
-        <button type="button" class="input-clear-btn" id="editSerialClearBtn" onclick="clearEditSerial()" aria-label="Clear">&times;</button>
-      </div>
-      <div class="vin-charcount" id="editVinCharCount">0 / 17</div>
-      <div class="field-label">Notes</div>
-      <textarea id="editNotes" placeholder="Optional notes..."></textarea>
+      <label class="field-row">
+        <span class="field-label">Serial ID</span>
+        <span class="input-with-clear">
+          <input type="text" id="editSerial" placeholder="Type Serial ID" autocomplete="off" autocorrect="off" spellcheck="false" readonly onfocus="openVinKeypad('editSerial')" onclick="openVinKeypad('editSerial')">
+          <button type="button" class="btn btn-icon btn--sm btn-icon--input-clear input-clear-btn" id="editSerialClearBtn" onclick="clearEditSerial()" aria-label="Clear">&times;</button>
+        </span>
+        <span class="vin-charcount" id="editVinCharCount">0 / 17</span>
+      </label>
+      <label class="field-row">
+        <span class="field-label">Notes</span>
+        <textarea id="editNotes" placeholder="Optional notes..."></textarea>
+      </label>
       <div id="editVinStatus" class="gps-status" style="display:none"></div>
       <div class="detail-actions" style="padding:16px 0 0">
-        <button class="btn-cancel" onclick="closeEdit()">Cancel</button>
-        <button class="btn btn-primary btn-save" id="editSaveBtn" onclick="saveEdit()">Save Changes</button>
+        <button class="btn btn-destructive" onclick="closeEdit()">Cancel</button>
+        <button class="btn btn-primary btn--block" id="editSaveBtn" onclick="saveEdit()">Save Changes</button>
       </div>
     </div>
   </div>
@@ -2619,11 +2667,11 @@
     <div class="scanner-status scanning" id="scannerHint">
       <span class="scanner-dot"><svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8" style="vertical-align:middle;display:inline-block"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg></span> Scanning...
     </div>
-    <button class="btn-cancel" id="scannerManualBtn" onclick="openScannerManualEntry()" style="display:none;margin-top:var(--space-2);background:var(--accent);color:var(--text-on-status);border-color:var(--accent)">Enter Manually</button>
+    <button class="btn btn-destructive" id="scannerManualBtn" onclick="openScannerManualEntry()" style="display:none;margin-top:var(--space-2);background:var(--accent);color:var(--text-on-status);border-color:var(--accent)">Enter Manually</button>
     <div class="scanner-actions">
-      <button class="btn-torch" id="torchBtn" onclick="toggleTorch()" title="Flashlight" aria-label="Flashlight"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6c0 2-2 2-2 4v10a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V10c0-2-2-2-2-4V2h12z"/><line x1="6" y1="6" x2="18" y2="6"/><line x1="12" y1="12" x2="12" y2="12.01"/></svg></button>
-      <button class="btn-cancel" onclick="closeScanner()">Cancel</button>
-      <button class="btn-torch" onclick="openScannerManualEntry()" title="Keyboard" aria-label="Enter VIN with keyboard"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="10" x2="6" y2="10"/><line x1="10" y1="10" x2="10" y2="10"/><line x1="14" y1="10" x2="14" y2="10"/><line x1="18" y1="10" x2="18" y2="10"/><line x1="7" y1="14" x2="17" y2="14"/></svg></button>
+      <button class="btn btn-icon btn--overlay" id="torchBtn" onclick="toggleTorch()" title="Flashlight" aria-label="Flashlight"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6c0 2-2 2-2 4v10a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V10c0-2-2-2-2-4V2h12z"/><line x1="6" y1="6" x2="18" y2="6"/><line x1="12" y1="12" x2="12" y2="12.01"/></svg></button>
+      <button class="btn btn-destructive" onclick="closeScanner()">Cancel</button>
+      <button class="btn btn-icon btn--overlay" onclick="openScannerManualEntry()" title="Keyboard" aria-label="Enter VIN with keyboard"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="10" x2="6" y2="10"/><line x1="10" y1="10" x2="10" y2="10"/><line x1="14" y1="10" x2="14" y2="10"/><line x1="18" y1="10" x2="18" y2="10"/><line x1="7" y1="14" x2="17" y2="14"/></svg></button>
     </div>
   </div>
 </div>

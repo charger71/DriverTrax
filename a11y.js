@@ -1,7 +1,7 @@
 /*
  * a11y.js — keyboard & ARIA retrofit for click-handler divs and overlays.
  *
- * The app uses many <div onclick=...> elements (tabs, tire-btn, dash-range-tab,
+ * The app uses many <div onclick=...> elements (tabs, tire-btn,
  * stat-card, map-legend-row, etc.). Divs are unreachable by keyboard and have
  * no announced role, so this module:
  *   1. Marks every clickable non-button/-link element with role="button" and

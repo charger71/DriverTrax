@@ -97,22 +97,22 @@
         </div>
 
         <form class="dt-auth-form" id="dt-form-signin">
-          <label>Email<input type="email" name="email" autocomplete="email" required></label>
-          <label>Password<input type="password" name="password" autocomplete="current-password" required minlength="6"></label>
+          <label><span class="is-required">Email</span><input type="email" name="email" autocomplete="email" required></label>
+          <label><span class="is-required">Password</span><input type="password" name="password" autocomplete="current-password" required minlength="6"></label>
           <button type="submit" class="dt-auth-submit">Sign in</button>
           <button type="button" class="dt-auth-link" id="dt-link-forgot">Forgot password?</button>
         </form>
 
         <form class="dt-auth-form hidden" id="dt-form-forgot">
           <div class="dt-auth-sub">Enter your email — we'll send a reset link.</div>
-          <label>Email<input type="email" name="email" autocomplete="email" required></label>
+          <label><span class="is-required">Email</span><input type="email" name="email" autocomplete="email" required></label>
           <button type="submit" class="dt-auth-submit">Send reset link</button>
           <button type="button" class="dt-auth-link" id="dt-link-back-signin">Back to sign in</button>
         </form>
 
         <form class="dt-auth-form hidden" id="dt-form-reset">
           <div class="dt-auth-sub">Pick a new password.</div>
-          <label>New password<input type="password" name="password" autocomplete="new-password" required minlength="6"></label>
+          <label><span class="is-required">New password</span><input type="password" name="password" autocomplete="new-password" required minlength="6"></label>
           <button type="submit" class="dt-auth-submit">Update password</button>
         </form>
 
@@ -125,17 +125,17 @@
 
         <form class="dt-auth-form hidden" id="dt-form-pin-setup">
           <div class="dt-auth-sub">Set a 6-digit PIN for quick unlock. You can change it later in Profile.</div>
-          <label>New PIN<input type="tel" name="pin" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" minlength="6" required autocomplete="off" class="dt-pin-input" placeholder="••••••"></label>
-          <label>Confirm PIN<input type="tel" name="pin2" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" minlength="6" required autocomplete="off" class="dt-pin-input" placeholder="••••••"></label>
+          <label><span class="is-required">New PIN</span><input type="tel" name="pin" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" minlength="6" required autocomplete="off" class="dt-pin-input" placeholder="••••••"></label>
+          <label><span class="is-required">Confirm PIN</span><input type="tel" name="pin2" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" minlength="6" required autocomplete="off" class="dt-pin-input" placeholder="••••••"></label>
           <button type="submit" class="dt-auth-submit">Save PIN</button>
           <button type="button" class="dt-auth-link" id="dt-link-pin-skip">Skip for now</button>
         </form>
 
         <form class="dt-auth-form hidden" id="dt-form-signup">
           <div class="dt-auth-sub">New accounts start as drivers. A manager will set your role after they approve you.</div>
-          <label>Display name<input type="text" name="display_name" required maxlength="40"></label>
-          <label>Email<input type="email" name="email" autocomplete="email" required></label>
-          <label>Password<input type="password" name="password" autocomplete="new-password" required minlength="6"></label>
+          <label><span class="is-required">Display name</span><input type="text" name="display_name" required maxlength="40"></label>
+          <label><span class="is-required">Email</span><input type="email" name="email" autocomplete="email" required></label>
+          <label><span class="is-required">Password</span><input type="password" name="password" autocomplete="new-password" required minlength="6"></label>
           <button type="submit" class="dt-auth-submit">Create account</button>
         </form>
 

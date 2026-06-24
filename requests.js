@@ -64,8 +64,9 @@
           <span>${esc(s)}</span>
         </label>`).join("");
 
-      const yesLabel = myRes?.response === "yes" ? "✓ Confirmed" : "I can come in";
-      const noLabel  = myRes?.response === "no"  ? "✓ Not available" : "Not available";
+      const checkIcon = `<svg class="icon" aria-hidden="true"><use href="#icon-check"/></svg>`;
+      const yesLabel = myRes?.response === "yes" ? `${checkIcon} Confirmed` : "I can come in";
+      const noLabel  = myRes?.response === "no"  ? `${checkIcon} Not available` : "Not available";
 
       return `
         <div class="edr-card ${myRes ? "responded" : ""}" data-id="${r.id}">
@@ -75,14 +76,14 @@
           ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}
           <div class="progress">${esc(progress)}</div>
 
-          <div class="shift-picker u-mt-3">
+          <div class="shift-picker">
             <span class="shift-picker-label">Which shifts can you cover?</span>
             ${checkboxes}
           </div>
 
           <div class="edr-actions">
-            <button class="edr-yes ${myRes?.response === "yes" ? "mine" : ""}" data-response="yes">${yesLabel}</button>
-            <button class="edr-no  ${myRes?.response === "no"  ? "mine" : ""}" data-response="no" >${noLabel}</button>
+            <button class="btn btn-primary btn--sm edr-yes ${myRes?.response === "yes" ? "mine" : ""}" data-response="yes">${yesLabel}</button>
+            <button class="btn btn-ghost   btn--sm edr-no  ${myRes?.response === "no"  ? "mine" : ""}" data-response="no" >${noLabel}</button>
           </div>
         </div>
       `;

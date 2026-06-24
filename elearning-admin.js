@@ -185,15 +185,15 @@
       </div>` : ""}
 
       <div class="field-label quiz-first-label">MODULE</div>
-      <div class="u-row u-gap-2 admin-toolbar">
+      <div class="admin-toolbar">
         <select id="adQuizSel" class="u-flex-1 admin-select">
           ${quizzes.map((qz, i) => `<option value="${i}"${i === state.quizIdx ? " selected" : ""}>${esc(qz.title || qz.id)}${isCustom(qz.id) ? "" : " · bundled"}</option>`).join("")}
         </select>
         <button class="quiz-type-btn" id="adNewQuiz">+ NEW</button>
-        <button class="quiz-type-btn" id="adExport">⇩ EXPORT JSON</button>
-        <button class="quiz-type-btn" id="adImport">⇪ IMPORT JSON</button>
+        <button class="quiz-type-btn" id="adExport"><svg class="icon" aria-hidden="true"><use href="#icon-download"/></svg> EXPORT JSON</button>
+        <button class="quiz-type-btn" id="adImport"><svg class="icon" aria-hidden="true"><use href="#icon-upload"/></svg> IMPORT JSON</button>
         <input type="file" id="adImportFile" accept="application/json,.json" style="display:none">
-        ${editable ? `<button class="quiz-type-btn danger" id="adDeleteQuiz">✕ DELETE</button>` : ""}
+        ${editable ? `<button class="quiz-type-btn danger" id="adDeleteQuiz"><svg class="icon" aria-hidden="true"><use href="#icon-x"/></svg> DELETE</button>` : ""}
       </div>
 
       ${editable ? `
@@ -204,7 +204,7 @@
           <input type="number" id="adDuration" value="${esc(quiz.duration || 5)}" min="1" placeholder="Duration (min)">
           <input type="number" id="adPass" value="${esc(quiz.passingScore || 80)}" min="0" max="100" placeholder="Passing %">
         </div>
-        <textarea id="adDesc" rows="2" placeholder="Description" class="u-mt-2">${esc(quiz.description || "")}</textarea>
+        <textarea id="adDesc" rows="2" placeholder="Description" class="quiz-admin-desc">${esc(quiz.description || "")}</textarea>
       ` : `<div class="record"><div class="record-notes" style="color:var(--text2);font-size:var(--font-sm)">This module is loaded from <code>elearning/modules/</code> and is read-only here. To customise it, click <b>+ NEW</b>, or use <b>Import JSON</b> after editing the file directly.</div></div>`}
 
       <div class="today-header">
@@ -220,8 +220,8 @@
             <div class="quiz-author-text">${esc(qi.prompt || "(empty)")}</div>
             <div class="quiz-author-type">${esc((qi.type || "").split("-")[0])}</div>
             ${editable ? `<div class="quiz-author-moves">
-              <button class="quiz-move-btn" data-move="up" data-qmidx="${i}" title="Move up"${i === 0 ? " disabled" : ""}>↑</button>
-              <button class="quiz-move-btn" data-move="down" data-qmidx="${i}" title="Move down"${i === quiz.questions.length - 1 ? " disabled" : ""}>↓</button>
+              <button class="quiz-move-btn" data-move="up" data-qmidx="${i}" title="Move up"${i === 0 ? " disabled" : ""}><svg class="icon" aria-hidden="true"><use href="#icon-arrow-up"/></svg></button>
+              <button class="quiz-move-btn" data-move="down" data-qmidx="${i}" title="Move down"${i === quiz.questions.length - 1 ? " disabled" : ""}><svg class="icon" aria-hidden="true"><use href="#icon-arrow-down"/></svg></button>
             </div>` : ""}
           </div>
         `).join("")}
@@ -246,9 +246,9 @@
 
         <div class="field-label">IMAGE (OPTIONAL)</div>
         <input type="text" id="adQImage" value="${esc(q.image || "")}" placeholder="https://… or upload below" class="quiz-url-input">
-        <div class="u-row u-gap-2 u-mt-2">
-          <button class="quiz-type-btn" id="adQUpload">⇪ UPLOAD IMAGE</button>
-          ${q.image ? `<button class="quiz-type-btn danger" id="adQClearImg">✕ REMOVE IMAGE</button>` : ""}
+        <div class="quiz-admin-answer-row">
+          <button class="quiz-type-btn" id="adQUpload"><svg class="icon" aria-hidden="true"><use href="#icon-upload"/></svg> UPLOAD IMAGE</button>
+          ${q.image ? `<button class="quiz-type-btn danger" id="adQClearImg"><svg class="icon" aria-hidden="true"><use href="#icon-x"/></svg> REMOVE IMAGE</button>` : ""}
           <input type="file" id="adQImgFile" accept="image/*" style="display:none">
         </div>
         ${q.image ? `<img src="${esc(q.image)}" alt="" class="quiz-image quiz-image-preview">` : ""}
@@ -262,7 +262,7 @@
         <div class="field-label">EXPLANATION (SHOWN AFTER ANSWERING)</div>
         <textarea id="adQExplain" rows="2" placeholder="Why is this answer correct?">${esc(q.explanation || "")}</textarea>
 
-        <button class="btn btn-danger quiz-delete-btn" id="adDelQ"${quiz.questions.length <= 1 ? " disabled" : ""}>✕ DELETE QUESTION</button>
+        <button class="btn btn-destructive btn--sm quiz-delete-btn" id="adDelQ"${quiz.questions.length <= 1 ? " disabled" : ""}><svg class="icon" aria-hidden="true"><use href="#icon-x"/></svg> DELETE QUESTION</button>
       ` : ""}
     `;
 
@@ -459,7 +459,7 @@
     const isCorr = id => multi ? (q.correctAnswer || []).includes(id) : q.correctAnswer === id;
     wrap.innerHTML = (q.options || []).map((opt, i) => `
       <div class="quiz-option-row">
-        <button class="quiz-option-mark${isCorr(opt.id) ? " correct" : ""}${multi ? " square" : ""}" data-mark="${esc(opt.id)}">${isCorr(opt.id) ? "✓" : ""}</button>
+        <button class="quiz-option-mark${isCorr(opt.id) ? " correct" : ""}${multi ? " square" : ""}" data-mark="${esc(opt.id)}">${isCorr(opt.id) ? `<svg class="icon" aria-hidden="true"><use href="#icon-check"/></svg>` : ""}</button>
         <input type="text" class="quiz-option-input" data-optedit="${i}" value="${esc(opt.text || "")}">
         <button class="quiz-option-del" data-optdel="${i}"${(q.options || []).length <= 2 ? " disabled" : ""}>×</button>
       </div>

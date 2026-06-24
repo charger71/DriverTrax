@@ -158,7 +158,7 @@
           <div class="detail-serial">NOTE</div>
           <div class="detail-time">${esc(when)}</div>
         </div>
-        <button class="detail-close" onclick="closeNoteDetailOverlay()" aria-label="Close"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        <button class="btn btn-destructive btn-icon detail-close" onclick="closeNoteDetailOverlay()" aria-label="Close"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="detail-body">
         <div class="detail-row"><span class="detail-label">Author</span><span class="detail-val">${name}${role}</span></div>
@@ -179,7 +179,7 @@
       v = document.createElement("div");
       v.id = "notePhotoViewer";
       v.className = "note-photo-viewer";
-      v.innerHTML = `<img id="notePhotoViewerImg" alt=""><button id="notePhotoViewerClose">✕</button>`;
+      v.innerHTML = `<img id="notePhotoViewerImg" alt=""><button id="notePhotoViewerClose" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x"/></svg></button>`;
       document.body.appendChild(v);
       v.addEventListener("click", (e) => {
         if (e.target === v || e.target.id === "notePhotoViewerClose") v.classList.remove("show");
@@ -359,7 +359,7 @@
           ${photoHtml}
           <div class="note-footer">
             <span class="note-footer-left">${mileageHtml}${fuelHtml}${gpsHtml}</span>
-            ${mine ? `<button class="note-del" data-id="${n.id}">Delete</button>` : ""}
+            ${mine ? `<button class="btn btn-destructive btn--sm note-del" data-id="${n.id}">Delete</button>` : ""}
           </div>
         </div>
       `;
@@ -411,7 +411,7 @@
     container.classList.add("vn-mount");
 
     container.innerHTML = showList
-      ? `<div class="vin-tl-label u-mt-4 u-mb-2">NOTES</div><div class="vn-list"><div class="bl-empty">Loading…</div></div>`
+      ? `<div class="vin-tl-label">NOTES</div><div class="vn-list"><div class="bl-empty">Loading…</div></div>`
       : "";
     container.dataset.vin = vin;
 

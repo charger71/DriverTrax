@@ -1,9 +1,10 @@
 // ============================================================
 // DriverTrax Detailer
-//   Phase A: shell (Scan/History panels, role plumbing)
-//   Phase B: VIN load → notes list + add-note form
-//   Phase C: conditions + dynamic todo + per-item done/note,
-//            auto-saved to detail_jobs
+//   Unified with the driver NEW ENTRY form (#panel-entry). This module
+//   mounts the detailer-specific bits (conditions chip list, job
+//   checklist, Save Job / Complete Job footer) into the shared form,
+//   and reuses the standard saveRecord() pipeline to create the
+//   underlying records row.
 // ============================================================
 
 (function () {
@@ -47,8 +48,6 @@
   };
 
   // Shared with the NEW ENTRY form via DT_OPTIONS (defined in app.js).
-  // CONDITION_TASKS above maps each id to the auto-generated todo items;
-  // any condition without a tasks entry is descriptive only.
   const CONDITIONS = (window.DT_OPTIONS?.CONDITIONS) || [
     { id: "REGULAR",      label: "Regular"      },
     { id: "DETAIL",       label: "Detail"       },
@@ -65,12 +64,14 @@
   // ---- state ----
   let started = false;
   let currentVin = null;
-  let currentJob = null;          // { id, conditions: Set, todo: [{id,label,done,note,done_at}], serial_id }
+  let currentJob = null;          // { id, conditions: Set, todo: [...], serial_id, record_id, completed_at }
   let saveTimer = null;
+  let mounted = false;
 
   function start() {
     if (started) return;
     started = true;
+    // SCAN BARCODE button on the landing screen.
     $("detailScanBtn")?.addEventListener("click", () => {
       if (typeof openScanner === "function") openScanner();
       else alert("Scanner not loaded.");
@@ -80,40 +81,64 @@
       if (typeof openVinKeypad === "function") openVinKeypad("serial");
       else alert("VIN keypad not loaded.");
     });
+    // VIN scanned anywhere in the app (including the shared panel-entry scan
+    // button) — load it into the detailer flow.
     document.addEventListener("dt-vin-scanned", (e) => {
       if (!DT_AUTH.isDetailer()) return;
       loadVin(e.detail || $("serial")?.value || "");
     });
-    $("serial")?.addEventListener("input", () => {
+    // Driver's saveRecord() dispatches this once a row is inserted. We use the
+    // resulting id as the detail_jobs.record_id so the two rows stay linked.
+    document.addEventListener("dt-record-saved", (e) => {
       if (!DT_AUTH.isDetailer()) return;
-      const v = $("serial").value.trim().toUpperCase();
-      if (v.length >= 6 && v !== currentVin) {
-        clearTimeout(start._t);
-        start._t = setTimeout(() => loadVin(v), 250);
-      }
+      const det = e.detail || {};
+      if (!currentJob || !currentJob.serial_id) return;
+      if (det.serialId && det.serialId.toUpperCase() !== currentJob.serial_id) return;
+      currentJob.record_id = det.id;
+      saveJob().then(revealCompleteJob);
     });
   }
 
-  function showLoaded() { $("detailScanEmpty").style.display = "none"; $("detailScanLoaded").style.display = ""; }
-  function showEmpty()  {
-    $("detailScanEmpty").style.display = "";
-    $("detailScanLoaded").style.display = "none";
+  // Mount detailer-only behavior onto the shared #panel-entry form once.
+  function ensureMounted() {
+    if (mounted) return;
+    mounted = true;
+    $("entrySaveJobBtn")?.addEventListener("click", () => {
+      const mode = $("entrySaveJobBtn")?.dataset.mode || "save";
+      if (mode === "complete") onCompleteJob();
+      else onSaveJob();
+    });
+  }
+
+  // The detailer's landing screen (Open Jobs / This Shift) lives in
+  // #panel-detail-scan but the actual work form lives in #panel-entry.
+  function showLandingScreen() {
     currentVin = null;
     currentJob = null;
+    hideJobActions();
+    setLockedBanner(null);
+    if (typeof showTab === "function") showTab("detail-scan");
     loadOpenJobs();
     loadShiftJobs();
   }
 
   async function loadVin(serialId) {
     if (!serialId) return;
+    ensureMounted();
     currentVin = serialId.toUpperCase();
     currentJob = { id: null, conditions: new Set(), todo: [], serial_id: currentVin, record_id: null };
-    showLoaded();
-    renderShell(currentVin);
+
+    // Fill the shared Serial input — saveRecord() reads from #serial.
+    const serialInput = $("serial");
+    if (serialInput) serialInput.value = currentVin;
+
+    // Land the detailer on the unified entry form. The dt-vin-scanned listener
+    // in app.js will hydrate #entryCurrentState and the Mileage / Fuel hints.
+    if (typeof showTab === "function") showTab("entry");
+
     await tryResumeJob(currentVin);
-    // No in-progress job to resume — fall back to the vehicle's last known
-    // conditions (set by any prior entry/detail job) so the detailer sees the
-    // todo carried over instead of always starting at REGULAR.
+    // No in-progress job — fall back to the vehicle's last known conditions so
+    // the detailer sees the todo carried over instead of always starting fresh.
     if (!currentJob.id && currentJob.conditions.size === 0) {
       await seedConditionsFromVehicle(currentVin);
     }
@@ -123,6 +148,16 @@
     rebuildTodoFromConditions();
     renderConditions();
     renderTodo();
+    setLockedBanner(isJobLocked() ? currentJob.completed_at : null);
+
+    // Expose Save / Complete buttons.
+    const actions = $("entryJobActions");
+    if (actions && !isJobLocked()) actions.style.display = "";
+    if (currentJob.id) revealCompleteJob();
+
+    // Open the Conditions disclosure so the carried-over chips are visible.
+    const condCollapse = $("entryConditionsCollapse");
+    if (condCollapse) condCollapse.open = true;
   }
 
   async function seedConditionsFromVehicle(vin) {
@@ -138,75 +173,6 @@
       console.warn("[Detail] seed conditions from vehicle", e);
     }
   }
-
-  async function createTrackingRecord() {
-    const user = DT_AUTH.getUser();
-    if (!user) return;
-    // UUID, not Date.now(), so two concurrent detailers can't generate the
-    // same tracking-record id (which would otherwise trigger an UPDATE against
-    // someone else's row and fail the records UPDATE policy).
-    const id = (crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2,10)}`);
-    const ts = new Date().toISOString();
-    const { error } = await sb.from("records").insert({
-      id,
-      user_id: user.id,
-      serial_id: currentVin,
-      status: "DETAILING",
-      no_tag: false,
-      shuttle: false,
-      transport: false,
-      ts,
-      gps_error: true   // GPS gets filled in at Complete Job time
-    });
-    if (error) { console.warn("[Detail] tracking record create", error); return; }
-    currentJob.record_id = id;
-  }
-
-  function renderShell(vin) {
-    const lockedBanner = isJobLocked()
-      ? `<div class="detail-locked-banner">🔒 Job completed ${esc(ago(currentJob.completed_at))} — read-only.</div>`
-      : "";
-    $("detailScanLoaded").innerHTML = `
-      <div class="detail-vin-header">
-        <div>
-          <div class="detail-vin-label">VIN</div>
-          <div class="detail-vin-value">${esc(vin)}</div>
-        </div>
-        <button type="button" class="detail-close" id="detailVinCancel" aria-label="Cancel"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-      </div>
-      ${lockedBanner}
-
-      <div class="detail-subhead">Conditions</div>
-      <div class="detail-conditions" id="detailConditions"></div>
-
-      <div class="detail-subhead">Job Checklist</div>
-      <div id="detailTodo"><div class="bl-empty">Pick a condition to generate the list.</div></div>
-
-      <div class="detail-job-actions" id="detailJobActions" style="display:none">
-        <button type="button" class="btn btn-primary" id="detailSaveJobBtn">Save Job</button>
-        <button type="button" class="btn btn-primary" id="detailCompleteBtn" style="display:none">Complete Job</button>
-      </div>
-
-      <div id="detailNotesMount"></div>
-    `;
-    $("detailVinCancel").addEventListener("click", () => {
-      if (currentJob && currentJob.id && !currentJob.completed_at) {
-        if (!confirm("This job isn't marked complete yet. Leave anyway?")) return;
-      }
-      $("serial").value = "";
-      showEmpty();
-    });
-    $("detailSaveJobBtn").addEventListener("click", onSaveJob);
-    $("detailCompleteBtn").addEventListener("click", onCompleteJob);
-    // If we resumed an already-saved job, surface Complete Job immediately.
-    if (currentJob && currentJob.id) revealCompleteJob();
-    // DT_VNOTES handles the notes list + add-note form (with photo + GPS)
-    if (window.DT_VNOTES) {
-      DT_VNOTES.mount($("detailNotesMount"), vin, { addWithMedia: true, showAdd: false });
-    }
-  }
-
-  // Notes UI + GPS + photo handling all live in DT_VNOTES now.
 
   // Try to resume an existing in-progress job for this VIN + detailer.
   async function tryResumeJob(vin) {
@@ -230,6 +196,21 @@
   // ---- conditions ----
   function isJobLocked() {
     return !!(currentJob && currentJob.completed_at);
+  }
+
+  function setLockedBanner(completedAt) {
+    const el = $("entryLockedBanner");
+    if (!el) return;
+    if (!completedAt) { el.style.display = "none"; el.innerHTML = ""; return; }
+    el.style.display = "";
+    el.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#icon-lock"/></svg> Job completed ${esc(ago(completedAt))} — read-only.`;
+  }
+
+  function hideJobActions() {
+    const actions = $("entryJobActions");
+    if (actions) actions.style.display = "none";
+    const sBtn = $("entrySaveJobBtn");
+    if (sBtn) { sBtn.style.display = ""; sBtn.dataset.mode = "save"; sBtn.textContent = "Save Job"; }
   }
 
   function renderConditions() {
@@ -256,10 +237,8 @@
   }
 
   function rebuildTodoFromConditions() {
-    // Build the desired task set from selected conditions
     const want = new Set();
     currentJob.conditions.forEach(c => (CONDITION_TASKS[c] || []).forEach(t => want.add(t)));
-    // Preserve any existing done state + notes; drop tasks no longer in want; add new ones
     const existing = new Map(currentJob.todo.map(t => [t.id, t]));
     const next = [];
     [...want].forEach(taskId => {
@@ -271,13 +250,13 @@
 
   // ---- todo ----
   function renderTodo() {
-    const el = $("detailTodo");
-    const actions = $("detailJobActions");
+    const el = $("entryJobChecklistBody");
+    const actions = $("entryJobActions");
     if (!el) return;
     const locked = isJobLocked();
     if (!currentJob.todo.length) {
       el.innerHTML = `<div class="bl-empty">Pick a condition to generate the list.</div>`;
-      if (actions) actions.style.display = "none";
+      if (actions && !currentJob.id) actions.style.display = "none";
       return;
     }
     el.innerHTML = currentJob.todo.map((t, idx) => `
@@ -287,8 +266,8 @@
           <span class="todo-label">${esc(t.label)}</span>
         </label>
         ${locked
-          ? (t.note ? `<span class="todo-note-locked" aria-label="Note"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>` : "")
-          : `<button type="button" class="todo-note-toggle" title="Add note">${t.note ? "📝" : "➕"}</button>`}
+          ? (t.note ? `<span class="todo-note-locked" aria-label="Note"><svg class="icon" aria-hidden="true"><use href="#icon-note"/></svg></span>` : "")
+          : `<button type="button" class="todo-note-toggle" title="Add note"><svg class="icon" aria-hidden="true"><use href="#${t.note ? "icon-note" : "icon-plus"}"/></svg></button>`}
         <textarea class="todo-note ${t.note ? "" : "hidden"}" placeholder="Optional note" maxlength="200" ${locked ? "readonly" : ""}>${esc(t.note)}</textarea>
       </div>
     `).join("");
@@ -319,21 +298,26 @@
     updateCompleteBtnState();
   }
 
-  // Complete Job stays disabled until every todo item is checked. We also
-  // reflect the gating in the title attribute so a paused detailer hovering
-  // over the disabled button gets a hint about why it's grayed out.
+  // Save Job morphs into Complete Job once every todo item is checked.
+  // Stays "Save Job" otherwise so detailers can persist in-progress work.
   function updateCompleteBtnState() {
-    const btn = $("detailCompleteBtn");
+    const btn = $("entrySaveJobBtn");
     if (!btn) return;
     const items = currentJob?.todo || [];
     const allDone = items.length > 0 && items.every(t => t.done);
-    btn.disabled = !allDone;
-    btn.title = allDone ? "" : "Finish every todo item to enable.";
+    if (allDone) {
+      btn.dataset.mode = "complete";
+      btn.textContent = "Complete Job";
+    } else {
+      btn.dataset.mode = "save";
+      btn.textContent = "Save Job";
+    }
   }
 
   // ---- persistence (auto-save) ----
   function scheduleSave() {
     if (isJobLocked()) return;
+    if (!currentJob || !currentJob.id) return; // wait until Save Job creates the row
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(saveJob, 500);
   }
@@ -360,42 +344,48 @@
   }
 
   function revealCompleteJob() {
-    const btn = $("detailCompleteBtn");
-    if (!btn) return;
-    // Completed jobs are read-only — neither Save Job nor Complete Job should
-    // re-appear when the user opens one from history.
     if (isJobLocked()) {
-      btn.style.display = "none";
-      const saveBtn = $("detailSaveJobBtn");
+      const saveBtn = $("entrySaveJobBtn");
       if (saveBtn) saveBtn.style.display = "none";
-      const actions = $("detailJobActions");
+      const actions = $("entryJobActions");
       if (actions) actions.style.display = "none";
       return;
     }
-    btn.style.display = "";
     updateCompleteBtnState();
   }
 
+  // Save Job: trigger the standard saveRecord() pipeline so mileage / fuel /
+  // notes / photo all save via the driver path. The dt-record-saved listener
+  // picks up the inserted record id, links it to detail_jobs, and reveals
+  // Complete Job. If saveRecord can't run (no status picked yet), fall back
+  // to just persisting the detail_jobs row so progress isn't lost.
   async function onSaveJob() {
-    const btn = $("detailSaveJobBtn");
+    const btn = $("entrySaveJobBtn");
     if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
-    // Flush any pending auto-save debounce so the row is written before we
-    // expose Complete Job. If saveJob() insert fails (e.g. offline + RLS),
-    // the user sees a console warn but the button still progresses — the
-    // existing onCompleteJob path re-attempts a save.
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-    // First-time save: drop the tracking record now (not on scan) so the
-    // VIN history only shows DETAILING once the detailer commits to the job.
-    if (!currentJob.record_id) await createTrackingRecord();
-    await saveJob();
-    if (btn) { btn.disabled = false; btn.textContent = "Save Job"; }
-    revealCompleteJob();
-    if (typeof showToast === "function") showToast("Job saved", "success");
+
+    const statusVal = $("status")?.value || "";
+    if (statusVal && typeof saveRecord === "function") {
+      // saveRecord is async-ish (GPS + photo upload) — the dt-record-saved
+      // event will fire on success and we'll link record_id then.
+      try { saveRecord(); } catch (e) { console.warn("[Detail] saveRecord", e); }
+    } else {
+      // No status picked — just persist the detail_jobs row so the conditions
+      // and checklist survive. The detailer can come back, set status, and
+      // hit Save Job again to create the tracking record.
+      await saveJob();
+    }
+
+    if (btn) btn.disabled = false;
+    // revealCompleteJob runs from dt-record-saved when the standard save
+    // pipeline completes. For the fallback path, expose it now.
+    // updateCompleteBtnState restores the right label ("Save Job" or "Complete Job").
+    if (currentJob && currentJob.id) revealCompleteJob();
+    else updateCompleteBtnState();
+    if (typeof showToast === "function" && !statusVal) showToast("Progress saved — set Status to file a record", "info");
   }
 
-  // Render the completed job as a plain-text note body. Uses ✓ / ✗ marks so
-  // the rendered note remains readable even in a tiny card view, and includes
-  // any per-item notes the detailer left so context isn't lost.
+  // Render the completed job as a plain-text note body.
   function buildCompletionNoteBody(job) {
     const lines = ["Detail job complete."];
     const condIds = [...(job.conditions || [])];
@@ -407,7 +397,7 @@
     if (todo.length) {
       lines.push("", "Checklist:");
       for (const t of todo) {
-        const mark = t.done ? "✓" : "✗";
+        const mark = t.done ? "[x]" : "[ ]";
         const note = (t.note || "").trim();
         lines.push(`${mark} ${t.label}${note ? ` — ${note}` : ""}`);
       }
@@ -429,11 +419,9 @@
     const { error } = await sb.from("detail_jobs").update(jobUpdate).eq("id", currentJob.id);
     if (error) { alert(error.message); return; }
 
-    // Stamp the linked tracking record with the completion GPS + final status.
-    // CLEAN (rather than the legacy DETAILED) so the VIN's current_status —
-    // which the inventory derives from the latest record — flips to CLEAN as
-    // soon as the detailer submits, matching how the rest of the app reads
-    // "ready to roll".
+    // Stamp the linked tracking record with the completion GPS + CLEAN status
+    // so the VIN's current_status flips to CLEAN as soon as the detailer
+    // submits, matching how the rest of the app reads "ready to roll".
     if (currentJob.record_id) {
       const recordUpdate = { status: "CLEAN" };
       if (loc) { recordUpdate.lat = loc.lat; recordUpdate.lng = loc.lng; recordUpdate.gps_error = false; }
@@ -441,9 +429,7 @@
       if (rErr) console.warn("[Detail] record update on complete", rErr);
     }
 
-    // Drop a VIN note that captures the conditions + the full todo list so
-    // the next person reading the VIN's notes panel sees exactly what was
-    // done, what was skipped, and any per-item notes the detailer left.
+    // Drop a VIN note that captures the conditions + full todo list.
     try {
       const body = buildCompletionNoteBody(currentJob);
       await DT_VNOTES.addNote(currentJob.serial_id, body, loc ? { lat: loc.lat, lng: loc.lng } : {});
@@ -455,8 +441,9 @@
     if (typeof showToast === "function") {
       showToast(loc ? "Job complete · location captured" : "Job complete (no GPS)", "success");
     }
-    $("serial").value = "";
-    showEmpty();
+    const serialEl = $("serial");
+    if (serialEl) serialEl.value = "";
+    showLandingScreen();
   }
 
   // ---- Open Jobs (shown under New Entry while no VIN is loaded) ----
@@ -501,8 +488,6 @@
     const el = $("detailShiftJobsList");
     const countEl = $("detailShiftJobsCount");
     if (!el) return;
-    // Shift window = since EST start-of-day. Matches how the rest of the app
-    // talks about "today's" work for drivers and managers.
     const now = new Date();
     const estParts = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
     const shiftStart = new Date(estParts.getFullYear(), estParts.getMonth(), estParts.getDate()).toISOString();
@@ -522,9 +507,6 @@
     }
     if (countEl) countEl.textContent = String(jobs.length);
 
-    // Cross-reference VIN current status from the vehicles inventory table so
-    // the detailer can see whether the asset they worked on has changed state
-    // since (e.g. moved to CHECK_OUT or HOLD after their job completed).
     const vins = [...new Set(jobs.map(j => j.serial_id).filter(Boolean))];
     const statusByVin = {};
     if (vins.length) {
@@ -567,6 +549,7 @@
   }
 
   async function openJobFromHistory(jobId) {
+    ensureMounted();
     const { data, error } = await sb
       .from("detail_jobs")
       .select("id,serial_id,condition_tags,todo_state,completed_at,record_id")
@@ -582,11 +565,17 @@
       completed_at: data.completed_at,
       record_id: data.record_id || null
     };
-    showLoaded();
-    renderShell(currentVin);    // renderShell already mounts DT_VNOTES for the notes UI
+    const serialInput = $("serial");
+    if (serialInput) serialInput.value = currentVin;
+    if (typeof showTab === "function") showTab("entry");
+    // Trigger the shared scan-handler so current-state info + placeholders fill.
+    document.dispatchEvent(new CustomEvent("dt-vin-scanned", { detail: currentVin }));
     renderConditions();
     renderTodo();
-    if (typeof showTab === "function") showTab("detail-scan");
+    setLockedBanner(isJobLocked() ? currentJob.completed_at : null);
+    revealCompleteJob();
+    const condCollapse = $("entryConditionsCollapse");
+    if (condCollapse) condCollapse.open = true;
   }
 
   document.addEventListener("dt-auth-change", () => {
@@ -595,8 +584,18 @@
   if (DT_AUTH.isDetailer && DT_AUTH.isDetailer()) start();
 
   document.addEventListener("dt-tab-shown", (e) => {
-    if (e.detail === "detail-scan")    { loadOpenJobs(); loadShiftJobs(); }
-    if (e.detail === "dashboard")      renderDashboard();
+    if (e.detail === "detail-scan") { loadOpenJobs(); loadShiftJobs(); }
+    if (e.detail === "dashboard")   renderDashboard();
+    // Entering the entry tab fresh (no VIN loaded) — make sure stale detail
+    // UI from a previous VIN doesn't linger.
+    if (e.detail === "entry" && DT_AUTH.isDetailer && DT_AUTH.isDetailer() && !currentVin) {
+      hideJobActions();
+      setLockedBanner(null);
+      const body = $("entryJobChecklistBody");
+      if (body) body.innerHTML = `<div class="bl-empty">Pick a condition to generate the list.</div>`;
+      const dc = $("detailConditions");
+      if (dc) dc.innerHTML = "";
+    }
   });
 
   // ---- personal dashboard ----
@@ -617,7 +616,6 @@
     const jobs = data || [];
     const done = jobs.filter(j => j.completed_at);
 
-    // Stat cards
     const todayCount = done.filter(j => new Date(j.completed_at) >= todayStart).length;
     const weekCount  = done.filter(j => new Date(j.completed_at) >= weekStart).length;
     const monthCount = done.filter(j => new Date(j.completed_at) >= monthStart).length;
@@ -626,7 +624,6 @@
     document.getElementById("detailStat30").textContent    = monthCount;
     document.getElementById("detailStatAll").textContent   = done.length;
 
-    // Avg job time (start → complete) over the last 30 days
     const recent = done.filter(j => j.completed_at && j.started_at && new Date(j.completed_at) >= monthStart);
     let avgStr = "—";
     if (recent.length) {
@@ -638,11 +635,8 @@
     }
     document.getElementById("detailStatAvg").textContent = avgStr;
 
-    // Mirror the detailer numbers into the global #avgBanner so the role sees
-    // their own AVG CLEAN TIME + CARS/HOUR at the top of the dashboard.
     updateDetailerAvgBanner(done, todayStart, avgStr);
 
-    // Condition breakdown for the 30-day window
     const byCond = {};
     done
       .filter(j => new Date(j.completed_at) >= monthStart)
@@ -657,7 +651,6 @@
         }).join("")
       : `<div class="bl-empty">No jobs in the last 30 days.</div>`;
 
-    // Recent jobs list
     const recentRows = jobs.slice(0, 10);
     const recentEl = document.getElementById("detailRecentList");
     recentEl.innerHTML = recentRows.length
@@ -675,10 +668,7 @@
       row.addEventListener("click", () => openJobFromHistory(row.dataset.jobId));
     });
   }
-  // Cars/hour for detailers = completed jobs today ÷ elapsed hours between
-  // first and last completion (matches the driver-side formula in app.js).
   function updateDetailerAvgBanner(done, todayStart, avgStr) {
-    // Detailer-owned banner — leave it alone for other roles.
     if (!document.body.classList.contains("is-detailer")) return;
     const banner = document.getElementById("avgBanner");
     if (!banner) return;

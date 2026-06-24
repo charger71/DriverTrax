@@ -148,7 +148,7 @@
             <b>${(q.questions || []).length}</b> QUESTIONS &nbsp;·&nbsp; ~<b>${esc(q.duration || 0)}</b> MIN &nbsp;·&nbsp; PASS <b>${esc(q.passingScore || 80)}%</b>
           </div>
           <div class="record-notes">${esc(q.description || "")}</div>
-          <button class="btn btn-primary quiz-card-cta">▸ START MODULE</button>
+          <button class="btn btn-primary quiz-card-cta"><svg class="icon" aria-hidden="true"><use href="#icon-play"/></svg> START MODULE</button>
         </div>
       `).join("")}
     `;
@@ -199,13 +199,13 @@
         <div class="quiz-timer" id="elQuizTimer">${pad2(mins)}:${pad2(secs)}</div>
       </div>
       <div class="quiz-progress-track"><div class="quiz-progress-fill" style="width:${pct}%"></div></div>
-      <div class="field-label quiz-type-label">◆ ${esc((q.type || "").replace(/-/g, " ").toUpperCase())}</div>
+      <div class="field-label quiz-type-label"><svg class="icon" aria-hidden="true"><use href="#icon-diamond"/></svg> ${esc((q.type || "").replace(/-/g, " ").toUpperCase())}</div>
       <div class="quiz-prompt">${esc(q.prompt || "")}</div>
       ${q.image ? `<figure class="quiz-image-figure"><img src="${esc(q.image)}" alt="${esc(q.caption || "")}" class="quiz-image">${q.caption ? `<figcaption class="quiz-image-caption">${esc(q.caption)}</figcaption>` : ""}</figure>` : ""}
       <div id="elAnswerArea"></div>
       <div class="quiz-nav-row">
-        <button class="btn btn-secondary quiz-nav-btn" id="elBackBtn">${idx === 0 ? "✕ EXIT" : "◂ BACK"}</button>
-        <button class="btn btn-primary quiz-nav-btn" id="elNextBtn"${hasAnswer ? "" : " disabled"}>${isLast ? "SUBMIT ▸" : "NEXT ▸"}</button>
+        <button class="btn btn-secondary quiz-nav-btn" id="elBackBtn">${idx === 0 ? `<svg class="icon" aria-hidden="true"><use href="#icon-x"/></svg> EXIT` : `<svg class="icon" aria-hidden="true"><use href="#icon-back"/></svg> BACK`}</button>
+        <button class="btn btn-primary quiz-nav-btn" id="elNextBtn"${hasAnswer ? "" : " disabled"}>${isLast ? `SUBMIT <svg class="icon" aria-hidden="true"><use href="#icon-play"/></svg>` : `NEXT <svg class="icon" aria-hidden="true"><use href="#icon-play"/></svg>`}</button>
       </div>
     `;
 
@@ -264,11 +264,11 @@
     } else if (q.type === "multi-select") {
       const sel = Array.isArray(current) ? current : [];
       area.innerHTML = `
-        <div class="field-label quiz-multi-hint">⚐ SELECT ALL THAT APPLY</div>
+        <div class="field-label quiz-multi-hint"><svg class="icon" aria-hidden="true"><use href="#icon-flag"/></svg> SELECT ALL THAT APPLY</div>
         <div class="quiz-choices">${(q.options || []).map((opt, i) => {
           const on = sel.includes(opt.id);
           return `<button class="quiz-choice${on ? " selected" : ""}" data-ms="${esc(opt.id)}">
-            <span class="quiz-choice-marker quiz-choice-marker-square">${on ? "✓" : String.fromCharCode(65 + i)}</span>
+            <span class="quiz-choice-marker quiz-choice-marker-square">${on ? `<svg class="icon" aria-hidden="true"><use href="#icon-check"/></svg>` : String.fromCharCode(65 + i)}</span>
             <span class="quiz-choice-text">${esc(opt.text || "")}</span>
           </button>`;
         }).join("")}</div>
@@ -310,7 +310,7 @@
     const b = body();
     b.innerHTML = `
       <div class="quiz-result-hero ${passed ? "pass" : "fail"}">
-        <div class="quiz-result-status">${passed ? "✓ MODULE PASSED" : "✕ NOT PASSED"}</div>
+        <div class="quiz-result-status">${passed ? `<svg class="icon" aria-hidden="true"><use href="#icon-check"/></svg> MODULE PASSED` : `<svg class="icon" aria-hidden="true"><use href="#icon-x"/></svg> NOT PASSED`}</div>
         <div class="quiz-result-score">${score}<span class="quiz-result-pct">%</span></div>
         <div class="quiz-result-sub">${correctCount} OF ${quiz.questions.length} CORRECT · ${mins}M ${pad2(secs)}S</div>
       </div>
@@ -328,12 +328,12 @@
               <div class="record-meta quiz-review-qnum">Q${pad2(i + 1)}</div>
               <div class="quiz-review-q">${esc(q.prompt || "")}</div>
             </div>
-            <span class="quiz-review-mark ${ok ? "correct" : "wrong"}">${ok ? "✓" : "✕"}</span>
+            <span class="quiz-review-mark ${ok ? "correct" : "wrong"}"><svg class="icon" aria-hidden="true"><use href="#${ok ? "icon-check" : "icon-x"}"/></svg></span>
           </div>
           <div class="record-notes">${esc(q.explanation || "")}</div>
         </div>`;
       }).join("")}
-      <button class="btn btn-primary" id="elDoneBtn">${passed ? "◂ BACK TO MODULES" : "↻ RETAKE MODULE"}</button>
+      <button class="btn btn-primary" id="elDoneBtn">${passed ? `<svg class="icon" aria-hidden="true"><use href="#icon-back"/></svg> BACK TO MODULES` : `<svg class="icon" aria-hidden="true"><use href="#icon-rotate"/></svg> RETAKE MODULE`}</button>
     `;
     document.getElementById("elDoneBtn").addEventListener("click", () => {
       view._saved = false;

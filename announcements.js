@@ -178,7 +178,7 @@
         <div class="ann-reply-list"></div>
         <form class="ann-reply-form">
           <input type="text" name="body" placeholder="Reply…" maxlength="500" autocomplete="off">
-          <button type="submit">Send</button>
+          <button type="submit" class="btn btn-primary btn--sm">Send</button>
         </form>
       </div>
     `);

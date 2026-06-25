@@ -278,14 +278,19 @@
   .users-row {
     display: flex; align-items: center; gap: 12px;
     padding: 12px 14px; margin-bottom: 8px;
-    background: var(--panel); border-radius: 8px;
-    border-left: 3px solid var(--info);
-    border-top-left-radius: 0; border-bottom-left-radius: 0;
+    background: var(--panel); border: 1px solid var(--divider); border-radius: 8px;
   }
-  .users-row.row-admin    { border-left-color: var(--danger); }
-  .users-row.row-manager  { border-left-color: var(--accent); }
-  .users-row.row-cxr      { border-left-color: var(--warn); }
-  .users-row.row-detailer { border-left-color: var(--role-detailer); }
+  /* Colored role dot — replaces the old border-left role indicator. */
+  .users-row::before {
+    content: ""; display: inline-block; flex: 0 0 12px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--info);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.25);
+  }
+  .users-row.row-admin::before    { background: var(--danger); }
+  .users-row.row-manager::before  { background: var(--accent); }
+  .users-row.row-cxr::before      { background: var(--warn); }
+  .users-row.row-detailer::before { background: var(--role-detailer); }
   .users-row .info { flex: 1; min-width: 0; }
   .users-row .name { font-size: 15px; font-weight: 700; color: var(--text); }
   .users-row .meta {
@@ -330,14 +335,11 @@
   .detail-scan-empty { text-align: center; padding: 24px 0; color: var(--text-soft); }
   .detail-scan-empty p { margin: 0 0 14px; }
   .detail-history-row {
-    background: var(--panel); border-left: 3px solid var(--role-detailer);
-    border-top-left-radius: 0; border-bottom-left-radius: 0;
+    background: var(--panel); border: 1px solid var(--divider);
     border-radius: 8px; padding: 12px 14px; margin-bottom: 8px;
     cursor: pointer; transition: background 0.15s;
   }
   .detail-history-row:hover { background: var(--divider); }
-  .detail-history-row.done   { border-left-color: var(--accent); }
-  .detail-history-row.open   { border-left-color: var(--warn); }
   .detail-history-serial { font-weight: 800; font-size: 14px; letter-spacing: 1px; color: var(--text); font-family: ui-monospace, "SF Mono", Menlo, monospace; }
   .detail-history-meta   { font-size: 12px; color: var(--muted); margin-top: 4px; }
   .detail-dash-avg {
@@ -382,8 +384,7 @@
   /* Note cards on the VIN view */
   .note-card {
     position: relative;
-    background: var(--panel); border-left: 3px solid var(--info);
-    border-top-left-radius: 0; border-bottom-left-radius: 0;
+    background: var(--panel); border: 1px solid var(--divider);
     border-radius: 8px; padding: 10px 12px; margin-bottom: 8px;
   }
   .note-head {
@@ -429,7 +430,6 @@
   .recall-list[hidden] { display: none; }
   .recall-row {
     background: var(--panel); border: 1px solid var(--divider);
-    border-left: 3px solid var(--warn-strong);
     border-radius: 6px; padding: 8px 10px;
   }
   .recall-title {
@@ -599,12 +599,10 @@
   .todo-item {
     display: grid; grid-template-columns: 1fr auto; align-items: center;
     column-gap: 8px; row-gap: 6px;
-    background: var(--panel); border-radius: 8px;
+    background: var(--panel); border: 1px solid var(--divider); border-radius: 8px;
     padding: 10px 12px; margin-bottom: 6px;
-    border-left: 3px solid var(--divider);
-    border-top-left-radius: 0; border-bottom-left-radius: 0;
   }
-  .todo-item.done { border-left-color: var(--accent); opacity: 0.85; }
+  .todo-item.done { opacity: 0.85; }
   .todo-item.done .todo-label { text-decoration: line-through; color: var(--muted); }
   .todo-check { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; }
   .todo-check input { width: 20px; height: 20px; cursor: pointer; accent-color: var(--accent); }
@@ -916,14 +914,12 @@
   .vin-tl-list   { display: flex; flex-direction: column; gap: 8px; }
   .vin-tl-empty  { color: var(--muted); text-align: center; padding: 30px 16px; font-size: 14px; }
   .vin-tl-row {
-    background: var(--panel); border: 1px solid var(--divider); border-left: 3px solid var(--divider);
-    border-top-left-radius: 0; border-bottom-left-radius: 0;
+    background: var(--panel); border: 1px solid var(--divider);
     border-radius: 8px; padding: 12px 14px;
     cursor: pointer; transition: background 0.15s;
   }
   .vin-tl-row:hover { background: var(--card-soft); }
-  .vin-tl-record { border-left-color: var(--info); }
-  .vin-tl-note   { border-left-color: var(--warn); cursor: default; }
+  .vin-tl-note { cursor: default; }
   /* Notes in the VIN timeline render through the shared .note-card,
      placed directly in the list (no extra wrapper). */
   .vin-tl-list > .note-card { margin-bottom: 0; }
@@ -1142,7 +1138,7 @@
   }
   .bl-form textarea { min-height: 70px; resize: vertical; }
   /* bl-form save buttons now use the standard .btn .btn-primary .btn--block recipe. */
-  .bl-ann-item { background: var(--panel); border-radius: 8px; padding: 10px 12px; margin-top: 8px; border-left: 3px solid var(--accent); }
+  .bl-ann-item { background: var(--panel); border: 1px solid var(--divider); border-radius: 8px; padding: 10px 12px; margin-top: 8px; }
   .bl-ann-item .meta { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
   .bl-ann-item .body { font-size: 14px; white-space: pre-wrap; }
   .bl-ann-item .del { float: right; background: none; border: none; color: var(--danger); font-size: 11px; cursor: pointer; }
@@ -1234,10 +1230,10 @@
 
   /* Driver-side announcement card */
   .ann-card {
-    background: var(--panel); border-left: 3px solid var(--accent);
+    background: var(--panel); border: 1px solid var(--divider);
     border-radius: 8px; padding: 12px 14px; margin-bottom: 10px;
   }
-  .ann-card.unread { border-left-color: var(--info); background: var(--panel); }
+  .ann-card.unread { background: var(--panel); }
   .ann-card .meta {
     display: flex; justify-content: space-between; align-items: baseline;
     gap: 12px; margin-bottom: 6px;
@@ -1274,7 +1270,7 @@
 
   /* Coverage request cards (driver-side extra-driver requests) */
   .edr-card {
-    background: var(--panel); border-left: 3px solid var(--warn);
+    background: var(--panel); border: 1px solid var(--divider);
     border-radius: 8px; padding: 12px 14px; margin-bottom: 10px;
   }
   .edr-card .when { font-size: 15px; font-weight: 700; color: var(--text); }
@@ -1286,7 +1282,6 @@
   .edr-actions .btn { flex: 1; min-width: 0; }
   .edr-yes.mine   { box-shadow: inset 0 0 0 2px var(--info-text); }
   .edr-no.mine    { box-shadow: inset 0 0 0 2px var(--info-text); color: var(--info-text); }
-  .edr-card.responded { border-left-color: var(--accent); }
 
   /* Shift picker (AM / MID / PM) — used by both manager form and driver response */
   .shift-picker { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -2436,9 +2431,9 @@
 <!-- ===================================================== -->
 <div class="panel" id="panel-users" role="region" aria-label="Users">
   <div class="users-actions">
-    <button type="button" class="btn btn-primary users-invite-btn" id="usersInviteBtn" aria-label="Invite user">
+    <button type="button" class="btn btn-primary users-invite-btn" id="usersInviteBtn" aria-label="Create user">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      <span>Invite User</span>
+      <span>Create User</span>
     </button>
   </div>
   <div class="dash-section">
@@ -2509,13 +2504,11 @@
     <form id="usersForm">
       <input type="hidden" name="id">
       <label>Display name<input type="text" name="display_name" maxlength="40"></label>
-      <label class="users-email-row">Email<input type="email" name="email" autocomplete="email"></label>
+      <label class="users-email-row">Email<input type="email" name="email" autocomplete="email" required></label>
       <label class="users-phone-row">Phone<input type="tel" name="phone" autocomplete="tel" placeholder="+1 555 555 1212"></label>
-      <div class="users-invite-channel" id="usersInviteChannel" style="display:none">
-        <span>Send invite via</span>
-        <label><input type="radio" name="invite_channel" value="email" checked> Email</label>
-        <label><input type="radio" name="invite_channel" value="phone"> Text (SMS)</label>
-      </div>
+      <label class="users-password-row" id="usersPasswordRow">Password
+        <input type="password" name="password" autocomplete="new-password" minlength="8" placeholder="Leave blank to keep current password">
+      </label>
       <label>Role
         <select name="role" required>
           <option value="driver">Driver</option>
@@ -2547,6 +2540,9 @@
         </select>
       </label>
       <label class="users-callbacks-row"><input type="checkbox" name="callbacks_opt_in"> Available for callback requests</label>
+      <div class="users-reset-row" id="usersResetRow">
+        <button type="button" class="users-reset-btn" id="usersResetBtn">Send password reset email</button>
+      </div>
       <div class="users-modal-msg" id="usersModalMsg"></div>
       <div class="users-modal-actions">
         <button type="button" class="btn btn-destructive" id="usersModalCancel">Cancel</button>

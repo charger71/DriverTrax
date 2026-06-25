@@ -1,11 +1,12 @@
 // ============================================================
 // DriverTrax Users (manager-only)
 //   - Lists every profile (name, email, role, home airport)
-//   - Edit modal: name, role, home_airport, shuttle_subrole, callbacks_opt_in
-//   - Invite: enters email + initial info, sends a magic-link via OTP.
-//     When the new user clicks the link, the on_auth_user_created trigger
-//     creates their profile row; manager then sees them in the list and
-//     can adjust anything that wasn't carried over.
+//   - Edit modal: name, email, role, home_airport, shuttle_subrole,
+//     callbacks_opt_in, optional "set new password" + "send reset" button
+//   - Create modal: email + initial password (user is confirmed on create)
+//
+// Email + password operations route through the `admin-users` edge function,
+// which uses the service-role key to call auth.admin.* on the server.
 // ============================================================
 
 (function () {
@@ -17,7 +18,28 @@
   let users = [];
   let realtimeChan = null;
   let started = false;
-  let mode = "edit"; // "edit" | "invite"
+  let mode = "edit"; // "edit" | "create"
+
+  async function adminCall(action, payload) {
+    const { data: sess } = await sb.auth.getSession();
+    const token = sess?.session?.access_token;
+    if (!token) return { error: "Not signed in" };
+    const { data, error } = await sb.functions.invoke("admin-users", {
+      body: { action, ...payload },
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (error) {
+      // FunctionsHttpError carries the response body in error.context
+      let msg = error.message || "Request failed";
+      try {
+        const body = await error.context?.json?.();
+        if (body?.error) msg = body.error;
+      } catch (_) { /* ignore */ }
+      return { error: msg };
+    }
+    if (data?.error) return { error: data.error };
+    return { data };
+  }
 
   async function load() {
     const { data, error } = await sb
@@ -37,7 +59,6 @@
     const amCxr   = DT_AUTH.isCxr   && DT_AUTH.isCxr();
     const CXR_EDITABLE = new Set(["driver", "detailer"]);
     const term = ($("usersSearch")?.value || "").trim().toLowerCase();
-    // CXR only sees drivers + detailers — never managers, admins, or other CXRs.
     const visible = amCxr ? users.filter(u => CXR_EDITABLE.has(u.role || "driver")) : users;
     const list = visible.filter(u => !term
       || (u.display_name || "").toLowerCase().includes(term)
@@ -49,7 +70,6 @@
     }
     el.innerHTML = list.map(u => {
       const targetRole = u.role || "driver";
-      // CXR can edit drivers + detailers. Non-admin managers can touch anyone except admins. Admins can touch anyone.
       let canEdit = false, blockReason = "";
       if (amAdmin) { canEdit = true; }
       else if (amCxr) {
@@ -84,7 +104,6 @@
       b.addEventListener("click", () => onApprove(b.dataset.id));
     });
 
-    // CXR can invite too, but only for driver/detailer roles (enforced in openInvite).
     const invite = $("usersInviteBtn");
     if (invite) invite.style.display = "";
   }
@@ -92,7 +111,7 @@
   async function onApprove(id) {
     const u = users.find(x => x.id === id);
     if (!u) { DT_TOAST.missing("user"); return; }
-    if (!confirm(`Approve ${u.display_name || u.email || u.phone || "this user"}?`)) return;
+    if (!confirm(`Approve ${u.display_name || u.email || "this user"}?`)) return;
     const { error } = await sb.from("profiles").update({ approved: true }).eq("id", id);
     if (error) { alert("Approve failed: " + error.message); return; }
     load();
@@ -107,38 +126,7 @@
   function hideModal() { $("usersModal").classList.remove("show"); setMsg(""); }
 
   function setFormForRole(role) {
-    // Shuttle sub-role only makes sense for drivers
     $("usersShuttleRow").style.display = role === "driver" ? "" : "none";
-  }
-
-  function openEdit(id) {
-    const u = users.find(x => x.id === id);
-    if (!u) { DT_TOAST.missing("user"); return; }
-    mode = "edit";
-    $("usersModalTitle").textContent = "Edit User";
-    $("usersModalSubmit").textContent = "Save";
-    const form = $("usersForm");
-    form.elements.id.value = u.id;
-    form.elements.display_name.value = u.display_name || "";
-    form.elements.email.value = u.email || "";
-    form.elements.email.disabled = true;
-    form.elements.email.parentElement.classList.add("locked");
-    form.elements.phone.value = u.phone || "";
-    form.elements.role.value = u.role || "driver";
-    form.elements.shuttle_subrole.value = u.shuttle_subrole || "";
-    form.elements.home_airport.value = u.home_airport || "";
-    form.elements.callbacks_opt_in.checked = !!u.callbacks_opt_in;
-
-    // Channel picker is invite-only
-    $("usersInviteChannel").style.display = "none";
-
-    applyCxrRoleLimits();
-
-    // Show Reset Password row for the editor (any manager-tier role can use it)
-    ensureResetPasswordRow();
-
-    setFormForRole(form.elements.role.value);
-    showModal();
   }
 
   function applyCxrRoleLimits() {
@@ -151,20 +139,56 @@
     });
   }
 
-  function ensureResetPasswordRow() {
-    if ($("usersResetRow")) return;
-    const actions = document.querySelector(".users-modal-actions");
-    if (!actions) return;
-    const row = document.createElement("div");
-    row.id = "usersResetRow";
-    row.className = "users-reset-row";
-    row.innerHTML = `<button type="button" class="users-reset-btn" id="usersResetBtn">Send password reset email</button>`;
-    actions.parentElement.insertBefore(row, actions);
-    $("usersResetBtn").addEventListener("click", onResetPassword);
+  function openEdit(id) {
+    const u = users.find(x => x.id === id);
+    if (!u) { DT_TOAST.missing("user"); return; }
+    mode = "edit";
+    $("usersModalTitle").textContent = "Edit User";
+    $("usersModalSubmit").textContent = "Save";
+    const form = $("usersForm");
+    form.elements.id.value = u.id;
+    form.elements.display_name.value = u.display_name || "";
+    form.elements.email.value = u.email || "";
+    form.elements.email.disabled = false;
+    form.elements.phone.value = u.phone || "";
+    form.elements.role.value = u.role || "driver";
+    form.elements.shuttle_subrole.value = u.shuttle_subrole || "";
+    form.elements.home_airport.value = u.home_airport || "";
+    form.elements.callbacks_opt_in.checked = !!u.callbacks_opt_in;
+    form.elements.password.value = "";
+    form.elements.password.placeholder = "Leave blank to keep current password";
+    form.elements.password.required = false;
+
+    $("usersPasswordRow").style.display = "";
+    $("usersResetRow").style.display = "";
+
+    applyCxrRoleLimits();
+    setFormForRole(form.elements.role.value);
+    showModal();
+  }
+
+  function openInvite() {
+    mode = "create";
+    $("usersModalTitle").textContent = "Create User";
+    $("usersModalSubmit").textContent = "Create";
+    const form = $("usersForm");
+    form.reset();
+    form.elements.id.value = "";
+    form.elements.email.disabled = false;
+    form.elements.role.value = "driver";
+    form.elements.password.placeholder = "Initial password (min 8 chars)";
+    form.elements.password.required = true;
+
+    $("usersPasswordRow").style.display = "";
+    $("usersResetRow").style.display = "none";
+
+    applyCxrRoleLimits();
+    setFormForRole("driver");
+    showModal();
   }
 
   async function onResetPassword() {
-    const email = $("usersForm").elements.email.value;
+    const email = $("usersForm").elements.email.value.trim();
     if (!email) { setMsg("No email on this profile.", "err"); return; }
     if (!confirm(`Send a password-reset email to ${email}?`)) return;
     setMsg("Sending reset link…");
@@ -175,88 +199,61 @@
     setMsg("Reset link sent.", "ok");
   }
 
-  function openInvite() {
-    mode = "invite";
-    $("usersModalTitle").textContent = "Invite User";
-    $("usersModalSubmit").textContent = "Send invite";
-    const form = $("usersForm");
-    form.reset();
-    form.elements.id.value = "";
-    form.elements.email.disabled = false;
-    form.elements.email.parentElement.classList.remove("locked");
-    form.elements.role.value = "driver";
-    $("usersInviteChannel").style.display = "";
-    form.elements.invite_channel.value = "email";
-    applyCxrRoleLimits();
-    setFormForRole("driver");
-    showModal();
-  }
-
-  function normalizePhone(raw) {
-    if (!raw) return null;
-    const digits = raw.replace(/[^\d+]/g, "");
-    if (!digits) return null;
-    if (digits.startsWith("+")) return digits;
-    // Default to US country code if 10 digits
-    if (digits.length === 10) return "+1" + digits;
-    if (digits.length === 11 && digits.startsWith("1")) return "+" + digits;
-    return "+" + digits;
-  }
-
   async function onSubmit(e) {
     e.preventDefault();
     const form = e.target;
-    const id = form.elements.id.value;
+    const id              = form.elements.id.value;
     const display_name    = (form.elements.display_name.value || "").trim() || null;
     const email           = (form.elements.email.value || "").trim() || null;
-    const phone           = normalizePhone(form.elements.phone.value);
+    const phone           = (form.elements.phone.value || "").trim() || null;
     const role            = form.elements.role.value;
     const shuttle_subrole = role === "driver" ? (form.elements.shuttle_subrole.value || null) : null;
     const home_airport    = form.elements.home_airport.value || null;
     const callbacks_opt_in = !!form.elements.callbacks_opt_in.checked;
+    const password        = form.elements.password.value;
 
-    if (mode === "edit") {
-      setMsg("Saving…");
-      const { error } = await sb.from("profiles")
-        .update({ display_name, phone, role, shuttle_subrole, home_airport, callbacks_opt_in })
-        .eq("id", id);
-      if (error) { setMsg(error.message, "err"); return; }
-      setMsg("Saved.", "ok");
+    if (mode === "create") {
+      if (!email) { setMsg("Email is required.", "err"); return; }
+      if (!password || password.length < 8) { setMsg("Password must be at least 8 characters.", "err"); return; }
+      setMsg("Creating user…");
+      const { data, error } = await adminCall("create", {
+        email,
+        password,
+        profile: { display_name, phone, role, shuttle_subrole, home_airport, callbacks_opt_in }
+      });
+      if (error) { setMsg(error, "err"); return; }
+      setMsg("User created.", "ok");
       load();
-      setTimeout(hideModal, 500);
-    } else {
-      const channel = form.elements.invite_channel.value;
-      if (channel === "phone" && !phone) { setMsg("Phone number is required for an SMS invite.", "err"); return; }
-      if (channel === "email" && !email) { setMsg("Email is required for an email invite.", "err"); return; }
-      setMsg("Sending invite…");
-
-      // Magic-link via OTP creates the auth.users row immediately, which fires
-      // the on_auth_user_created trigger and gives us a profile row to update.
-      const otpArgs = channel === "phone"
-        ? { phone, options: { shouldCreateUser: true, data: { display_name, role, home_airport, shuttle_subrole, phone } } }
-        : { email, options: { shouldCreateUser: true, data: { display_name, role, home_airport, shuttle_subrole }, emailRedirectTo: location.origin + location.pathname } };
-      const { error } = await sb.auth.signInWithOtp(otpArgs);
-      if (error) { setMsg(error.message, "err"); return; }
-
-      // Pre-approve the invitee (manager already vetted them) and stamp the
-      // role/phone we collected. The trigger created the profile row keyed
-      // by email/phone — fetch it and update.
-      const lookup = channel === "phone"
-        ? sb.from("profiles").select("id").eq("phone", phone).maybeSingle()
-        : sb.from("profiles").select("id").eq("email", email).maybeSingle();
-      const { data: prof } = await lookup;
-      if (prof && prof.id) {
-        await sb.from("profiles")
-          .update({ display_name, role, shuttle_subrole, home_airport, phone, approved: true })
-          .eq("id", prof.id);
-      }
-
-      setMsg(channel === "phone"
-        ? "Text message sent. They'll appear here after they sign in."
-        : "Magic-link email sent. They'll appear here after they sign in.", "ok");
-      load();
-      setTimeout(hideModal, 1500);
+      setTimeout(hideModal, 800);
+      return;
     }
+
+    // edit
+    if (!email) { setMsg("Email is required.", "err"); return; }
+    setMsg("Saving…");
+
+    const u = users.find(x => x.id === id);
+    const emailChanged = !!u && (u.email || "") !== email;
+
+    if (emailChanged) {
+      const { error } = await adminCall("update_email", { user_id: id, email });
+      if (error) { setMsg("Email update failed: " + error, "err"); return; }
+    }
+
+    if (password) {
+      if (password.length < 8) { setMsg("Password must be at least 8 characters.", "err"); return; }
+      const { error } = await adminCall("update_password", { user_id: id, password });
+      if (error) { setMsg("Password update failed: " + error, "err"); return; }
+    }
+
+    const { error: pe } = await sb.from("profiles")
+      .update({ display_name, phone, role, shuttle_subrole, home_airport, callbacks_opt_in })
+      .eq("id", id);
+    if (pe) { setMsg(pe.message, "err"); return; }
+
+    setMsg("Saved.", "ok");
+    load();
+    setTimeout(hideModal, 500);
   }
 
   function start() {
@@ -270,6 +267,7 @@
     $("usersSearch")?.addEventListener("input", render);
     $("usersForm")?.addEventListener("submit", onSubmit);
     $("usersForm")?.elements.role.addEventListener("change", (e) => setFormForRole(e.target.value));
+    $("usersResetBtn")?.addEventListener("click", onResetPassword);
 
     load();
     realtimeChan = sb.channel("users-feed")
@@ -282,7 +280,6 @@
     if (realtimeChan) { sb.removeChannel(realtimeChan); realtimeChan = null; }
   }
 
-  // CXR also needs the users list (limited to drivers/detailers — render() enforces).
   const canSeeUsers = () => DT_AUTH.isManager() || (DT_AUTH.isCxr && DT_AUTH.isCxr());
   document.addEventListener("dt-auth-change", () => {
     if (canSeeUsers()) start(); else stop();

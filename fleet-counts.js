@@ -128,11 +128,21 @@
     if (section) section.style.display = canEdit() ? "" : "none";
   }
 
+  function clearFields() {
+    const form = $("fcForm");
+    if (!form) return;
+    form.elements.returns_count.value = "";
+    form.elements.rentals_count.value = "";
+    form.elements.note.value = "";
+    form.elements.returns_count.focus();
+  }
+
   function start() {
     if (!wired) {
       wired = true;
       const form = $("fcForm");
       if (form) form.addEventListener("submit", onSubmit);
+      $("fcClearBtn")?.addEventListener("click", clearFields);
       loadRow();
       subscribe();
     }

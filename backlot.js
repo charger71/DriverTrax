@@ -344,15 +344,21 @@
         : `<button class="ann-act-close"  data-id="${a.id}">Close</button>
            <button class="ann-act-cancel" data-id="${a.id}">Cancel</button>
            <button class="ann-act-del"    data-id="${a.id}">Delete</button>`;
+      const BODY_LIMIT = 220;
+      const body = a.body || "";
+      const isLong = body.length > BODY_LIMIT;
+      const authorName = names[a.author_id] || "Manager";
       // admin actions + status get appended AFTER the thread markup so the
-      // visual order is: meta → body → reactions/replies → actions → status
+      // visual order is: body → meta → reactions/replies → actions → status
       return `
         <div class="ann-card" data-ann-id="${a.id}" data-status="${esc(status)}" data-archived="${isArchived ? "1" : ""}" data-actions='${esc(actions)}'>
-          <div class="meta">
-            <span class="ann-author">${esc(names[a.author_id] || "Manager")}</span>
-            <span class="ann-time">${esc(ago(a.created_at))}</span>
+          <div class="ann-body-wrap${isLong ? " is-clamped" : ""}">
+            <div class="body">${esc(body)}</div>
+            ${isLong ? `<button type="button" class="ann-body-toggle" aria-expanded="false">Show more</button>` : ""}
           </div>
-          <div class="body">${esc(a.body)}</div>
+          <div class="meta">
+            <span class="ann-time">Posted ${esc(ago(a.created_at))} by <span class="ann-author">${esc(authorName)}</span></span>
+          </div>
         </div>`;
     }
 
@@ -374,6 +380,29 @@
         DT_ANN.injectThreadMarkup(card);
         DT_ANN.renderThread(card, card.dataset.annId);
       }
+      // Replace the visible thread block with a collapsed <details> wrapper.
+      const thread = card.querySelector(".ann-thread");
+      if (thread && !thread.closest(".ann-thread-disclosure")) {
+        const details = document.createElement("details");
+        details.className = "ann-thread-disclosure";
+        const summary = document.createElement("summary");
+        summary.innerHTML = `Replies <span class="ann-reply-count">(0)</span>`;
+        details.appendChild(summary);
+        thread.parentNode.insertBefore(details, thread);
+        details.appendChild(thread);
+
+        // Keep the count in sync as renderThread (async) populates the list,
+        // and as realtime updates fire later.
+        const listEl = thread.querySelector(".ann-reply-list");
+        const countEl = summary.querySelector(".ann-reply-count");
+        if (listEl && countEl) {
+          const update = () => {
+            countEl.textContent = `(${listEl.querySelectorAll(".ann-reply").length})`;
+          };
+          update();
+          new MutationObserver(update).observe(listEl, { childList: true });
+        }
+      }
       const actions = card.dataset.actions || "";
       card.insertAdjacentHTML("beforeend", `<div class="ann-admin-actions">${actions}</div>`);
       if (card.dataset.archived) {
@@ -390,6 +419,15 @@
 
   function onAnnListClick(e) {
     const t = e.target;
+    if (t.matches(".ann-body-toggle")) {
+      const wrap = t.closest(".ann-body-wrap");
+      if (!wrap) return;
+      const expanded = wrap.classList.toggle("is-expanded");
+      wrap.classList.toggle("is-clamped", !expanded);
+      t.setAttribute("aria-expanded", expanded ? "true" : "false");
+      t.textContent = expanded ? "Show less" : "Show more";
+      return;
+    }
     const id = t.dataset?.id;
     if (!id) return;
     if (t.matches(".ann-act-close"))  return setAlertStatus(id, "closed");
@@ -546,6 +584,24 @@
     $("blAnnList")?.addEventListener("click", onAnnListClick);
     $("blEdrList")?.addEventListener("click", onEdrListClick);
     wireLeaderboardControls();
+
+    // Persist each Alerts-panel disclosure's open/closed state.
+    // Recent Alerts + Open Requests default open; the others default closed.
+    [
+      ["blFcDisclosure",      "dt-bl-fc-open",      false],
+      ["blPostDisclosure",    "dt-bl-post-open",    false],
+      ["blRecentDisclosure",  "dt-bl-recent-open",  true],
+      ["blEdrDisclosure",     "dt-bl-edr-open",     false],
+      ["blOpenReqDisclosure", "dt-bl-openreq-open", true]
+    ].forEach(([id, key, defaultOpen]) => {
+      const el = $(id);
+      if (!el) return;
+      const saved = localStorage.getItem(key);
+      el.open = saved === null ? defaultOpen : saved === "1";
+      el.addEventListener("toggle", () => {
+        localStorage.setItem(key, el.open ? "1" : "0");
+      });
+    });
 
     document.getElementById("blAnnForm")?.addEventListener("submit", async (e) => {
       e.preventDefault();

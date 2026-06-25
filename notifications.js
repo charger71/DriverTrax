@@ -101,7 +101,7 @@
 
   async function onCoverageInsert(row) {
     const user = DT_AUTH.getUser();
-    if (!user) return;
+    if (!user || row.manager_id === user.id) return;
     if (row.status && row.status !== "open") return;
     const role = DT_AUTH.getProfile()?.role;
     if (role && row.position && row.position !== role) return;

@@ -2581,19 +2581,39 @@ async function renderFuzzyResults(term) {
 
 // Drop markers on the records map for an arbitrary list. Used by the
 // fuzzy-results renderer and the empty path.
+//
+// The map element is hidden until the user opens the <details> disclosure, so
+// Leaflet may not be initialized yet when search runs. We cache the latest
+// pin set in _lastSearchPins; the disclosure toggle handler replays it.
+let _lastSearchPins = null;
 function _renderRecordsMapMarkers(pins) {
-  if (typeof recordsLeafletMap === "undefined" || !recordsLeafletMap) {
-    if (typeof renderRecordsMap === "function" && pins.length === 0) renderRecordsMap();
+  _lastSearchPins = pins;
+  const disc = document.getElementById("recordsMapDisclosure");
+  const mapEl = document.getElementById("recordsMap");
+  const emptyEl = document.getElementById("recordsMapEmpty");
+
+  // If the disclosure isn't open yet, just stash. It will replay on open.
+  if (!disc || !disc.open) return;
+
+  if (!pins.length) {
+    if (mapEl) mapEl.style.display = "none";
+    if (emptyEl) emptyEl.style.display = "flex";
     return;
+  }
+  if (!window.L) return;
+
+  if (emptyEl) emptyEl.style.display = "none";
+  if (mapEl) mapEl.style.display = "block";
+
+  // Lazy-init the Leaflet instance if this is the first render after open.
+  if (!recordsLeafletMap) {
+    recordsLeafletMap = createMap("recordsMap");
+    if (!recordsLeafletMap) return;
   }
   // Clear existing markers
   if (Array.isArray(recordsMapMarkers)) {
     recordsMapMarkers.forEach(m => recordsLeafletMap.removeLayer(m));
     recordsMapMarkers = [];
-  }
-  if (!pins.length) {
-    document.getElementById("recordsMapEmpty").style.display = "block";
-    return;
   }
   // Latest GPS per VIN, cap at 25 by recency
   const byVin = new Map();
@@ -2949,8 +2969,6 @@ async function renderVinTimeline(vin, opts) {
       const role = p?.role ? `<span class="note-role role-${esc(p.role)}">${esc(p.role)}</span>` : "";
       const statusDisp = r.status === "OTHER" && r.status_other ? `OTHER: ${r.status_other}` : statusLabel(r.status);
       const destDisp   = r.destination === "OTHER" && r.destination_other ? `OTHER: ${r.destination_other}` : (r.destination || "");
-      const gps = (Number.isFinite(r.lat) && Number.isFinite(r.lng))
-        ? ` · <a href="https://www.google.com/maps?q=${r.lat},${r.lng}" target="_blank" rel="noopener" class="vin-tl-gps"><svg class="ico-pin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12 22s-7-7.58-7-13a7 7 0 0 1 14 0c0 5.42-7 13-7 13zM12 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg></a>` : "";
       const condChips = Array.isArray(r.conditions) && r.conditions.length
         ? `<div class="vin-tl-cond-row">${r.conditions.map(id => {
             const label = DT_OPTIONS.CONDITIONS.find(c => c.id === id)?.label || id;
@@ -2959,10 +2977,12 @@ async function renderVinTimeline(vin, opts) {
       return `
         <div class="vin-tl-row vin-tl-record" data-record-id="${esc(r.id)}">
           <div class="vin-tl-head">
-            <span class="record-status ${statusClass(r.status)}">${esc(statusDisp)}</span>
-            <span class="vin-tl-time">${esc(ago(ev.ts))}${gps}</span>
+            <div class="vin-tl-badges">
+              <span class="record-status ${statusClass(r.status)}">${esc(statusDisp)}</span>
+              ${destDisp ? `<span class="record-location">${esc(destDisp)}</span>` : ""}
+            </div>
+            <span class="vin-tl-time">${esc(ago(ev.ts))}</span>
           </div>
-          ${destDisp ? `<div class="vin-tl-meta">${esc(destDisp)}</div>` : ""}
           ${condChips}
           ${r.notes ? `<div class="vin-tl-body">${esc(r.notes)}</div>` : ""}
         </div>`;
@@ -3789,7 +3809,16 @@ let recordsMapMarkers = [];
 document.addEventListener("DOMContentLoaded", () => {
   const el = document.getElementById("recordsMapDisclosure");
   if (!el) return;
-  el.addEventListener("toggle", () => { if (el.open) renderRecordsMap(); });
+  el.addEventListener("toggle", () => {
+    if (!el.open) return;
+    // If a search has run, prefer its pin set over the full filtered list.
+    if (_lastSearchPins !== null) {
+      _renderRecordsMapMarkers(_lastSearchPins);
+      setTimeout(() => recordsLeafletMap && recordsLeafletMap.invalidateSize(), 50);
+    } else {
+      renderRecordsMap();
+    }
+  });
 });
 
 // Build a deduped list of VINs from whatever was just rendered into #records,
@@ -6051,7 +6080,7 @@ const EXTREME_CODES = {
 const ALERT_DISMISSED_KEY = "drivertrax_alert_dismissed";
 
 function dismissWeatherAlert() {
-  document.getElementById("weatherAlert").style.display = "none";
+  document.getElementById("weatherAlert").classList.remove("show");
   localStorage.setItem(ALERT_DISMISSED_KEY, Date.now().toString());
 }
 
@@ -6103,10 +6132,10 @@ async function checkWeatherAlert() {
   const unique = [...new Set(alerts)];
   const alertEl = document.getElementById("weatherAlert");
   if (unique.length > 0) {
-    document.getElementById("weatherAlertMsg").textContent = "SDF WEATHER ALERT: " + unique.join(" - ");
-    alertEl.style.display = "block";
+    document.getElementById("weatherAlertMsg").textContent = "SDF WEATHER ALERT: " + unique.join(" • ");
+    alertEl.classList.add("show");
   } else {
-    alertEl.style.display = "none";
+    alertEl.classList.remove("show");
   }
 }
 

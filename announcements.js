@@ -222,7 +222,7 @@
 
   function renderBadge() {
     const n = unreadCount();
-    const targets = [$("annUnreadBadge"), $("tabAlertsBadge")];
+    const targets = [$("annUnreadBadge"), $("tabAlertsBadge"), $("tabAlertsDetBadge")];
     targets.forEach(el => {
       if (!el) return;
       if (n > 0) { el.textContent = n; el.classList.remove("hidden"); }
@@ -312,15 +312,13 @@
     $("annBanner")?.classList.add("hidden");
     $("annUnreadBadge")?.classList.add("hidden");
     $("tabAlertsBadge")?.classList.add("hidden");
+    $("tabAlertsDetBadge")?.classList.add("hidden");
     window.DT_PWA?.setBadgeSource?.("alerts", 0);
   }
 
   function shouldRunDriverUI() {
-    const p = DT_AUTH.getProfile();
-    if (!p) return false;
-    // Driver-style alerts UI is for drivers only. CXR + managers + admins use
-    // the manager Alerts panel; detailers don't see alerts at all.
-    return p.role === "driver";
+    // Alerts go to everyone who's signed in, regardless of role.
+    return !!DT_AUTH.getProfile();
   }
 
   document.addEventListener("dt-auth-change", () => { shouldRunDriverUI() ? start() : stop(); });

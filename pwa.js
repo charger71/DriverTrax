@@ -103,9 +103,14 @@
 
   // ---------- SW update flow ----------
   if ("serviceWorker" in navigator) {
+    // Only reload when the user actually clicked the "Refresh" toast.
+    // controllerchange fires in other scenarios too (clients.claim on
+    // activate, browser-initiated SW updates), and auto-reloading on those
+    // is what made the page feel like it was randomly refreshing.
+    let userInitiatedRefresh = false;
     let refreshing = false;
     navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (refreshing) return;
+      if (!userInitiatedRefresh || refreshing) return;
       refreshing = true;
       location.reload();
     });
@@ -116,7 +121,10 @@
         text: "Update available",
         actionLabel: "Refresh",
         persistent: true,
-        onAction: () => waitingWorker.postMessage({ type: "SKIP_WAITING" })
+        onAction: () => {
+          userInitiatedRefresh = true;
+          waitingWorker.postMessage({ type: "SKIP_WAITING" });
+        }
       });
     }
 

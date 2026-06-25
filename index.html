@@ -911,7 +911,7 @@
     letter-spacing: 0.5px; text-transform: uppercase;
   }
   .vin-tl-mileage{ font-size: 13px; color: var(--info-text); margin-top: 4px; font-weight: 600; }
-  .vin-tl-cond-row { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 6px; }
+  .vin-tl-cond-row { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 14px; }
   .vin-tl-cond-chip {
     background: var(--warn-soft); color: var(--warn-text);
     border: 1px solid var(--warn-strong); border-radius: 999px;
@@ -944,7 +944,17 @@
   .vin-tl-list > .note-card { margin-bottom: 0; }
   .vin-tl-list > .note-card .note-head { flex-wrap: wrap; }
   .vin-tl-note-dest { font-size: 12px; color: var(--text-soft); font-weight: 600; }
-  .vin-tl-head   { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+  .vin-tl-head   { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .vin-tl-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+  .vin-tl-record .record-location {
+    display: inline-flex; align-items: center;
+    padding: 3px 8px; border-radius: 999px;
+    background: var(--surface-hover, var(--card-soft));
+    color: var(--text-soft);
+    border: 1px solid var(--divider);
+    font-size: 11px; font-weight: 700; letter-spacing: 0.3px;
+    text-transform: uppercase; white-space: nowrap;
+  }
   .vin-tl-time   { font-size: 11px; color: var(--muted); white-space: nowrap; }
   .vin-tl-gps    { display: inline-flex; align-items: center; color: var(--muted); text-decoration: none; }
   .vin-tl-gps:hover { color: var(--info); }
@@ -1172,7 +1182,7 @@
   .bl-seg-btn { flex: 1 1 auto; }
   .vin-detail-list { max-height: 280px; overflow-y: auto; border: 1px solid var(--divider); border-top: none; border-radius: 0 0 var(--radius) var(--radius); padding: 4px 8px; }
   .vin-detail-list--open { border: none; border-radius: 0; padding: 0; max-height: none; overflow: visible; width: auto; }
-  .vin-detail-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 4px; border-bottom: 1px solid var(--panel); cursor: pointer; }
+  .vin-detail-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--panel); cursor: pointer; }
   .vin-detail-row:last-child { border-bottom: none; }
   .vin-detail-row:hover { background: var(--bg); }
   .vin-detail-vin { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: 13px; color: var(--info-text); }
@@ -1190,6 +1200,28 @@
   .vin-detail-modal-val { font-size: 14px; color: var(--text-on-status); }
 
   /* Announcement banner (top of app) */
+
+  /* Collapsible dash sections (e.g. Request Coverage) */
+  .dash-disclosure { margin: 0; }
+  .dash-disclosure-summary {
+    cursor: pointer; list-style: none;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .dash-disclosure-summary::-webkit-details-marker { display: none; }
+  .dash-disclosure-summary::before {
+    content: "▸"; display: inline-block;
+    font-size: 11px; color: var(--text-soft);
+    transition: transform 0.15s ease;
+  }
+  .dash-disclosure[open] > .dash-disclosure-summary::before {
+    transform: rotate(90deg);
+  }
+  .fc-clear-btn {
+    flex-shrink: 0;
+    width: 140px;
+    font-size: 12px;
+    line-height: 1.2;
+  }
   .fc-banner {
     margin: var(--space-3) var(--space) 0;
     padding: 10px 14px;
@@ -1260,6 +1292,48 @@
   .ann-card .ann-author { font-size: 16px; font-weight: 800; color: var(--text); letter-spacing: 0.2px; }
   .ann-card .ann-time   { font-size: 11px; color: var(--muted); white-space: nowrap; }
   .ann-card .body { font-size: 14px; white-space: pre-wrap; color: var(--text); }
+
+  /* Recent Alerts (manager view) — body-prominent layout, replies collapsed */
+  #blAnnList .ann-card .ann-body-wrap { margin-bottom: 6px; }
+  #blAnnList .ann-card .body {
+    font-size: 16px; font-weight: 600; line-height: 1.35; color: var(--text);
+    white-space: pre-wrap;
+  }
+  #blAnnList .ann-card .ann-body-wrap.is-clamped .body {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+  }
+  #blAnnList .ann-card .ann-body-toggle {
+    background: none; border: none; padding: 2px 0; margin-top: 4px;
+    font-size: 12px; font-weight: 700; color: var(--accent);
+    cursor: pointer;
+  }
+  #blAnnList .ann-card .ann-body-toggle:hover { text-decoration: underline; }
+  #blAnnList .ann-card .meta {
+    display: block; margin: 0 0 4px 0;
+    font-size: 11px; color: var(--muted);
+  }
+  #blAnnList .ann-card .ann-time {
+    font-size: 11px; color: var(--muted); font-weight: 500;
+  }
+  #blAnnList .ann-card .ann-author {
+    font-size: 11px; font-weight: 700; color: var(--text-soft); letter-spacing: 0;
+  }
+  #blAnnList .ann-thread-disclosure {
+    margin-top: 8px; border-top: 1px solid var(--divider); padding-top: 6px;
+  }
+  #blAnnList .ann-thread-disclosure > summary {
+    cursor: pointer; font-size: 12px; font-weight: 700; color: var(--text-soft);
+    padding: 4px 0; list-style: none;
+  }
+  #blAnnList .ann-thread-disclosure > summary::-webkit-details-marker { display: none; }
+  #blAnnList .ann-thread-disclosure > summary::before {
+    content: "▸ "; display: inline-block; width: 12px;
+  }
+  #blAnnList .ann-thread-disclosure[open] > summary::before { content: "▾ "; }
   .ann-card .del {
     float: right; background: none; border: none; color: var(--danger);
     font-size: 11px; cursor: pointer; padding: 0;
@@ -1501,6 +1575,14 @@
 </head>
 <body>
 
+<div id="weatherAlert" role="alert" aria-live="polite">
+  <div class="weather-alert-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+  <div class="weather-alert-track">
+    <div class="weather-alert-msg" id="weatherAlertMsg"></div>
+  </div>
+  <button class="weather-alert-close" onclick="dismissWeatherAlert()" aria-label="Dismiss weather alert"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+</div>
+
 <!-- Shared SVG icon sprite. Add a <symbol> here, reference with <svg class="icon"><use href="#icon-..."/></svg>.
      Icons are Lucide-style strokes; .icon class in app.css sets width/height/stroke. -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -1619,15 +1701,6 @@
   </div>
 </div>
 
-<div id="weatherAlert">
-  <div class="weather-alert-inner">
-    <div class="weather-alert-text">
-      <div class="weather-alert-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
-      <div class="weather-alert-msg" id="weatherAlertMsg"></div>
-    </div>
-    <button class="btn btn-destructive btn-icon weather-alert-close" onclick="dismissWeatherAlert()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-  </div>
-</div>
 
 <!-- Alert banner — slim, dismissible, shows newest unread post -->
 <div id="annBanner" class="ann-banner hidden" role="status" aria-live="polite">
@@ -2396,7 +2469,9 @@
 
 <div class="panel" id="panel-backlot-announce" role="tabpanel" aria-label="Alerts">
   <div class="dash-section">
-    <div class="dash-title">Fleet Counts</div>
+    <details id="blFcDisclosure" class="disclosure">
+      <summary class="disclosure-summary">Fleet Counts</summary>
+      <div class="disclosure-body">
     <form class="bl-form" id="fcForm">
       <div class="bl-form-row">
         <label class="u-flex-1"><span class="is-required">Returns</span><input type="number" name="returns_count" min="0" step="1" inputmode="numeric" required></label>
@@ -2404,21 +2479,34 @@
       </div>
       <label>Note (optional)<input type="text" name="note" maxlength="120" placeholder="e.g. heavy returns expected after 3pm"></label>
       <button type="submit" class="btn btn-primary btn--block">Update counts</button>
+      <button type="button" class="btn btn-secondary btn--sm fc-clear-btn" id="fcClearBtn">Clear fields</button>
     </form>
+      </div>
+    </details>
   </div>
   <div class="dash-section">
-    <div class="dash-title">Post Alert</div>
+    <details id="blPostDisclosure" class="disclosure">
+      <summary class="disclosure-summary">Post Alert</summary>
+      <div class="disclosure-body">
     <form class="bl-form" id="blAnnForm">
       <textarea name="body" placeholder="Type a message visible to all drivers…" required maxlength="500"></textarea>
       <button type="submit" class="btn btn-primary btn--block">Post</button>
     </form>
+      </div>
+    </details>
   </div>
   <div class="dash-section">
-    <div class="dash-title">Recent Alerts</div>
+    <details id="blRecentDisclosure" class="disclosure" open>
+      <summary class="disclosure-summary">Recent Alerts</summary>
+      <div class="disclosure-body">
     <div id="blAnnList"><div class="bl-empty">Loading…</div></div>
+      </div>
+    </details>
   </div>
   <div class="dash-section cxr-hide">
-    <div class="dash-title">Request Coverage</div>
+    <details id="blEdrDisclosure" class="disclosure">
+      <summary class="disclosure-summary">Request Coverage</summary>
+      <div class="disclosure-body">
     <form class="bl-form" id="blEdrForm">
       <label>Position
         <select name="position" required>
@@ -2438,10 +2526,16 @@
       <label>Note<textarea name="note" placeholder="Incentive, location, etc." maxlength="200"></textarea></label>
       <button type="submit" class="btn btn-primary btn--block">Send request</button>
     </form>
+      </div>
+    </details>
   </div>
   <div class="dash-section">
-    <div class="dash-title">Open Requests</div>
+    <details id="blOpenReqDisclosure" class="disclosure" open>
+      <summary class="disclosure-summary">Open Requests</summary>
+      <div class="disclosure-body">
     <div id="blEdrList"><div class="bl-empty">Loading…</div></div>
+      </div>
+    </details>
   </div>
 </div>
 

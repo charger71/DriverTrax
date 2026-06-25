@@ -953,18 +953,64 @@
   .toast-success { background: var(--accent); color: var(--text-on-accent); }
   .toast-warn { background: var(--warn-strong); color: var(--text-on-status); }
   .toast-error { background: var(--danger); color: var(--text-on-status); }
-  /* WEATHER ALERT */
+  /* WEATHER ALERT — full-width ticker at the very top of the page.
+     Sits in normal document flow so it pushes the rest of the view down. */
   #weatherAlert {
-    display: none; max-width: 600px;
-    margin: var(--space-3) var(--space);
-    background: var(--warn-soft); border: 1px solid var(--warn); border-radius: var(--radius);
-    padding: var(--space-3) var(--space-4);
+    display: none;
+    width: 100%;
+    margin: 0;
+    padding: 8px 12px;
+    background: var(--warn-soft);
+    border: none;
+    border-bottom: 1px solid var(--warn);
+    border-radius: 0;
+    align-items: center;
+    gap: 10px;
+    overflow: hidden;
   }
-  .weather-alert-inner { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-  .weather-alert-text { display: flex; align-items: center; gap: var(--space-2); flex: 1; }
-  .weather-alert-icon { font-size: var(--font-md); flex-shrink: 0; }
-  .weather-alert-msg { font-size: var(--font-sm); font-weight: 600; color: var(--danger-text); letter-spacing: 0.3px; line-height: var(--leading-base); }
-  .weather-alert-close { flex-shrink: 0; }
+  #weatherAlert.show { display: flex; }
+  .weather-alert-icon {
+    flex-shrink: 0;
+    color: var(--danger-text);
+    display: flex; align-items: center;
+  }
+  .weather-alert-track {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    mask-image: linear-gradient(to right, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+  }
+  .weather-alert-msg {
+    display: inline-block;
+    white-space: nowrap;
+    padding-left: 100%;
+    font-size: var(--font-sm);
+    font-weight: 600;
+    color: var(--danger-text);
+    letter-spacing: 0.3px;
+    line-height: var(--leading-base);
+    animation: weather-ticker 30s linear infinite;
+  }
+  @keyframes weather-ticker {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
+  }
+  .weather-alert-track:hover .weather-alert-msg { animation-play-state: paused; }
+  .weather-alert-close {
+    flex-shrink: 0;
+    background: transparent;
+    border: none;
+    color: var(--danger-text);
+    cursor: pointer;
+    padding: 4px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 4px;
+  }
+  .weather-alert-close:hover { background: rgba(0,0,0,0.08); }
+  @media (prefers-reduced-motion: reduce) {
+    .weather-alert-msg { animation: none; padding-left: 0; }
+  }
 
   /* HEADER TOP ROW */
   .header-top { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }

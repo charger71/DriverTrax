@@ -44,7 +44,7 @@
   async function load() {
     const { data, error } = await sb
       .from("profiles")
-      .select("id,display_name,email,phone,role,home_airport,shuttle_subrole,callbacks_opt_in,approved,created_at")
+      .select("id,display_name,email,phone,role,home_airport,shuttle_subrole,callbacks_opt_in,approved,disabled,created_at")
       .order("display_name", { ascending: true, nullsFirst: false });
     if (error) {
       $("usersList").innerHTML = `<div class="bl-empty">${esc(error.message)}</div>`;
@@ -68,6 +68,7 @@
       el.innerHTML = `<div class="bl-empty">No users match.</div>`;
       return;
     }
+    const myId = (DT_AUTH.getUser && DT_AUTH.getUser()?.id) || null;
     el.innerHTML = list.map(u => {
       const targetRole = u.role || "driver";
       let canEdit = false, blockReason = "";
@@ -79,12 +80,16 @@
         canEdit = targetRole !== "admin";
         if (!canEdit) blockReason = "Only an admin can edit another admin";
       }
+      const isSelf = myId && u.id === myId;
+      const canDisable = canEdit && !isSelf;
+      const canDelete  = amAdmin && !isSelf;
       const pending = u.approved === false;
+      const disabled = !!u.disabled;
       const contact = u.email || u.phone || "";
       return `
-        <div class="users-row row-${esc(targetRole)}${pending ? " is-pending" : ""}">
+        <div class="users-row row-${esc(targetRole)}${pending ? " is-pending" : ""}${disabled ? " is-disabled" : ""}">
           <div class="info">
-            <div class="name">${esc(u.display_name || "(no name)")}${pending ? ` <span class="pending-pill">Pending</span>` : ""}</div>
+            <div class="name">${esc(u.display_name || "(no name)")}${pending ? ` <span class="pending-pill">Pending</span>` : ""}${disabled ? ` <span class="disabled-pill">Disabled</span>` : ""}</div>
             <div class="meta">${esc(contact)}${u.home_airport ? " · " + esc(u.home_airport) : ""}</div>
           </div>
           <span class="role-pill">${esc(targetRole)}</span>
@@ -94,6 +99,12 @@
           ${canEdit
             ? `<button class="edit" data-id="${u.id}">Edit</button>`
             : `<button class="edit" disabled title="${esc(blockReason)}">Edit</button>`}
+          ${canDisable
+            ? `<button class="toggle-disabled" data-id="${u.id}" data-action="${disabled ? "enable" : "disable"}">${disabled ? "Enable" : "Disable"}</button>`
+            : ""}
+          ${canDelete
+            ? `<button class="delete" data-id="${u.id}" title="Delete user permanently">Delete</button>`
+            : ""}
         </div>
       `;
     }).join("");
@@ -103,9 +114,36 @@
     el.querySelectorAll(".approve").forEach(b => {
       b.addEventListener("click", () => onApprove(b.dataset.id));
     });
+    el.querySelectorAll(".toggle-disabled").forEach(b => {
+      b.addEventListener("click", () => onToggleDisabled(b.dataset.id, b.dataset.action));
+    });
+    el.querySelectorAll(".delete").forEach(b => {
+      b.addEventListener("click", () => onDelete(b.dataset.id));
+    });
 
     const invite = $("usersInviteBtn");
     if (invite) invite.style.display = "";
+  }
+
+  async function onToggleDisabled(id, action) {
+    const u = users.find(x => x.id === id);
+    if (!u) { DT_TOAST.missing("user"); return; }
+    const verb = action === "disable" ? "Disable" : "Enable";
+    if (!confirm(`${verb} ${u.display_name || u.email || "this user"}? ${action === "disable" ? "They will not be able to sign in." : "They will be able to sign in again."}`)) return;
+    const { error } = await adminCall(action, { user_id: id });
+    if (error) { alert(`${verb} failed: ${error}`); return; }
+    load();
+  }
+
+  async function onDelete(id) {
+    const u = users.find(x => x.id === id);
+    if (!u) { DT_TOAST.missing("user"); return; }
+    const label = u.display_name || u.email || "this user";
+    if (!confirm(`Permanently delete ${label}? This cannot be undone.`)) return;
+    if (!confirm(`Really delete ${label}? Type-once confirmation.`)) return;
+    const { error } = await adminCall("delete", { user_id: id });
+    if (error) { alert("Delete failed: " + error); return; }
+    load();
   }
 
   async function onApprove(id) {

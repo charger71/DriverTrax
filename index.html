@@ -320,6 +320,25 @@
     margin-right: 6px;
   }
   .users-row .approve:hover { background: var(--accent-strong); }
+  .users-row .disabled-pill {
+    display: inline-block; margin-left: 6px;
+    font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--text-soft); border: 1px solid var(--divider); background: var(--surface-hover);
+    padding: 1px 6px; border-radius: 10px; vertical-align: middle;
+  }
+  .users-row.is-disabled .name,
+  .users-row.is-disabled .meta { opacity: 0.55; }
+  .users-row .toggle-disabled,
+  .users-row .delete {
+    border-radius: 6px; padding: 6px 10px; font-weight: 700; cursor: pointer;
+    border: 1px solid var(--divider); background: var(--surface); color: var(--text);
+    margin-left: 6px;
+  }
+  .users-row .toggle-disabled:hover { background: var(--surface-hover); }
+  .users-row .delete {
+    color: var(--danger); border-color: var(--danger);
+  }
+  .users-row .delete:hover { background: var(--danger); color: var(--text-on-status); }
   .users-invite-channel {
     display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
     font-size: 13px; color: var(--text-soft);

@@ -7,10 +7,16 @@
 //   create         { email, password, profile }      → creates confirmed auth user + updates profile row
 //   update_email   { user_id, email }                → changes auth email (auto-confirmed) + profile.email
 //   update_password{ user_id, password }             → sets a new password
+//   disable        { user_id }                       → bans auth user + profile.disabled = true
+//   enable         { user_id }                       → unbans auth user + profile.disabled = false
+//   delete         { user_id }                       → admin only; auth.admin.deleteUser (profile cascades)
 //
 // Auth: caller must send Authorization: Bearer <access_token>. We resolve the
-// caller's profile and require role in ('manager','admin'). 'admin' is required
-// to touch another admin.
+// caller's profile and require role in ('manager','admin','cxr'). Role gating:
+//   - cxr     : may touch driver, detailer
+//   - manager : may touch anyone except admin
+//   - admin   : may touch anyone
+// Delete is admin-only regardless of target role.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -62,13 +68,26 @@ Deno.serve(async (req) => {
 
   const { caller, error: authErr } = await getCaller(req);
   if (authErr || !caller) return json({ error: authErr || "unauthorized" }, 401);
-  if (caller.role !== "manager" && caller.role !== "admin") {
+  if (caller.role !== "manager" && caller.role !== "admin" && caller.role !== "cxr") {
     return json({ error: "forbidden" }, 403);
   }
 
   let body: any;
   try { body = await req.json(); } catch { return json({ error: "bad json" }, 400); }
   const action = body?.action;
+
+  // Centralized "can caller act on target role" check.
+  const canActOn = (tRole: string | null): { ok: boolean; reason?: string } => {
+    const t = tRole || "driver";
+    if (caller.role === "admin") return { ok: true };
+    if (caller.role === "manager") {
+      if (t === "admin") return { ok: false, reason: "only an admin can edit another admin" };
+      return { ok: true };
+    }
+    // cxr
+    if (t === "driver" || t === "detailer") return { ok: true };
+    return { ok: false, reason: "cxr can only act on drivers and detailers" };
+  };
 
   try {
     if (action === "create") {
@@ -77,9 +96,9 @@ Deno.serve(async (req) => {
       const profile = body.profile || {};
       if (!email || !password) return json({ error: "email and password required" }, 400);
       if (password.length < 8) return json({ error: "password must be at least 8 characters" }, 400);
-      if (profile.role === "admin" && caller.role !== "admin") {
-        return json({ error: "only an admin can create an admin" }, 403);
-      }
+      const newRole = profile.role || "driver";
+      const allowed = canActOn(newRole);
+      if (!allowed.ok) return json({ error: allowed.reason }, 403);
 
       const { data: created, error: ce } = await admin.auth.admin.createUser({
         email,
@@ -116,9 +135,8 @@ Deno.serve(async (req) => {
       const email = String(body.email || "").trim();
       if (!user_id || !email) return json({ error: "user_id and email required" }, 400);
       const tRole = await targetRole(user_id);
-      if (tRole === "admin" && caller.role !== "admin") {
-        return json({ error: "only an admin can edit another admin" }, 403);
-      }
+      const allowed = canActOn(tRole);
+      if (!allowed.ok) return json({ error: allowed.reason }, 403);
       const { error: ae } = await admin.auth.admin.updateUserById(user_id, {
         email,
         email_confirm: true
@@ -135,11 +153,41 @@ Deno.serve(async (req) => {
       if (!user_id || !password) return json({ error: "user_id and password required" }, 400);
       if (password.length < 8) return json({ error: "password must be at least 8 characters" }, 400);
       const tRole = await targetRole(user_id);
-      if (tRole === "admin" && caller.role !== "admin") {
-        return json({ error: "only an admin can edit another admin" }, 403);
-      }
+      const allowed = canActOn(tRole);
+      if (!allowed.ok) return json({ error: allowed.reason }, 403);
       const { error: ae } = await admin.auth.admin.updateUserById(user_id, { password });
       if (ae) return json({ error: ae.message }, 400);
+      return json({ ok: true });
+    }
+
+    if (action === "disable" || action === "enable") {
+      const user_id = String(body.user_id || "");
+      if (!user_id) return json({ error: "user_id required" }, 400);
+      const tRole = await targetRole(user_id);
+      const allowed = canActOn(tRole);
+      if (!allowed.ok) return json({ error: allowed.reason }, 403);
+      if (user_id === caller.id) return json({ error: "you cannot disable your own account" }, 400);
+
+      // Supabase ban_duration: "none" lifts the ban; a long duration effectively disables.
+      const ban_duration = action === "disable" ? "876000h" : "none"; // 100 years
+      const { error: ae } = await admin.auth.admin.updateUserById(user_id, { ban_duration });
+      if (ae) return json({ error: ae.message }, 400);
+      const { error: pe } = await admin.from("profiles")
+        .update({ disabled: action === "disable" })
+        .eq("id", user_id);
+      if (pe) return json({ error: pe.message }, 500);
+      return json({ ok: true });
+    }
+
+    if (action === "delete") {
+      if (caller.role !== "admin") return json({ error: "admin only" }, 403);
+      const user_id = String(body.user_id || "");
+      if (!user_id) return json({ error: "user_id required" }, 400);
+      if (user_id === caller.id) return json({ error: "you cannot delete your own account" }, 400);
+      const { error: ae } = await admin.auth.admin.deleteUser(user_id);
+      if (ae) return json({ error: ae.message }, 400);
+      // profiles row should cascade via FK to auth.users; remove explicitly in case it doesn't.
+      await admin.from("profiles").delete().eq("id", user_id);
       return json({ ok: true });
     }
 

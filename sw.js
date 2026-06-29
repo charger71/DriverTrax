@@ -1,6 +1,6 @@
 // DriverTrax Service Worker
 // Provides offline support and caches app assets
-const CACHE_VERSION = "drivertrax-v5.3-inline-style-cleanup";
+const CACHE_VERSION = "drivertrax-v6.7-vin-keypad-funcs-solid";
 const APP_SHELL = [
   "./",
   "./index.html",

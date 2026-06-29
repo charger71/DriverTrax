@@ -16,8 +16,8 @@ const STATUS_LABELS = {
   "MR": "MR (RECALL)",
   "OM": "OM (OVER MILES)",
   "TI": "TI(TIRE)",
-  "CHECK_IN": "CUSTOMER CHECK IN",
-  "CHECK_OUT": "CUSTOMER CHECK OUT",
+  "CHECK_IN": "CHECK IN",
+  "CHECK_OUT": "CHECK OUT",
   "HOLD": "HOLD",
   "DNR": "DO NOT RENT (DNR)"
 };
@@ -1714,15 +1714,30 @@ function buildVinKeypad() {
   if (!grid) return;
   if (grid.dataset.built === "1") return;
 
-  let html = VIN_KEYS.map(k => {
+  // Build key HTML in row-by-row order so grid auto-flow lands everything correctly.
+  // Layout:
+  //   1 2 3 [<] / 4 5 6 [>] / 7 8 9 0 / A B C D / E F G H /
+  //   J K L M / N P R S / T U V W / X Y Z [blank] / [DONE span 4]
+  const keyBtn = (k) => {
     const typeClass = /[0-9]/.test(k) ? "vin-key-num" : "vin-key-alpha";
     return `<button class="vin-key ${typeClass}" type="button" onclick="vinKeypadType('${k}')">${k}</button>`;
-  }).join("");
-  // Arrow keys after X/Y/Z to fill row 7 (5 cols)
-  html += `<button class="vin-key vin-key-arrow" type="button" onclick="vinKeypadArrow(-1)" aria-label="Move left">&#9664;</button>`;
-  html += `<button class="vin-key vin-key-arrow" type="button" onclick="vinKeypadArrow(1)" aria-label="Move right">&#9654;</button>`;
-  // Row 8: backspace (1 col) + DONE (4 cols wide)
-  html += `<button class="vin-key vin-key-back" type="button" onclick="vinKeypadBackspace()">&#9003;</button>`;
+  };
+  const arrowBtn = (dir, label) =>
+    `<button class="vin-key vin-key-arrow" type="button" onclick="vinKeypadArrow(${dir})" aria-label="${label}">${dir < 0 ? "&#9664;" : "&#9654;"}</button>`;
+
+  let html = "";
+  // Row 1: 1 2 3 <
+  html += keyBtn("1") + keyBtn("2") + keyBtn("3") + arrowBtn(-1, "Move left");
+  // Row 2: 4 5 6 >
+  html += keyBtn("4") + keyBtn("5") + keyBtn("6") + arrowBtn(1, "Move right");
+  // Row 3: 7 8 9 0
+  html += keyBtn("7") + keyBtn("8") + keyBtn("9") + keyBtn("0");
+  // Rows 4-8: letters in 4-col rows (A-W)
+  ["A","B","C","D","E","F","G","H","J","K","L","M","N","P","R","S","T","U","V","W"].forEach(k => { html += keyBtn(k); });
+  // Row 9: X Y Z [blank]
+  html += keyBtn("X") + keyBtn("Y") + keyBtn("Z");
+  html += `<div class="vin-key vin-key-blank" aria-hidden="true"></div>`;
+  // Row 10: DONE (spans full row)
   html += `<button class="vin-key vin-key-done" type="button" onclick="closeVinKeypad()">DONE</button>`;
   grid.innerHTML = html;
   grid.dataset.built = "1";
@@ -1780,6 +1795,18 @@ function vinKeypadType(ch) {
   if (navigator.vibrate) navigator.vibrate(8);
 }
 
+function vinKeypadClear() {
+  const input = document.getElementById(_vinKeypadTargetId);
+  if (!input) return;
+  if (!input.value) return;
+  input.value = "";
+  _vinKeypadCursor = 0;
+  syncKeypadDisplay();
+  if (_vinKeypadTargetId === "serial") { toggleClearBtn(); updateVinCount(); }
+  else { toggleEditClearBtn(); updateEditVinCount(); }
+  if (navigator.vibrate) navigator.vibrate(15);
+}
+
 function vinKeypadBackspace() {
   const input = document.getElementById(_vinKeypadTargetId);
   if (!input) return;
@@ -1804,6 +1831,20 @@ function vinKeypadArrow(direction) {
   _vinKeypadCursor = Math.max(0, Math.min(len, _vinKeypadCursor + direction));
   syncKeypadDisplay();
   if (navigator.vibrate) navigator.vibrate(5);
+}
+
+function vinKeypadCopy() {
+  const input = document.getElementById(_vinKeypadTargetId);
+  if (!input || !input.value) return;
+  const val = input.value;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(val)
+      .then(() => showToast("Copied to clipboard", "success"))
+      .catch(() => showToast("Copy failed", "error"));
+  } else {
+    showToast("Clipboard not available on this browser", "warn");
+  }
+  if (navigator.vibrate) navigator.vibrate(8);
 }
 
 function vinKeypadPaste() {
@@ -4807,8 +4848,8 @@ function setScannerHint(text, cls) {
 function startScannerEscalation() {
   clearScannerEscalation();
   scannerStartedAt = performance.now();
-  const manualBtn = document.getElementById("scannerManualBtn");
-  if (manualBtn) manualBtn.style.display = "none";
+  const kbBtn = document.getElementById("scannerKbBtn");
+  if (kbBtn) kbBtn.classList.remove("btn--pulse");
 
   // 3s: hold-steady hint
   scannerEscalationTimers.push(setTimeout(() => {
@@ -4822,15 +4863,18 @@ function startScannerEscalation() {
     const torchHint = torchOn ? "Try a different angle" : "Try the flashlight";
     setScannerHint(torchHint);
     const torchBtn = document.getElementById("torchBtn");
-    if (torchBtn && !torchOn) torchBtn.classList.add("pulse");
+    if (torchBtn && !torchOn) torchBtn.classList.add("btn--pulse-torch");
   }, 6000));
 
-  // 10s: surface inline manual-entry button so the user can bail in one tap
+  // 10s: hand attention from the torch nudge over to the keyboard button so
+  //      the user can bail in one tap.
   scannerEscalationTimers.push(setTimeout(() => {
     if (!scannerActive) return;
-    const manualBtn = document.getElementById("scannerManualBtn");
-    if (manualBtn) manualBtn.style.display = "block";
-    setScannerHint("Trouble reading? Try moving closer or use Manual Entry");
+    const torchBtn = document.getElementById("torchBtn");
+    if (torchBtn) torchBtn.classList.remove("btn--pulse-torch");
+    const kb = document.getElementById("scannerKbBtn");
+    if (kb) kb.classList.add("btn--pulse");
+    setScannerHint("Trouble reading? Try moving closer or tap the keyboard to enter manually");
   }, 10000));
 
   // 20s: stronger warning
@@ -4852,9 +4896,9 @@ function clearScannerEscalation() {
   scannerEscalationTimers.forEach(t => clearTimeout(t));
   scannerEscalationTimers = [];
   const torchBtn = document.getElementById("torchBtn");
-  if (torchBtn) torchBtn.classList.remove("pulse");
-  const manualBtn = document.getElementById("scannerManualBtn");
-  if (manualBtn) manualBtn.style.display = "none";
+  if (torchBtn) torchBtn.classList.remove("btn--pulse-torch");
+  const kbBtn = document.getElementById("scannerKbBtn");
+  if (kbBtn) kbBtn.classList.remove("btn--pulse");
 }
 
 // Tap "Enter Manually" / Keyboard from inside the scanner overlay

@@ -167,7 +167,7 @@
         ${n.fuel_level ? `<div class="detail-row"><span class="detail-label">Fuel</span><span class="detail-val">${esc(n.fuel_level)}</span></div>` : ""}
       </div>
       ${photo}
-      ${gpsAction ? `<div class="detail-actions" style="grid-template-columns:1fr">${gpsAction}</div>` : ""}
+      ${gpsAction ? `<div class="detail-actions detail-actions--single">${gpsAction}</div>` : ""}
     `;
     document.getElementById("noteDetailOverlay")?.classList.add("open");
   }

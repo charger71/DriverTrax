@@ -177,8 +177,8 @@
 
     const b = body();
     b.innerHTML = `
-      ${noPwSet ? `<div class="record" style="border-color:var(--accent);background:var(--accent-muted);margin-bottom:var(--space-4)">
-        <div class="record-notes" style="color:var(--text)">
+      ${noPwSet ? `<div class="record record-warn-accent">
+        <div class="record-notes">
           <b>No admin passphrase set on this device.</b> Anyone with the URL can author modules.
           Open DevTools console and run the snippet on the unlock screen (refresh after) to require a passphrase.
         </div>
@@ -192,20 +192,20 @@
         <button class="quiz-type-btn" id="adNewQuiz">+ NEW</button>
         <button class="quiz-type-btn" id="adExport"><svg class="icon" aria-hidden="true"><use href="#icon-download"/></svg> EXPORT JSON</button>
         <button class="quiz-type-btn" id="adImport"><svg class="icon" aria-hidden="true"><use href="#icon-upload"/></svg> IMPORT JSON</button>
-        <input type="file" id="adImportFile" accept="application/json,.json" style="display:none">
+        <input type="file" id="adImportFile" class="u-hidden" accept="application/json,.json">
         ${editable ? `<button class="quiz-type-btn danger" id="adDeleteQuiz"><svg class="icon" aria-hidden="true"><use href="#icon-x"/></svg> DELETE</button>` : ""}
       </div>
 
       ${editable ? `
         <div class="field-label">MODULE DETAILS</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2)">
+        <div class="form-grid-2">
           <input type="text" id="adTitle" value="${esc(quiz.title || "")}" placeholder="Title">
           <input type="text" id="adCategory" value="${esc(quiz.category || "")}" placeholder="Category (SAFETY/PROCESS)">
           <input type="number" id="adDuration" value="${esc(quiz.duration || 5)}" min="1" placeholder="Duration (min)">
           <input type="number" id="adPass" value="${esc(quiz.passingScore || 80)}" min="0" max="100" placeholder="Passing %">
         </div>
         <textarea id="adDesc" rows="2" placeholder="Description" class="quiz-admin-desc">${esc(quiz.description || "")}</textarea>
-      ` : `<div class="record"><div class="record-notes" style="color:var(--text2);font-size:var(--font-sm)">This module is loaded from <code>elearning/modules/</code> and is read-only here. To customise it, click <b>+ NEW</b>, or use <b>Import JSON</b> after editing the file directly.</div></div>`}
+      ` : `<div class="record"><div class="record-notes quiz-readonly-note">This module is loaded from <code>elearning/modules/</code> and is read-only here. To customise it, click <b>+ NEW</b>, or use <b>Import JSON</b> after editing the file directly.</div></div>`}
 
       <div class="today-header">
         <div class="today-title">QUESTIONS</div>
@@ -249,7 +249,7 @@
         <div class="quiz-admin-answer-row">
           <button class="quiz-type-btn" id="adQUpload"><svg class="icon" aria-hidden="true"><use href="#icon-upload"/></svg> UPLOAD IMAGE</button>
           ${q.image ? `<button class="quiz-type-btn danger" id="adQClearImg"><svg class="icon" aria-hidden="true"><use href="#icon-x"/></svg> REMOVE IMAGE</button>` : ""}
-          <input type="file" id="adQImgFile" accept="image/*" style="display:none">
+          <input type="file" id="adQImgFile" class="u-hidden" accept="image/*">
         </div>
         ${q.image ? `<img src="${esc(q.image)}" alt="" class="quiz-image quiz-image-preview">` : ""}
         ${q.image ? `

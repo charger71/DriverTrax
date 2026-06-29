@@ -204,11 +204,11 @@ function createNumberedMarker(num, color, size = 26) {
 function recordPopupHTML(r) {
   const time = DT_FORMAT.timeAgoOrClock(r.timestamp);
   return `
-    <div style="font-family:Arial,sans-serif;min-width:140px">
-      <div style="font-weight:800;font-size:14px;margin-bottom:4px">${sanitizeText(r.serialId)}</div>
-      <div style="font-size:12px;color:#555;margin-bottom:6px">${sanitizeText(statusLabel(r.status))}${r.destination ? " &middot; " + sanitizeText(r.destination) : ""}</div>
-      <div style="font-size:11px;color:#888;margin-bottom:8px">${time}</div>
-      <button onclick="openDetail('${r.id}', 'deleteRecord')" style="background:var(--accent);color:#fff;border:none;padding:5px 12px;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;width:100%">View Record</button>
+    <div class="map-popup">
+      <div class="map-popup__title">${sanitizeText(r.serialId)}</div>
+      <div class="map-popup__status">${sanitizeText(statusLabel(r.status))}${r.destination ? " &middot; " + sanitizeText(r.destination) : ""}</div>
+      <div class="map-popup__time">${time}</div>
+      <button class="map-popup__btn" onclick="openDetail('${r.id}', 'deleteRecord')">View Record</button>
     </div>`;
 }
 
@@ -2133,9 +2133,9 @@ function getVehicleSVG(vinData) {
   // Small fuel icon shown separately next to vehicle
   let fuelIcon = "";
   if (isElectric) {
-    fuelIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" style="flex-shrink:0" title="Electric"><path d="M13.5 3L5 14h6.5L10 21l9-12h-6.5z" fill="#4d9bff"/></svg>`;
+    fuelIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="u-flex-shrink-0" viewBox="0 0 24 24" width="14" height="14" title="Electric"><path d="M13.5 3L5 14h6.5L10 21l9-12h-6.5z" fill="#4d9bff"/></svg>`;
   } else if (isHybrid) {
-    fuelIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" style="flex-shrink:0" title="Hybrid"><path d="M12 3C9 3 6 6.5 6 10.5c0 2.2 1 4.2 3 5.5 0-2.2.8-4.5 3-6-1 2.5-1 4.8 0 6 2-1.2 3-3.2 3-5.5C15 6.5 14 3 12 3z" fill="#00c853"/></svg>`;
+    fuelIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="u-flex-shrink-0" viewBox="0 0 24 24" width="14" height="14" title="Hybrid"><path d="M12 3C9 3 6 6.5 6 10.5c0 2.2 1 4.2 3 5.5 0-2.2.8-4.5 3-6-1 2.5-1 4.8 0 6 2-1.2 3-3.2 3-5.5C15 6.5 14 3 12 3z" fill="#00c853"/></svg>`;
   }
 
   let svg = "";
@@ -2165,7 +2165,7 @@ function getVehicleSVG(vinData) {
 
   const [, , vbW, vbH] = viewBox.split(/\s+/).map(Number);
   const iconH = Math.round(size * (vbH / vbW));
-  const vehicleIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${size}" height="${iconH}" style="vertical-align:middle;flex-shrink:0">${svg}</svg>`;
+  const vehicleIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="u-icon u-flex-shrink-0" viewBox="${viewBox}" width="${size}" height="${iconH}">${svg}</svg>`;
   return { vehicle: vehicleIcon, fuel: fuelIcon };
 }
 
@@ -2202,7 +2202,7 @@ function recordCard(r, onDelete, onClickAttr) {
     r.noTag ? '<span class="badge-notag">BAD TAG</span>' : ""
   ].filter(Boolean).join("");
 
-  const countLine = `<div class="vin-tl-count"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${DT_FORMAT.timeAgoOrClock(r.timestamp)}${r._driverName ? ` · <b style="color:var(--text2)">${esc(r._driverName)}</b>` : ""}</div>`;
+  const countLine = `<div class="vin-tl-count"><svg xmlns="http://www.w3.org/2000/svg" class="u-icon-mr-1" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${DT_FORMAT.timeAgoOrClock(r.timestamp)}${r._driverName ? ` · <b class="vin-tl-count-driver">${esc(r._driverName)}</b>` : ""}</div>`;
 
   const headerRight = `<div class="vin-tl-header-right">${countLine}${meterLine}</div>`;
 
@@ -2215,9 +2215,9 @@ function recordCard(r, onDelete, onClickAttr) {
       </div>
       <div class="vin-tl-vin">${safeSerial}</div>
       ${vehicleLine}
-      ${safeTires ? `<div class="vin-tl-count" style="margin-top:4px">Tires: <b style="color:var(--danger)">${safeTires}</b></div>` : ""}
+      ${safeTires ? `<div class="vin-tl-count vin-tl-count--mt">Tires: <b class="vin-tl-tires-val">${safeTires}</b></div>` : ""}
       ${pillRow}
-      ${safeNotes ? `<div class="record-notes" style="margin-top:8px">${safeNotes}</div>` : ""}
+      ${safeNotes ? `<div class="record-notes record-notes--mt">${safeNotes}</div>` : ""}
     </div>`;
 }
 
@@ -2750,7 +2750,7 @@ function openVinRecordDetail(r, profileCache) {
     <div class="detail-body">${rows}</div>
     ${photoBlock}
     ${mapBlock}
-    ${gpsAction ? `<div class="detail-actions" style="grid-template-columns:1fr;margin-top:12px">${gpsAction}</div>` : ""}
+    ${gpsAction ? `<div class="detail-actions detail-actions--single detail-actions--mt">${gpsAction}</div>` : ""}
   `;
   document.getElementById("recordDetailOverlay").classList.add("open");
 
@@ -3571,7 +3571,7 @@ function renderPersonalRecords() {
 
   el.innerHTML = `
     <div class="pr-grid">
-      <div class="pr-card highlight" onclick="viewByDate('${bestDayDate}')" style="cursor:pointer">
+      <div class="pr-card highlight" onclick="viewByDate('${bestDayDate}')">
         <div class="pr-label">Best Day</div>
         <div class="pr-value">${bestDayCount}</div>
         <div class="pr-sub">${bestDayDate}</div>
@@ -3708,9 +3708,9 @@ function renderRangeTable(elId, all, days, groupFn, labelFn, today) {
       <tbody>
         ${nonZero.map(d => `
           <tr class="u-cursor-pointer" onclick="viewByDate('${d}')">
-            <td class="nowrap${d===today?" u-text-accent":""}" style="font-weight:${d===today?700:400}">${labelFn(d)}${d===today?' (today)':''}</td>
+            <td class="nowrap${d===today?" u-text-accent day-cell-row-today":""}">${labelFn(d)}${d===today?' (today)':''}</td>
             <td class="label">
-              <div style="background:var(--accent);height:8px;border-radius:4px;width:${Math.round((byDay[d]/max)*100)}%;min-width:4px"></div>
+              <div class="stat-bar" style="width:${Math.round((byDay[d]/max)*100)}%"></div>
             </td>
             <td class="right">${byDay[d]}</td>
           </tr>`).join('')}
@@ -3744,7 +3744,7 @@ function renderRangeWeekTable(elId, all, weeks, today) {
           <tr class="u-cursor-pointer" onclick="viewByWeek('${w.start}','${w.end}','${w.start} to ${w.end}')">
             <td class="nowrap">${w.start.slice(5)} - ${w.end.slice(5)}</td>
             <td class="label">
-              <div style="background:var(--accent);height:8px;border-radius:4px;width:${Math.round((w.count/max)*100)}%;min-width:4px"></div>
+              <div class="stat-bar" style="width:${Math.round((w.count/max)*100)}%"></div>
             </td>
             <td class="right">${w.count}</td>
           </tr>`).join('')}
@@ -3789,9 +3789,9 @@ function renderRangeMonthTable(elId, all, months) {
           const toDate = new Date(parseInt(yr), parseInt(mo), 0);
           const toStr = `${yr}-${mo}-${String(toDate.getDate()).padStart(2,'0')}`;
           return `<tr class="u-cursor-pointer" onclick="viewByWeek('${fromDate}','${toStr}','${m.label}')">
-            <td class="${m.key===thisMonth?'u-text-accent':''}" style="font-weight:${m.key===thisMonth?700:400}">${m.label}${m.key===thisMonth?' ·':''}</td>
+            <td class="${m.key===thisMonth?'u-text-accent day-cell-row-today':''}">${m.label}${m.key===thisMonth?' ·':''}</td>
             <td class="label">
-              <div style="background:var(--accent);height:8px;border-radius:4px;width:${Math.round((m.count/max)*100)}%;min-width:4px"></div>
+              <div class="stat-bar" style="width:${Math.round((m.count/max)*100)}%"></div>
             </td>
             <td class="right">${m.count}</td>
           </tr>`;
@@ -3996,12 +3996,11 @@ function renderRecordsMap() {
       const marker = L.marker([r.lat, r.lng], { icon })
         .addTo(recordsLeafletMap)
         .bindPopup(`
-          <div style="font-family:Arial,sans-serif;min-width:140px">
-            <div style="font-weight:800;font-size:14px;margin-bottom:4px">${sanitizeText(r.serialId)}</div>
-            <div style="font-size:12px;color:#555;margin-bottom:4px">${sanitizeText(statusLabel(r.status))}${r.destination ? ' · ' + sanitizeText(r.destination) : ''}</div>
-            <div style="font-size:11px;color:#888;margin-bottom:8px">${time}</div>
-            <button onclick="document.getElementById('recordsMap')._openDetail('${r.id}')"
-              style="background:var(--accent);color:#fff;border:none;padding:5px 12px;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;width:100%">
+          <div class="map-popup">
+            <div class="map-popup__title">${sanitizeText(r.serialId)}</div>
+            <div class="map-popup__status">${sanitizeText(statusLabel(r.status))}${r.destination ? ' · ' + sanitizeText(r.destination) : ''}</div>
+            <div class="map-popup__time">${time}</div>
+            <button class="map-popup__btn" onclick="document.getElementById('recordsMap')._openDetail('${r.id}')">
               View Record
             </button>
           </div>`, { maxWidth: 200 });
@@ -4096,12 +4095,11 @@ function renderShiftMap(shiftIndex) {
     const marker = L.marker([r.lat, r.lng], { icon })
       .addTo(leafletMap)
       .bindPopup(`
-        <div style="font-family:Arial,sans-serif;min-width:140px">
-          <div style="font-weight:800;font-size:14px;margin-bottom:4px">${sanitizeText(r.serialId)}</div>
-          <div style="font-size:12px;color:#555;margin-bottom:6px">${sanitizeText(statusLabel(r.status))}${r.destination ? " · " + sanitizeText(r.destination) : ""}</div>
-          <div style="font-size:11px;color:#888;margin-bottom:8px">${time}</div>
-          <button onclick="document.getElementById('shiftMap')._openDetail('${r.id}')"
-            style="background:var(--accent);color:#fff;border:none;padding:5px 12px;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;width:100%">
+        <div class="map-popup">
+          <div class="map-popup__title">${sanitizeText(r.serialId)}</div>
+          <div class="map-popup__status">${sanitizeText(statusLabel(r.status))}${r.destination ? " · " + sanitizeText(r.destination) : ""}</div>
+          <div class="map-popup__time">${time}</div>
+          <button class="map-popup__btn" onclick="document.getElementById('shiftMap')._openDetail('${r.id}')">
             View Record
           </button>
         </div>
@@ -4132,7 +4130,7 @@ function renderShiftMap(shiftIndex) {
       return `<div class="map-legend-row" onclick="openDetail('${r.id}', 'deleteRecord')">
         <span class="map-legend-num" style="background:#${color}">${i+1}</span>
         <span class="map-legend-serial">${sanitizeText(r.serialId)}</span>
-        <span class="record-status ${statusClass(r.status)}" style="font-size:10px">${sanitizeText(statusLabel(r.status))}</span>
+        <span class="record-status map-legend-status ${statusClass(r.status)}">${sanitizeText(statusLabel(r.status))}</span>
         <span class="map-legend-time">${time}</span>
         <span class="map-legend-arrow">&#8594;</span>
       </div>`;
@@ -4228,7 +4226,7 @@ function renderDashboard() {
       <div class="stat-num">${thisWeekCount}</div><div class="stat-label">This Week &#8594;</div>
     </div>
     <div class="stat-card"><div class="stat-num">${all.length}</div><div class="stat-label">Total</div></div>
-    <div class="stat-card"><div class="stat-num" style="color:var(--danger)">${noTagCount}</div><div class="stat-label">Bad Tag</div></div>
+    <div class="stat-card"><div class="stat-num stat-num--danger">${noTagCount}</div><div class="stat-label">Bad Tag</div></div>
   `;
 
   const statuses = ["CLEAN","DIRTY","REWASH","BODY","PM","MK","MR","OM","AUDIT FAIL","WI/DELETE","GLASS","TI","OTHER"];
@@ -4244,7 +4242,7 @@ function renderDashboard() {
         <div class="bar-track"><div class="bar-fill" style="width:${Math.round(sc[s]/maxS*100)}%"></div></div>
         <div class="bar-val">${sc[s]}</div>
       </div>
-    `).join("") || '<p style="color:var(--muted);padding:8px">No data yet.</p>';
+    `).join("") || '<p class="dash-empty-inline">No data yet.</p>';
 
   // Last 7 days - use EST dates to match shift grouping
   const days = [];
@@ -4275,7 +4273,7 @@ function renderDashboard() {
   const dn = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
   document.getElementById("dashDays").innerHTML = `
-    <table class="day-table" style="width:100%">
+    <table class="day-table">
       <thead><tr><th>Date</th><th>Shift</th><th>Cars</th><th>Avg</th><th></th></tr></thead>
       <tbody>
         ${days.map(d => {
@@ -4286,10 +4284,10 @@ function renderDashboard() {
 
           if (!shifts || shifts.length === 0) {
             return `<tr>
-              <td>${d}${isToday ? ' <b style="color:var(--accent)">(today)</b>' : ''}<br><span style="color:var(--muted);font-size:11px">${dayName}</span></td>
-              <td style="color:var(--muted)">-</td>
-              <td style="color:var(--muted)">0</td>
-              <td style="color:var(--muted)">-</td>
+              <td>${d}${isToday ? ' <b class="day-cell-today">(today)</b>' : ''}<br><span class="day-cell-name">${dayName}</span></td>
+              <td class="day-cell-muted">-</td>
+              <td class="day-cell-muted">0</td>
+              <td class="day-cell-muted">-</td>
               <td></td>
             </tr>`;
           }
@@ -4301,13 +4299,13 @@ function renderDashboard() {
             const endTime = fmtTime(timestamps[timestamps.length-1]);
             const avg = avgTripTime(timestamps);
             return `<tr class="has-entries" onclick="viewByDate('${d}')">
-              ${si === 0 ? `<td rowspan="${shifts.length}">${d}${isToday ? ' <b style="color:var(--accent)">(today)</b>' : ''}<br><span style="color:var(--muted);font-size:11px">${dayName}</span></td>` : ''}
+              ${si === 0 ? `<td rowspan="${shifts.length}">${d}${isToday ? ' <b class="day-cell-today">(today)</b>' : ''}<br><span class="day-cell-name">${dayName}</span></td>` : ''}
               <td>
-                <span style="font-size:11px;font-weight:700;color:var(--accent)">${shiftLabel}</span><br>
-                <span style="font-size:10px;color:var(--muted)">${startTime} - ${endTime}</span>
+                <span class="day-cell-shift">${shiftLabel}</span><br>
+                <span class="day-cell-shift-t">${startTime} - ${endTime}</span>
               </td>
               <td><b>${shift.records.length}</b></td>
-              <td style="color:var(--accent);font-weight:700">${avg || '<span style="color:var(--muted)">-</span>'}</td>
+              <td class="day-cell-avg">${avg || '<span class="day-cell-muted">-</span>'}</td>
               <td class="tap-hint">View &#8594;</td>
             </tr>`;
           }).join("");
@@ -4318,7 +4316,7 @@ function renderDashboard() {
   // Week comparison - clickable
   const delta = thisWeekCount - lastWeekCount;
   const dStr = delta>0 ? "&#9650; +"+delta+" vs last week" : delta<0 ? "&#9660; "+delta+" vs last week" : "Same as last week";
-  const dColor = delta>0 ? "var(--accent)" : delta<0 ? "var(--danger)" : "var(--muted)";
+  const dCls = delta>0 ? "stat-num--up" : delta<0 ? "stat-num--danger" : "stat-num--flat";
   document.getElementById("dashWeeks").innerHTML = `
     <div class="stat-card clickable" onclick="viewByWeek('${thisWeekFromStr}','${thisWeekEnd}','This Week')">
       <div class="stat-num">${thisWeekCount}</div><div class="stat-label">This Week &#8594;</div>
@@ -4326,8 +4324,8 @@ function renderDashboard() {
     <div class="stat-card clickable" onclick="viewByWeek('${lastWeekFromStr}','${lastWeekToStr}','Last Week')">
       <div class="stat-num">${lastWeekCount}</div><div class="stat-label">Last Week &#8594;</div>
     </div>
-    <div class="stat-card" style="grid-column:span 2">
-      <div class="stat-num" style="font-size:18px;color:${dColor}">${dStr}</div>
+    <div class="stat-card stat-card--wide">
+      <div class="stat-num stat-num--sm ${dCls}">${dStr}</div>
       <div class="stat-label">Week-over-Week</div>
     </div>`;
 }
@@ -4802,7 +4800,7 @@ function setScannerHint(text, cls) {
   const hint = document.getElementById("scannerHint");
   if (!hint) return;
   hint.className = "scanner-status " + (cls || "scanning");
-  const dotSvg = '<span class="scanner-dot"><svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8" style="vertical-align:middle;display:inline-block"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg></span>';
+  const dotSvg = '<span class="scanner-dot"><svg xmlns="http://www.w3.org/2000/svg" class="u-icon" width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg></span>';
   hint.innerHTML = dotSvg + " " + text;
 }
 
@@ -4907,7 +4905,7 @@ async function openScanner() {
 
   const overlay = document.getElementById("scannerOverlay");
   const hint = document.getElementById("scannerHint");
-  const dotSvg = '<span class="scanner-dot"><svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8" style="vertical-align:middle;display:inline-block"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg></span>';
+  const dotSvg = '<span class="scanner-dot"><svg xmlns="http://www.w3.org/2000/svg" class="u-icon" width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg></span>';
   overlay.classList.add("open");
 
   if (screen.orientation && screen.orientation.lock) {
@@ -5872,12 +5870,12 @@ async function renderBackupSlots() {
     const date = d.toLocaleDateString("en-US", {month:"short", day:"numeric", timeZone:"America/New_York"});
     const label = i === 0 ? "Latest" : `Slot ${i + 1}`;
     return `
-      <div class="data-status-row" style="align-items:center;gap:8px">
-        <div style="flex:1;min-width:0">
-          <div class="data-label" style="font-weight:600">${label} · ${sanitizeText(date)} at ${sanitizeText(time)}</div>
-          <div class="data-value" style="font-size:12px;color:#888">${s.recordCount} records</div>
+      <div class="data-status-row backup-slot-row">
+        <div class="backup-slot-info">
+          <div class="data-label">${label} · ${sanitizeText(date)} at ${sanitizeText(time)}</div>
+          <div class="data-value">${s.recordCount} records</div>
         </div>
-        <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px" onclick="restoreFromBackup(${s.ts})">Restore</button>
+        <button class="btn btn-secondary" onclick="restoreFromBackup(${s.ts})">Restore</button>
       </div>`;
   }).join("");
 }

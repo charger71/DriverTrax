@@ -124,6 +124,37 @@
     --radius:            10px;
     --space:             var(--space-4);
 
+    /* Border widths — pick by intent, not visual thickness. */
+    --border-thin:       1px;    /* default outline on cards/inputs/divider */
+    --border-strong:     2px;    /* emphasis: header underline, focus, spinner ring */
+    --border-stripe:     4px;    /* status stripe on do/don't blocks, callouts */
+
+    /* ============================
+       Z-INDEX SCALE
+       Ordered low → high. Use the named token instead of raw numbers.
+       ============================ */
+    --z-drawer:          900;     /* slide-up bottom drawer */
+    --z-overlay:         950;     /* contact card / VIN detail overlay */
+    --z-overlay-full:    1000;    /* full-screen detail overlay */
+    --z-menu:            1900;    /* mobile hamburger menu (scrim + sheet) */
+    --z-scanner:         2000;    /* fullscreen camera/barcode scanner */
+    --z-modal:           9000;    /* standard .users-modal pattern */
+    --z-modal-stacked:   9500;    /* modal launched from another modal (e.g. note detail) */
+    --z-toast:           9999;    /* transient toast notifications */
+    --z-auth:            99998;   /* pre-auth gate (sits above app, below splash) */
+    --z-splash:          99999;   /* boot splash, must beat everything */
+
+    /* ============================
+       MOTION SCALE
+       Use these for transitions/animations. Raw seconds in CSS are drift.
+       ============================ */
+    --duration-fast:     0.1s;    /* micro: hover/press feedback */
+    --duration-base:     0.15s;   /* default UI transitions */
+    --duration-slow:     0.3s;    /* panel/toast slide, fade-out */
+    --duration-slower:   0.45s;   /* splash dismiss, large surface */
+    --ease-standard:     ease;
+    --ease-out:          ease-out;
+
   }
 
   /* Shared inline icon class — use with <svg class="icon"><use href="#icon-..."/></svg>.
@@ -715,6 +746,216 @@
   .record-vin { display: flex; align-items: center; font-size: var(--font-base); color: var(--accent); margin-top: var(--space-2); font-weight: 600; letter-spacing: 0.3px; }
   .record-notes { font-size: var(--font-base); margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border); color: var(--text-soft); line-height: var(--leading-relaxed); }
 
+  /* VIN timeline — every event for one asset */
+  .vin-tl-header {
+    background: var(--bg); border: var(--border-thin) solid var(--divider);
+    border-radius: var(--radius);
+    padding: 14px 16px; margin-bottom: 12px;
+  }
+  .vin-tl-header-top { display: flex; align-items: flex-start; justify-content: flex-end; gap: 10px; }
+  .vin-tl-header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .vin-tl-header-right > .vin-tl-count { margin-bottom: 4px; }
+  .vin-tl-pill-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .vin-tl-pill-row--bottom { justify-content: flex-start; margin-top: 8px; }
+  .vin-tl-meters { display: flex; align-items: baseline; gap: 10px; justify-content: flex-end; }
+  .vin-tl-fuel-val { font-size: 12px; color: var(--text-soft); }
+  .vin-tl-fuel-val b { color: var(--text); font-weight: var(--weight-bold); }
+  .vin-tl-mileage-val {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 18px; font-weight: var(--weight-bold); color: var(--text); letter-spacing: 0.5px;
+  }
+  .vin-tl-mileage-unit { font-size: 11px; color: var(--muted); font-weight: var(--weight-medium); margin-left: 2px; }
+  .vin-tl-priority-pill {
+    background: rgba(255,255,255,0.55);
+    color: var(--bg);
+    border: var(--border-thin) solid var(--text-on-status);
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: var(--weight-heavy);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .vin-tl-label  { font-size: 11px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; font-weight: var(--weight-bold); text-align: left; }
+  .vin-tl-status-pill { display: inline-block; padding: 4px 12px; border-radius: 999px; background: var(--panel); color: var(--info-text); border: var(--border-thin) solid var(--info-soft); font-weight: var(--weight-heavy); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+  .vin-tl-header--hold { background: var(--warn-soft); border-color: var(--warn-strong); }
+  .vin-tl-header--hold .vin-tl-status-pill { background: var(--warn-strong); color: var(--warn-soft); border-color: var(--warn-strong); }
+  .vin-tl-header--dnr  { background: var(--danger-soft); border-color: var(--danger-strong); }
+  .vin-tl-header--dnr  .vin-tl-status-pill { background: var(--danger-strong); color: var(--text-on-status); border-color: var(--danger-strong); }
+  .vin-tl-header--priority { background: rgba(255,255,255,0.55); border-color: var(--text-on-status); color: var(--bg); }
+  .vin-tl-header--priority .vin-tl-count,
+  .vin-tl-header--priority .vin-tl-vin,
+  .vin-tl-header--priority .vin-tl-label,
+  .vin-tl-header--priority .vin-tl-mileage { color: var(--bg); }
+  .vin-tl-vin    { font-size: 20px; font-weight: var(--weight-black); letter-spacing: 2px; color: var(--text); font-family: ui-monospace, "SF Mono", Menlo, monospace; margin-top: 2px; }
+  .vin-tl-vehicle{
+    font-size: 13px; color: var(--text-soft); margin-top: 4px; font-weight: var(--weight-medium);
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .vin-tl-vehicle .vin-tl-vehicle-name { flex: 1; min-width: 0; }
+  /* When the timeline is embedded under the New Entry form, the form itself
+     already IS the new-entry affordance — hide the duplicate button. */
+  #entryVinNotes .vin-tl-actions,
+  #entryVinNotes .vin-tl-entry-slot { display: none; }
+  /* Decoded NHTSA specs printed under the year/make/model line */
+  .vin-tl-chips {
+    display: flex; flex-wrap: wrap; gap: 4px 6px;
+    margin-top: 6px;
+  }
+  .vin-tl-chip {
+    background: var(--panel); color: var(--text-soft);
+    border: var(--border-thin) solid var(--divider); border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 11px; font-weight: var(--weight-medium); letter-spacing: 0.2px;
+    white-space: nowrap;
+  }
+  .vin-tl-mfg {
+    margin-top: 6px;
+    font-size: 10px; color: var(--muted);
+    letter-spacing: 0.5px; text-transform: uppercase;
+  }
+  .vin-tl-mileage{ font-size: 13px; color: var(--info-text); margin-top: 4px; font-weight: var(--weight-medium); }
+  .vin-tl-cond-row { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 14px; }
+  .vin-tl-cond-chip {
+    background: var(--warn-soft); color: var(--warn-text);
+    border: var(--border-thin) solid var(--warn-strong); border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 10px; font-weight: var(--weight-bold); letter-spacing: 0.5px;
+    text-transform: uppercase; white-space: nowrap;
+  }
+  .vin-tl-cond-chip[data-cond="REGULAR"],
+  .vin-tl-cond-chip[data-cond="AIR"],
+  .vin-tl-cond-chip[data-cond="WASHER_FLUID"],
+  .vin-tl-cond-chip[data-cond="FUEL"],
+  .vin-tl-cond-chip[data-cond="CHARGE"] {
+    background: rgba(61, 207, 207, 0.10); color: var(--chart-4); border-color: var(--chart-4);
+  }
+  .vin-tl-cond-chip[data-cond="PRIORITY"] {
+    background: var(--text); color: var(--bg); border-color: var(--text-on-status);
+  }
+  .vin-tl-count  { font-size: 11px; color: var(--muted); }
+  .vin-tl-list   { display: flex; flex-direction: column; gap: 8px; }
+  .vin-tl-empty  { color: var(--muted); text-align: center; padding: 30px 16px; font-size: 14px; }
+  .vin-tl-row {
+    background: var(--panel); border: var(--border-thin) solid var(--divider);
+    border-radius: 8px; padding: 12px 14px;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .vin-tl-row:hover { background: var(--card-soft); }
+  .vin-tl-note { cursor: default; }
+  /* Notes in the VIN timeline render through the shared .note-card,
+     placed directly in the list (no extra wrapper). */
+  .vin-tl-list > .note-card { margin-bottom: 0; }
+  .vin-tl-list > .note-card .note-head { flex-wrap: wrap; }
+  .vin-tl-note-dest { font-size: 12px; color: var(--text-soft); font-weight: var(--weight-medium); }
+  .vin-tl-head   { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .vin-tl-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+  .vin-tl-record .record-location {
+    display: inline-flex; align-items: center;
+    padding: 3px 8px; border-radius: 999px;
+    background: var(--surface-hover, var(--card-soft));
+    color: var(--text-soft);
+    border: var(--border-thin) solid var(--divider);
+    font-size: 11px; font-weight: var(--weight-bold); letter-spacing: 0.3px;
+    text-transform: uppercase; white-space: nowrap;
+  }
+  .vin-tl-time   { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .vin-tl-gps    { display: inline-flex; align-items: center; color: var(--muted); text-decoration: none; }
+  .vin-tl-gps:hover { color: var(--info); }
+  .vin-tl-gps .ico-pin { width: 14px; height: 14px; }
+  .vin-detail-side .vin-tl-gps { padding: 4px; }
+  .vin-detail-side .vin-tl-gps .ico-pin { width: 16px; height: 16px; }
+  .vin-tl-meta   { font-size: 12px; color: var(--text-soft); }
+  .vin-tl-meta-sub { font-size: 11px; color: var(--muted); margin-top: 4px; letter-spacing: .03em; }
+  .vin-tl-body   { font-size: 14px; color: var(--text); white-space: pre-wrap; margin-top: 6px; }
+  .vin-tl-kind {
+    font-size: 10px; font-weight: var(--weight-heavy); letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--warn); padding: 3px 8px; border-radius: 999px; background: var(--warn-soft);
+  }
+  /* Inside the VIN timeline the notes list duplicates the timeline events,
+     so only show the title + Add button + form. */
+  #vinTimelineNotes .vn-list { display: none; }
+  #vinTimelineNotes { margin-bottom: 12px; }
+
+  /* VIN history: New Entry trigger sits under the header group, right-aligned. */
+  .vin-tl-actions {
+    display: flex; justify-content: flex-end;
+    margin: 10px 0 6px;
+  }
+  .vin-tl-new-entry { padding: 8px 16px; font-size: 13px; }
+  .vin-tl-entry-slot:empty { display: none; }
+  .vin-tl-entry-slot {
+    margin: 6px 0 14px; padding: 12px;
+    background: var(--bg); border: var(--border-thin) solid var(--divider); border-radius: 10px;
+  }
+  .vin-tl-entry-close-row { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+  .vin-tl-notes-heading {
+    font-size: 11px; font-weight: var(--weight-heavy); letter-spacing: 2px;
+    color: var(--muted); margin: 14px 0 8px;
+  }
+
+  /* OPEN RECALLS — surfaced in the VIN history header */
+  .vin-tl-recalls { margin-top: 12px; }
+  .recall-toggle {
+    display: flex; align-items: center; gap: 8px;
+    width: 100%; padding: 8px 10px;
+    background: var(--warn-soft); color: var(--warn);
+    border: var(--border-thin) solid var(--warn-strong); border-radius: 8px;
+    font: inherit; font-weight: var(--weight-heavy); cursor: pointer;
+    text-align: left;
+  }
+  .recall-badge {
+    background: var(--warn-strong); color: var(--warn-soft);
+    border-radius: 999px;
+    min-width: 22px; height: 22px; padding: 0 6px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: var(--weight-black);
+  }
+  .recall-toggle-label { flex: 1; font-size: 12px; letter-spacing: 1px; }
+  .recall-chevron { font-size: 14px; color: var(--warn); transition: transform .15s; }
+  .recall-toggle[aria-expanded="true"] .recall-chevron { transform: rotate(180deg); }
+  .recall-list {
+    list-style: none; padding: 8px 4px 0; margin: 6px 0 0;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .recall-list[hidden] { display: none; }
+  .recall-row {
+    background: var(--panel); border: var(--border-thin) solid var(--divider);
+    border-radius: 6px; padding: 8px 10px;
+  }
+  .recall-title {
+    font-size: 13px; font-weight: var(--weight-heavy); color: var(--text);
+    text-decoration: none;
+  }
+  a.recall-title:hover { color: var(--accent); text-decoration: underline; }
+  .recall-id {
+    display: inline-block; margin-left: 6px;
+    font-size: 10px; color: var(--muted); font-weight: var(--weight-medium);
+    letter-spacing: 1px;
+  }
+  .recall-summary {
+    margin-top: 4px;
+    font-size: 12px; color: var(--text-soft); line-height: 1.4;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Horizontal fuel gauge in VIN HISTORY group */
+  .vin-tl-fuel { margin-top: 12px; }
+  .vin-tl-fuel-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+  .vin-tl-fuel-label { font-size: 11px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; font-weight: var(--weight-bold); }
+  .vin-tl-fuel-label .ico-fuel { width: 16px; height: 16px; flex: 0 0 16px; margin-right: 6px; vertical-align: middle; }
+  .vin-tl-fuel-value { font-size: 13px; color: var(--text); font-weight: var(--weight-heavy); letter-spacing: .05em; }
+  .vin-tl-fuel-gauge { position: relative; height: 14px; background: var(--bg); border: var(--border-thin) solid var(--divider); border-radius: 8px; overflow: hidden; }
+  .vin-tl-fuel-fill  { position: absolute; top: 0; bottom: 0; left: 0; background: linear-gradient(90deg, var(--accent), var(--accent-strong)); transition: width .3s ease; }
+  .vin-tl-fuel-gauge.is-mid .vin-tl-fuel-fill { background: linear-gradient(90deg, var(--warn-strong), var(--warn-strong)); }
+  .vin-tl-fuel-gauge.is-low .vin-tl-fuel-fill { background: linear-gradient(90deg, var(--danger-strong), var(--danger-strong)); }
+  .vin-tl-fuel-ticks { position: absolute; inset: 0; display: flex; pointer-events: none; }
+  .vin-tl-fuel-ticks span { flex: 1; border-right: var(--border-thin) solid rgba(255,255,255,.08); }
+  .vin-tl-fuel-ticks span:last-child { border-right: none; }
+  .vin-tl-fuel-scale { display: flex; justify-content: space-between; margin-top: 4px; font-size: 10px; color: var(--muted); font-weight: var(--weight-bold); letter-spacing: 1px; }
+
   /* RECORDS TAB */
   .filter-row { display: flex; gap: var(--space-2); margin-bottom: var(--space-2); }
   .filter-row input, .filter-row select { margin: 0; font-size: var(--font-base); padding: var(--space-2) var(--space-3); text-transform: none; flex: 1; }
@@ -722,6 +963,97 @@
     font-size: var(--font-md); font-weight: 700; color: var(--accent);
     text-align: center; margin-bottom: var(--space-4); letter-spacing: 0.3px;
   }
+
+  /* Records panel — search-driven layout */
+  .records-search-row {
+    margin-bottom: var(--space-6);
+    display: flex; flex-direction: row; align-items: center; gap: var(--space-4); align-items: stretch;
+  }
+  .records-search-row input {
+    flex: 1; min-width: 0; padding: 12px 14px;
+    font-size: 15px;
+    border-radius: var(--radius);
+    background: var(--card); color: var(--text);
+    border: var(--border-thin) solid var(--border);
+  }
+  .records-search-row input:focus { outline: none; border-color: var(--accent); }
+  /* records-scan-btn extends .btn .btn-primary — only the search-row width sizing is unique. */
+  .records-search-row .records-scan-btn { flex: 0 0 auto; width: 200px; }
+  .records-prompt {
+    color: var(--muted); text-align: center;
+    padding: 30px 16px; font-size: 14px;
+  }
+  .records-search-section { margin-top: 12px; }
+  .records-section-label {
+    font-size: 11px; color: var(--muted);
+    letter-spacing: 1.5px; text-transform: uppercase; font-weight: var(--weight-bold);
+    margin-bottom: 6px;
+  }
+
+  /* Recently-scanned VIN chips (records panel quick-pick) */
+  .vin-recent-wrap { padding: 18px 14px 24px; }
+  .vin-recent-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .vin-recent-label {
+    font-size: 11px; color: var(--muted);
+    letter-spacing: 1.5px; text-transform: uppercase; font-weight: var(--weight-bold);
+  }
+  .vin-recent-clear {
+    background: transparent; color: var(--muted); border: 0;
+    font-size: 12px; cursor: pointer; padding: 4px 6px;
+  }
+  .vin-recent-clear:hover { color: var(--accent); }
+  .vin-recent-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .vin-recent-chip {
+    background: var(--bg); color: var(--text-on-status);
+    border: var(--border-thin) solid var(--divider); border-radius: 999px;
+    padding: 8px 14px; font: 600 13px/1 monospace, system-ui;
+    cursor: pointer; transition: background .15s, border-color .15s;
+  }
+  .vin-recent-chip:hover { background: var(--card); border-color: var(--accent); }
+  .vin-recent-chip:active { transform: scale(0.97); }
+
+  /* ============================
+     DISCLOSURE — the one accordion pattern. One look everywhere.
+     For radio-group behavior (only one open at a time), add name="…" to the <details>.
+     ============================ */
+  .disclosure {
+    margin: var(--space-3) 0;
+    background: var(--card);
+    border: var(--border-thin) solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .disclosure-summary {
+    cursor: pointer; list-style: none;
+    display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    min-height: 44px;                  /* WCAG 2.5.5 touch target */
+    font-size: var(--font-sm); font-weight: var(--weight-bold);
+    color: var(--text-soft);
+    letter-spacing: 1px; text-transform: uppercase;
+  }
+  .disclosure-summary::-webkit-details-marker { display: none; }
+  .disclosure-summary:focus-visible {
+    outline: var(--border-strong) solid var(--focus-ring);
+    outline-offset: -2px;              /* sits inside the card edge */
+  }
+  .disclosure-summary::after {
+    content: ""; width: 12px; height: 12px; flex: 0 0 12px;
+    background-color: var(--muted);
+    -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='9 6 15 12 9 18'/></svg>") center/contain no-repeat;
+            mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='9 6 15 12 9 18'/></svg>") center/contain no-repeat;
+    transition: transform .15s ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .disclosure-summary::after { transition: none; }
+  }
+  .disclosure[open] > .disclosure-summary { color: var(--text); }
+  .disclosure[open] > .disclosure-summary::after { transform: rotate(90deg); background-color: var(--accent); }
+  .disclosure-body { padding: 0 var(--space-4) var(--space-4); }
+  .disclosure-summary .field-label { margin: 0; }
 
   /* PAGINATION */
   .pagination {
@@ -779,6 +1111,1036 @@
   .gps-status.acquiring { color: var(--accent); }
   .gps-status.got { color: var(--accent); }
   .gps-status.err { color: var(--danger); }
+
+  /* BACKLOT PANEL — manager dashboard widgets (breakdown, leaderboard, forms, map) */
+  .bl-breakdown { display: flex; flex-direction: column; gap: 6px; }
+  .bl-bar-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .bl-bar-row .label { width: 110px; color: var(--text-soft); }
+  .bl-bar-row .bar { flex: 1; height: 8px; background: var(--panel); border-radius: 999px; overflow: hidden; }
+  .bl-bar-row .bar > span { display: block; height: 100%; background: var(--accent); }
+  .bl-bar-row .count { width: 28px; text-align: right; color: var(--text); font-weight: var(--weight-bold); }
+
+  .bl-leader-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: var(--border-thin) solid var(--divider); }
+  .bl-leader-row:last-child { border-bottom: none; }
+  .bl-leader-rank { width: 28px; height: 28px; border-radius: 50%; background: var(--panel); display: flex; align-items: center; justify-content: center; font-weight: var(--weight-black); font-size: 12px; color: var(--text-soft); }
+  .bl-leader-rank.gold { background: var(--warn-soft); color: var(--warn); }
+  .bl-leader-name { font-weight: var(--weight-medium); }
+  .bl-leader-sub { font-size: 11px; color: var(--muted); }
+  .bl-leader-count { margin-left: auto; font-weight: var(--weight-black); color: var(--accent); font-size: 18px; }
+
+  /* Active drivers list (Fleet Stats panel) */
+  .bl-active-driver {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 0; border-bottom: var(--border-thin) solid var(--divider);
+  }
+  .bl-active-driver:last-child { border-bottom: none; }
+  .bl-active-name { font-weight: var(--weight-medium); color: var(--text); }
+  .bl-active-meta { margin-left: auto; font-size: 11px; color: var(--muted); }
+
+  .bl-map { width: 100%; height: 70vh; min-height: 360px; border-radius: 10px; border: var(--border-thin) solid var(--divider); }
+
+  .dash-section:has(> .bl-form) {
+    border: var(--border-thin) solid var(--divider);
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: var(--bg);
+  }
+  .dash-section:has(> .bl-form) > .dash-title { margin-top: 0; }
+  .bl-form { display: flex; flex-direction: column; gap: 10px; }
+  .bl-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-soft); font-weight: var(--weight-medium); }
+  .bl-form input, .bl-form textarea, .bl-form select {
+    padding: 10px 12px; border-radius: 8px;
+    background: var(--bg); color: var(--text); border: var(--border-thin) solid var(--divider);
+    font-size: 14px; font-family: inherit;
+  }
+  .bl-form textarea { min-height: 70px; resize: vertical; }
+  /* bl-form save buttons now use the standard .btn .btn-primary .btn--block recipe. */
+  .bl-ann-item { background: var(--panel); border: var(--border-thin) solid var(--divider); border-radius: 8px; padding: 10px 12px; margin-top: 8px; }
+  .bl-ann-item .meta { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .bl-ann-item .body { font-size: 14px; white-space: pre-wrap; }
+  .bl-ann-item .del { float: right; background: none; border: none; color: var(--danger); font-size: 11px; cursor: pointer; }
+  .bl-edr-item { background: var(--panel); border-radius: 8px; padding: 10px 12px; margin-top: 8px; }
+  .bl-edr-item .row { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-soft); }
+  .bl-edr-item .status { font-weight: var(--weight-bold); color: var(--accent); text-transform: uppercase; }
+  .bl-edr-item .responses { margin-top: 6px; font-size: 13px; }
+  .bl-empty { color: var(--muted); text-align: center; padding: var(--space-5); font-size: 13px; }
+  .bl-lb-controls { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+  .bl-seg { display: flex; flex-wrap: wrap; gap: 4px; background: var(--bg); border: var(--border-thin) solid var(--divider); border-radius: 999px; padding: 3px; }
+  /* bl-seg-btn extends .btn .btn-ghost .btn--sm .btn--pill — only the flex-row layout is unique here. */
+  .bl-seg-btn { flex: 1 1 auto; }
+
+  /* VIN detail list (VIN lookup panel — rows of matched VINs with counts/links) */
+  .vin-detail-list { max-height: 280px; overflow-y: auto; border: var(--border-thin) solid var(--divider); border-top: none; border-radius: 0 0 var(--radius) var(--radius); padding: 4px 8px; }
+  .vin-detail-list--open { border: none; border-radius: 0; padding: 0; max-height: none; overflow: visible; width: auto; }
+  .vin-detail-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: var(--space-2) var(--space-4); border-bottom: var(--border-thin) solid var(--panel); cursor: pointer; }
+  .vin-detail-row:last-child { border-bottom: none; }
+  .vin-detail-row:hover { background: var(--bg); }
+  .vin-detail-vin { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: var(--weight-bold); font-size: 13px; color: var(--info-text); }
+  .vin-detail-sub { font-size: 11px; color: var(--muted); }
+  .vin-detail-main { min-width: 0; flex: 1; }
+  .vin-detail-side {
+    display: flex; align-items: center; gap: 6px;
+    flex-shrink: 0; white-space: nowrap;
+  }
+  .vin-detail-count { background: var(--panel); color: var(--text-soft); font-weight: var(--weight-heavy); font-size: 11px; padding: 2px 8px; border-radius: 999px; }
+  .vin-detail-modal-section { margin: 12px 0; }
+  .vin-detail-modal-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: var(--weight-bold); margin-bottom: 4px; }
+  .vin-detail-modal-val { font-size: 14px; color: var(--text-on-status); }
+
+  /* PROFILE PANEL — avatar block on Profile, plus the contact-card modal opened by clicking
+     an author name on a record detail. Both share the round-avatar pattern. */
+  .profile-avatar-row { display: flex; align-items: center; gap: 14px; }
+  .profile-avatar-preview {
+    width: 72px; height: 72px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--card-soft); color: var(--accent);
+    font-size: 24px; font-weight: var(--weight-heavy); letter-spacing: 1px;
+    overflow: hidden; flex-shrink: 0;
+  }
+  .profile-avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
+  .profile-avatar-actions { display: flex; flex-direction: column; gap: 6px; }
+  .profile-avatar-status { font-size: 12px; color: var(--muted); }
+
+  .contact-card { padding: 20px 20px 24px; text-align: center; }
+  .contact-avatar {
+    width: 84px; height: 84px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--card-soft); color: var(--accent);
+    font-size: 28px; font-weight: var(--weight-heavy); letter-spacing: 1px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .contact-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .contact-name { font-size: 20px; font-weight: var(--weight-bold); color: var(--text); }
+  .contact-role { font-size: 12px; font-weight: var(--weight-bold); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; color: var(--muted); }
+  .contact-role.role-driver   { color: var(--info-text); }
+  .contact-role.role-cxr      { color: var(--warn); }
+  .contact-role.role-manager  { color: var(--accent); }
+  .contact-role.role-admin    { color: var(--danger); }
+  .contact-role.role-detailer { color: var(--role-detailer); }
+  .contact-rows { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 16px; text-align: left; }
+  .contact-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; background: var(--card); border: var(--border-thin) solid var(--border); border-radius: var(--radius); }
+  .contact-row-label { font-size: 11px; font-weight: var(--weight-bold); text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .contact-row-val { font-size: 14px; color: var(--text); text-align: right; word-break: break-word; }
+  .contact-row-val a { color: var(--accent); text-decoration: none; }
+
+  /* Profile role pill — read-only display of the role pulled from Supabase */
+  .profile-role-pill {
+    display: inline-block;
+    padding: 6px 14px;
+    background: var(--panel);
+    color: var(--info-text);
+    border: var(--border-thin) solid var(--divider);
+    border-radius: 999px;
+    font-size: 13px; font-weight: var(--weight-bold);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+  .profile-role-pill.role-manager { color: var(--accent); border-color: var(--accent); background: var(--success-soft); }
+  .profile-role-pill.role-cxr     { color: var(--warn); border-color: var(--warn); background: var(--warn-soft); }
+  .profile-role-pill.role-driver  { color: var(--info-text); border-color: var(--info); background: var(--info-soft); }
+  .profile-role-pill.role-admin   { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
+  .profile-role-pill.role-detailer{ color: var(--role-detailer); border-color: var(--role-detailer); background: rgba(183, 110, 255, 0.10); }
+  /* Admin role option is only available to admins */
+  .opt-admin-only { display: none; }
+  body.is-admin .opt-admin-only { display: block; }
+
+  /* PIN input — big, centered digits */
+  .dt-pin-input {
+    text-align: center;
+    letter-spacing: 8px;
+    font-size: 22px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .dt-pin-input::placeholder { letter-spacing: 6px; color: var(--divider); }
+
+  /* Profile PIN section buttons */
+  .profile-pin-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .profile-pin-row button {
+    background: var(--panel); color: var(--info-text);
+    border: var(--border-thin) solid var(--divider); border-radius: 8px;
+    padding: 10px 14px; font-size: 13px; font-weight: var(--weight-bold);
+    cursor: pointer;
+  }
+  .profile-pin-row button:hover { background: var(--surface-hover); }
+  .profile-pin-status {
+    margin-top: 6px; font-size: 13px;
+  }
+  .profile-pin-status.on  { color: var(--accent); }
+  .profile-pin-status.off { color: var(--muted); }
+
+  /* Theme toggle — segmented control */
+  .theme-toggle {
+    display: inline-flex;
+    background: var(--card-soft);
+    border: var(--border-thin) solid var(--border);
+    border-radius: 10px;
+    padding: 4px;
+    gap: 2px;
+  }
+  .theme-toggle-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px;
+    background: transparent; color: var(--text-soft);
+    border: none; border-radius: 7px;
+    font-size: 13px; font-weight: var(--weight-bold);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .theme-toggle-btn:hover { color: var(--text); }
+  .theme-toggle-btn[aria-checked="true"] {
+    background: var(--accent);
+    color: var(--text-on-accent);
+  }
+  .theme-toggle-btn svg { flex-shrink: 0; }
+
+  /* USERS PANEL — admin list of users with role pills, approve/disable/delete actions */
+  .users-actions {
+    display: flex; justify-content: flex-end;
+    padding: 0 var(--space) var(--space-3);
+  }
+  .users-invite-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px;
+  }
+  .users-invite-btn svg { flex-shrink: 0; }
+  .users-search { margin-bottom: var(--space-4); }
+  /* legacy toolbar still used by some references */
+  .users-toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+  .users-toolbar input { flex: 1; }
+  .users-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; margin-bottom: 8px;
+    background: var(--panel); border: var(--border-thin) solid var(--divider); border-radius: 8px;
+  }
+  /* Colored role dot — replaces the old border-left role indicator. */
+  .users-row::before {
+    content: ""; display: inline-block; flex: 0 0 12px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--info);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.25);
+  }
+  .users-row.row-admin::before    { background: var(--danger); }
+  .users-row.row-manager::before  { background: var(--accent); }
+  .users-row.row-cxr::before      { background: var(--warn); }
+  .users-row.row-detailer::before { background: var(--role-detailer); }
+  .users-row .info { flex: 1; min-width: 0; }
+  .users-row .name { font-size: 15px; font-weight: var(--weight-bold); color: var(--text); }
+  .users-row .meta {
+    font-size: 12px; color: var(--muted); margin-top: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .users-row .role-pill {
+    font-size: 10px; font-weight: var(--weight-bold); letter-spacing: 1.5px;
+    text-transform: uppercase; padding: 3px 8px; border-radius: 999px;
+    background: var(--divider); color: var(--text-soft);
+  }
+  .users-row.row-admin    .role-pill { color: var(--danger); }
+  .users-row.row-manager  .role-pill { color: var(--accent); }
+  .users-row.row-cxr      .role-pill { color: var(--warn); }
+  .users-row.row-driver   .role-pill { color: var(--info-text); }
+  .users-row.row-detailer .role-pill { color: var(--role-detailer); }
+  .users-row.is-pending { background: var(--warn-soft); }
+  .users-row .pending-pill {
+    display: inline-block; margin-left: 6px;
+    font-size: 10px; font-weight: var(--weight-heavy); letter-spacing: 1px; text-transform: uppercase;
+    color: var(--warn); border: var(--border-thin) solid var(--warn); background: var(--warn-soft);
+    padding: 1px 6px; border-radius: 10px; vertical-align: middle;
+  }
+  .users-row .approve {
+    background: var(--accent); color: var(--text-on-status); border: none;
+    border-radius: 6px; padding: 6px 10px; font-weight: var(--weight-bold); cursor: pointer;
+    margin-right: 6px;
+  }
+  .users-row .approve:hover { background: var(--accent-strong); }
+  .users-row .disabled-pill {
+    display: inline-block; margin-left: 6px;
+    font-size: 10px; font-weight: var(--weight-heavy); letter-spacing: 1px; text-transform: uppercase;
+    color: var(--text-soft); border: var(--border-thin) solid var(--divider); background: var(--surface-hover);
+    padding: 1px 6px; border-radius: 10px; vertical-align: middle;
+  }
+  .users-row.is-disabled .name,
+  .users-row.is-disabled .meta { opacity: 0.55; }
+  .users-row .toggle-disabled,
+  .users-row .delete {
+    border-radius: 6px; padding: 6px 10px; font-weight: var(--weight-bold); cursor: pointer;
+    border: var(--border-thin) solid var(--divider); background: var(--surface); color: var(--text);
+    margin-left: 6px;
+  }
+  .users-row .toggle-disabled:hover { background: var(--surface-hover); }
+  .users-row .delete {
+    color: var(--danger); border-color: var(--danger);
+  }
+  .users-row .delete:hover { background: var(--danger); color: var(--text-on-status); }
+  .users-invite-channel {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    font-size: 13px; color: var(--text-soft);
+    background: var(--panel); border: var(--border-thin) solid var(--divider); border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .users-invite-channel label {
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    color: var(--text);
+  }
+
+  /* DETAILER PANELS — scan-loaded views (history list, dashboard avg) */
+  .detail-scan-empty { text-align: center; padding: 24px 0; color: var(--text-soft); }
+  .detail-scan-empty p { margin: 0 0 14px; }
+  .detail-history-row {
+    background: var(--panel); border: var(--border-thin) solid var(--divider);
+    border-radius: 8px; padding: 12px 14px; margin-bottom: 8px;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .detail-history-row:hover { background: var(--divider); }
+  .detail-history-serial { font-weight: var(--weight-heavy); font-size: 14px; letter-spacing: 1px; color: var(--text); font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .detail-history-meta   { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .detail-dash-avg {
+    font-size: 32px; font-weight: var(--weight-black); letter-spacing: 1px;
+    color: var(--role-detailer); text-align: center; padding: 8px 0;
+  }
+
+  /* VIN header on the detailer scan-loaded view */
+  .detail-vin-header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding-bottom: 14px; margin-bottom: 14px;
+    border-bottom: var(--border-thin) solid var(--divider);
+  }
+  .detail-vin-label { font-size: 11px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; font-weight: var(--weight-bold); }
+  .detail-vin-value { font-size: 18px; font-weight: var(--weight-black); letter-spacing: 2px; color: var(--text); font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+  .detail-subhead {
+    font-size: 11px; color: var(--muted); letter-spacing: 1.5px;
+    text-transform: uppercase; font-weight: var(--weight-bold);
+    margin-top: 14px; margin-bottom: 8px;
+  }
+  .detail-locked-banner {
+    margin: 8px 0 4px;
+    padding: 8px 12px;
+    background: rgba(0, 166, 81, 0.12);
+    border: var(--border-thin) solid rgba(0, 166, 81, 0.5);
+    color: var(--accent-strong);
+    border-radius: 8px;
+    font-size: 12px; font-weight: var(--weight-bold); letter-spacing: 0.5px;
+  }
+  .cond-chip.is-locked,
+  .todo-item.is-locked { cursor: default; opacity: 0.6; }
+  .cond-chip.is-locked input,
+  .todo-item.is-locked input,
+  .todo-item.is-locked textarea { cursor: default; }
+  .todo-note-locked {
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--muted);
+  }
+  .todo-note-locked svg { width: 14px; height: 14px; }
+
+  /* Note cards on the VIN view */
+  .note-card {
+    position: relative;
+    background: var(--panel); border: var(--border-thin) solid var(--divider);
+    border-radius: 8px; padding: 10px 12px; margin-bottom: 8px;
+  }
+  .note-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 8px; margin-bottom: 4px;
+    font-size: 12px;
+  }
+  .note-author { font-weight: var(--weight-bold); color: var(--text); }
+  .note-time   { color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .note-body   { font-size: 14px; color: var(--text); white-space: pre-wrap; }
+  .note-body-more { margin-top: 6px; font-size: 12px; color: var(--accent); font-weight: var(--weight-bold); letter-spacing: 0.5px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+  /* Inline NHTSA-derived vehicle summary printed under each note's time row */
+  .note-vehicle {
+    font-size: 11px; color: var(--text-soft);
+    margin-top: 2px; margin-bottom: 6px;
+    letter-spacing: 0.2px; line-height: 1.35;
+  }
+
+  .note-role {
+    display: inline-block; margin-left: 6px;
+    font-size: 9px; letter-spacing: 1px;
+    text-transform: uppercase; font-weight: var(--weight-heavy);
+    padding: 1px 6px; border-radius: 999px; background: var(--divider); color: var(--text-soft);
+  }
+  .note-role.role-driver   { color: var(--info-text); }
+  .note-role.role-cxr      { color: var(--warn); }
+  .note-role.role-manager  { color: var(--accent); }
+  .note-role.role-admin    { color: var(--danger); }
+  .note-role.role-detailer { color: var(--role-detailer); }
+
+  /* Record-detail author block (avatar + name + role) */
+  .detail-header-left { display: flex; flex-direction: column; gap: 6px; }
+  .detail-header-left .detail-time { margin-bottom: 0; }
+  .detail-author { display: flex; align-items: center; gap: 10px; }
+  .detail-author-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--card-soft); color: var(--accent);
+    font-size: 13px; font-weight: var(--weight-heavy); letter-spacing: 0.5px;
+    overflow: hidden; flex-shrink: 0;
+  }
+  .detail-author-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .detail-author-text { display: flex; flex-direction: column; gap: 1px; }
+  .detail-author-name {
+    background: none; border: none; padding: 0; margin: 0;
+    font: inherit; font-size: 12px; color: var(--muted);
+    text-align: left; text-decoration: underline; text-underline-offset: 2px;
+    cursor: pointer;
+  }
+  .detail-author-name:hover { color: var(--text); }
+  .detail-author-role { font-size: 10px; font-weight: var(--weight-heavy); color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .detail-author-role.role-driver   { color: var(--info-text); }
+  .detail-author-role.role-cxr      { color: var(--warn); }
+  .detail-author-role.role-manager  { color: var(--accent); }
+  .detail-author-role.role-admin    { color: var(--danger); }
+  .detail-author-role.role-detailer { color: var(--role-detailer); }
+
+  .note-del {
+    text-transform: uppercase;
+    min-width: 0; min-height: 0;
+    padding: 4px 10px;
+    font-size: 11px; letter-spacing: 0.5px;
+    border-radius: 6px;
+  }
+  .note-gps { display: inline-flex; align-items: center; color: var(--info); text-decoration: none; }
+  .ico-gps { width: 14px; height: 14px; }
+
+  /* Manager admin actions on a note card */
+  .note-admin-actions {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    margin-top: 10px; padding-top: 10px; border-top: var(--border-thin) solid var(--divider);
+  }
+  .note-admin-actions button {
+    background: var(--divider); color: var(--text-soft);
+    border: var(--border-thin) solid var(--divider); border-radius: 6px;
+    padding: 6px 12px; font-size: 12px; font-weight: var(--weight-bold); cursor: pointer;
+  }
+  .note-admin-actions button:hover { background: var(--surface-hover); }
+  .note-act-edit    { color: var(--info) !important; }
+  .note-act-edit:hover    { background: var(--panel) !important; }
+  .note-act-archive { color: var(--warn) !important; }
+  .note-act-archive:hover { background: var(--warn-soft) !important; }
+  .note-act-del     { color: var(--danger) !important; }
+  .note-act-del:hover     { background: var(--danger-soft) !important; }
+
+  .note-card.archived { opacity: 0.6; }
+
+  .notes-archived-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin: 0 0 12px;
+    font-size: 12px; color: var(--text-soft); font-weight: var(--weight-medium);
+    cursor: pointer;
+  }
+  .notes-archived-toggle input { width: auto; }
+
+  /* Condition checkbox chips (Priority, Pet Hair, etc.) */
+  .detail-conditions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .cond-chip {
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+    box-sizing: border-box; height: var(--dt-input-h);
+    /* Four pills per row: (100% - 3 × 8px gap) / 4. flex-grow lets the last
+       row stretch evenly when fewer than 4 chips fall on it. */
+    flex: 1 1 calc((100% - 16px) / 3);
+    background: var(--card); color: var(--text-soft);
+    border: 1.5px solid var(--border); border-radius: var(--radius);
+    padding: 0 14px; font-size: 13px; font-weight: var(--weight-bold);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    text-align: center;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .cond-chip input { display: none; }
+  .cond-chip:hover { border-color: var(--text-soft); }
+  .cond-chip.checked {
+    background: rgba(183, 110, 255, 0.10); border-color: var(--role-detailer); color: var(--role-detailer);
+  }
+  .cond-chip.checked:has(input[value="REGULAR"]),
+  .cond-chip.checked:has(input[value="AIR"]),
+  .cond-chip.checked:has(input[value="WASHER_FLUID"]),
+  .cond-chip.checked:has(input[value="FUEL"]),
+  .cond-chip.checked:has(input[value="CHARGE"]) {
+    background: rgba(61, 207, 207, 0.10); border-color: var(--chart-4); color: var(--chart-4);
+  }
+  .cond-chip.checked:has(input[value="QUICK_FLIP"]) {
+    background: var(--warn-soft); border-color: var(--warn-strong); color: var(--warn-text);
+  }
+  .cond-chip.checked:has(input[value="PRIORITY"]) {
+    background: rgba(255,255,255,0.55); border-color: var(--text-on-status); color: var(--bg);
+  }
+
+  /* Todo rows */
+  .todo-item {
+    display: grid; grid-template-columns: 1fr auto; align-items: center;
+    column-gap: 8px; row-gap: 6px;
+    background: var(--panel); border: var(--border-thin) solid var(--divider); border-radius: 8px;
+    padding: 10px 12px; margin-bottom: 6px;
+  }
+  .todo-item.done { opacity: 0.85; }
+  .todo-item.done .todo-label { text-decoration: line-through; color: var(--muted); }
+  .todo-check { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; }
+  .todo-check input { width: 20px; height: 20px; cursor: pointer; accent-color: var(--accent); }
+  .todo-label { font-size: 15px; font-weight: var(--weight-bold); color: var(--text); }
+  .todo-note-toggle {
+    background: none; border: none; color: var(--text-soft); font-size: 16px;
+    cursor: pointer; padding: 4px 6px;
+  }
+  .todo-actions { display: inline-flex; align-items: center; gap: 4px; }
+  .todo-gps {
+    text-decoration: none; font-size: 14px; line-height: 1;
+    padding: 4px 6px; border-radius: 6px;
+    background: rgba(74,158,255,0.15);
+  }
+  .todo-gps:hover { background: rgba(74,158,255,0.28); }
+  .todo-note {
+    grid-column: 1 / -1;
+    width: 100%; padding: 8px 10px; border-radius: 6px;
+    background: var(--bg); color: var(--text); border: var(--border-thin) solid var(--divider);
+    font-size: 13px; height: 50px; resize: vertical;
+    font-family: inherit;
+  }
+  .todo-note.hidden { display: none; }
+
+  .detail-job-actions {
+    margin-top: var(--space-6);
+    margin-bottom: var(--space-6);
+    display: flex; flex-direction: column;
+    gap: var(--space-4);
+  }
+  /* Save / Complete buttons use their own .btn--full / .btn--block sizing. */
+  /* Disabled option rows in the detailer Options disclosure — visible but not interactive. */
+  .notag-row[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  /* Note attachments (GPS + photo) */
+  .note-attach-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 8px 0 4px; }
+  .note-attach-row .vn-gps-switch { flex: 1 1 auto; }
+  .vn-photo-action { margin: var(--space-3) 0 var(--space-4); margin-left: auto; }
+  .vn-photo-btn.btn { width: auto; display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; font-size: 13px; }
+  .note-attach-chip {
+    display: inline-flex; align-items: center; cursor: pointer;
+    background: var(--divider); color: var(--info-text);
+    border: var(--border-thin) solid var(--divider); border-radius: 999px;
+    padding: 7px 12px; font-size: 13px; font-weight: var(--weight-bold);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .note-attach-chip:hover { background: var(--surface-hover); }
+  .note-attach-chip input[type=checkbox] { display: none; }
+  .note-attach-chip:has(input:checked) { background: var(--panel); border-color: var(--info); }
+
+  .note-photo-preview {
+    position: relative; margin: 8px 0;
+    max-width: 240px;
+  }
+  .note-photo-preview img {
+    width: 100%; height: auto; display: block;
+    border-radius: 8px; border: var(--border-thin) solid var(--divider);
+  }
+  .note-photo-preview button {
+    position: absolute; top: 6px; right: 6px;
+    background: rgba(0,0,0,0.6); color: var(--text-on-status); border: none;
+    width: 26px; height: 26px; border-radius: 999px;
+    font-size: 14px; cursor: pointer;
+  }
+
+  /* Photo + GPS on rendered note cards */
+  .note-photo { margin-top: 8px; }
+  .note-photo img {
+    width: 100%; max-width: 240px;
+    height: auto; display: block;
+    border-radius: 8px; border: var(--border-thin) solid var(--divider);
+    cursor: zoom-in;
+  }
+  .note-gps {
+    display: inline-block; margin-top: 6px;
+    padding: 3px 10px; border-radius: 999px;
+    background: var(--info-soft); border: var(--border-thin) solid var(--info-soft);
+    font-size: 11px; font-weight: var(--weight-bold); letter-spacing: .05em; text-transform: uppercase;
+    color: var(--info); text-decoration: none;
+  }
+  .note-gps:hover { background: var(--info-soft); text-decoration: none; }
+
+  /* Full-screen photo viewer */
+  .note-photo-viewer {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.92);
+    display: none; align-items: center; justify-content: center;
+    z-index: 9500; padding: 20px;
+  }
+  .note-photo-viewer.show { display: flex; }
+  .note-photo-viewer img {
+    max-width: 100%; max-height: 100%;
+    border-radius: 6px;
+  }
+  .note-photo-viewer button {
+    position: absolute; top: 16px; right: 16px;
+    background: rgba(255,255,255,0.15); color: var(--text-on-status); border: none;
+    width: 40px; height: 40px; border-radius: 999px;
+    font-size: 20px; cursor: pointer;
+  }
+  /* Note detail overlay — opened by clicking a note card */
+  .note-card { cursor: pointer; }
+  .note-detail-viewer { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 9600; padding: 20px; }
+  .note-detail-viewer.show { display: flex; }
+  .ndv-card { position: relative; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; background: var(--bg); border: var(--border-thin) solid var(--divider); border-radius: 12px; padding: 20px; color: var(--text); }
+  .ndv-card--panel { max-width: none; max-height: none; }
+  /* detail-sheet template adapted for use inside a top-level panel (not an overlay) */
+  .detail-sheet--panel { max-height: none; border-top: 4px solid var(--accent); border-radius: 12px; }
+  #recordDetailSheet, #noteDetailSheet { min-height: 75vh; }
+  .detail-note-photo { margin: 12px 20px 0; }
+  .detail-note-photo img { width: 100%; max-height: 60vh; object-fit: contain; border-radius: 8px; background: var(--overlay-bg); display: block; }
+  .ndv-close { position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border-radius: 999px; background: rgba(255,255,255,0.08); color: var(--text-on-status); border: none; font-size: 16px; cursor: pointer; }
+  .ndv-close:hover { background: rgba(255,255,255,0.15); }
+  .ndv-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 0 24px 12px 0; }
+  .ndv-author { font-weight: var(--weight-bold); font-size: 14px; color: var(--info-text); }
+  .ndv-time { font-size: 11px; color: var(--muted); }
+  .ndv-body { font-size: 15px; line-height: 1.45; white-space: pre-wrap; margin-bottom: 14px; }
+  .ndv-photo { margin-bottom: 14px; }
+  .ndv-photo img { width: 100%; max-height: 60vh; object-fit: contain; border-radius: 8px; background: var(--overlay-bg); display: block; }
+  .ndv-stats { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--bg); border: var(--border-thin) solid var(--divider); border-radius: 8px; margin-bottom: 12px; }
+  .ndv-row { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
+  .ndv-k { color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: var(--weight-bold); font-size: 11px; }
+  .ndv-v { color: var(--text); font-weight: var(--weight-bold); }
+  .ndv-actions { display: flex; }
+  .ndv-gps { display: inline-block; padding: 8px 14px; border-radius: 999px; background: var(--info-soft); border: var(--border-thin) solid var(--info-soft); color: var(--info); font-size: 12px; font-weight: var(--weight-bold); letter-spacing: .05em; text-transform: uppercase; text-decoration: none; }
+  .ndv-gps:hover { background: var(--info-soft); }
+
+  /* Shared vehicle-notes widget (drivers + detailers + detail overlay) */
+  .vn-mount-slot:empty { display: none; }
+  .vn-mount { margin-top: 18px; }
+  .vn-head {
+    display: flex; justify-content: flex-end; align-items: center;
+    margin-bottom: 8px;
+  }
+  .vn-title {
+    font-size: 11px; color: var(--muted); letter-spacing: 1.5px;
+    text-transform: uppercase; font-weight: var(--weight-bold);
+  }
+  .vn-add-toggle.btn { width: auto; display: inline-block; padding: 8px 14px; font-size: 13px; }
+  .vn-empty {
+    color: var(--muted); text-align: left; padding: 8px 2px;
+    font-size: 13px; font-style: italic;
+  }
+  .vn-add-form { flex-direction: column; gap: 8px; margin-top: 8px; }
+  .entry-current-state {
+    margin-top: 14px; padding: 10px 12px; border-radius: 8px;
+    background: var(--info-soft); border: var(--border-thin) solid var(--info-soft); color: var(--info-text);
+    font-size: 13px; line-height: 1.45;
+  }
+  .entry-current-state .ecs-label { font-size: 10px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; font-weight: var(--weight-bold); margin-bottom: 4px; }
+  .entry-current-state .ecs-val { font-weight: var(--weight-bold); color: var(--text); }
+  .entry-current-state .ecs-sep { color: var(--text-soft); padding: 0 6px; }
+  .entry-current-state.is-empty { background: var(--panel); border-color: var(--divider); color: var(--muted); }
+  .entry-current-state.is-priority { background: rgba(255,255,255,0.55); border-color: var(--text-on-status); color: var(--bg); }
+  .entry-current-state.is-priority .ecs-label,
+  .entry-current-state.is-priority .ecs-val,
+  .entry-current-state.is-priority .ecs-sep { color: var(--bg); }
+  .vn-status-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .vn-status-label { font-size: 11px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; font-weight: var(--weight-bold); }
+  .vn-status-pill { display: inline-block; padding: 4px 10px; border-radius: 999px; background: var(--info-soft); color: var(--info-text); border: var(--border-thin) solid var(--info-soft); font-weight: var(--weight-heavy); font-size: 12px; letter-spacing: .05em; }
+  .vn-status-pill.is-empty { background: var(--panel); color: var(--muted); border-color: var(--divider); }
+  .vn-status-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .vn-field { display: flex; flex-direction: column; gap: 4px; flex: 1 1 140px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: var(--weight-bold); }
+  .vn-field select, .vn-field input { box-sizing: border-box; width: 100%; height: var(--dt-input-h, 44px); padding: 0 14px; margin: 0; border-radius: 8px; background: var(--bg); color: var(--text); border: var(--border-thin) solid var(--divider); font-size: 14px; line-height: 1.2; font-weight: 500; text-transform: none; letter-spacing: 0; font-family: inherit; appearance: none; -webkit-appearance: none; }
+  .vn-field select { background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 12px) 50%; background-size: 6px 6px, 6px 6px; background-repeat: no-repeat; padding-right: 34px; }
+  .note-mileage { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--info-text); font-weight: var(--weight-medium); }
+  .ico-mileage { width: 20px; height: 20px; flex: 0 0 20px; margin-right: 4px; }
+  .note-fuel    { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--success-text); font-weight: var(--weight-medium); margin-left: 10px; }
+  .ico-fuel { width: 20px; height: 20px; flex: 0 0 20px; margin-right: 4px; }
+  .note-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
+  .note-footer-left { display: inline-flex; align-items: center; }
+  .note-footer:empty { display: none; }
+  .vn-gps-switch { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 16px; border-radius: 12px; background: var(--bg); border: var(--border-thin) solid var(--divider); font-size: 14px; color: var(--info-text); cursor: pointer; user-select: none; }
+  .vn-gps-switch:hover { border-color: var(--border); }
+  .vn-gps-text { font-weight: var(--weight-medium); }
+  .vn-switch { position: relative; display: inline-block; width: 58px; height: 32px; flex: 0 0 auto; }
+  .vn-switch input { opacity: 0; width: 0; height: 0; position: absolute; margin: 0; }
+  .vn-switch-track { position: absolute; inset: 0; background: var(--divider); border-radius: 999px; transition: background .18s ease; box-shadow: inset 0 1px 2px rgba(0,0,0,.4); }
+  .vn-switch-thumb { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; background: var(--text-on-status); border-radius: 50%; transition: left .18s ease; box-shadow: 0 2px 4px rgba(0,0,0,.4); }
+  .vn-switch input:checked + .vn-switch-track { background: var(--accent); }
+  .vn-switch input:checked + .vn-switch-track .vn-switch-thumb { left: 29px; }
+  .vn-switch input:focus-visible + .vn-switch-track { outline: var(--border-strong) solid var(--info); outline-offset: 2px; }
+  .vn-add-form textarea {
+    padding: 10px 12px; border-radius: 8px;
+    background: var(--bg); color: var(--text); border: var(--border-thin) solid var(--divider);
+    font-family: inherit; font-size: 14px; min-height: 70px; resize: vertical;
+  }
+
+  /* Users-row edit button (admin action) — pairs with cluster F's note-admin-actions styling */
+  .users-row button.edit {
+    background: var(--divider); color: var(--info-text);
+    border: var(--border-thin) solid var(--divider); border-radius: 6px;
+    padding: 6px 12px; font-size: 12px; font-weight: var(--weight-bold);
+    cursor: pointer;
+  }
+  .users-row button.edit:hover { background: var(--surface-hover); }
+
+  /* USERS-MODAL PATTERN — the canonical modal recipe (see CLAUDE.md).
+     Structure: .users-modal > .users-modal-card > .users-modal-header / body / .users-modal-msg / .users-modal-actions.
+     Toggle visibility with .show; status messages drive the .ok / .err msg classes via DT_UI.setMessage. */
+  .users-modal {
+    position: fixed; inset: 0; z-index: var(--z-modal);
+    background: rgba(0,0,0,0.55);
+    display: none; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .users-modal.show { display: flex; }
+  .users-modal-card {
+    width: 100%; max-width: 380px;
+    background: var(--bg); border: var(--border-thin) solid var(--divider); border-radius: 12px;
+    padding: 20px; color: var(--text);
+    max-height: 90vh; overflow-y: auto;
+  }
+  .users-modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 14px;
+    font-size: 16px; font-weight: var(--weight-heavy); letter-spacing: 1px;
+  }
+  .users-modal-close { font-size: 22px; }
+  #usersForm { display: flex; flex-direction: column; gap: 10px; }
+  #usersForm label {
+    display: flex; flex-direction: column; gap: 4px;
+    font-size: 12px; color: var(--text-soft); font-weight: var(--weight-medium);
+  }
+  .users-callbacks-row { flex-direction: row !important; align-items: center; gap: 8px !important; }
+  .users-callbacks-row input { width: auto !important; }
+  #usersForm input, #usersForm select {
+    padding: 10px 12px; border-radius: 8px;
+    background: var(--bg); color: var(--text); border: var(--border-thin) solid var(--divider);
+    font-size: 14px;
+  }
+  .users-modal-msg { min-height: 18px; font-size: 12px; text-align: center; color: var(--text-soft); }
+  .users-modal-msg.err { color: var(--danger); }
+  .users-modal-msg.ok  { color: var(--accent); }
+  .users-modal-actions { display: flex; gap: 8px; margin-top: 6px; }
+  .users-modal-actions button { flex: 1; }
+  .users-email-row.locked input { opacity: 0.6; cursor: not-allowed; }
+  .users-reset-row { margin-top: 6px; }
+  .users-reset-btn {
+    width: 100%;
+    background: var(--panel); color: var(--info);
+    border: var(--border-thin) solid var(--info-soft); border-radius: 8px;
+    padding: 10px 12px; font-size: 13px; font-weight: var(--weight-bold);
+    cursor: pointer;
+  }
+  .users-reset-btn:hover { background: var(--panel); }
+  #usersForm select:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  /* Collapsible dash sections (e.g. Request Coverage) — lightweight chevron disclosure
+     for inside-dashboard groupings. Distinct from the canonical .disclosure card pattern. */
+  .dash-disclosure { margin: 0; }
+  .dash-disclosure-summary {
+    cursor: pointer; list-style: none;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .dash-disclosure-summary::-webkit-details-marker { display: none; }
+  .dash-disclosure-summary::before {
+    content: "▸"; display: inline-block;
+    font-size: 11px; color: var(--text-soft);
+    transition: transform 0.15s ease;
+  }
+  .dash-disclosure[open] > .dash-disclosure-summary::before {
+    transform: rotate(90deg);
+  }
+
+  /* Fleet counts banner (driver dashboard) — running totals + clear button */
+  .fc-clear-btn {
+    flex-shrink: 0;
+    width: 140px;
+    font-size: 12px;
+    line-height: 1.2;
+  }
+  .fc-banner {
+    margin: var(--space-3) var(--space) 0;
+    padding: 10px 14px;
+    background: var(--info-soft); border: var(--border-thin) solid var(--info-soft); border-radius: var(--radius);
+    color: var(--info-text);
+  }
+  .fc-banner.hidden { display: none; }
+  .fc-banner-inner {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  .fc-stat { display: flex; flex-direction: column; line-height: 1.1; }
+  .fc-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); font-weight: var(--weight-bold); }
+  .fc-row { display: inline-flex; align-items: baseline; gap: 8px; }
+  .fc-value { font-size: 22px; font-weight: var(--weight-black); color: var(--text); font-variant-numeric: tabular-nums; }
+  .fc-day-start {
+    font-size: 12px; font-weight: var(--weight-medium); color: var(--muted);
+    font-variant-numeric: tabular-nums; letter-spacing: 0.5px;
+  }
+  .fc-day-start:empty { display: none; }
+  .fc-day-start::before { content: "/ "; opacity: 0.7; }
+  .fc-divider { width: 1px; align-self: stretch; background: var(--divider); }
+  .fc-meta { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 11px; color: var(--muted); }
+  .fc-meta #fcNote { color: var(--info-text); font-weight: var(--weight-medium); }
+
+  /* Announcement banner (top of app — pinned latest unread alert) */
+  .ann-banner {
+    display: flex; align-items: center; gap: 10px;
+    margin: var(--space-3) var(--space);
+    padding: 10px 14px;
+    background: var(--warn-soft); border: var(--border-thin) solid var(--warn); border-radius: var(--radius);
+    color: var(--warn-text); font-size: 13px; line-height: 1.4;
+    cursor: pointer;
+  }
+  .ann-banner:hover { background: var(--warn-soft); }
+  .ann-banner.hidden { display: none; }
+  .ann-banner-icon { color: var(--warn); flex-shrink: 0; display: inline-flex; }
+  .ann-banner-body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+    gap: 0 12px;
+  }
+  .ann-banner-body .ann-author { grid-column: 1; font-size: 15px; font-weight: var(--weight-heavy); color: var(--warn-text); }
+  .ann-banner-body .ann-time   { grid-column: 2; font-size: 11px; color: var(--warn); white-space: nowrap; }
+  .ann-banner-body .ann-body-text { grid-column: 1 / -1; font-size: 13px; color: var(--warn-text); white-space: pre-wrap; margin-top: 4px; }
+  /* legacy span kept for back-compat if any banner still uses .meta */
+  .ann-banner-body .meta { grid-column: 1 / -1; font-size: 11px; color: var(--warn); }
+  .ann-banner-close { font-size: 22px; line-height: 1; flex-shrink: 0; }
+
+  /* Unread badge on the menu item */
+  .ann-badge {
+    display: inline-block; background: var(--danger); color: var(--text-on-status);
+    font-size: 10px; font-weight: var(--weight-bold);
+    border-radius: 999px; padding: 2px 7px; margin-left: 6px; min-width: 18px; text-align: center;
+  }
+  .ann-badge.hidden { display: none; }
+
+  /* Driver-side announcement card */
+  .ann-card {
+    background: var(--panel); border: var(--border-thin) solid var(--divider);
+    border-radius: 8px; padding: 12px 14px; margin-bottom: 10px;
+  }
+  .ann-card.unread { background: var(--panel); }
+  .ann-card .meta {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 12px; margin-bottom: 6px;
+  }
+  .ann-card .ann-author { font-size: 16px; font-weight: var(--weight-heavy); color: var(--text); letter-spacing: 0.2px; }
+  .ann-card .ann-time   { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .ann-card .body { font-size: 14px; white-space: pre-wrap; color: var(--text); }
+
+  /* Recent Alerts (manager view) — body-prominent layout, replies collapsed */
+  #blAnnList .ann-card .ann-body-wrap { margin-bottom: 6px; }
+  #blAnnList .ann-card .body {
+    font-size: 16px; font-weight: var(--weight-medium); line-height: 1.35; color: var(--text);
+    white-space: pre-wrap;
+  }
+  #blAnnList .ann-card .ann-body-wrap.is-clamped .body {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+  }
+  #blAnnList .ann-card .ann-body-toggle {
+    background: none; border: none; padding: 2px 0; margin-top: 4px;
+    font-size: 12px; font-weight: var(--weight-bold); color: var(--accent);
+    cursor: pointer;
+  }
+  #blAnnList .ann-card .ann-body-toggle:hover { text-decoration: underline; }
+  #blAnnList .ann-card .meta {
+    display: block; margin: 0 0 4px 0;
+    font-size: 11px; color: var(--muted);
+  }
+  #blAnnList .ann-card .ann-time {
+    font-size: 11px; color: var(--muted); font-weight: 500;
+  }
+  #blAnnList .ann-card .ann-author {
+    font-size: 11px; font-weight: var(--weight-bold); color: var(--text-soft); letter-spacing: 0;
+  }
+  #blAnnList .ann-thread-disclosure {
+    margin-top: 8px; border-top: var(--border-thin) solid var(--divider); padding-top: 6px;
+  }
+  #blAnnList .ann-thread-disclosure > summary {
+    cursor: pointer; font-size: 12px; font-weight: var(--weight-bold); color: var(--text-soft);
+    padding: 4px 0; list-style: none;
+  }
+  #blAnnList .ann-thread-disclosure > summary::-webkit-details-marker { display: none; }
+  #blAnnList .ann-thread-disclosure > summary::before {
+    content: "▸ "; display: inline-block; width: 12px;
+  }
+  #blAnnList .ann-thread-disclosure[open] > summary::before { content: "▾ "; }
+  .ann-card .del {
+    float: right; background: none; border: none; color: var(--danger);
+    font-size: 11px; cursor: pointer; padding: 0;
+  }
+
+  /* Reactions row */
+  .ann-reactions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .ann-reaction {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--divider); color: var(--text-soft); border: var(--border-thin) solid var(--divider);
+    border-radius: 999px; padding: 4px 10px; font-size: 13px; cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .ann-reaction:hover { background: var(--surface-hover); }
+  .ann-reaction.mine { background: var(--panel); border-color: var(--info); color: var(--info-text); }
+  .ann-reaction .emoji { font-size: 14px; }
+  .ann-reaction .count { font-weight: var(--weight-bold); font-size: 12px; }
+
+  /* Who reacted line under the reaction row */
+  .ann-reactor-names {
+    display: flex; flex-wrap: wrap; gap: 6px 12px;
+    margin-top: 6px; font-size: 11px; color: var(--muted); line-height: 1.5;
+  }
+  .ann-reactor-names:empty { display: none; }
+  .ann-reactor-group { display: inline-flex; align-items: center; gap: 4px; }
+  .ann-reactor-group .emoji { font-size: 12px; }
+
+  /* Coverage request cards (driver-side extra-driver requests) */
+  .edr-card {
+    background: var(--panel); border: var(--border-thin) solid var(--divider);
+    border-radius: 8px; padding: 12px 14px; margin-bottom: 10px;
+  }
+  .edr-card .when { font-size: 15px; font-weight: var(--weight-bold); color: var(--text); }
+  .edr-card .meta { font-size: 12px; color: var(--text-soft); margin-top: 2px; }
+  .edr-card .note { font-size: 13px; color: var(--info-text); margin-top: 6px; white-space: pre-wrap; }
+  .edr-card .progress { font-size: 11px; color: var(--muted); margin-top: 6px; }
+  /* edr buttons extend .btn .btn-primary/.btn-ghost .btn--sm — only the flex-row + "mine" ring are unique. */
+  .edr-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .edr-actions .btn { flex: 1; min-width: 0; }
+  .edr-yes.mine   { box-shadow: inset 0 0 0 2px var(--info-text); }
+  .edr-no.mine    { box-shadow: inset 0 0 0 2px var(--info-text); color: var(--info-text); }
+
+  /* Shift picker (AM / MID / PM) — used by both manager form and driver response */
+  .shift-picker { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .shift-picker-label { font-size: 12px; color: var(--text-soft); font-weight: var(--weight-medium); width: 100%; margin-bottom: 2px; }
+  .shift-chip {
+    display: inline-flex; align-items: center; cursor: pointer;
+    background: var(--divider); color: var(--text-soft);
+    border: var(--border-thin) solid var(--divider); border-radius: 999px;
+    padding: 6px 12px; font-size: 13px; font-weight: var(--weight-bold);
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .shift-chip input { display: none; }
+  .shift-chip small { font-weight: 500; opacity: 0.7; margin-left: 4px; font-size: 11px; }
+  .shift-chip:hover { background: var(--surface-hover); }
+  .shift-chip:has(input:checked) { background: var(--panel); border-color: var(--info); color: var(--info-text); }
+  .edr-card .shift-chip { font-size: 12px; padding: 4px 10px; }
+
+  .edr-shift-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .edr-shift-tag {
+    background: var(--divider); color: var(--info-text);
+    border-radius: 999px; padding: 2px 10px; font-size: 11px; font-weight: var(--weight-bold);
+    letter-spacing: 0.5px;
+  }
+
+  .edr-accepted-list { margin-top: 8px; }
+  .edr-accepted-list .lbl {
+    font-size: 11px; color: var(--muted); letter-spacing: 1px;
+    text-transform: uppercase; font-weight: var(--weight-bold); margin-bottom: 4px;
+  }
+  .edr-acceptor {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; padding: 4px 0; color: var(--text);
+  }
+  .edr-acceptor .when { color: var(--muted); font-size: 11px; }
+  .edr-acceptor .shifts { color: var(--info); font-size: 11px; font-weight: var(--weight-bold); letter-spacing: 0.5px; }
+
+  /* Manager admin actions on an extra-driver request card */
+  .edr-admin-actions {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    margin-top: 10px; padding-top: 10px; border-top: var(--border-thin) solid var(--divider);
+  }
+  .edr-admin-actions button {
+    background: var(--divider); color: var(--text-soft); border: var(--border-thin) solid var(--divider);
+    padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: var(--weight-bold);
+    cursor: pointer;
+  }
+  .edr-admin-actions button:hover { background: var(--surface-hover); }
+  .edr-act-fill   { color: var(--accent) !important; }
+  .edr-act-fill:hover   { background: var(--success-soft) !important; }
+  .edr-act-cancel { color: var(--warn) !important; }
+  .edr-act-cancel:hover { background: var(--warn-soft) !important; }
+  .edr-act-del    { color: var(--danger) !important; }
+  .edr-act-del:hover    { background: var(--danger-soft) !important; }
+
+  /* Status pill colors (manager backlot EDR list) */
+  .bl-edr-item .status-open      { color: var(--accent); }
+  .bl-edr-item .status-filled    { color: var(--info); }
+  .bl-edr-item .status-cancelled { color: var(--muted); }
+
+  .edr-archive-list { opacity: 0.85; }
+  .edr-archive-list .bl-edr-item { opacity: 0.85; }
+  .edr-archive-list .ann-card { opacity: 0.85; }
+
+  /* Alert admin actions — same pattern as EDR admin actions */
+  .ann-admin-actions {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    margin-top: 10px; padding-top: 10px; border-top: var(--border-thin) solid var(--divider);
+  }
+  .ann-admin-actions button {
+    background: var(--divider); color: var(--text-soft); border: var(--border-thin) solid var(--divider);
+    padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: var(--weight-bold);
+    cursor: pointer;
+  }
+  .ann-admin-actions button:hover { background: var(--surface-hover); }
+  .ann-act-close  { color: var(--accent) !important; }
+  .ann-act-close:hover  { background: var(--success-soft) !important; }
+  .ann-act-cancel { color: var(--warn) !important; }
+  .ann-act-cancel:hover { background: var(--warn-soft) !important; }
+  .ann-act-del    { color: var(--danger) !important; }
+  .ann-act-del:hover    { background: var(--danger-soft) !important; }
+
+  /* Status row at the bottom of archived alert cards */
+  .ann-card-status {
+    margin-top: 8px;
+    text-align: right;
+    font-size: 11px; font-weight: var(--weight-bold); letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .ann-card-status.status-closed    { color: var(--info); }
+  .ann-card-status.status-cancelled { color: var(--muted); }
+
+  /* Square off the left edge on any accent-border card so the
+     colored stripe sits flush against the corner rather than
+     showing through a rounded gap. */
+  .ann-card, .bl-ann-item, .edr-card {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  /* Reply thread (alerts + announcements) */
+  .ann-thread { margin-top: 10px; border-top: var(--border-thin) solid var(--divider); padding-top: 10px; }
+  .ann-reply-list:empty { display: none; }
+  .ann-reply {
+    padding: 6px 0; border-bottom: var(--border-thin) solid var(--divider);
+    font-size: 13px;
+  }
+  .ann-reply:last-child { border-bottom: none; }
+  .ann-reply-meta { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+  .ann-reply-meta b { color: var(--text-soft); font-weight: var(--weight-bold); }
+  .ann-reply-del {
+    background: none; border: none; color: var(--danger);
+    font-size: 11px; cursor: pointer; padding: 0; margin-left: 6px;
+  }
+  .ann-reply-body { color: var(--text); white-space: pre-wrap; }
+
+  .ann-reply-form {
+    display: flex; gap: var(--space-2); margin-top: var(--space-2); align-items: center;
+  }
+  .ann-reply-form input {
+    flex: 1; padding: var(--space-2) var(--space-3); border-radius: 6px;
+    background: var(--bg); color: var(--text); border: var(--border-thin) solid var(--divider);
+    font-size: 13px; margin: 0;
+  }
+  .ann-reply-form input:focus { outline: none; border-color: var(--accent); }
+
+  /* Auth-modal helper text + link button (sign-in / sign-up sub-line). */
+  .dt-auth-link {
+    background: none; border: none; color: var(--info);
+    font-size: 13px; cursor: pointer; padding: 4px;
+    text-align: center; margin-top: 2px;
+  }
+  .dt-auth-link:hover { text-decoration: underline; }
+  .dt-auth-sub {
+    font-size: 13px; color: var(--text-soft); text-align: center;
+    margin-bottom: 4px;
+  }
 
   /* RECORD DETAIL OVERLAY */
   .detail-overlay {
@@ -1012,6 +2374,79 @@
     .weather-alert-msg { animation: none; padding-left: 0; }
   }
 
+  /* ROLE GATING — auth.js adds .is-manager / .is-cxr / .is-detailer / .is-admin to <body>.
+     Default-hide opt-in classes (.manager-only, .detailer-only); show them when the matching
+     body class is present. Driver UI is the baseline — hide it for non-driver roles. */
+  .manager-only { display: none !important; }
+  body.is-manager .menu-item.manager-only        { display: flex !important; }
+  body.is-manager .menu-section-label.manager-only { display: block !important; }
+  body.is-manager .tab.manager-only              { display: block !important; }
+  body.is-manager .driver-only                   { display: none !important; }
+
+  /* CXR — manager-lite. Sees most of the manager UI, retains a handful of
+     manager view but cuts a few manager-only features (.cxr-hide).
+     No "Backlot" section label. */
+  body.is-cxr .menu-item.manager-only            { display: flex  !important; }
+  body.is-cxr .tab.manager-only                  { display: block !important; }
+  body.is-cxr .menu-section-label.manager-only   { display: none  !important; }
+  body.is-cxr .driver-only                       { display: none  !important; }
+  body.is-cxr .cxr-hide                          { display: none  !important; }
+
+  /* Detailer — a focused role. Hide everything not theirs. */
+  .detailer-only                                  { display: none !important; }
+  body.is-detailer .detailer-only.tab             { display: block !important; }
+  body.is-detailer .detailer-only.menu-item       { display: flex  !important; }
+  body.is-detailer .detailer-only.disclosure      { display: block !important; }
+  /* Detailer-only conditions chip list inside #panel-entry.
+     #entryLockedBanner is .detailer-only but its visibility is JS-controlled
+     (setLockedBanner toggles inline display), so no override here. */
+  body.is-detailer #detailConditions              { display: flex !important; }
+  /* Detailer Save/Complete footer is a flex column (see .detail-job-actions). */
+  body.is-detailer .detailer-only.detail-job-actions { display: flex !important; }
+  /* Hide CXR/driver chip list and the standard Save row for detailers — they
+     use #detailConditions and #entryJobActions instead. */
+  body.is-detailer #cxrConditionsSection          { display: none !important; }
+  body.is-detailer .u-row-end.non-detailer        { display: none !important; }
+  body.is-detailer .driver-only,
+  body.is-detailer .manager-only                  { display: none !important; }
+
+  /* Manager header — invert colors: green background, dark text + logo,
+     full-width white underline (matches the green stripe on the driver side) */
+  body.is-manager header {
+    background: var(--accent);
+    border-bottom-color: var(--text-on-status);
+  }
+  body.is-manager header h1,
+  body.is-manager header h1 small,
+  body.is-manager header .header-logo {
+    color: var(--text-on-accent);
+  }
+  body.is-manager header svg path[fill] { fill: var(--text-on-accent); }
+  body.is-manager .btn-hamburger span   { background: var(--text-on-accent); }
+  /* Manager tabs: dark inactive with grey text, white active sitting on
+     the header's full-width white underline */
+  body.is-manager .tab           { background: var(--text-on-accent); color: var(--muted); }
+  body.is-manager .tab.active    { background: var(--text-on-status); color: var(--text-on-accent); }
+  /* Fleet avg-trip-time / cars-per-hour banner — white strip, flush edges,
+     matches the driver banner's placement (no top/side margin, no radius) */
+  body.is-manager #avgBanner {
+    background: var(--text-on-status); color: var(--text-on-accent);
+    border: none;
+    border-radius: 0;
+    margin: 0;
+    max-width: none;
+  }
+  body.is-manager #avgBanner .avg-banner-divider { background: rgba(0,0,0,0.12); }
+
+  /* 4px role-colored border at top of header so the logged-in role is visible at a glance. */
+  header { border-top: 4px solid transparent; }
+  body.is-admin    header { border-top-color: var(--danger); }
+  body.is-manager  header { border-top-color: var(--accent); }
+  body.is-manager.is-admin header { border-top-color: var(--danger); }
+  body.is-cxr      header { border-top-color: var(--warn); }
+  body.is-detailer header { border-top-color: var(--role-detailer); }
+  body:not(.is-admin):not(.is-manager):not(.is-cxr):not(.is-detailer) header { border-top-color: var(--info); }
+
   /* HEADER TOP ROW */
   .header-top { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
   .header-greeting {
@@ -1063,6 +2498,11 @@
   .menu-close { font-size: var(--font-xl); }
 
   .menu-nav { flex: 1; padding: var(--space-3) 0; }
+  .menu-section-label {
+    padding: 14px 20px 6px; font-size: 10px; letter-spacing: 2px;
+    color: var(--muted); text-transform: uppercase; font-weight: var(--weight-bold);
+    border-top: var(--border-thin) solid var(--divider); margin-top: 6px;
+  }
   .menu-item {
     display: flex; align-items: center; gap: var(--space-2);
     padding: var(--space-3) var(--space-3); min-height: 44px;
@@ -1568,10 +3008,16 @@
   /* HEADER LOGO — steering-wheel hover animation */
   .header-logo { cursor: pointer; user-select: none; }
   .logo-icon {
+    vertical-align: middle;
+    margin-right: 8px;
+    margin-bottom: 3px;
     transform-origin: 50% 50%;
     transform-box: fill-box;
     transition: transform 0.2s ease;
   }
+  /* Inline SVG sprite container — kept in document flow at 0×0 with display
+     allowed so <use> references resolve, but pulled out of layout. */
+  .icon-sprite { position: absolute; }
   .header-logo:hover .logo-icon,
   .header-logo:focus .logo-icon {
     animation: steerWheel 1.2s ease-in-out infinite;
@@ -1647,8 +3093,11 @@
      Spacing/colors always reference design tokens.
      ============================================================ */
 
-  /* Visibility */
-  .u-hidden { display: none !important; }
+  /* Visibility. No `!important` on purpose: many feature modules show/hide
+     these elements by setting `el.style.display = "block"` directly, and an
+     `!important` class rule would defeat that. If you need an unconditional
+     hide that even inline styles can't beat, use the `hidden` attribute. */
+  .u-hidden { display: none; }
 
   /* Visually hidden but focusable — used for file inputs that are paired with
      a <label> styled as a button. We can't use `hidden` / `display:none`
@@ -1665,6 +3114,7 @@
 
   /* Inline SVG icon alignment next to text */
   .u-icon { vertical-align: middle; display: inline-block; }
+  .u-icon-mr-1 { vertical-align: middle; display: inline-block; margin-right: 4px; }
   .u-icon-mr-2 { vertical-align: middle; display: inline-block; margin-right: 6px; }
 
   /* Margin */
@@ -1797,3 +3247,225 @@
     box-shadow: 0 2px 6px rgba(0,0,0,0.4);
     cursor: pointer;
   }
+
+  /* Multi-photo strip on the New Entry form: horizontally-scrolling row of
+     thumbnails, each with its own remove button. */
+  .entry-photo-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .entry-photo-strip .entry-photo-thumb {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--overlay-bg);
+  }
+  .entry-photo-strip .entry-photo-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .entry-photo-strip .entry-photo-thumb button {
+    position: absolute;
+    top: 2px; right: 2px;
+    width: 22px; height: 22px;
+    border: none; border-radius: 50%;
+    background: rgba(0,0,0,0.7); color: var(--text-on-status);
+    font-size: 13px; line-height: 1;
+    cursor: pointer;
+  }
+
+  /* Photo gallery shown on the record detail panel. */
+  .record-photo-gallery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .record-photo-gallery img {
+    width: 100px;
+    height: 100px;
+    object-fit: cover;
+    border-radius: var(--radius);
+    cursor: zoom-in;
+  }
+
+  /* Dark gradient that fades in at the top of the viewport on scroll, so
+     content scrolling under the device's status bar / notch area reads
+     against a dim backdrop instead of clashing with the header. */
+  #scrollFade {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: max(72px, env(safe-area-inset-top, 0px) + 56px);
+    background: linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0) 100%);
+    opacity: 0;
+    transition: opacity 0.18s ease-out;
+    pointer-events: none;
+    z-index: 9000;
+  }
+  body.is-scrolled #scrollFade { opacity: 1; }
+
+  /* ============================================================
+     Replacements for one-off inline `style=` attributes.
+     Grouped by feature so they're easy to find when extending.
+     ============================================================ */
+
+  /* --- Spacing helpers used by feature templates --- */
+  .u-mt-1 { margin-top: var(--space-1); }
+  .u-mt-2 { margin-top: var(--space-2); }
+  .u-mt-3 { margin-top: var(--space-3); }
+  .u-min-w-0 { min-width: 0; }
+
+  /* --- detail-actions modifiers --- */
+  .detail-actions--single { grid-template-columns: 1fr; }
+  .detail-actions--mt     { margin-top: 12px; }
+
+  /* --- Detailer history row VIN status line --- */
+  .detail-history-status { margin-top: var(--space-2); }
+
+  /* --- Profile name input (capitalize override + tight bottom) --- */
+  .profile-name-input { text-transform: none; margin-bottom: 0; }
+
+  /* --- Records-tab map embedded directly under list --- */
+  .shift-map-container--flat {
+    margin-top: 0;
+    border-radius: 0 0 var(--radius) var(--radius);
+  }
+
+  /* --- Records detail Back button: auto width with side padding --- */
+  .records-back-btn {
+    width: auto;
+    display: inline-block;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  /* --- Contact overlay must sit above standard detail overlay --- */
+  #contactOverlay { z-index: 950; }
+
+  /* --- Driver name header at the top of the dashboard tab --- */
+  .dash-driver-name { margin-bottom: 20px; }
+  .dash-driver-name__label {
+    font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 1px;
+    font-weight: var(--weight-bold);
+  }
+  .dash-driver-name__text {
+    font-size: 22px; font-weight: 900;
+    color: var(--text); letter-spacing: 1px;
+  }
+  .dash-driver-name__loc {
+    font-size: 13px; color: var(--muted);
+    margin-top: 3px;
+  }
+
+  /* --- Soft "(tap a dot...)" hint span next to a dashboard title --- */
+  .dash-title-hint { font-size: 11px; font-weight: normal; }
+
+  /* --- Stat number / card modifiers --- */
+  .stat-num--sm     { font-size: 18px; }
+  .stat-num--danger { color: var(--danger); }
+  .stat-num--up     { color: var(--accent); }
+  .stat-num--flat   { color: var(--muted); }
+  .stat-card--wide  { grid-column: span 2; }
+
+  /* --- "View Record" Leaflet popup. Leaflet renders these inside its own
+     stacking context, so they need self-contained styles. Color refs here
+     are intentionally non-tokenised because they read against the white
+     popup background, not the app surface. --- */
+  .map-popup { font-family: Arial, sans-serif; min-width: 140px; }
+  .map-popup__title  { font-weight: 800; font-size: 14px; margin-bottom: 4px; color: #222; }
+  .map-popup__status { font-size: 12px; color: #555; margin-bottom: 6px; }
+  .map-popup__time   { font-size: 11px; color: #888; margin-bottom: 8px; }
+  .map-popup__btn {
+    background: var(--accent); color: var(--text-on-status);
+    border: none; padding: 5px 12px; border-radius: 4px;
+    font-size: 12px; font-weight: 700;
+    cursor: pointer; width: 100%;
+  }
+
+  /* --- Map legend pill --- */
+  .map-legend-status { font-size: 10px; }
+
+  /* --- "No data yet" inline message under a chart --- */
+  .dash-empty-inline { color: var(--muted); padding: 8px; }
+
+  /* --- Dashboard day-table cell variants --- */
+  .day-cell-muted   { color: var(--muted); }
+  .day-cell-name    { color: var(--muted); font-size: 11px; }
+  .day-cell-today   { color: var(--accent); font-weight: var(--weight-heavy); }
+  .day-cell-shift   { font-size: 11px; font-weight: 700; color: var(--accent); }
+  .day-cell-shift-t { font-size: 10px; color: var(--muted); }
+  .day-cell-avg     { color: var(--accent); font-weight: 700; }
+  .day-cell-row-today { font-weight: 700; }
+
+  /* --- Reusable horizontal accent bar inside stat-table cells --- */
+  .stat-bar {
+    background: var(--accent);
+    height: 8px; border-radius: 4px;
+    min-width: 4px;
+  }
+
+  /* --- Record card spacing tweaks --- */
+  .vin-tl-count--mt    { margin-top: 4px; }
+  .vin-tl-tires-val    { color: var(--danger); }
+  .vin-tl-count-driver { color: var(--text-soft); }
+  .record-notes--mt    { margin-top: 8px; }
+
+  /* --- Backup slot list rows --- */
+  .backup-slot-row { align-items: center; gap: 8px; }
+  .backup-slot-info { flex: 1; min-width: 0; }
+  .backup-slot-row .data-label { font-weight: 600; }
+  .backup-slot-row .data-value { font-size: 12px; color: var(--muted); }
+  .backup-slot-row .btn { padding: 4px 10px; font-size: 12px; }
+  .undo-restore-btn {
+    width: 100%;
+    margin-top: 10px;
+  }
+
+  /* --- "Enter Manually" button shown after a scanner failure.
+     Reuses .btn-destructive geometry but recoloured as the primary accent. --- */
+  .scanner-manual-btn {
+    margin-top: var(--space-2);
+    background: var(--accent);
+    color: var(--text-on-status);
+    border-color: var(--accent);
+  }
+
+  /* --- Entry photo strip top spacing when shown --- */
+  .entry-photo-strip { margin-top: 10px; }
+
+  /* --- Personal Records best-day card is clickable --- */
+  .pr-card.highlight { cursor: pointer; }
+
+  /* --- E-learning admin "no admin passphrase set" warning record --- */
+  .record-warn-accent {
+    border-color: var(--accent);
+    background: var(--accent-muted);
+    margin-bottom: var(--space-4);
+  }
+  .record-warn-accent .record-notes { color: var(--text); }
+
+  /* --- E-learning admin read-only module note --- */
+  .quiz-readonly-note {
+    color: var(--text-soft);
+    font-size: var(--font-sm);
+  }
+
+  /* --- Two-column form grid used in elearning admin module details --- */
+  .form-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+  }
+
+  /* --- Edit overlay inner wrapper padding --- */
+  .modal-pad { padding: 16px 18px; }
+
+  /* --- Edit overlay action row override of default detail-actions --- */
+  .edit-detail-actions { padding: 16px 0 0; }
+
+  /* --- Detailer/backlot horizontal mini bar (already in .bl-bar-row) --- */

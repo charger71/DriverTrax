@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DriverTrax — Component Library</title>
+
+<!-- Pre-paint theme init (mirrors index.html) -->
+<script>
+  (function(){
+    try {
+      var pref = localStorage.getItem("dt_theme") || "system";
+      if (pref !== "light" && pref !== "dark" && pref !== "system") pref = "system";
+      var resolved = pref === "system"
+        ? (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
+        : pref;
+      document.documentElement.setAttribute("data-theme", resolved);
+    } catch (e) {}
+  })();
+</script>
+
+<link rel="stylesheet" href="app.css">
+
+<style>
+  /* Showcase-only styles. Not part of the app. */
+  body { padding: var(--space-5); max-width: 980px; margin: 0 auto; font-size: var(--font-base); }
+  .cl-header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: var(--space-4); padding-bottom: var(--space-4);
+    border-bottom: var(--border-strong) solid var(--accent); margin-bottom: var(--space-6);
+  }
+  .cl-header h1 { color: var(--accent); font-size: var(--font-2xl); font-weight: var(--weight-black); letter-spacing: 2px; }
+  .cl-header p { color: var(--muted); font-size: var(--font-sm); margin-top: var(--space-1); }
+
+  .cl-section { margin-bottom: var(--space-7); }
+  .cl-section > h2 {
+    font-size: var(--font-lg); font-weight: var(--weight-heavy);
+    color: var(--text); margin-bottom: var(--space-2);
+    padding-bottom: var(--space-2); border-bottom: var(--border-thin) solid var(--divider);
+  }
+  .cl-section > .cl-desc {
+    color: var(--text-soft); font-size: var(--font-sm);
+    margin-bottom: var(--space-4); line-height: var(--leading-relaxed);
+  }
+
+  .cl-block {
+    background: var(--card); border: var(--border-thin) solid var(--border);
+    border-radius: var(--radius); padding: var(--space-4);
+    margin-bottom: var(--space-4);
+  }
+  .cl-block-label {
+    font-size: var(--font-xs); color: var(--muted);
+    text-transform: uppercase; letter-spacing: 1px;
+    font-weight: var(--weight-bold); margin-bottom: var(--space-3);
+  }
+  .cl-preview {
+    background: var(--bg); border: var(--border-thin) dashed var(--border);
+    border-radius: var(--radius); padding: var(--space-4);
+    margin-bottom: var(--space-3);
+    display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center;
+  }
+  .cl-preview.cl-stack { flex-direction: column; align-items: stretch; }
+  /* Form preview — block layout, no flex gap. Lets .field-label's own
+     margin-top/bottom and input margin-bottom drive vertical rhythm exactly
+     as they do in a real form. */
+  .cl-preview.cl-form { display: block; gap: 0; }
+  pre.cl-code {
+    background: var(--header-bg); color: var(--text-soft);
+    border: var(--border-thin) solid var(--divider); border-radius: var(--radius);
+    padding: var(--space-3); margin: 0;
+    font-size: var(--font-sm); line-height: var(--leading-relaxed);
+    overflow-x: auto; white-space: pre;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  .cl-swatch-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: var(--space-3);
+  }
+  .cl-swatch {
+    border: var(--border-thin) solid var(--border); border-radius: var(--radius);
+    overflow: hidden; background: var(--card-soft);
+  }
+  .cl-swatch-chip { height: 56px; }
+  .cl-swatch-meta {
+    padding: var(--space-2);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: var(--font-xs); color: var(--text-soft);
+  }
+  .cl-swatch-meta strong { display: block; color: var(--text); font-size: var(--font-sm); margin-bottom: var(--space-1); }
+
+  .cl-type-row { display: flex; align-items: baseline; gap: var(--space-4); padding: var(--space-2) 0; border-bottom: var(--border-thin) dashed var(--divider); }
+  .cl-type-row:last-child { border-bottom: none; }
+  .cl-type-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--font-xs); color: var(--muted); min-width: 110px; }
+
+  .cl-theme-toggle { display: flex; gap: var(--space-2); }
+  .cl-toc {
+    background: var(--panel); border: var(--border-thin) solid var(--border); border-radius: var(--radius);
+    padding: var(--space-4); margin-bottom: var(--space-6);
+  }
+  .cl-toc ul { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--space-2); list-style: none; }
+  .cl-toc a { color: var(--accent); text-decoration: none; font-size: var(--font-sm); font-weight: var(--weight-medium); }
+  .cl-toc a:hover { text-decoration: underline; }
+
+  /* Inline spinner shown alongside loading copy. */
+  .cl-spinner {
+    display: inline-block; width: 12px; height: 12px;
+    margin-right: var(--space-2); vertical-align: -2px;
+    border: var(--border-strong) solid var(--divider); border-top-color: var(--accent);
+    border-radius: 50%;
+    /* Spinner cycle is intentionally longer than UI transition tokens. */
+    animation: cl-spin 0.8s linear infinite;
+  }
+  @keyframes cl-spin { to { transform: rotate(360deg); } }
+
+  /* Do / don't pair layout. */
+  .cl-dont-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+  @media (max-width: 640px) { .cl-dont-grid { grid-template-columns: 1fr; } }
+  .cl-do, .cl-dont {
+    border: var(--border-thin) solid var(--border); border-radius: var(--radius);
+    padding: var(--space-3); background: var(--bg);
+  }
+  .cl-do   { border-left: var(--border-stripe) solid var(--accent); }
+  .cl-dont { border-left: var(--border-stripe) solid var(--danger); }
+  .cl-do-label, .cl-dont-label {
+    font-size: var(--font-xs); font-weight: var(--weight-heavy); text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: var(--space-2);
+  }
+  .cl-do-label   { color: var(--accent); }
+  .cl-dont-label { color: var(--danger); }
+  .cl-do pre, .cl-dont pre {
+    background: var(--header-bg); border: var(--border-thin) solid var(--divider); border-radius: var(--radius);
+    padding: var(--space-2); margin: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: var(--font-xs); line-height: var(--leading-relaxed); white-space: pre; overflow-x: auto;
+  }
+</style>
+</head>
+<body>
+
+<header class="cl-header">
+  <div>
+    <h1>DriverTrax Components</h1>
+    <p>Living reference for the canonical patterns in <code>app.css</code>. Mirror these instead of inventing new ones.</p>
+  </div>
+  <div class="cl-theme-toggle">
+    <button type="button" class="btn btn-secondary btn--sm" onclick="setTheme('light')">Light</button>
+    <button type="button" class="btn btn-secondary btn--sm" onclick="setTheme('dark')">Dark</button>
+  </div>
+</header>
+
+<nav class="cl-toc">
+  <ul>
+    <li><a href="#colors">Color tokens</a></li>
+    <li><a href="#typography">Typography</a></li>
+    <li><a href="#spacing">Spacing</a></li>
+    <li><a href="#layers-motion">Layers &amp; motion</a></li>
+    <li><a href="#buttons">Buttons</a></li>
+    <li><a href="#tabs">Tabs</a></li>
+    <li><a href="#fields">Form fields</a></li>
+    <li><a href="#badges">Badges</a></li>
+    <li><a href="#status">Status chips</a></li>
+    <li><a href="#stats">Stat cards</a></li>
+    <li><a href="#compositions">Compositions</a></li>
+    <li><a href="#vin-history">VIN history</a></li>
+    <li><a href="#states">States</a></li>
+    <li><a href="#modal">Modal</a></li>
+    <li><a href="#toast">Toast</a></li>
+    <li><a href="#roles">Role colors</a></li>
+    <li><a href="#dont">Anti-patterns</a></li>
+  </ul>
+</nav>
+
+<!-- ===================== COLORS ===================== -->
+<section class="cl-section" id="colors">
+  <h2>Color tokens</h2>
+  <p class="cl-desc">All colors live in <code>:root</code> in <code>app.css</code>. Never hardcode hex values — pick the closest semantic token.</p>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Surfaces</div>
+    <div class="cl-swatch-grid" id="sw-surfaces"></div>
+  </div>
+  <div class="cl-block">
+    <div class="cl-block-label">Text</div>
+    <div class="cl-swatch-grid" id="sw-text"></div>
+  </div>
+  <div class="cl-block">
+    <div class="cl-block-label">Accent & status</div>
+    <div class="cl-swatch-grid" id="sw-status"></div>
+  </div>
+</section>
+
+<!-- ===================== TYPOGRAPHY ===================== -->
+<section class="cl-section" id="typography">
+  <h2>Typography</h2>
+  <p class="cl-desc">Major-third scale. Use the <code>--font-*</code> variables, not raw pixel values.</p>
+  <div class="cl-block">
+    <div class="cl-type-row"><span class="cl-type-name">--font-2xl / 28</span><span style="font-size: var(--font-2xl); font-weight: var(--weight-black);">Display heading</span></div>
+    <div class="cl-type-row"><span class="cl-type-name">--font-xl / 22</span><span style="font-size: var(--font-xl); font-weight: var(--weight-heavy);">Section title</span></div>
+    <div class="cl-type-row"><span class="cl-type-name">--font-lg / 18</span><span style="font-size: var(--font-lg); font-weight: var(--weight-bold);">Subhead</span></div>
+    <div class="cl-type-row"><span class="cl-type-name">--font-md / 16</span><span style="font-size: var(--font-md);">Body / form control</span></div>
+    <div class="cl-type-row"><span class="cl-type-name">--font-base / 14</span><span style="font-size: var(--font-base);">Default body</span></div>
+    <div class="cl-type-row"><span class="cl-type-name">--font-sm / 12</span><span style="font-size: var(--font-sm); color: var(--text-soft);">Small / helper text</span></div>
+    <div class="cl-type-row"><span class="cl-type-name">--font-xs / 10</span><span class="field-label" style="margin: 0;">UPPERCASE LABEL</span></div>
+  </div>
+</section>
+
+<!-- ===================== SPACING ===================== -->
+<section class="cl-section" id="spacing">
+  <h2>Spacing</h2>
+  <p class="cl-desc">Mixed 4/8 scale. Inputs use <code>--dt-input-h</code> (44px).</p>
+  <div class="cl-block">
+    <div class="cl-swatch-grid" id="sw-space"></div>
+  </div>
+</section>
+
+<!-- ===================== LAYERS & MOTION ===================== -->
+<section class="cl-section" id="layers-motion">
+  <h2>Layers &amp; motion</h2>
+  <p class="cl-desc">Stacking and timing have named tokens too. <strong>Never set a raw <code>z-index</code> or transition duration</strong> — pick a token or add one to <code>app.css</code>.</p>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Z-index scale (low → high)</div>
+    <div class="cl-swatch-grid" id="sw-z"></div>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Motion (duration)</div>
+    <div class="cl-swatch-grid" id="sw-duration"></div>
+<pre class="cl-code">transition: background var(--duration-base) var(--ease-standard);
+transition: opacity var(--duration-slow) var(--ease-out);</pre>
+  </div>
+</section>
+
+<!-- ===================== BUTTONS ===================== -->
+<section class="cl-section" id="buttons">
+  <h2>Buttons</h2>
+  <p class="cl-desc">Always use <code>.btn</code> + a variant. Sizes/shapes are additive modifiers.</p>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Variants</div>
+    <div class="cl-preview">
+      <button class="btn btn-primary">Primary</button>
+      <button class="btn btn-secondary">Secondary</button>
+      <button class="btn btn-ghost">Ghost</button>
+      <button class="btn btn-destructive">Destructive</button>
+      <button class="btn btn-icon" aria-label="Icon">×</button>
+      <button class="btn btn-primary" disabled>Disabled</button>
+    </div>
+<pre class="cl-code">&lt;button class="btn btn-primary"&gt;Primary&lt;/button&gt;
+&lt;button class="btn btn-secondary"&gt;Secondary&lt;/button&gt;
+&lt;button class="btn btn-ghost"&gt;Ghost&lt;/button&gt;
+&lt;button class="btn btn-destructive"&gt;Destructive&lt;/button&gt;
+&lt;button class="btn btn-icon" aria-label="Close"&gt;×&lt;/button&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Sizes &amp; shapes</div>
+    <div class="cl-preview">
+      <button class="btn btn-primary btn--sm">Small</button>
+      <button class="btn btn-primary">Default</button>
+      <button class="btn btn-primary btn--hero">HERO</button>
+      <button class="btn btn-secondary btn--pill">Pill</button>
+      <button class="btn btn-secondary btn--dashed">Dashed</button>
+    </div>
+    <div class="cl-preview cl-stack">
+      <button class="btn btn-primary btn--block">Block (50% max, centered)</button>
+      <button class="btn btn-primary btn--full">Full width</button>
+    </div>
+<pre class="cl-code">&lt;button class="btn btn-primary btn--sm"&gt;Small&lt;/button&gt;
+&lt;button class="btn btn-primary btn--hero"&gt;HERO&lt;/button&gt;
+&lt;button class="btn btn-primary btn--full"&gt;Full width&lt;/button&gt;</pre>
+  </div>
+</section>
+
+<!-- ===================== TABS ===================== -->
+<section class="cl-section" id="tabs">
+  <h2>Tabs</h2>
+  <p class="cl-desc">Top-of-panel navigation. The <code>.tab-badge</code> is for unread/count indicators.</p>
+  <div class="cl-block">
+    <div class="cl-preview cl-stack">
+      <div class="tabs" role="tablist" aria-label="Demo navigation">
+        <button type="button" class="tab active" role="tab" aria-selected="true"  aria-controls="panel-entry">NEW ENTRY</button>
+        <button type="button" class="tab"        role="tab" aria-selected="false" aria-controls="panel-records">VIN LOOKUP</button>
+        <button type="button" class="tab"        role="tab" aria-selected="false" aria-controls="panel-alerts">ALERTS<span class="tab-badge">3</span></button>
+        <button type="button" class="tab"        role="tab" aria-selected="false" aria-controls="panel-dash">DASHBOARD</button>
+      </div>
+    </div>
+<pre class="cl-code">&lt;div class="tabs" role="tablist" aria-label="Main navigation"&gt;
+  &lt;button type="button" class="tab active" role="tab"
+          aria-selected="true"  aria-controls="panel-entry"&gt;NEW ENTRY&lt;/button&gt;
+  &lt;button type="button" class="tab"        role="tab"
+          aria-selected="false" aria-controls="panel-records"&gt;VIN LOOKUP&lt;/button&gt;
+  &lt;button type="button" class="tab"        role="tab"
+          aria-selected="false" aria-controls="panel-alerts"&gt;
+    ALERTS&lt;span class="tab-badge hidden" id="tabAlertsBadge"&gt;&lt;/span&gt;
+  &lt;/button&gt;
+&lt;/div&gt;
+
+&lt;!-- Add `.hidden` to .tab-badge until you have a count to show. --&gt;</pre>
+  </div>
+</section>
+
+<!-- ===================== FIELDS ===================== -->
+<section class="cl-section" id="fields">
+  <h2>Form fields</h2>
+  <p class="cl-desc">Labels are 10px uppercase muted. Use <code>.field-label</code> above every control. <code>.field-row</code> / <code>.entry-form-row</code> sit two controls side-by-side.</p>
+  <div class="cl-block">
+    <div class="cl-preview cl-form" style="max-width: 460px;">
+      <span class="field-label">VIN / Plate</span>
+      <input type="text" placeholder="Enter VIN">
+      <div class="entry-form-row">
+        <div style="flex:1;">
+          <span class="field-label">Mileage</span>
+          <input type="number" placeholder="0">
+        </div>
+        <div style="flex:1;">
+          <span class="field-label">Fuel</span>
+          <select>
+            <option>FULL</option><option>3/4</option><option>1/2</option><option>1/4</option><option>EMPTY</option>
+          </select>
+        </div>
+      </div>
+      <span class="field-label">Notes</span>
+      <textarea rows="3" placeholder="Optional notes…"></textarea>
+    </div>
+<pre class="cl-code">&lt;!-- field-label is a styling class, not a &lt;label&gt; element. Use &lt;span&gt;
+     (or &lt;div&gt; for block-level groups). Match index.html convention. --&gt;
+&lt;span class="field-label"&gt;VIN / Plate&lt;/span&gt;
+&lt;input type="text" placeholder="Enter VIN"&gt;
+
+&lt;div class="entry-form-row"&gt;
+  &lt;div style="flex:1;"&gt;
+    &lt;span class="field-label"&gt;Mileage&lt;/span&gt;
+    &lt;input type="number"&gt;
+  &lt;/div&gt;
+  &lt;div style="flex:1;"&gt;
+    &lt;span class="field-label"&gt;Fuel&lt;/span&gt;
+    &lt;select&gt;...&lt;/select&gt;
+  &lt;/div&gt;
+&lt;/div&gt;</pre>
+  </div>
+</section>
+
+<!-- ===================== BADGES ===================== -->
+<section class="cl-section" id="badges">
+  <h2>Badges</h2>
+  <p class="cl-desc">Small labels attached to records. All variants share the base sizing rule on <code>.record-status, .badge-*</code>.</p>
+  <div class="cl-block">
+    <div class="cl-preview">
+      <div class="record-badges">
+        <span class="badge-dest">GARAGE</span>
+        <span class="badge-notag">NO TAG</span>
+        <span class="badge-shuttle">SHUTTLE</span>
+        <span class="badge-transport">TRANSPORT</span>
+      </div>
+    </div>
+<pre class="cl-code">&lt;div class="record-badges"&gt;
+  &lt;span class="badge-dest"&gt;GARAGE&lt;/span&gt;
+  &lt;span class="badge-notag"&gt;NO TAG&lt;/span&gt;
+  &lt;span class="badge-shuttle"&gt;SHUTTLE&lt;/span&gt;
+  &lt;span class="badge-transport"&gt;TRANSPORT&lt;/span&gt;
+&lt;/div&gt;</pre>
+  </div>
+</section>
+
+<!-- ===================== STATUS CHIPS ===================== -->
+<section class="cl-section" id="status">
+  <h2>Status chips</h2>
+  <p class="cl-desc">Driven by <code>statusClass(status)</code> in <code>app.js</code> — it strips non-letters and prepends <code>status-</code>. Stored value is short; display label comes from <code>statusLabel()</code>.</p>
+  <div class="cl-block">
+    <div class="cl-preview" id="status-chips"></div>
+<pre class="cl-code">&lt;span class="record-status status-CLEAN"&gt;CLEAN&lt;/span&gt;
+&lt;span class="record-status status-DIRTY"&gt;DIRTY&lt;/span&gt;
+&lt;!-- Class is statusClass(code), label is statusLabel(code) --&gt;</pre>
+  </div>
+</section>
+
+<!-- ===================== STAT CARDS ===================== -->
+<section class="cl-section" id="stats">
+  <h2>Stat cards</h2>
+  <p class="cl-desc">2-up grid of numeric callouts. Add <code>.clickable</code> when the card opens a detail panel.</p>
+  <div class="cl-block">
+    <div class="cl-preview cl-stack">
+      <div class="stat-grid">
+        <div class="card stat-card">
+          <div class="stat-num">147</div>
+          <div class="stat-label">Today</div>
+        </div>
+        <div class="card stat-card clickable">
+          <div class="stat-num">23</div>
+          <div class="stat-label">Open Requests</div>
+        </div>
+      </div>
+    </div>
+<pre class="cl-code">&lt;div class="stat-grid"&gt;
+  &lt;div class="card stat-card"&gt;
+    &lt;div class="stat-num"&gt;147&lt;/div&gt;
+    &lt;div class="stat-label"&gt;Today&lt;/div&gt;
+  &lt;/div&gt;
+&lt;/div&gt;</pre>
+  </div>
+</section>
+
+<!-- ===================== COMPOSITIONS ===================== -->
+<section class="cl-section" id="compositions">
+  <h2>Compositions</h2>
+  <p class="cl-desc">Real patterns built from the primitives above. <strong>Reuse the exact shape</strong> — if you find yourself improvising one of these, you're probably about to drift.</p>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Record card (canonical) — see <code>recordPopupHTML()</code> in <code>app.js</code></div>
+    <div class="cl-preview cl-stack">
+      <div class="record vin-tl-header" style="cursor: pointer;">
+        <div class="vin-tl-header-top">
+          <div class="vin-tl-header-right">
+            <div class="vin-tl-count">5 min ago · <b>Don H.</b></div>
+            <div class="vin-tl-count">38,412 mi · 3/4</div>
+          </div>
+        </div>
+        <div class="vin-tl-vin">1HGCM82633A123456</div>
+        <div class="vin-tl-vehicle">2024 Toyota Camry · White</div>
+        <div class="vin-tl-pill-row vin-tl-pill-row--bottom">
+          <span class="vin-tl-status-pill status-CLEAN">CLEAN</span>
+          <span class="badge-dest">GARAGE</span>
+          <span class="badge-shuttle">SHUTTLE</span>
+        </div>
+        <div class="record-notes" style="margin-top: var(--space-2)">Notes appear here when present.</div>
+      </div>
+    </div>
+<pre class="cl-code">&lt;div class="record vin-tl-header" onclick="openDetail('${r.id}')"&gt;
+  &lt;div class="vin-tl-header-top"&gt;
+    &lt;div class="vin-tl-header-right"&gt;
+      &lt;div class="vin-tl-count"&gt;${timeAgo} · &lt;b&gt;${driver}&lt;/b&gt;&lt;/div&gt;
+      &lt;div class="vin-tl-count"&gt;${miles} mi · ${fuel}&lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+  &lt;div class="vin-tl-vin"&gt;${vin}&lt;/div&gt;
+  &lt;div class="vin-tl-vehicle"&gt;${year} ${make} ${model}&lt;/div&gt;
+  &lt;div class="vin-tl-pill-row vin-tl-pill-row--bottom"&gt;
+    &lt;!-- Status pill is .vin-tl-status-pill, NOT .record-status.
+         The neutral pill chrome wins; HOLD/DNR/priority are signaled by
+         parent modifier classes (.vin-tl-header--hold / --dnr / --priority). --&gt;
+    &lt;span class="vin-tl-status-pill ${statusClass(r.status)}"&gt;${statusLabel(r.status)}&lt;/span&gt;
+    ${badge-dest / badge-shuttle / badge-transport / badge-notag}
+  &lt;/div&gt;
+  ${notes ? `&lt;div class="record-notes"&gt;${notes}&lt;/div&gt;` : ""}
+&lt;/div&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">List row with leading text + trailing action</div>
+    <div class="cl-preview cl-stack">
+      <div style="display:flex; align-items:center; gap: var(--space-3); padding: var(--space-3); background: var(--card); border: var(--border-thin) solid var(--border); border-radius: var(--radius);">
+        <div style="flex:1; min-width: 0;">
+          <div style="font-weight: var(--weight-bold); color: var(--text);">Jane Driver</div>
+          <div style="font-size: var(--font-sm); color: var(--muted);">driver · home: ATL</div>
+        </div>
+        <button class="btn btn-secondary btn--sm">Edit</button>
+      </div>
+    </div>
+<pre class="cl-code">&lt;div style="display:flex; align-items:center; gap: var(--space-3);
+            padding: var(--space-3); background: var(--card);
+            border: var(--border-thin) solid var(--border); border-radius: var(--radius);"&gt;
+  &lt;div style="flex:1; min-width: 0;"&gt;
+    &lt;div style="font-weight: var(--weight-bold); color: var(--text);"&gt;${name}&lt;/div&gt;
+    &lt;div style="font-size: var(--font-sm); color: var(--muted);"&gt;${meta}&lt;/div&gt;
+  &lt;/div&gt;
+  &lt;button class="btn btn-secondary btn--sm"&gt;Edit&lt;/button&gt;
+&lt;/div&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Action footer (use inside a modal or as a bottom row)</div>
+    <div class="cl-preview cl-stack">
+      <div class="users-modal-actions" style="max-width: 340px; margin-inline: auto;">
+        <button class="btn btn-secondary">Cancel</button>
+        <button class="btn btn-primary">Save</button>
+      </div>
+    </div>
+<pre class="cl-code">&lt;div class="users-modal-actions"&gt;
+  &lt;button class="btn btn-secondary"&gt;Cancel&lt;/button&gt;
+  &lt;button class="btn btn-primary"&gt;Save&lt;/button&gt;
+&lt;/div&gt;</pre>
+  </div>
+</section>
+
+<!-- ===================== VIN HISTORY ===================== -->
+<section class="cl-section" id="vin-history">
+  <h2>VIN history</h2>
+  <p class="cl-desc">Header card + meters that appear at the top of the VIN-detail timeline. The header has three modifier variants (<code>--hold</code>, <code>--dnr</code>, <code>--priority</code>) that recolor the whole card. Status pills inside are <code>.vin-tl-status-pill</code> — <strong>not</strong> <code>.record-status</code>.</p>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Header — default</div>
+    <div class="cl-preview cl-stack">
+      <div class="vin-tl-header">
+        <div class="vin-tl-header-top">
+          <div class="vin-tl-header-right">
+            <div class="vin-tl-count">Last seen 5 min ago</div>
+            <div class="vin-tl-meters"><span class="vin-tl-mileage-val">38,412<span class="vin-tl-mileage-unit"> mi</span></span></div>
+          </div>
+        </div>
+        <div class="vin-tl-vin">1HGCM82633A123456</div>
+        <div class="vin-tl-vehicle"><span class="vin-tl-vehicle-name">2024 Toyota Camry · White</span></div>
+        <div class="vin-tl-pill-row vin-tl-pill-row--bottom">
+          <span class="vin-tl-status-pill">CLEAN</span>
+        </div>
+      </div>
+    </div>
+<pre class="cl-code">&lt;div class="vin-tl-header"&gt;
+  &lt;div class="vin-tl-header-top"&gt;
+    &lt;div class="vin-tl-header-right"&gt;
+      &lt;div class="vin-tl-count"&gt;Last seen ${timeAgo}&lt;/div&gt;
+      &lt;div class="vin-tl-meters"&gt;
+        &lt;span class="vin-tl-mileage-val"&gt;${miles}&lt;span class="vin-tl-mileage-unit"&gt; mi&lt;/span&gt;&lt;/span&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+  &lt;div class="vin-tl-vin"&gt;${vin}&lt;/div&gt;
+  &lt;div class="vin-tl-vehicle"&gt;&lt;span class="vin-tl-vehicle-name"&gt;${year} ${make} ${model}&lt;/span&gt;&lt;/div&gt;
+  &lt;div class="vin-tl-pill-row vin-tl-pill-row--bottom"&gt;
+    &lt;span class="vin-tl-status-pill"&gt;${status}&lt;/span&gt;
+  &lt;/div&gt;
+&lt;/div&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Header — HOLD / DNR / PRIORITY variants</div>
+    <div class="cl-preview cl-stack">
+      <div class="vin-tl-header vin-tl-header--hold">
+        <div class="vin-tl-vin">1HGCM82633A111111</div>
+        <div class="vin-tl-vehicle"><span class="vin-tl-vehicle-name">2023 Ford Escape · Silver</span></div>
+        <div class="vin-tl-pill-row vin-tl-pill-row--bottom">
+          <span class="vin-tl-status-pill">HOLD</span>
+        </div>
+      </div>
+      <div class="vin-tl-header vin-tl-header--dnr">
+        <div class="vin-tl-vin">1HGCM82633A222222</div>
+        <div class="vin-tl-vehicle"><span class="vin-tl-vehicle-name">2022 Chevy Malibu · Black</span></div>
+        <div class="vin-tl-pill-row vin-tl-pill-row--bottom">
+          <span class="vin-tl-status-pill">DNR</span>
+        </div>
+      </div>
+      <div class="vin-tl-header vin-tl-header--priority">
+        <div class="vin-tl-vin">1HGCM82633A333333</div>
+        <div class="vin-tl-vehicle"><span class="vin-tl-vehicle-name">2024 Nissan Altima · Red</span></div>
+        <div class="vin-tl-pill-row vin-tl-pill-row--bottom">
+          <span class="vin-tl-status-pill">CHECKIN</span>
+          <span class="vin-tl-priority-pill">PRIORITY</span>
+        </div>
+      </div>
+    </div>
+<pre class="cl-code">&lt;div class="vin-tl-header vin-tl-header--hold"&gt; … &lt;/div&gt;
+&lt;div class="vin-tl-header vin-tl-header--dnr"&gt; … &lt;/div&gt;
+&lt;div class="vin-tl-header vin-tl-header--priority"&gt;
+  …
+  &lt;span class="vin-tl-priority-pill"&gt;PRIORITY&lt;/span&gt;
+&lt;/div&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Condition chips (tires, fuel, charge, priority)</div>
+    <div class="cl-preview cl-stack">
+      <div class="vin-tl-cond-row">
+        <span class="vin-tl-cond-chip">LOW TIRE</span>
+        <span class="vin-tl-cond-chip" data-cond="REGULAR">REGULAR</span>
+        <span class="vin-tl-cond-chip" data-cond="FUEL">FUEL</span>
+        <span class="vin-tl-cond-chip" data-cond="CHARGE">CHARGE</span>
+        <span class="vin-tl-cond-chip" data-cond="PRIORITY">PRIORITY</span>
+      </div>
+    </div>
+<pre class="cl-code">&lt;div class="vin-tl-cond-row"&gt;
+  &lt;span class="vin-tl-cond-chip"&gt;LOW TIRE&lt;/span&gt;
+  &lt;span class="vin-tl-cond-chip" data-cond="REGULAR"&gt;REGULAR&lt;/span&gt;
+  &lt;span class="vin-tl-cond-chip" data-cond="PRIORITY"&gt;PRIORITY&lt;/span&gt;
+&lt;/div&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Fuel gauge (horizontal, with ticks)</div>
+    <div class="cl-preview cl-stack">
+      <div class="vin-tl-fuel">
+        <div class="vin-tl-fuel-head">
+          <span class="vin-tl-fuel-label">FUEL</span>
+          <span class="vin-tl-fuel-value">3/4</span>
+        </div>
+        <div class="vin-tl-fuel-gauge">
+          <div class="vin-tl-fuel-fill" style="width: 75%;"></div>
+          <div class="vin-tl-fuel-ticks"><span></span><span></span><span></span><span></span></div>
+        </div>
+        <div class="vin-tl-fuel-scale"><span>E</span><span>1/4</span><span>1/2</span><span>3/4</span><span>F</span></div>
+      </div>
+      <div class="vin-tl-fuel">
+        <div class="vin-tl-fuel-head">
+          <span class="vin-tl-fuel-label">FUEL</span>
+          <span class="vin-tl-fuel-value">1/2</span>
+        </div>
+        <div class="vin-tl-fuel-gauge is-mid">
+          <div class="vin-tl-fuel-fill" style="width: 50%;"></div>
+          <div class="vin-tl-fuel-ticks"><span></span><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="vin-tl-fuel">
+        <div class="vin-tl-fuel-head">
+          <span class="vin-tl-fuel-label">FUEL</span>
+          <span class="vin-tl-fuel-value">1/8</span>
+        </div>
+        <div class="vin-tl-fuel-gauge is-low">
+          <div class="vin-tl-fuel-fill" style="width: 12%;"></div>
+          <div class="vin-tl-fuel-ticks"><span></span><span></span><span></span><span></span></div>
+        </div>
+      </div>
+    </div>
+<pre class="cl-code">&lt;div class="vin-tl-fuel"&gt;
+  &lt;div class="vin-tl-fuel-head"&gt;
+    &lt;span class="vin-tl-fuel-label"&gt;FUEL&lt;/span&gt;
+    &lt;span class="vin-tl-fuel-value"&gt;${level}&lt;/span&gt;
+  &lt;/div&gt;
+  &lt;!-- Add .is-mid or .is-low to recolor the fill --&gt;
+  &lt;div class="vin-tl-fuel-gauge"&gt;
+    &lt;div class="vin-tl-fuel-fill" style="width: ${pct}%;"&gt;&lt;/div&gt;
+    &lt;div class="vin-tl-fuel-ticks"&gt;&lt;span&gt;&lt;/span&gt;&lt;span&gt;&lt;/span&gt;&lt;span&gt;&lt;/span&gt;&lt;span&gt;&lt;/span&gt;&lt;/div&gt;
+  &lt;/div&gt;
+  &lt;div class="vin-tl-fuel-scale"&gt;&lt;span&gt;E&lt;/span&gt;…&lt;span&gt;F&lt;/span&gt;&lt;/div&gt;
+&lt;/div&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Open recalls banner (collapsible)</div>
+    <div class="cl-preview cl-stack">
+      <div class="vin-tl-recalls">
+        <button class="recall-toggle" aria-expanded="true">
+          <span class="recall-badge">2</span>
+          <span class="recall-toggle-label">OPEN RECALLS</span>
+          <span class="recall-chevron">▾</span>
+        </button>
+        <ul class="recall-list">
+          <li class="recall-row">
+            <a href="#" class="recall-title">Fuel pump may fail without warning<span class="recall-id">NHTSA 24V-321</span></a>
+            <div class="recall-summary">Affected vehicles may experience a sudden loss of motive power due to a fuel pump module that can fail at low fuel levels. Dealer will replace the pump free of charge.</div>
+          </li>
+          <li class="recall-row">
+            <a href="#" class="recall-title">Backup camera image may not display<span class="recall-id">NHTSA 24V-088</span></a>
+            <div class="recall-summary">A software issue can cause the rearview image to fail to appear when reverse is selected.</div>
+          </li>
+        </ul>
+      </div>
+    </div>
+<pre class="cl-code">&lt;div class="vin-tl-recalls"&gt;
+  &lt;button class="recall-toggle" aria-expanded="${open}"&gt;
+    &lt;span class="recall-badge"&gt;${count}&lt;/span&gt;
+    &lt;span class="recall-toggle-label"&gt;OPEN RECALLS&lt;/span&gt;
+    &lt;span class="recall-chevron"&gt;▾&lt;/span&gt;
+  &lt;/button&gt;
+  &lt;ul class="recall-list" ${open ? "" : "hidden"}&gt;
+    &lt;li class="recall-row"&gt;
+      &lt;a href="${url}" class="recall-title"&gt;${title}&lt;span class="recall-id"&gt;${id}&lt;/span&gt;&lt;/a&gt;
+      &lt;div class="recall-summary"&gt;${summary}&lt;/div&gt;
+    &lt;/li&gt;
+  &lt;/ul&gt;
+&lt;/div&gt;</pre>
+  </div>
+</section>
+
+<!-- ===================== STATES ===================== -->
+<section class="cl-section" id="states">
+  <h2>States</h2>
+  <p class="cl-desc">Every list/panel should handle empty, loading, error, and (where role-gated) no-permission. Use these blocks instead of inventing copy on the spot.</p>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Empty</div>
+    <div class="cl-preview cl-stack">
+      <div class="u-empty">No records yet. Scan a VIN to get started.</div>
+    </div>
+<pre class="cl-code">&lt;div class="u-empty"&gt;No records yet. Scan a VIN to get started.&lt;/div&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Loading</div>
+    <div class="cl-preview cl-stack">
+      <div class="u-empty">
+        <span class="cl-spinner" aria-hidden="true"></span>
+        Loading records…
+      </div>
+    </div>
+<pre class="cl-code">&lt;div class="u-empty"&gt;
+  &lt;span class="cl-spinner" aria-hidden="true"&gt;&lt;/span&gt;
+  Loading records…
+&lt;/div&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Error</div>
+    <div class="cl-preview cl-stack">
+      <div class="u-empty" style="color: var(--danger);">
+        Could not load records. <a href="#" style="color: var(--accent); text-decoration: underline;">Retry</a>
+      </div>
+    </div>
+<pre class="cl-code">&lt;div class="u-empty" style="color: var(--danger);"&gt;
+  Could not load records. &lt;a href="#" onclick="retry()"&gt;Retry&lt;/a&gt;
+&lt;/div&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">No permission (role-gated)</div>
+    <div class="cl-preview cl-stack">
+      <div class="u-empty">
+        This area is only available to managers.
+      </div>
+    </div>
+<pre class="cl-code">&lt;!-- Prefer CSS-only gating via body.is-manager/is-admin/is-cxr/is-detailer.
+     Use this block as a last resort when the feature can't be hidden in DOM. --&gt;
+&lt;div class="u-empty"&gt;This area is only available to managers.&lt;/div&gt;</pre>
+  </div>
+</section>
+
+<!-- ===================== MODAL ===================== -->
+<section class="cl-section" id="modal">
+  <h2>Modal</h2>
+  <p class="cl-desc">All app modals use the <code>.users-modal</code> pattern. Toggle <code>.show</code> to open. Status line uses <code>DT_UI.setMessage(el, text, "ok"|"err")</code>.</p>
+  <div class="cl-block">
+    <div class="cl-preview">
+      <button type="button" class="btn btn-primary" onclick="document.getElementById('demoModal').classList.add('show')">Open modal</button>
+    </div>
+<pre class="cl-code">&lt;div class="users-modal" id="myModal"&gt;
+  &lt;div class="users-modal-card"&gt;
+    &lt;div class="users-modal-header"&gt;
+      &lt;strong&gt;Title&lt;/strong&gt;
+      &lt;button class="btn btn-icon users-modal-close"&gt;×&lt;/button&gt;
+    &lt;/div&gt;
+    &lt;!-- body --&gt;
+    &lt;div class="users-modal-msg"&gt;&lt;/div&gt;
+    &lt;div class="users-modal-actions"&gt;
+      &lt;button class="btn btn-secondary"&gt;Cancel&lt;/button&gt;
+      &lt;button class="btn btn-primary"&gt;Save&lt;/button&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/div&gt;</pre>
+  </div>
+</section>
+
+<!-- Demo modal -->
+<div class="users-modal" id="demoModal" aria-hidden="true">
+  <div class="users-modal-card">
+    <div class="users-modal-header">
+      <strong>Example modal</strong>
+      <button type="button" class="btn btn-icon users-modal-close" onclick="document.getElementById('demoModal').classList.remove('show')">×</button>
+    </div>
+    <label class="field-label">Display name</label>
+    <input type="text" placeholder="Don Hansen">
+    <div class="users-modal-msg ok">Saved.</div>
+    <div class="users-modal-actions">
+      <button type="button" class="btn btn-secondary" onclick="document.getElementById('demoModal').classList.remove('show')">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="document.getElementById('demoModal').classList.remove('show')">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== TOAST ===================== -->
+<section class="cl-section" id="toast">
+  <h2>Toast</h2>
+  <p class="cl-desc">Use <code>DT_TOAST.show(msg, type)</code> from JS. Types: <code>success</code> (default), <code>warn</code>, <code>error</code>.</p>
+  <div class="cl-block">
+    <div class="cl-preview">
+      <button type="button" class="btn btn-primary" onclick="demoToast('Saved successfully','success')">Success</button>
+      <button type="button" class="btn btn-secondary" onclick="demoToast('Heads up — sync delayed','warn')">Warn</button>
+      <button type="button" class="btn btn-destructive" onclick="demoToast('Could not save record','error')">Error</button>
+    </div>
+<pre class="cl-code">DT_TOAST.show("Saved successfully", "success");
+DT_TOAST.show("Heads up — sync delayed", "warn");
+DT_TOAST.show("Could not save record", "error");</pre>
+  </div>
+</section>
+<div id="demoToastEl" class="toast" style="display:none;"></div>
+
+<!-- ===================== ROLE COLORS ===================== -->
+<section class="cl-section" id="roles">
+  <h2>Role colors</h2>
+  <p class="cl-desc">Use <code>--role-*</code> tokens whenever you tint by role. Role is gated by <code>DT_AUTH.isManager/isAdmin/isCxr/isDetailer</code>, mirrored on <code>body.is-*</code> classes for CSS-only branching.</p>
+  <div class="cl-block">
+    <div class="cl-swatch-grid" id="sw-roles"></div>
+  </div>
+</section>
+
+<!-- ===================== ANTI-PATTERNS ===================== -->
+<section class="cl-section" id="dont">
+  <h2>Anti-patterns</h2>
+  <p class="cl-desc">If you catch yourself writing the right-hand column, stop and reach for the left.</p>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Colors &amp; spacing</div>
+    <div class="cl-dont-grid">
+      <div class="cl-do">
+        <div class="cl-do-label">Do — use tokens</div>
+<pre>color: var(--accent);
+padding: var(--space-3) var(--space-4);
+font-size: var(--font-md);</pre>
+      </div>
+      <div class="cl-dont">
+        <div class="cl-dont-label">Don't — hardcode values</div>
+<pre>color: #00a651;
+padding: 12px 16px;
+font-size: 16px;</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">HTML escaping</div>
+    <div class="cl-dont-grid">
+      <div class="cl-do">
+        <div class="cl-do-label">Do — use DT_ESC</div>
+<pre>const esc = window.DT_ESC;
+el.innerHTML = `&lt;span&gt;${esc(name)}&lt;/span&gt;`;</pre>
+      </div>
+      <div class="cl-dont">
+        <div class="cl-dont-label">Don't — hand-roll an escape</div>
+<pre>function esc(s) {
+  return s.replace(/&lt;/g, "&amp;lt;")...
+}</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Time / date formatting</div>
+    <div class="cl-dont-grid">
+      <div class="cl-do">
+        <div class="cl-do-label">Do — DT_FORMAT</div>
+<pre>DT_FORMAT.time(record.timestamp);
+DT_FORMAT.timeAgoOrClock(record.timestamp);</pre>
+      </div>
+      <div class="cl-dont">
+        <div class="cl-dont-label">Don't — improvise</div>
+<pre>new Date(record.timestamp)
+  .toLocaleTimeString("en-US",
+    { hour: "2-digit", minute: "2-digit" });</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Role gating</div>
+    <div class="cl-dont-grid">
+      <div class="cl-do">
+        <div class="cl-do-label">Do — go through DT_AUTH</div>
+<pre>if (DT_AUTH.isManager()) {
+  /* ... */
+}
+&lt;!-- Or in CSS: --&gt;
+body.is-manager .admin-tools { display: block; }</pre>
+      </div>
+      <div class="cl-dont">
+        <div class="cl-dont-label">Don't — read raw role strings</div>
+<pre>if (profile.role === "manager" ||
+    profile.role === "admin") {
+  /* drifts when roles change */
+}</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Toasts</div>
+    <div class="cl-dont-grid">
+      <div class="cl-do">
+        <div class="cl-do-label">Do — DT_TOAST</div>
+<pre>DT_TOAST.show("Saved", "success");
+DT_TOAST.missing("record");</pre>
+      </div>
+      <div class="cl-dont">
+        <div class="cl-dont-label">Don't — alert() or custom popup</div>
+<pre>alert("Saved");
+// or invent a new .my-toast div</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Z-index</div>
+    <div class="cl-dont-grid">
+      <div class="cl-do">
+        <div class="cl-do-label">Do — named scale</div>
+<pre>z-index: var(--z-modal);
+z-index: var(--z-toast);</pre>
+      </div>
+      <div class="cl-dont">
+        <div class="cl-dont-label">Don't — magic numbers</div>
+<pre>z-index: 9999;
+z-index: 99998; /* one more than the next thing */</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Inline styles in index.html</div>
+    <div class="cl-dont-grid">
+      <div class="cl-do">
+        <div class="cl-do-label">Do — extend app.css</div>
+<pre>&lt;div class="field-label"&gt;Driver&lt;/div&gt;</pre>
+      </div>
+      <div class="cl-dont">
+        <div class="cl-dont-label">Don't — reproduce a class inline</div>
+<pre>&lt;div style="font-size:11px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:1px;
+  font-weight:700"&gt;Driver&lt;/div&gt;</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  function setTheme(t) {
+    document.documentElement.setAttribute("data-theme", t);
+    localStorage.setItem("dt_theme", t);
+  }
+
+  // -------- Swatch rendering --------
+  function renderSwatches(containerId, tokens) {
+    const css = getComputedStyle(document.documentElement);
+    const html = tokens.map(name => {
+      const val = css.getPropertyValue(name).trim();
+      return `
+        <div class="cl-swatch">
+          <div class="cl-swatch-chip" style="background: var(${name});"></div>
+          <div class="cl-swatch-meta"><strong>${name}</strong>${val}</div>
+        </div>`;
+    }).join("");
+    document.getElementById(containerId).innerHTML = html;
+  }
+  renderSwatches("sw-surfaces", ["--header-bg","--bg","--panel","--card","--card-soft","--surface-hover","--border","--divider"]);
+  renderSwatches("sw-text",     ["--text","--text-soft","--muted","--text-on-accent","--text-on-status"]);
+  renderSwatches("sw-status",   ["--accent","--accent-strong","--warn","--warn-strong","--danger","--danger-strong","--info","--info-strong","--success"]);
+  renderSwatches("sw-roles",    ["--role-manager","--role-cxr","--role-driver","--role-admin","--role-detailer"]);
+
+  // -------- Spacing scale --------
+  (function () {
+    const css = getComputedStyle(document.documentElement);
+    const tokens = ["--space-1","--space-2","--space-3","--space-4","--space-5","--space-6","--space-7"];
+    document.getElementById("sw-space").innerHTML = tokens.map(name => {
+      const v = css.getPropertyValue(name).trim();
+      return `<div class="cl-swatch">
+        <div style="background: var(--accent); height: var(${name});"></div>
+        <div class="cl-swatch-meta"><strong>${name}</strong>${v}</div>
+      </div>`;
+    }).join("");
+  })();
+
+  // -------- Z-index scale --------
+  (function () {
+    const css = getComputedStyle(document.documentElement);
+    const tokens = ["--z-drawer","--z-overlay","--z-overlay-full","--z-menu","--z-scanner","--z-modal","--z-modal-stacked","--z-toast","--z-auth","--z-splash"];
+    document.getElementById("sw-z").innerHTML = tokens.map(name => {
+      const v = css.getPropertyValue(name).trim();
+      return `<div class="cl-swatch">
+        <div class="cl-swatch-chip" style="background: var(--card-soft); display:flex; align-items:center; justify-content:center; font-weight:700; color: var(--accent);">${v}</div>
+        <div class="cl-swatch-meta"><strong>${name}</strong></div>
+      </div>`;
+    }).join("");
+  })();
+
+  // -------- Duration scale --------
+  (function () {
+    const css = getComputedStyle(document.documentElement);
+    const tokens = ["--duration-fast","--duration-base","--duration-slow","--duration-slower"];
+    document.getElementById("sw-duration").innerHTML = tokens.map(name => {
+      const v = css.getPropertyValue(name).trim();
+      return `<div class="cl-swatch" onmouseover="this.querySelector('.cl-pulse').style.transform='translateX(80px)'" onmouseout="this.querySelector('.cl-pulse').style.transform='translateX(0)'" style="cursor:pointer">
+        <div class="cl-swatch-chip" style="background: var(--card-soft); position:relative; overflow:hidden;">
+          <div class="cl-pulse" style="position:absolute; left:8px; top:50%; width:24px; height:24px; margin-top:-12px; background:var(--accent); border-radius:50%; transition: transform var(${name}) var(--ease-out);"></div>
+        </div>
+        <div class="cl-swatch-meta"><strong>${name}</strong>${v} — hover to preview</div>
+      </div>`;
+    }).join("");
+  })();
+
+  // -------- Status chips --------
+  (function () {
+    // Mirrors DT_OPTIONS.STATUS_BASE / STATUS_PRIVILEGED / STATUS_DERIVED in app.js,
+    // after statusClass() strips non-letters (e.g. "AUDIT FAIL" → AUDITFAIL).
+    const codes = [
+      "CLEAN","DIRTY","REWASH","PM","MK","MR","OM","BODY","TI","GLASS",
+      "AUDITFAIL","WIDELETE","OTHER",
+      "CHECKIN","CHECKOUT","HOLD","DNR",
+      "DETAILING","DETAILED"
+    ];
+    document.getElementById("status-chips").innerHTML = codes.map(c =>
+      `<span class="record-status status-${c}">${c}</span>`
+    ).join(" ");
+  })();
+
+  // -------- Toast demo (mirrors showToast() in app.js) --------
+  function demoToast(msg, type) {
+    const el = document.getElementById("demoToastEl");
+    el.className = "toast toast-" + (type || "success");
+    el.textContent = msg;
+    el.style.display = "block";
+    requestAnimationFrame(() => el.classList.add("toast-show"));
+    clearTimeout(demoToast._t);
+    demoToast._t = setTimeout(() => {
+      el.classList.remove("toast-show");
+      setTimeout(() => { el.style.display = "none"; }, 300);
+    }, 2200);
+  }
+</script>
+
+</body>
+</html>

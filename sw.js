@@ -1,6 +1,6 @@
 // DriverTrax Service Worker
 // Provides offline support and caches app assets
-const CACHE_VERSION = "drivertrax-v3.6-save-buttons";
+const CACHE_VERSION = "drivertrax-v5.3-inline-style-cleanup";
 const APP_SHELL = [
   "./",
   "./index.html",

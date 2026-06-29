@@ -539,7 +539,7 @@
             ${done ? "Done" : "In progress"} · ${esc(when)}
             ${condChips ? " · " + condChips : ""}
           </div>
-          ${statusPill ? `<div class="detail-history-status" style="margin-top:6px">VIN status: ${statusPill}</div>` : ""}
+          ${statusPill ? `<div class="detail-history-status">VIN status: ${statusPill}</div>` : ""}
         </div>
       `;
     }).join("");

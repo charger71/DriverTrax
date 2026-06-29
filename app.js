@@ -788,7 +788,8 @@ function saveRecord() {
     toggleTransportStyle();
     const mEl = document.getElementById("mileage"); if (mEl) mEl.value = "";
     const fEl = document.getElementById("fuelLevel"); if (fEl) fEl.selectedIndex = 0;
-    document.getElementById("manualEntrySection").style.display = "none";
+    const _mes = document.getElementById("manualEntrySection");
+    if (_mes) { _mes.classList.add("u-hidden"); _mes.style.display = ""; }
     document.querySelector(".btn-manual-toggle").innerHTML = "Enter Manually";
     saveBtn.disabled = false;
     saveBtn.innerHTML = "Save";
@@ -1648,16 +1649,20 @@ function resetTires() {
 function toggleManualEntry() {
   const section = document.getElementById("manualEntrySection");
   const btn = document.querySelector(".btn-manual-toggle");
-  const visible = section.style.display !== "none";
-  section.style.display = visible ? "none" : "block";
-  btn.innerHTML = visible ? "Enter Manually" : "Hide Manual Entry";
-  if (!visible) document.getElementById("serial").focus();
+  if (!section || !btn) return;
+  const willShow = section.classList.contains("u-hidden");
+  section.classList.toggle("u-hidden", !willShow);
+  section.style.display = "";
+  btn.innerHTML = willShow ? "Hide Manual Entry" : "Enter Manually";
+  if (willShow) document.getElementById("serial")?.focus();
 }
 
 function showManualEntry() {
   const section = document.getElementById("manualEntrySection");
   const btn = document.querySelector(".btn-manual-toggle");
-  section.style.display = "block";
+  if (!section || !btn) return;
+  section.classList.remove("u-hidden");
+  section.style.display = "";
   btn.innerHTML = "Hide Manual Entry";
 }
 
@@ -1714,29 +1719,36 @@ function buildVinKeypad() {
   if (!grid) return;
   if (grid.dataset.built === "1") return;
 
-  // Build key HTML in row-by-row order so grid auto-flow lands everything correctly.
-  // Layout:
-  //   1 2 3 [<] / 4 5 6 [>] / 7 8 9 0 / A B C D / E F G H /
-  //   J K L M / N P R S / T U V W / X Y Z [blank] / [DONE span 4]
+  // Build key HTML using grid auto-flow. The "0" key is explicitly placed in
+  // col 4 spanning rows 1-3 (a tall key next to 1-9). Layout:
+  //   1  2  3  [0 span 3 rows]
+  //   4  5  6  [0]
+  //   7  8  9  [0]
+  //   A  B  C   D
+  //   E  F  G   H
+  //   J  K  L   M
+  //   N  P  R   S
+  //   T  U  V   W
+  //   X  Y  Z   DELETE
+  //   [        DONE span 4        ]
   const keyBtn = (k) => {
     const typeClass = /[0-9]/.test(k) ? "vin-key-num" : "vin-key-alpha";
-    return `<button class="vin-key ${typeClass}" type="button" onclick="vinKeypadType('${k}')">${k}</button>`;
+    const tallClass = k === "0" ? " vin-key-zero-tall" : "";
+    return `<button class="vin-key ${typeClass}${tallClass}" type="button" onclick="vinKeypadType('${k}')">${k}</button>`;
   };
-  const arrowBtn = (dir, label) =>
-    `<button class="vin-key vin-key-arrow" type="button" onclick="vinKeypadArrow(${dir})" aria-label="${label}">${dir < 0 ? "&#9664;" : "&#9654;"}</button>`;
 
   let html = "";
-  // Row 1: 1 2 3 <
-  html += keyBtn("1") + keyBtn("2") + keyBtn("3") + arrowBtn(-1, "Move left");
-  // Row 2: 4 5 6 >
-  html += keyBtn("4") + keyBtn("5") + keyBtn("6") + arrowBtn(1, "Move right");
-  // Row 3: 7 8 9 0
-  html += keyBtn("7") + keyBtn("8") + keyBtn("9") + keyBtn("0");
-  // Rows 4-8: letters in 4-col rows (A-W)
+  // 0 placed first with explicit grid coords; auto-flow skips its cells.
+  html += keyBtn("0");
+  // Digits 1-9 fill cols 1-3 of rows 1-3
+  for (let i = 1; i <= 9; i++) html += keyBtn(String(i));
+  // Letters A-W fill rows 4-8 (20 letters)
   ["A","B","C","D","E","F","G","H","J","K","L","M","N","P","R","S","T","U","V","W"].forEach(k => { html += keyBtn(k); });
-  // Row 9: X Y Z [blank]
+  // Row 9: X Y Z + DELETE
   html += keyBtn("X") + keyBtn("Y") + keyBtn("Z");
-  html += `<div class="vin-key vin-key-blank" aria-hidden="true"></div>`;
+  html += `<button class="vin-key vin-key-delete" type="button" onclick="vinKeypadBackspace()" aria-label="Delete">`
+       +  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 5H8l-7 7 7 7h13a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>`
+       +  `DEL</button>`;
   // Row 10: DONE (spans full row)
   html += `<button class="vin-key vin-key-done" type="button" onclick="closeVinKeypad()">DONE</button>`;
   grid.innerHTML = html;

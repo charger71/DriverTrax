@@ -128,6 +128,19 @@
   }
   .cl-do-label   { color: var(--accent); }
   .cl-dont-label { color: var(--danger); }
+
+  /* Contained stage for previewing the slide-out side menu in-flow.
+     Overrides only position/transition so the menu can render statically
+     for the showcase — all visual styling still comes from .slide-menu. */
+  .cl-menu-stage {
+    position: relative; height: 380px; width: 260px;
+    border: var(--border-thin) solid var(--border); border-radius: var(--radius);
+    overflow: hidden; background: var(--bg);
+  }
+  .cl-menu-stage .slide-menu {
+    position: absolute; inset: 0; right: 0; width: 100%; height: 100%;
+    transition: none; border-left: none;
+  }
   .cl-do pre, .cl-dont pre {
     background: var(--header-bg); border: var(--border-thin) solid var(--divider); border-radius: var(--radius);
     padding: var(--space-2); margin: 0;
@@ -157,6 +170,7 @@
     <li><a href="#layers-motion">Layers &amp; motion</a></li>
     <li><a href="#buttons">Buttons</a></li>
     <li><a href="#tabs">Tabs</a></li>
+    <li><a href="#side-menu">Side menu</a></li>
     <li><a href="#fields">Form fields</a></li>
     <li><a href="#badges">Badges</a></li>
     <li><a href="#status">Status chips</a></li>
@@ -298,6 +312,68 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
 &lt;/div&gt;
 
 &lt;!-- Add `.hidden` to .tab-badge until you have a count to show. --&gt;</pre>
+  </div>
+</section>
+
+<!-- ===================== SIDE MENU ===================== -->
+<section class="cl-section" id="side-menu">
+  <h2>Side menu</h2>
+  <p class="cl-desc">Slide-out navigation drawer (<code>.slide-menu</code>) used for primary nav on small screens. Items are <code>.menu-item</code> with <code>--font-md</code> text and 40px min-height — sized so the full role-gated list fits without scrolling on iPhone SE / Pro Max. Section breaks use <code>.menu-section-label</code>.</p>
+  <div class="cl-block">
+    <div class="cl-block-label">Default</div>
+    <div class="cl-preview">
+      <div class="cl-menu-stage" aria-hidden="true">
+        <aside class="slide-menu open" role="navigation" aria-label="Side menu example">
+          <div class="menu-header">
+            <span class="menu-title">MENU</span>
+            <button type="button" class="btn btn-destructive btn-icon menu-close" aria-label="Close menu">×</button>
+          </div>
+          <nav class="menu-nav">
+            <a class="menu-item">
+              <span class="menu-icon" aria-hidden="true">+</span> New Entry
+            </a>
+            <a class="menu-item">
+              <span class="menu-icon" aria-hidden="true">⌕</span> VIN Lookup
+            </a>
+            <a class="menu-item">
+              <span class="menu-icon" aria-hidden="true">▦</span> Dashboard
+            </a>
+            <div class="menu-section-label">Manager</div>
+            <a class="menu-item">
+              <span class="menu-icon" aria-hidden="true">★</span> Leaderboard
+            </a>
+            <a class="menu-item">
+              <span class="menu-icon" aria-hidden="true">⚑</span> Alerts
+            </a>
+          </nav>
+          <div class="menu-footer">
+            <span class="menu-version">v7.3</span>
+          </div>
+        </aside>
+      </div>
+    </div>
+<pre class="cl-code">&lt;div id="menuOverlay" class="menu-overlay" onclick="closeMenu()"&gt;&lt;/div&gt;
+&lt;aside id="slideMenu" class="slide-menu" role="navigation" aria-label="Main menu"&gt;
+  &lt;div class="menu-header"&gt;
+    &lt;span class="menu-title"&gt;MENU&lt;/span&gt;
+    &lt;button class="btn btn-destructive btn-icon menu-close"
+            aria-label="Close menu" onclick="closeMenu()"&gt;×&lt;/button&gt;
+  &lt;/div&gt;
+  &lt;nav class="menu-nav"&gt;
+    &lt;a class="menu-item" onclick="showTab('entry'); closeMenu()"&gt;
+      &lt;span class="menu-icon" aria-hidden="true"&gt;&lt;svg .../&gt;&lt;/span&gt; New Entry
+    &lt;/a&gt;
+    &lt;div class="menu-section-label"&gt;Manager&lt;/div&gt;
+    &lt;a class="menu-item manager-only" onclick="showTab('leaderboard'); closeMenu()"&gt;
+      &lt;span class="menu-icon" aria-hidden="true"&gt;&lt;svg .../&gt;&lt;/span&gt; Leaderboard
+    &lt;/a&gt;
+  &lt;/nav&gt;
+  &lt;div class="menu-footer"&gt;&lt;span class="menu-version"&gt;v7.3&lt;/span&gt;&lt;/div&gt;
+&lt;/aside&gt;
+
+&lt;!-- Role-gated items use .driver-only / .manager-only / .admin-only /
+     .cxr-only / .detailer-only. Visibility is driven by body.is-* classes
+     from DT_AUTH._setProfile — no JS hide/show needed. --&gt;</pre>
   </div>
 </section>
 

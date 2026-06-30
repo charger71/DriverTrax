@@ -9,7 +9,7 @@ Icon[
 ]
 node_modules/
 env
-*.sql
+.sql
 
 # Resource forks
 ._*

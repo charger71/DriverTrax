@@ -2058,6 +2058,7 @@
   .scanner-header {
     display: flex; justify-content: space-between; align-items: center;
     padding: var(--space-4) var(--space-4); background: var(--overlay-bg); border-bottom: 2px solid var(--accent);
+    padding-top: max(env(safe-area-inset-top), var(--space-3));
     flex-shrink: 0;
   }
   .scanner-title { font-size: var(--font-md); font-weight: 900; color: var(--accent); letter-spacing: 1px; }

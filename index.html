@@ -822,8 +822,6 @@
   <div id="gpsStatus" class="gps-status"></div>
  </div></div>
 
-  <div id="entryVinNotes" class="vn-mount-slot"></div>
-
   <div class="today-header"><span class="today-title">Today's Entries</span><span class="today-count" id="todayCount">0</span></div>
   <div id="todayRecords"></div>
 </div>
@@ -906,14 +904,6 @@
     <button type="button" class="btn btn-secondary records-back-btn" onclick="showTab('records')" aria-label="Back">&larr; Back</button>
   </div>
   <div id="vinDetailBody"><div class="bl-empty">Loading…</div></div>
-</div>
-
-<!-- NOTE DETAIL OVERLAY -->
-<div id="noteDetailOverlay" class="detail-overlay" onclick="if(event.target===this)closeNoteDetailOverlay()">
-  <div class="detail-sheet" id="noteDetailSheet">
-    <div class="detail-handle"></div>
-    <div id="noteDetailBody"><div class="bl-empty">Loading…</div></div>
-  </div>
 </div>
 
 <!-- CONTACT CARD OVERLAY (opened from author name on a record detail) -->
@@ -1242,8 +1232,6 @@
       <div class="detail-row u-hidden" id="detailNotesRow"><span class="detail-label">Notes</span><span class="detail-val" id="detailNotes"></span></div>
       <div class="detail-row" id="detailShiftRow"><span class="detail-label">Shift</span><span class="detail-val" id="detailShift"></span></div>
     </div>
-    <div id="detailVinNotes" class="vn-mount-slot"></div>
-
     <div class="detail-map-section">
       <div class="detail-map-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="u-icon-mr-1"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Location</div>
       <div id="detailMapContainer">
@@ -1347,7 +1335,6 @@
 <script src="announcements.js"></script>
 <script src="fleet-counts.js"></script>
 <script src="requests.js"></script>
-<script src="vehicle-notes.js"></script>
 <script src="users.js"></script>
 <script src="detailer.js"></script>
 <script src="elearning.js"></script>

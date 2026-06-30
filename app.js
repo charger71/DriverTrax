@@ -689,7 +689,7 @@ function initEntryPhotoInput() {
         continue;
       }
       try {
-        const blob = await (window.DT_VNOTES?.resizeImageBlob?.(file, 1920, 1080, 0.85) ?? file);
+        const blob = await (window.DT_MEDIA?.resizeImageBlob?.(file, 1920, 1080, 0.85) ?? file);
         pendingEntryPhotos.push(blob);
       } catch (e) {
         console.warn("[Entry] photo resize", e);
@@ -835,7 +835,7 @@ function saveRecord() {
       const paths = [];
       for (const blob of pendingEntryPhotos) {
         try {
-          const path = await window.DT_VNOTES.uploadPhoto(blob, serial);
+          const path = await window.DT_MEDIA.uploadPhoto(blob, serial);
           if (path) paths.push(path);
         } catch (e) {
           console.warn("[Entry] photo upload", e);
@@ -2337,20 +2337,13 @@ function resetRecordsPage() {
 // VIN check digit isn't enforced — just shape. 17 chars, no I/O/Q.
 function isFullVin(s) { return /^[A-HJ-NPR-Z0-9]{17}$/i.test(s); }
 
-// When the shared notes widget adds a note, re-render the timeline so the
-// new note interleaves into the events without a manual reload.
-document.addEventListener("dt-vehicle-note-added", (e) => {
-  const cur = document.getElementById("fSearch")?.value.trim().toUpperCase();
-  if (cur && cur === (e.detail?.vin || "").toUpperCase()) renderVinTimeline(cur);
-});
-
 // Empty-state for the VIN LOOKUP search panel: show up to 5 recent
 // searches as clickable chips, or fall back to the original prompt if
 // the user hasn't searched anything yet on this device.
 function renderRecentVinEmptyState(container) {
   const recent = getRecentVinSearches().slice(0, 5);
   if (!recent.length) {
-    container.innerHTML = `<p class="records-prompt">Type a VIN or search notes to start.</p>`;
+    container.innerHTML = `<p class="records-prompt">Type a VIN to start.</p>`;
     return;
   }
   const chips = recent.map(t =>
@@ -2404,8 +2397,8 @@ function renderRecords() {
   return renderFuzzyResults(searchVal);
 }
 
-// Fuzzy search: matches against records.serial_id + records.notes and
-// vehicle_notes.serial_id + vehicle_notes.body across every signed-in user.
+// Fuzzy search: matches against records.serial_id + records.notes (plus
+// vehicles vin_data make/model/year) across every signed-in user.
 async function renderFuzzyResults(term) {
   const container = document.getElementById("records");
   const countEl   = document.getElementById("resultsCount");
@@ -2438,14 +2431,8 @@ async function renderFuzzyResults(term) {
   if (fFrom)   recsQ = recsQ.gte("ts", new Date(fFrom + "T00:00:00").toISOString());
   if (fTo)     recsQ = recsQ.lte("ts", new Date(fTo   + "T23:59:59.999").toISOString());
 
-  const [recRes, noteRes, vehRes] = await Promise.all([
+  const [recRes, vehRes] = await Promise.all([
     recsQ,
-    sb.from("vehicle_notes")
-      .select("id,serial_id,body,author_id,created_at,lat,lng,photo_url,archived")
-      .eq("archived", false)
-      .or(`serial_id.ilike.%${upTerm}%,body.ilike.%${safe}%`)
-      .order("created_at", { ascending: false })
-      .limit(200),
     sb.from("vehicles")
       .select("serial_id,current_status,current_status_other,current_destination,current_destination_other,last_lat,last_lng,last_seen_at,vin_data,entered_inventory_at")
       .or(`serial_id.ilike.%${upTerm}%,vin_data->>make.ilike.%${safe}%,vin_data->>model.ilike.%${safe}%,vin_data->>year.ilike.%${safe}%`)
@@ -2454,7 +2441,6 @@ async function renderFuzzyResults(term) {
   ]);
 
   const recRows  = recRes.data  || [];
-  const noteRows = noteRes.data || [];
   let vehRows    = vehRes.data  || [];
   // Apply the same filters the records list honors so the inventory section
   // stays in sync with what the user is filtering by.
@@ -2468,8 +2454,6 @@ async function renderFuzzyResults(term) {
     const { data: profs } = await sb.from("profiles").select("id,display_name").in("id", userIds);
     (profs || []).forEach(p => { names[p.id] = p.display_name || "Driver"; });
   }
-  if (window.DT_VNOTES) await DT_VNOTES.fetchProfileNames(noteRows.map(n => n.author_id));
-
   // Convert records to the local-record shape so recordCard() can render them
   const cards = recRows.map(row => ({
     id: row.id,
@@ -2495,18 +2479,13 @@ async function renderFuzzyResults(term) {
     _driverName: names[row.user_id]
   }));
 
-  if (!cards.length && !noteRows.length && !vehRows.length) {
+  if (!cards.length && !vehRows.length) {
     container.innerHTML = `<p class="records-prompt">No matches for <b>${sanitizeText(term)}</b>.</p>`;
     if (countEl) countEl.textContent = "0 results";
     _renderRecordsMapMarkers([]);
     renderVinDetailList([]);
     return;
   }
-
-  // Sign note photos in one call
-  const signed = (window.DT_VNOTES && noteRows.length)
-    ? await DT_VNOTES.signPhotoPaths(noteRows.map(n => n.photo_url))
-    : {};
 
   const esc = (s) => sanitizeText(s);
   const ago = (d) => DT_FORMAT.timeAgo(d);
@@ -2546,29 +2525,8 @@ async function renderFuzzyResults(term) {
     ? `<div class="records-search-section"><div class="records-section-label">${cards.length} record${cards.length === 1 ? "" : "s"}</div>${cards.map(r => recordCard(r, "deleteRecord")).join("")}</div>`
     : "";
 
-  const noteHtml = noteRows.length ? `
-    <div class="records-search-section">
-      <div class="records-section-label">${noteRows.length} matching note${noteRows.length === 1 ? "" : "s"}</div>
-      ${noteRows.map(n => {
-        const p = DT_VNOTES?.profileCache.get(n.author_id);
-        const name = esc(p?.display_name || "Someone");
-        const role = p?.role ? ` <span class="note-role role-${esc(p.role)}">${esc(p.role)}</span>` : "";
-        const photoHtml = n.photo_url && signed[n.photo_url]
-          ? `<div class="note-photo"><img src="${esc(signed[n.photo_url])}" alt="" data-full="${esc(signed[n.photo_url])}"></div>` : "";
-        return `
-          <div class="note-card vin-tl-note-clickable" data-vin="${esc(n.serial_id)}" data-id="${esc(n.id)}">
-            <div class="note-head">
-              <span class="note-author"><b>${esc(n.serial_id)}</b> · ${name}${role}</span>
-              <span class="note-time">${esc(ago(n.created_at))}</span>
-            </div>
-            <div class="note-body">${esc(n.body)}</div>
-            ${photoHtml}
-          </div>`;
-      }).join("")}
-    </div>` : "";
-
-  container.innerHTML = vehHtml + recHtml + noteHtml;
-  const totalResults = vehRows.length + cards.length + noteRows.length;
+  container.innerHTML = vehHtml + recHtml;
+  const totalResults = vehRows.length + cards.length;
   if (countEl) countEl.textContent = `${totalResults} result${totalResults === 1 ? "" : "s"}`;
 
   // Tap an inventory row → open that VIN's full timeline
@@ -2577,15 +2535,6 @@ async function renderFuzzyResults(term) {
     row.addEventListener("click", () => {
       document.getElementById("fSearch").value = row.dataset.vin;
       renderVinTimeline(row.dataset.vin.toUpperCase());
-    });
-  });
-
-  // Tap any matched note → load that VIN's full timeline
-  container.querySelectorAll(".vin-tl-note-clickable").forEach(el => {
-    el.style.cursor = "pointer";
-    el.addEventListener("click", () => {
-      document.getElementById("fSearch").value = el.dataset.vin;
-      renderVinTimeline(el.dataset.vin.toUpperCase());
     });
   });
 
@@ -2599,11 +2548,6 @@ async function renderFuzzyResults(term) {
   cards.forEach(c => {
     if (Number.isFinite(c.lat) && Number.isFinite(c.lng)) {
       pins.push({ lat: c.lat, lng: c.lng, label: c.serialId, ts: c.timestamp || 0 });
-    }
-  });
-  noteRows.forEach(n => {
-    if (Number.isFinite(n.lat) && Number.isFinite(n.lng)) {
-      pins.push({ lat: n.lat, lng: n.lng, label: n.serial_id, ts: new Date(n.created_at).getTime() || 0 });
     }
   });
   _renderRecordsMapMarkers(pins);
@@ -2628,7 +2572,6 @@ async function renderFuzzyResults(term) {
       lat: c.lat, lng: c.lng
     });
   });
-  noteRows.forEach(n => vinItems.push({ vin: n.serial_id, ts: n.created_at, vehicle: "" }));
   renderVinDetailList(vinItems);
 }
 
@@ -2760,8 +2703,8 @@ function openVinRecordDetail(r, profileCache) {
     ? `<div class="detail-map-section"><div id="${galleryId}" class="record-photo-gallery">${
         photoPaths.map((_, i) => `<img data-idx="${i}" alt="Record photo" role="button" tabindex="0" data-a11y-kb="1">`).join("")
       }</div></div>` : "";
-  if (photoPaths.length && window.DT_VNOTES?.signPhotoPaths) {
-    DT_VNOTES.signPhotoPaths(photoPaths).then(signed => {
+  if (photoPaths.length && window.DT_MEDIA?.signPhotoPaths) {
+    DT_MEDIA.signPhotoPaths(photoPaths).then(signed => {
       const root = document.getElementById(galleryId);
       if (!root) return;
       photoPaths.forEach((path, i) => {
@@ -2822,14 +2765,10 @@ function openVinRecordDetail(r, profileCache) {
 function closeRecordDetailOverlay() {
   document.getElementById("recordDetailOverlay")?.classList.remove("open");
 }
-function closeNoteDetailOverlay() {
-  document.getElementById("noteDetailOverlay")?.classList.remove("open");
-}
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   if (document.getElementById("contactOverlay")?.classList.contains("open")) closeContactCard();
   if (document.getElementById("recordDetailOverlay")?.classList.contains("open")) closeRecordDetailOverlay();
-  if (document.getElementById("noteDetailOverlay")?.classList.contains("open")) closeNoteDetailOverlay();
 });
 
 // ============================
@@ -2906,21 +2845,13 @@ async function renderVinTimeline(vin, opts) {
   container.innerHTML = `<div class="vin-tl-empty">Loading…</div>`;
   const sb = DT_AUTH.client;
 
-  const [recordsRes, notesRes] = await Promise.all([
-    sb.from("records")
-      .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,source,note_id,mileage,fuel_level,photo_url,photo_urls,conditions")
-      .eq("serial_id", vin)
-      .order("ts", { ascending: false }),
-    sb.from("vehicle_notes")
-      .select("id,body,author_id,created_at,lat,lng,photo_url,mileage,fuel_level")
-      .eq("serial_id", vin)
-      .eq("archived", false)
-      .order("created_at", { ascending: false })
-  ]);
+  const { data: recordsData } = await sb.from("records")
+    .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,mileage,fuel_level,photo_url,photo_urls,conditions")
+    .eq("serial_id", vin)
+    .order("ts", { ascending: false });
 
-  const records = recordsRes.data || [];
-  const notes   = notesRes.data   || [];
-  if (!records.length && !notes.length) {
+  const records = recordsData || [];
+  if (!records.length) {
     container.innerHTML = `<div class="vin-tl-empty">No history for <b>${sanitizeText(vin)}</b>.</div>`;
     renderVinDetailList([]);
     return;
@@ -2928,51 +2859,20 @@ async function renderVinTimeline(vin, opts) {
   {
     const vd = records.find(r => r.vin_data)?.vin_data;
     const veh = vd ? [vd.year, vd.make, vd.model].filter(Boolean).join(" ") : "";
-    const items = [
-      ...records.map(r => ({
-        vin, ts: r.ts, vehicle: veh,
-        status: r.status, statusOther: r.status_other,
-        destination: r.destination, destinationOther: r.destination_other,
-        lat: r.lat, lng: r.lng
-      })),
-      ...notes.map(n => ({
-        vin, ts: n.created_at, vehicle: veh,
-        lat: n.lat, lng: n.lng
-      }))
-    ];
+    const items = records.map(r => ({
+      vin, ts: r.ts, vehicle: veh,
+      status: r.status, statusOther: r.status_other,
+      destination: r.destination, destinationOther: r.destination_other,
+      lat: r.lat, lng: r.lng
+    }));
     renderVinDetailList(items);
   }
 
-  await _vinFetchProfiles([
-    ...records.map(r => r.user_id),
-    ...notes.map(n => n.author_id)
-  ]);
+  await _vinFetchProfiles(records.map(r => r.user_id));
 
-  // Sign all note photo paths in one call
-  const photoPaths = [...new Set(notes.filter(n => n.photo_url).map(n => n.photo_url))];
-  const signed = {};
-  if (photoPaths.length) {
-    const { data: urls } = await sb.storage.from("vehicle-photos").createSignedUrls(photoPaths, 600);
-    (urls || []).forEach(u => { signed[u.path] = u.signedUrl; });
-  }
-
-  // Merge linked record+note pairs (status-change notes) into a single timeline
-  // entry. Records carry note_id back to the originating note; we drop the record
-  // from the event list and stamp the matching note with a `linkedRecord` so the
-  // note row can show the status badge.
-  const recordByNoteId = new Map();
-  records.forEach(r => { if (r.note_id) recordByNoteId.set(r.note_id, r); });
-  const events = [
-    ...records
-      .filter(r => !r.note_id) // drop note-sourced records; their data lives on the note
-      .map(r => ({ ts: new Date(r.ts).getTime(), kind: "record", r })),
-    ...notes.map(n => ({
-      ts: new Date(n.created_at).getTime(),
-      kind: "note",
-      n,
-      linkedRecord: recordByNoteId.get(n.id) || null
-    }))
-  ].sort((a, b) => b.ts - a.ts);
+  const events = records
+    .map(r => ({ ts: new Date(r.ts).getTime(), kind: "record", r }))
+    .sort((a, b) => b.ts - a.ts);
 
   const ago = (input) => DT_FORMAT.timeAgo(input);
   const esc = (s) => sanitizeText(s);
@@ -3015,66 +2915,39 @@ async function renderVinTimeline(vin, opts) {
     : "";
 
   const html = events.map(ev => {
-    if (ev.kind === "record") {
-      const r = ev.r;
-      const p = _vinProfileCache.get(r.user_id);
-      const name = esc(p?.display_name || "Someone");
-      const role = p?.role ? `<span class="note-role role-${esc(p.role)}">${esc(p.role)}</span>` : "";
-      const statusDisp = r.status === "OTHER" && r.status_other ? `OTHER: ${r.status_other}` : statusLabel(r.status);
-      const destDisp   = r.destination === "OTHER" && r.destination_other ? `OTHER: ${r.destination_other}` : (r.destination || "");
-      const condChips = Array.isArray(r.conditions) && r.conditions.length
-        ? `<div class="vin-tl-cond-row">${r.conditions.map(id => {
-            const label = DT_OPTIONS.CONDITIONS.find(c => c.id === id)?.label || id;
-            return `<span class="vin-tl-cond-chip" data-cond="${esc(id)}">${esc(label)}</span>`;
-          }).join("")}</div>` : "";
-      return `
-        <div class="vin-tl-row vin-tl-record" data-record-id="${esc(r.id)}">
-          <div class="vin-tl-head">
-            <div class="vin-tl-badges">
-              <span class="record-status ${statusClass(r.status)}">${esc(statusDisp)}</span>
-              ${destDisp ? `<span class="record-location">${esc(destDisp)}</span>` : ""}
-            </div>
-            <span class="vin-tl-time">${esc(ago(ev.ts))}</span>
+    const r = ev.r;
+    const p = _vinProfileCache.get(r.user_id);
+    const name = esc(p?.display_name || "Someone");
+    const role = p?.role ? `<span class="note-role role-${esc(p.role)}">${esc(p.role)}</span>` : "";
+    const statusDisp = r.status === "OTHER" && r.status_other ? `OTHER: ${r.status_other}` : statusLabel(r.status);
+    const destDisp   = r.destination === "OTHER" && r.destination_other ? `OTHER: ${r.destination_other}` : (r.destination || "");
+    const condChips = Array.isArray(r.conditions) && r.conditions.length
+      ? `<div class="vin-tl-cond-row">${r.conditions.map(id => {
+          const label = DT_OPTIONS.CONDITIONS.find(c => c.id === id)?.label || id;
+          return `<span class="vin-tl-cond-chip" data-cond="${esc(id)}">${esc(label)}</span>`;
+        }).join("")}</div>` : "";
+    return `
+      <div class="vin-tl-row vin-tl-record" data-record-id="${esc(r.id)}">
+        <div class="vin-tl-head">
+          <div class="vin-tl-badges">
+            <span class="record-status ${statusClass(r.status)}">${esc(statusDisp)}</span>
+            ${destDisp ? `<span class="record-location">${esc(destDisp)}</span>` : ""}
           </div>
-          ${condChips}
-          ${r.notes ? `<div class="vin-tl-body">${esc(r.notes)}</div>` : ""}
-        </div>`;
-    }
-    const n = ev.n;
-    const lr = ev.linkedRecord;
-    // Make the author/role lookup available to the shared renderer, which
-    // reads from DT_VNOTES.profileCache.
-    const localProfile = _vinProfileCache.get(n.author_id);
-    if (localProfile && window.DT_VNOTES && !DT_VNOTES.profileCache.has(n.author_id)) {
-      DT_VNOTES.profileCache.set(n.author_id, localProfile);
-    }
-    let cardHtml = (window.DT_VNOTES?.renderCardsHtml || window.DT_VNOTES?._renderCardsHtml)
-      ? DT_VNOTES.renderCardsHtml([n], signed, headerVin)
-      : "";
-    // For notes that also drove a status change, inject the status badge
-    // (and destination, if any) into the note-card's header so the timeline
-    // still communicates the change without nesting another container.
-    if (lr && cardHtml) {
-      const statusDisp = lr.status === "OTHER" && lr.status_other ? `OTHER: ${lr.status_other}` : statusLabel(lr.status);
-      const destDisp   = lr.destination === "OTHER" && lr.destination_other ? `OTHER: ${lr.destination_other}` : (lr.destination || "");
-      const badge = `<span class="record-status ${statusClass(lr.status)}">${esc(statusDisp)}</span>${destDisp ? `<span class="vin-tl-note-dest"> · ${esc(destDisp)}</span>` : ""}`;
-      cardHtml = cardHtml.replace('<span class="note-time">', `${badge}<span class="note-time">`);
-    }
-    return cardHtml;
+          <span class="vin-tl-time">${esc(ago(ev.ts))}</span>
+        </div>
+        ${condChips}
+        ${r.notes ? `<div class="vin-tl-body">${esc(r.notes)}</div>` : ""}
+      </div>`;
   }).join("");
 
-  // Latest status from most-recent record; latest mileage from most-recent note that has one.
   const latestRec = records[0] || null;
   const latestStatus = latestRec?.status || "";
   const latestStatusDisp = latestRec
     ? (latestRec.status === "OTHER" && latestRec.status_other ? `OTHER: ${latestRec.status_other}` : statusLabel(latestRec.status))
     : "";
-  // Mileage / fuel can land on either a record (driver NEW ENTRY) or a note,
-  // so merge both streams by timestamp and pick the most recent of each.
-  const mfStream = [
-    ...records.map(r => ({ ts: r.ts ? +new Date(r.ts) : 0, mileage: r.mileage, fuel_level: r.fuel_level })),
-    ...notes.map(n => ({ ts: n.created_at ? +new Date(n.created_at) : 0, mileage: n.mileage, fuel_level: n.fuel_level }))
-  ].sort((a, b) => b.ts - a.ts);
+  const mfStream = records
+    .map(r => ({ ts: r.ts ? +new Date(r.ts) : 0, mileage: r.mileage, fuel_level: r.fuel_level }))
+    .sort((a, b) => b.ts - a.ts);
   const latestMileage = mfStream.find(x => Number.isFinite(x.mileage))?.mileage ?? null;
   const latestFuel    = mfStream.find(x => x.fuel_level)?.fuel_level ?? null;
   const FUEL_PCT = { "EMPTY": 0, "1/4": 25, "1/2": 50, "3/4": 75, "FULL": 100 };
@@ -3123,8 +2996,6 @@ async function renderVinTimeline(vin, opts) {
       <button type="button" class="btn btn-primary vin-tl-new-entry" onclick="openInlineNewEntry('${esc(vin)}')">+ New Entry</button>
     </div>
     <div id="vinTlEntrySlot" class="vin-tl-entry-slot"></div>
-    <div id="vinTimelineNotes"></div>
-    <div class="vin-tl-notes-heading">NOTES</div>
     <div class="vin-tl-list">${html}</div>
   `;
   // Fetch NHTSA open recalls for this year/make/model and inject a badge +
@@ -3168,14 +3039,6 @@ async function renderVinTimeline(vin, opts) {
     });
   }
 
-  // Mount the shared notes widget so any signed-in user (managers included)
-  // can leave a note on this VIN without needing to tap into a record first.
-  if (window.DT_VNOTES) {
-    // Hide the widget's notes list — notes now live in the merged timeline below.
-    DT_VNOTES.mount(container.querySelector("#vinTimelineNotes"), vin, { addWithMedia: true, withStatus: true, showList: false, showAdd: false });
-  }
-
-  // Wire record-row clicks → open a read-only record detail overlay.
   const recordsById = new Map(records.map(r => [r.id, r]));
   container.querySelectorAll('.vin-tl-record').forEach(row => {
     if (row._wired) return;
@@ -3188,30 +3051,10 @@ async function renderVinTimeline(vin, opts) {
     });
   });
 
-  // Wire note-card clicks (photo zoom, delete, open detail) via the shared
-  // delegation used by every other notes view, so behavior matches.
-  const tlList = container.querySelector('.vin-tl-list');
-  if (tlList && window.DT_VNOTES?.wireCards) {
-    DT_VNOTES.wireCards(tlList, () => renderVinTimeline(vin, opts));
-  }
-
-  // When a note is added for this VIN, re-render the timeline so the VIN HISTORY
-  // header (current status, mileage, fuel gauge) reflects the new note immediately.
-  if (!container._vinNoteListener) {
-    container._vinNoteListener = (ev) => {
-      const v = ev?.detail?.vin;
-      if (!v || v === container._vinTimelineVin) {
-        renderVinTimeline(container._vinTimelineVin, { container, countEl: opts.countEl ?? null });
-      }
-    };
-    document.addEventListener("dt-vehicle-note-added", container._vinNoteListener);
-  }
   container._vinTimelineVin = vin;
 
-  // Drop pins for every event on this VIN that has GPS
   const pins = [];
   records.forEach(r => { if (Number.isFinite(r.lat) && Number.isFinite(r.lng)) pins.push({ lat: r.lat, lng: r.lng, label: r.serial_id, ts: new Date(r.ts).getTime() || 0 }); });
-  notes.forEach(n   => { if (Number.isFinite(n.lat) && Number.isFinite(n.lng)) pins.push({ lat: n.lat, lng: n.lng, label: vin,         ts: new Date(n.created_at).getTime() || 0 }); });
   _renderRecordsMapMarkers(pins);
 }
 
@@ -3353,12 +3196,6 @@ function openDetail(id, onDelete) {
     else renderRecords();
   };
   document.getElementById("detailDeleteBtn").onclick = _detailDeleteFn;
-
-  // Mount the cross-role notes widget so anyone viewing the record sees +
-  // can leave VIN-level notes.
-  if (window.DT_VNOTES) {
-    DT_VNOTES.mount(document.getElementById("detailVinNotes"), r.serialId || "", { showAdd: false });
-  }
 
   document.getElementById("detailOverlay").classList.add("open");
 }
@@ -5550,7 +5387,7 @@ function initProfileAvatarHandlers() {
     if (file.size > MAX) { setStatus("Photo too large (>10MB).", true); input.value = ""; return; }
     try {
       setStatus("Uploading…");
-      const blob = await (window.DT_VNOTES?.resizeImageBlob?.(file, 512, 512, 0.85) ?? file);
+      const blob = await (window.DT_MEDIA?.resizeImageBlob?.(file, 512, 512, 0.85) ?? file);
       const userId = DT_AUTH.getUser().id;
       const path = `${userId}/avatar.jpg`;
       const sb = DT_AUTH.client;
@@ -5638,7 +5475,7 @@ async function renderEntryCurrentState(vin) {
       .order("ts", { ascending: false })
       .limit(1).maybeSingle()
       .then(r => r, () => ({ data: null })),
-    (window.DT_VNOTES ? DT_VNOTES.getLatestMileageAndFuel?.(vin) : Promise.resolve({ mileage: null, fuel: null }))
+    (window.DT_MEDIA ? DT_MEDIA.getLatestMileageAndFuel(vin) : Promise.resolve({ mileage: null, fuel: null }))
       ?.catch?.(() => ({ mileage: null, fuel: null }))
   ]);
   const v = vehRes?.data;

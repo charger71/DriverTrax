@@ -4,6 +4,9 @@
 //   - DT_FORMAT: time/date formatters (single source for "America/New_York")
 //   - DT_TOAST: thin wrapper over showToast() so non-app modules can use it
 //   - DT_UI: misc UI helpers (modal status message)
+//   - DT_MEDIA: vehicle-photo upload/resize/sign + GPS capture + latest
+//               mileage/fuel lookup. Reads window.DT_AUTH.client lazily so
+//               this file can load before auth.js.
 // Load this BEFORE auth.js / app.js / feature modules.
 // ============================================================
 (function () {
@@ -71,12 +74,114 @@
   };
 
   // Set a modal status message (matches the .users-modal-msg className pattern
-  // already used in notes/users/auth modals).
+  // already used in users/auth modals).
   window.DT_UI = {
     setMessage(el, text, kind) {
       if (!el) return;
       el.textContent = text || "";
       el.className = "users-modal-msg" + (kind ? " " + kind : "");
     }
+  };
+
+  // Vehicle-photo + GPS helpers. The Supabase client lives on DT_AUTH, which
+  // loads after utils.js, so every function resolves it lazily.
+  const sbOrThrow = () => {
+    const sb = window.DT_AUTH?.client;
+    if (!sb) throw new Error("DT_AUTH not loaded yet");
+    return sb;
+  };
+
+  async function signPhotoPaths(paths) {
+    const unique = [...new Set((paths || []).filter(Boolean))];
+    if (!unique.length) return {};
+    const sb = sbOrThrow();
+    const { data } = await sb.storage.from("vehicle-photos").createSignedUrls(unique, 600);
+    const out = {};
+    (data || []).forEach(u => { out[u.path] = u.signedUrl; });
+    return out;
+  }
+
+  async function uploadPhoto(blob, vin) {
+    const sb = sbOrThrow();
+    const user = DT_AUTH.getUser();
+    if (!user) throw new Error("Not signed in");
+    const type = blob.type || "image/jpeg";
+    const ext = type === "image/png" ? "png"
+              : type === "image/webp" ? "webp"
+              : type === "image/heic" || type === "image/heif" ? "heic"
+              : "jpg";
+    const path = `${user.id}/${vin}-${Date.now()}.${ext}`;
+    const { error } = await sb.storage
+      .from("vehicle-photos")
+      .upload(path, blob, { contentType: type, upsert: false });
+    if (error) throw error;
+    return path;
+  }
+
+  async function drawToJpeg(source, w, h, quality) {
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    canvas.getContext("2d").drawImage(source, 0, 0, w, h);
+    return new Promise(res => canvas.toBlob(res, "image/jpeg", quality));
+  }
+
+  // Mobile-safe resize: createImageBitmap throws on iOS HEIC photos and on
+  // some Android browsers, so fall back to an <img> element, and finally to
+  // returning the original file untouched so the upload still goes through.
+  async function resizeImageBlob(file, maxW, maxH, quality) {
+    try {
+      const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+      const ratio = Math.min(maxW / bmp.width, maxH / bmp.height, 1);
+      return await drawToJpeg(bmp, Math.round(bmp.width * ratio), Math.round(bmp.height * ratio), quality);
+    } catch (_) { /* fall through */ }
+
+    try {
+      const url = URL.createObjectURL(file);
+      try {
+        const img = await new Promise((resolve, reject) => {
+          const i = new Image();
+          i.onload = () => resolve(i);
+          i.onerror = () => reject(new Error("image decode failed"));
+          i.src = url;
+        });
+        const ratio = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+        return await drawToJpeg(img, Math.round(img.naturalWidth * ratio), Math.round(img.naturalHeight * ratio), quality);
+      } finally { URL.revokeObjectURL(url); }
+    } catch (_) { /* fall through */ }
+
+    return file;
+  }
+
+  function captureGps() {
+    return new Promise(resolve => {
+      if (!("geolocation" in navigator)) return resolve(null);
+      navigator.geolocation.getCurrentPosition(
+        p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }),
+        () => resolve(null),
+        { timeout: 8000, enableHighAccuracy: true, maximumAge: 30000 }
+      );
+    });
+  }
+
+  async function getLatestMileageAndFuel(vin) {
+    const sb = sbOrThrow();
+    const { data, error } = await sb.from("records")
+      .select("mileage,fuel_level,ts")
+      .eq("serial_id", vin)
+      .order("ts", { ascending: false })
+      .limit(50);
+    if (error) console.warn("[DT_MEDIA] latestMileageFuel", error);
+    const rows = data || [];
+    const mileage = rows.find(r => Number.isFinite(r.mileage))?.mileage ?? null;
+    const fuel    = rows.find(r => r.fuel_level)?.fuel_level ?? null;
+    return { mileage, fuel };
+  }
+
+  window.DT_MEDIA = {
+    signPhotoPaths,
+    uploadPhoto,
+    resizeImageBlob,
+    captureGps,
+    getLatestMileageAndFuel
   };
 })();

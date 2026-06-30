@@ -1,6 +1,6 @@
 // DriverTrax Service Worker
 // Provides offline support and caches app assets
-const CACHE_VERSION = "drivertrax-v7.3-menu-spacing";
+const CACHE_VERSION = "drivertrax-v7.6-vin-keypad-safe-area";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -16,7 +16,6 @@ const APP_SHELL = [
   "./announcements.js",
   "./fleet-counts.js",
   "./requests.js",
-  "./vehicle-notes.js",
   "./users.js",
   "./detailer.js",
   "./elearning.js",

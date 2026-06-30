@@ -65,9 +65,6 @@
     if (document.getElementById("recordDetailOverlay")?.classList.contains("open")) {
       window.closeRecordDetailOverlay?.(); return;
     }
-    if (document.getElementById("noteDetailOverlay")?.classList.contains("open")) {
-      window.closeNoteDetailOverlay?.(); return;
-    }
     if (document.querySelector(".detail-overlay.open")) {
       window.closeDetail?.(); return;
     }
@@ -90,7 +87,6 @@
     tagDialog("#vinKeypadOverlay", "VIN keypad");
     tagDialog(".scanner-overlay", "Barcode scanner");
     tagDialog("#recordDetailOverlay", "Record detail");
-    tagDialog("#noteDetailOverlay", "Vehicle note detail");
     tagDialog(".detail-overlay", "Detail");
     tagDialog(".slide-menu", "Menu");
 

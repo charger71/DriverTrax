@@ -385,33 +385,13 @@
     if (typeof showToast === "function" && !statusVal) showToast("Progress saved — set Status to file a record", "info");
   }
 
-  // Render the completed job as a plain-text note body.
-  function buildCompletionNoteBody(job) {
-    const lines = ["Detail job complete."];
-    const condIds = [...(job.conditions || [])];
-    if (condIds.length) {
-      const labels = condIds.map(id => (CONDITIONS.find(c => c.id === id)?.label) || id);
-      lines.push("", "Conditions: " + labels.join(" · "));
-    }
-    const todo = job.todo || [];
-    if (todo.length) {
-      lines.push("", "Checklist:");
-      for (const t of todo) {
-        const mark = t.done ? "[x]" : "[ ]";
-        const note = (t.note || "").trim();
-        lines.push(`${mark} ${t.label}${note ? ` — ${note}` : ""}`);
-      }
-    }
-    return lines.join("\n");
-  }
-
   async function onCompleteJob() {
     if (!currentJob || !currentJob.id) { await saveJob(); }
     const open = currentJob.todo.filter(t => !t.done).length;
     if (open > 0 && !confirm(`${open} item${open === 1 ? "" : "s"} still open. Complete anyway?`)) return;
 
     if (typeof showToast === "function") showToast("Capturing location…", "info");
-    const loc = await DT_VNOTES.captureGps();
+    const loc = await DT_MEDIA.captureGps();
     const completedAt = new Date().toISOString();
 
     const jobUpdate = { completed_at: completedAt };
@@ -427,14 +407,6 @@
       if (loc) { recordUpdate.lat = loc.lat; recordUpdate.lng = loc.lng; recordUpdate.gps_error = false; }
       const { error: rErr } = await sb.from("records").update(recordUpdate).eq("id", currentJob.record_id);
       if (rErr) console.warn("[Detail] record update on complete", rErr);
-    }
-
-    // Drop a VIN note that captures the conditions + full todo list.
-    try {
-      const body = buildCompletionNoteBody(currentJob);
-      await DT_VNOTES.addNote(currentJob.serial_id, body, loc ? { lat: loc.lat, lng: loc.lng } : {});
-    } catch (noteErr) {
-      console.warn("[Detail] completion note", noteErr);
     }
 
     currentJob.completed_at = completedAt;

@@ -17,6 +17,7 @@
   let users = [];
   let realtimeChan = null, started = false;
   let mode = "edit"; // "edit" | "create"
+  let pager = null;
 
   const CXR_EDITABLE = new Set(["driver", "detailer"]);
 
@@ -47,9 +48,7 @@
   }
 
   function render() {
-    const amAdmin = BL_AUTH.isAdmin();
     const amCxr   = BL_AUTH.isCxr();
-    const myId    = BL_AUTH.getUser()?.id || null;
     const term    = ($("blUsersSearch")?.value || "").trim().toLowerCase();
 
     const visible = amCxr ? users.filter((u) => CXR_EDITABLE.has(u.role || "driver")) : users;
@@ -59,7 +58,18 @@
 
     const el = $("blUsersList");
     if (!el) return;
-    if (!list.length) { el.innerHTML = `<div class="bl-empty">No users match.</div>`; return; }
+    if (!list.length) { el.innerHTML = `<div class="bl-empty">No users match.</div>`; hidePager(); return; }
+    ensurePager();
+    pager.setItems(list); // paginates client-side (25/page), draws via renderRows
+  }
+
+  // Draws one page of user rows into the list.
+  function renderRows(list) {
+    const amAdmin = BL_AUTH.isAdmin();
+    const amCxr   = BL_AUTH.isCxr();
+    const myId    = BL_AUTH.getUser()?.id || null;
+    const el = $("blUsersList");
+    if (!el) return;
 
     el.innerHTML = list.map((u) => {
       const role = u.role || "driver";
@@ -94,6 +104,9 @@
         </div>`;
     }).join("");
   }
+
+  function ensurePager() { if (!pager) pager = BL_PAGINATE.create({ mount: $("blUsersPager"), render: renderRows }); }
+  function hidePager() { const m = $("blUsersPager"); if (m) { m.hidden = true; m.innerHTML = ""; } }
 
   function onListClick(e) {
     const btn = e.target.closest("button[data-act]");

@@ -91,6 +91,58 @@
     setMessage,
   };
 
+  // ---- pagination -----------------------------------------------------
+  // Client-side pager for lists that are already fully loaded in memory
+  // (Records, Users). It slices the current page and renders a compact
+  // "N–M of T · Prev/Next" control into `mount`.
+  //   create({ mount, pageSize = 25, render })
+  //     mount    — element that hosts the pager controls
+  //     pageSize — rows per page (default 25)
+  //     render   — (pageItems) => void, draws just the current page
+  //   returns { setItems(items) } — resets to page 1 and renders.
+  // Prev/Next re-slice the same items in place (no re-fetch).
+  const DEFAULT_PAGE_SIZE = 25;
+  function createPager(opts) {
+    const mount = opts.mount;
+    const pageSize = opts.pageSize || DEFAULT_PAGE_SIZE;
+    const draw = opts.render;
+    let items = [], page = 1;
+    const pageCount = () => Math.max(1, Math.ceil(items.length / pageSize));
+
+    function renderPage() {
+      page = Math.min(Math.max(1, page), pageCount());
+      const start = (page - 1) * pageSize;
+      draw(items.slice(start, start + pageSize));
+      renderControls(start);
+    }
+    function renderControls(start) {
+      if (!mount) return;
+      const total = items.length;
+      if (total <= pageSize) { mount.innerHTML = ""; mount.hidden = true; return; }
+      mount.hidden = false;
+      const from = start + 1, to = Math.min(start + pageSize, total);
+      mount.innerHTML =
+        `<span class="bl-pager-info">${from}–${to} of ${total}</span>` +
+        `<div class="bl-pager-nav">` +
+          `<button type="button" class="bl-btn bl-btn--sm bl-btn--secondary" data-pager="prev"${page <= 1 ? " disabled" : ""}>Prev</button>` +
+          `<span class="bl-pager-page">Page ${page} / ${pageCount()}</span>` +
+          `<button type="button" class="bl-btn bl-btn--sm bl-btn--secondary" data-pager="next"${page >= pageCount() ? " disabled" : ""}>Next</button>` +
+        `</div>`;
+    }
+    if (mount) {
+      mount.addEventListener("click", (e) => {
+        const b = e.target.closest("[data-pager]");
+        if (!b) return;
+        if (b.dataset.pager === "prev" && page > 1) { page--; renderPage(); }
+        else if (b.dataset.pager === "next" && page < pageCount()) { page++; renderPage(); }
+      });
+    }
+    return {
+      setItems(next) { items = next || []; page = 1; renderPage(); },
+    };
+  }
+  window.BL_PAGINATE = { create: createPager, DEFAULT_SIZE: DEFAULT_PAGE_SIZE };
+
   // ---- Supabase error helpers ----------------------------------------
   // Detect a row-not-found / empty result so callers can show a friendly
   // "it's gone" toast instead of a raw error.

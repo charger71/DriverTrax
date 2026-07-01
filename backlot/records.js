@@ -63,6 +63,7 @@
     const { data, error } = await q;
     if (error) {
       body.innerHTML = `<tr><td colspan="6"><div class="bl-empty">${esc("Query error: " + error.message)}</div></td></tr>`;
+      hidePager();
       return;
     }
     _cache = data || [];
@@ -71,9 +72,18 @@
 
     if (!_cache.length) {
       body.innerHTML = `<tr><td colspan="6"><div class="bl-empty">No records match these filters.</div></td></tr>`;
+      hidePager();
       return;
     }
-    body.innerHTML = _cache.map((r) => {
+    ensurePager();
+    pager.setItems(_cache); // paginates client-side (25/page), draws via renderRows
+  }
+
+  // Draws one page of records into the table body.
+  function renderRows(rows) {
+    const body = $("blRecBody");
+    if (!body) return;
+    body.innerHTML = rows.map((r) => {
       const vd = r.vin_data || {};
       const sub = [vd.year, vd.make, vd.model].filter(Boolean).join(" ");
       const dest = r.destination === "OTHER" ? (r.destination_other || "Other") : (r.destination || "—");
@@ -87,7 +97,11 @@
       </tr>`;
     }).join("");
   }
-  let _cache = [];
+
+  function ensurePager() { if (!pager) pager = BL_PAGINATE.create({ mount: $("blRecPager"), render: renderRows }); }
+  function hidePager() { const m = $("blRecPager"); if (m) { m.hidden = true; m.innerHTML = ""; } }
+
+  let _cache = [], pager = null;
   const findRec = (id) => _cache.find((r) => r.id === id);
 
   // ---------- detail modal ----------

@@ -220,7 +220,16 @@
           </tbody>
         </table>
       </div>
+      <div class="bl-pager">
+        <span class="bl-pager-info">1–25 of 138</span>
+        <div class="bl-pager-nav">
+          <button type="button" class="bl-btn bl-btn--sm bl-btn--secondary" disabled>Prev</button>
+          <span class="bl-pager-page">Page 1 / 6</span>
+          <button type="button" class="bl-btn bl-btn--sm bl-btn--secondary">Next</button>
+        </div>
+      </div>
     </div>
+    <p class="lead" style="margin-top:var(--sp-3)">Client-side pager for in-memory lists (25/page by default). Create with <code>BL_PAGINATE.create({ mount, render })</code> and feed it filtered rows via <code>pager.setItems(rows)</code> — it hides itself when a single page fits.</p>
   </section>
 
   <!-- ============ EMPTY / TOAST ============ -->

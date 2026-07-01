@@ -17,6 +17,8 @@
   const state = { role: "driver", period: "today" };
   let realtimeChan = null, pollTimer = null, started = false;
   let lbSeq = 0; // guards against out-of-order leaderboard renders on rapid toggles
+  let rosterPager = null, lbPager = null;
+  let lbCtx = { unit: "car" }; // last-render context used by the leaderboard row renderer
 
   const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
 
@@ -80,13 +82,22 @@
       const err = recRes.error?.message || jobRes.error?.message;
       const msg = err ? `Query error: ${err}` : "No drivers or detailers active yet today.";
       body.innerHTML = `<tr><td colspan="5"><div class="bl-empty">${esc(msg)}</div></td></tr>`;
+      hidePager($("blRosterPager"));
       return;
     }
     const names = await resolveNames(rows.map((r) => r.id), "Unknown");
+    const enriched = rows.map((r) => ({ ...r, name: names[r.id] || (r.role === "detailer" ? "Detailer" : "Driver") }));
+    ensureRosterPager();
+    rosterPager.setItems(enriched);
+  }
+
+  function renderRosterRows(rows) {
+    const body = $("blRosterBody");
+    if (!body) return;
     body.innerHTML = rows.map((r) => {
       const unit = r.role === "detailer" ? "job" : "car";
       return `<tr>
-        <td>${esc(names[r.id] || (r.role === "detailer" ? "Detailer" : "Driver"))}</td>
+        <td>${esc(r.name)}</td>
         <td><span class="bl-role bl-role--${r.role}">${r.role}</span></td>
         <td><b>${r.count}</b> <span class="u-muted">${unit}${r.count === 1 ? "" : "s"}</span></td>
         <td>${esc(paceSub(r.count, r.first, r.last))}</td>
@@ -94,6 +105,9 @@
       </tr>`;
     }).join("");
   }
+
+  function ensureRosterPager() { if (!rosterPager) rosterPager = BL_PAGINATE.create({ mount: $("blRosterPager"), render: renderRosterRows }); }
+  function hidePager(mount) { if (mount) { mount.hidden = true; mount.innerHTML = ""; } }
 
   // ---------- leaderboard (role × period) ----------
   async function loadLeaderboard() {
@@ -130,17 +144,28 @@
       const who = state.role === "detailer" ? "detailers" : "drivers";
       const when = { today: "yet today", week: "this week", month: "this month", quarter: "this quarter" }[state.period];
       el.innerHTML = `<div class="bl-empty">${lbError ? esc("Query error: " + lbError.message) : `No ${who} active ${when}.`}</div>`;
+      hidePager($("blLbPager"));
       return;
     }
     const names = await resolveNames(ids, state.role === "detailer" ? "Detailer" : "Driver");
     if (seq !== lbSeq) return;
     const unit = state.role === "detailer" ? "job" : "car";
     const rows = ids.map((id) => ({ id, name: names[id] || (state.role === "detailer" ? "Detailer" : "Driver"), ...byUser[id] }))
-      .sort((a, b) => b.count - a.count);
+      .sort((a, b) => b.count - a.count)
+      .map((r, i) => ({ ...r, rank: i + 1 })); // stamp absolute rank before paginating
 
-    el.innerHTML = rows.map((r, i) => `
+    lbCtx.unit = unit;
+    ensureLbPager();
+    lbPager.setItems(rows);
+  }
+
+  function renderLbRows(rows) {
+    const el = $("blLeaderboard");
+    if (!el) return;
+    const unit = lbCtx.unit;
+    el.innerHTML = rows.map((r) => `
       <div class="bl-leader-row">
-        <div class="bl-leader-rank ${i === 0 ? "is-gold" : ""}">${i + 1}</div>
+        <div class="bl-leader-rank ${r.rank === 1 ? "is-gold" : ""}">${r.rank}</div>
         <div>
           <div class="bl-leader-name">${esc(r.name)}</div>
           <div class="bl-leader-sub">${esc(paceSub(r.count, r.first, r.last))} · ${esc(fmt.timeAgo(r.last))}</div>
@@ -148,6 +173,8 @@
         <div class="bl-leader-count" title="${r.count} ${unit}${r.count === 1 ? "" : "s"}">${r.count}</div>
       </div>`).join("");
   }
+
+  function ensureLbPager() { if (!lbPager) lbPager = BL_PAGINATE.create({ mount: $("blLbPager"), render: renderLbRows }); }
 
   function wireControls() {
     const roleSeg = $("blLbRole"), periodSeg = $("blLbPeriod");

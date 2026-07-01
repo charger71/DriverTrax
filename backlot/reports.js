@@ -23,6 +23,8 @@
 
   let started = false;
   let lastReport = null; // { dataset, groupLabel, rows:[{label,count}], total, unit }
+  let pager = null;
+  let repCtx = { total: 0 }; // last-run context (for row renderer + Total row)
 
   const fmtDay = (ts) => new Date(ts).toLocaleDateString("en-CA", { timeZone: fmt.TZ }); // YYYY-MM-DD
 
@@ -105,11 +107,27 @@
   function renderTable(groupLabel, rows, total) {
     $("blRepHead").innerHTML = `<tr><th>${esc(groupLabel)}</th><th class="bl-num">Count</th><th class="bl-num">% of total</th></tr>`;
     const body = $("blRepBody");
-    if (!rows.length) { body.innerHTML = `<tr><td colspan="3"><div class="bl-empty">No data for these filters.</div></td></tr>`; return; }
+    if (!rows.length) {
+      body.innerHTML = `<tr><td colspan="3"><div class="bl-empty">No data for these filters.</div></td></tr>`;
+      hidePager();
+      return;
+    }
+    repCtx.total = total;
+    ensurePager();
+    pager.setItems(rows);
+  }
+
+  function renderRepRows(rows) {
+    const total = repCtx.total;
+    const body = $("blRepBody");
+    if (!body) return;
     body.innerHTML = rows.map((r) =>
       `<tr><td>${esc(r.label)}</td><td class="bl-num">${r.count}</td><td class="bl-num">${total ? ((r.count / total) * 100).toFixed(1) : 0}%</td></tr>`
     ).join("") + `<tr class="bl-report-total"><td>Total</td><td class="bl-num">${total}</td><td class="bl-num">100%</td></tr>`;
   }
+
+  function ensurePager() { if (!pager) pager = BL_PAGINATE.create({ mount: $("blRepPager"), render: renderRepRows }); }
+  function hidePager() { const m = $("blRepPager"); if (m) { m.hidden = true; m.innerHTML = ""; } }
 
   // ---- CSV export ----
   const csvCell = (v) => { const s = String(v == null ? "" : v); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };

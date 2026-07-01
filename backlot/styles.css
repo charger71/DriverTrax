@@ -292,6 +292,13 @@ body.bl-authed .bl-app {
 .bl-table td { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--divider); vertical-align: middle; }
 .bl-table tr:last-child td { border-bottom: 0; }
 
+/* ---- pager (client-side pagination control) ---------------------------- */
+.bl-pager { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--divider); }
+.bl-pager[hidden] { display: none; }
+.bl-pager-info { color: var(--muted); font-size: var(--fs-sm); }
+.bl-pager-nav { display: inline-flex; align-items: center; gap: var(--sp-3); margin-left: auto; }
+.bl-pager-page { color: var(--text-soft); font-size: var(--fs-sm); font-weight: var(--fw-bold); }
+
 /* ---- 8. Chips / segmented ----------------------------------------------- */
 .bl-chip { display: inline-flex; align-items: center; gap: var(--sp-2); border-radius: var(--r-full); padding: var(--sp-1) var(--sp-3); font-size: var(--fs-xs); font-weight: var(--fw-bold); }
 .bl-chip--clean { background: var(--accent-soft); color: var(--accent); }

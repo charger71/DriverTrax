@@ -1645,6 +1645,11 @@
     background: var(--bg); color: var(--text); border: var(--border-thin) solid var(--divider);
     font-size: 14px;
   }
+  /* Body region for #alertModal (in-app fallback for native Web Notifications). */
+  .alert-modal-body {
+    font-size: var(--font-base); line-height: 1.4; color: var(--text);
+    margin-bottom: var(--space-3); white-space: pre-wrap; word-break: break-word;
+  }
   .users-modal-msg { min-height: 18px; font-size: 12px; text-align: center; color: var(--text-soft); }
   .users-modal-msg.err { color: var(--danger); }
   .users-modal-msg.ok  { color: var(--accent); }

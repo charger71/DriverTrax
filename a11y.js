@@ -71,6 +71,11 @@
     if (document.querySelector(".slide-menu.open")) {
       window.closeMenu?.(); return;
     }
+    // In-app alert modal (notifications.js fallback for WKWebView / denied perms).
+    if (document.getElementById("alertModal")?.classList.contains("show")) {
+      document.getElementById("alertModalDismiss")?.click();
+      return;
+    }
   });
 
   // Tag the four overlay roots so AT announces them as dialogs.
@@ -89,6 +94,7 @@
     tagDialog("#recordDetailOverlay", "Record detail");
     tagDialog(".detail-overlay", "Detail");
     tagDialog(".slide-menu", "Menu");
+    tagDialog("#alertModal", "Alert");
 
     // Re-scan when new clickable divs are rendered (record cards, legend rows,
     // quiz authoring lists, dashboard tiles, etc.).

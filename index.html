@@ -1204,6 +1204,22 @@
   </div>
 </div>
 
+<!-- In-app alert modal — surfaced by notifications.js when native Web Notifications
+     aren't available (iOS WKWebView wrapper, denied permission, unsupported browser). -->
+<div class="users-modal" id="alertModal" aria-hidden="true">
+  <div class="users-modal-card">
+    <div class="users-modal-header">
+      <span id="alertModalTitle">New alert</span>
+      <button type="button" class="btn btn-destructive btn-icon users-modal-close" id="alertModalClose" aria-label="Close">&times;</button>
+    </div>
+    <div id="alertModalBody" class="alert-modal-body"></div>
+    <div class="users-modal-actions">
+      <button type="button" class="btn btn-secondary" id="alertModalDismiss">Dismiss</button>
+      <button type="button" class="btn btn-primary" id="alertModalView">View</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>

@@ -48,11 +48,9 @@
   async function show(title, body, tag, onClickTab) {
     const hasNative = typeof Notification !== "undefined" && Notification.permission === "granted";
     if (!hasNative) {
-      // WKWebView wrapper, denied permission, or unsupported browser — surface it in-app.
-      if (window.DT_TOAST) {
-        const msg = body ? `${title} — ${body}` : title;
-        DT_TOAST.show(msg.slice(0, 200), "success");
-      }
+      // WKWebView wrapper, denied permission, or unsupported browser — surface it in-app
+      // via #alertModal (the .users-modal pattern). Last-wins if one is already open.
+      openAlertModal(title, body, onClickTab);
       return;
     }
     const opts = {
@@ -204,8 +202,55 @@
   });
   if (isTargetRole()) start();
 
+  // -----------------------------------------------------------
+  // In-app modal fallback (#alertModal in index.html). Lazy-wired
+  // on first use; handlers idempotent so multiple opens don't stack.
+  // -----------------------------------------------------------
+  let modalRefs = null;
+  let currentTab = null;
+
+  function ensureModal() {
+    if (modalRefs) return modalRefs;
+    const modal = document.getElementById("alertModal");
+    const titleEl = document.getElementById("alertModalTitle");
+    const bodyEl = document.getElementById("alertModalBody");
+    const closeBtn = document.getElementById("alertModalClose");
+    const dismissBtn = document.getElementById("alertModalDismiss");
+    const viewBtn = document.getElementById("alertModalView");
+    if (!modal || !titleEl || !bodyEl || !closeBtn || !dismissBtn || !viewBtn) return null;
+
+    const close = () => {
+      modal.classList.remove("show");
+      modal.setAttribute("aria-hidden", "true");
+    };
+    closeBtn.addEventListener("click", close);
+    dismissBtn.addEventListener("click", close);
+    viewBtn.addEventListener("click", () => {
+      const tab = currentTab;
+      close();
+      if (tab && typeof window.showTab === "function") window.showTab(tab);
+    });
+    // Backdrop click intentionally does NOT dismiss — force an explicit action.
+
+    modalRefs = { modal, titleEl, bodyEl, viewBtn, close };
+    return modalRefs;
+  }
+
+  function openAlertModal(title, body, onClickTab) {
+    const refs = ensureModal();
+    if (!refs) return;
+    refs.titleEl.textContent = title || "New alert";
+    refs.bodyEl.textContent = body || "";
+    currentTab = onClickTab || null;
+    refs.viewBtn.style.display = currentTab ? "" : "none";
+    refs.modal.classList.add("show");
+    refs.modal.setAttribute("aria-hidden", "false");
+    try { if (typeof haptic === "function") haptic("warn"); } catch {}
+  }
+
   window.DT_NOTIFS = {
     test: () => show("DriverTrax test", "Notifications are working.", "test", "announcements"),
+    testModal: () => openAlertModal("New alert from Test", "This is what an in-app alert looks like when native notifications aren't available.", "announcements"),
     requestPermission: async () => {
       localStorage.removeItem(PERM_ASKED_KEY);
       const ok = await ensurePermission();

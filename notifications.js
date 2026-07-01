@@ -21,8 +21,17 @@
 
   // Don't fire for rows that already existed when this session started.
   const sessionStart = Date.now();
+  // Boundary for catchUp() — anything inserted after this timestamp is fair
+  // game to surface. Advances each time we successfully query. Realtime is
+  // unreliable on iOS (WKWebView suspends the socket in background) so we
+  // need an HTTP fallback that runs on resume + reconnect.
+  let lastSeenAt = new Date(sessionStart).toISOString();
+  // Per-row dedupe: realtime and catchUp can both deliver the same row.
+  const surfacedAnn = new Set();
+  const surfacedEdr = new Set();
   let chan = null;
   let started = false;
+  let catchingUp = false;
 
   function isTargetRole() {
     const p = DT_AUTH.getProfile();
@@ -93,12 +102,9 @@
     }
   }
 
-  async function onAnnouncementInsert(row) {
-    const user = DT_AUTH.getUser();
-    if (!user || row.author_id === user.id) return;
-    if (row.status && row.status !== "open") return;
-    const created = new Date(row.created_at || Date.now()).getTime();
-    if (created < sessionStart - 5000) return;
+  async function surfaceAnnouncement(row) {
+    if (!row?.id || surfacedAnn.has(row.id)) return;
+    surfacedAnn.add(row.id);
     const who = await authorName(row.author_id);
     show(
       `New alert from ${who}`,
@@ -108,14 +114,9 @@
     );
   }
 
-  async function onCoverageInsert(row) {
-    const user = DT_AUTH.getUser();
-    if (!user || row.manager_id === user.id) return;
-    if (row.status && row.status !== "open") return;
-    const role = DT_AUTH.getProfile()?.role;
-    if (role && row.position && row.position !== role) return;
-    const created = new Date(row.created_at || Date.now()).getTime();
-    if (created < sessionStart - 5000) return;
+  function surfaceCoverage(row) {
+    if (!row?.id || surfacedEdr.has(row.id)) return;
+    surfacedEdr.add(row.id);
     const when = row.shift_time
       ? new Date(row.shift_time).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })
       : "";
@@ -127,6 +128,66 @@
       `edr-${row.id}`,
       "announcements"
     );
+  }
+
+  async function onAnnouncementInsert(row) {
+    const user = DT_AUTH.getUser();
+    if (!user || row.author_id === user.id) return;
+    if (row.status && row.status !== "open") return;
+    const created = new Date(row.created_at || Date.now()).getTime();
+    if (created < sessionStart - 5000) return;
+    await surfaceAnnouncement(row);
+  }
+
+  async function onCoverageInsert(row) {
+    const user = DT_AUTH.getUser();
+    if (!user || row.manager_id === user.id) return;
+    if (row.status && row.status !== "open") return;
+    const role = DT_AUTH.getProfile()?.role;
+    if (role && row.position && row.position !== role) return;
+    const created = new Date(row.created_at || Date.now()).getTime();
+    if (created < sessionStart - 5000) return;
+    surfaceCoverage(row);
+  }
+
+  // Fill any gap that opened while the WebSocket was asleep. Runs on
+  // channel SUBSCRIBED (initial + reconnect) and on visibilitychange
+  // → visible. Idempotent via surfaced* Sets.
+  async function catchUp() {
+    if (catchingUp) return;
+    if (!isTargetRole()) return;
+    const user = DT_AUTH.getUser();
+    if (!user) return;
+    catchingUp = true;
+    const since = lastSeenAt;
+    lastSeenAt = new Date().toISOString();
+    try {
+      const { data } = await sb.from("announcements")
+        .select("*")
+        .gt("created_at", since)
+        .neq("author_id", user.id)
+        .eq("status", "open")
+        .order("created_at", { ascending: true });
+      for (const row of (data || [])) await surfaceAnnouncement(row);
+    } catch (err) {
+      console.warn("[Notifications] catch-up announcements failed", err);
+    }
+    try {
+      const role = DT_AUTH.getProfile()?.role;
+      const { data } = await sb.from("extra_driver_requests")
+        .select("*")
+        .gt("created_at", since)
+        .neq("manager_id", user.id)
+        .eq("status", "open")
+        .order("created_at", { ascending: true });
+      for (const row of (data || [])) {
+        if (role && row.position && row.position !== role) continue;
+        surfaceCoverage(row);
+      }
+    } catch (err) {
+      console.warn("[Notifications] catch-up coverage failed", err);
+    }
+    catchingUp = false;
   }
 
   function urlBase64ToUint8Array(base64) {
@@ -169,12 +230,16 @@
     }
   }
 
+  function onVisibility() {
+    if (document.visibilityState === "visible") catchUp();
+  }
+
   async function start() {
     if (started) return;
     if (!isTargetRole()) return;
     // Ask for native permission on platforms that support it, but don't
-    // gate the Realtime subscription on the result — show() falls back
-    // to an in-app toast when native notifications aren't available.
+    // gate the Realtime subscription on the result — the #alertModal
+    // fallback in show() handles WKWebView / denied-permission cases.
     await ensurePermission();
     started = true;
     ensurePushSubscription();
@@ -183,12 +248,18 @@
           (payload) => onAnnouncementInsert(payload.new || {}))
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "extra_driver_requests" },
           (payload) => onCoverageInsert(payload.new || {}))
-      .subscribe();
+      .subscribe((status) => {
+        // Runs on initial connect and every reconnect (e.g. after iOS
+        // wakes the WebView) — fill any gap the socket missed.
+        if (status === "SUBSCRIBED") catchUp();
+      });
+    document.addEventListener("visibilitychange", onVisibility);
   }
 
   function stop() {
     started = false;
     if (chan) { sb.removeChannel(chan); chan = null; }
+    document.removeEventListener("visibilitychange", onVisibility);
   }
 
   navigator.serviceWorker?.addEventListener("message", (e) => {

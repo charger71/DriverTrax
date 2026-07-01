@@ -1,6 +1,6 @@
 // DriverTrax Service Worker
 // Provides offline support and caches app assets
-const CACHE_VERSION = "drivertrax-v7.9-notif-modal";
+const CACHE_VERSION = "drivertrax-v8.0-notif-catchup";
 const APP_SHELL = [
   "./",
   "./index.html",

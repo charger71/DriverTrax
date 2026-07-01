@@ -1,6 +1,6 @@
 // DriverTrax Service Worker
 // Provides offline support and caches app assets
-const CACHE_VERSION = "drivertrax-v8.0-notif-catchup";
+const CACHE_VERSION = "drivertrax-v8.1-pull-refresh";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -20,6 +20,7 @@ const APP_SHELL = [
   "./detailer.js",
   "./elearning.js",
   "./notifications.js",
+  "./pull-refresh.js",
   "./pwa.js",
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css",
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",

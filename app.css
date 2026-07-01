@@ -1645,6 +1645,31 @@
     background: var(--bg); color: var(--text); border: var(--border-thin) solid var(--divider);
     font-size: 14px;
   }
+  /* Pull-to-refresh indicator (pull-refresh.js). Fixed at top-center; transform
+     is driven by JS during the drag, opacity fades in as the pull approaches
+     THRESHOLD. Sits above panels but below the toast + modal stack. */
+  #pullRefreshIndicator {
+    position: fixed; top: 0; left: 50%;
+    transform: translate3d(-50%, -60px, 0);
+    width: 44px; height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 8900;
+    opacity: 0;
+    pointer-events: none;
+  }
+  #pullRefreshIndicator .ptr-spinner {
+    width: 28px; height: 28px;
+    border: 3px solid var(--accent);
+    border-top-color: transparent;
+    border-radius: 50%;
+    transition: transform 0.15s ease;
+  }
+  #pullRefreshIndicator.ptr-ready .ptr-spinner { transform: scale(1.15); }
+  #pullRefreshIndicator.ptr-spinning .ptr-spinner {
+    animation: ptr-spin 0.8s linear infinite;
+  }
+  @keyframes ptr-spin { to { transform: rotate(360deg); } }
+
   /* Body region for #alertModal (in-app fallback for native Web Notifications). */
   .alert-modal-body {
     font-size: var(--font-base); line-height: 1.4; color: var(--text);

@@ -74,8 +74,13 @@
     el.classList.add("ptr-spinning");
     el.style.transform = `translate3d(-50%, ${THRESHOLD}px, 0)`;
     el.style.opacity = "1";
-    // Small delay so the spinner is visible before we reload.
-    window.setTimeout(() => window.location.reload(), 280);
+    // Soft refresh: surface any missed alerts as modals and let panel modules
+    // (e.g. announcements.js) refetch their data via the dt-refresh event.
+    // Doing this instead of location.reload() preserves entry-form state.
+    try { window.DT_NOTIFS?.catchUp?.(); } catch {}
+    try { document.dispatchEvent(new CustomEvent("dt-refresh")); } catch {}
+    // Keep the spinner visible briefly so the gesture feels acknowledged.
+    window.setTimeout(hideIndicator, 700);
   }
 
   function reset() {

@@ -322,6 +322,7 @@
   window.DT_NOTIFS = {
     test: () => show("DriverTrax test", "Notifications are working.", "test", "announcements"),
     testModal: () => openAlertModal("New alert from Test", "This is what an in-app alert looks like when native notifications aren't available.", "announcements"),
+    catchUp,
     requestPermission: async () => {
       localStorage.removeItem(PERM_ASKED_KEY);
       const ok = await ensurePermission();

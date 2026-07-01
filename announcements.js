@@ -297,6 +297,8 @@
       }
     });
     loadAnnouncementsForDriver();
+    // Refetch on pull-to-refresh (pull-refresh.js dispatches this).
+    document.addEventListener("dt-refresh", loadAnnouncementsForDriver);
     realtimeChan = sb.channel("driver-announcements")
       .on("postgres_changes", { event: "*", schema: "public", table: "announcements" }, loadAnnouncementsForDriver)
       .subscribe();

@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' https://unpkg.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://server.arcgisonline.com https://*.basemaps.cartocdn.com https://wcetkygfsstqtlmrijjl.supabase.co; connect-src 'self' https://wcetkygfsstqtlmrijjl.supabase.co wss://wcetkygfsstqtlmrijjl.supabase.co https://vpic.nhtsa.dot.gov https://api.nhtsa.gov; font-src 'self' data:; object-src 'none'; base-uri 'self'; manifest-src 'self'; worker-src 'self'">
+<title>Backlot — Manager Console</title>
+<meta name="theme-color" content="#0e1116">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon.png">
+<link rel="apple-touch-icon" href="icons/icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Backlot">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin="">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ============================================================
+       Single-color SVG icon sprite. Each <symbol> paints with
+       currentColor. Reference with:
+         <svg class="bl-icon"><use href="#icon-NAME"/></svg>
+       Add new icons here AND in components.html (the visual guide).
+       NOTE: keep this sprite in sync with the copy in components.html.
+       ============================================================ -->
+  <svg class="icon-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+    <!-- brand: steering wheel (copied from the driver app icon) -->
+    <symbol id="icon-wheel" viewBox="14952.496 7440 1477.2065 1477.207" fill="currentColor" stroke="none"><path d="m 15657.9,8916.9469 c -31.53,-1.0624 -64.724,-4.7817 -95.984,-10.7554 -3.969,-0.7584 -12.413,-2.3722 -18.764,-3.5861 -28.586,-5.4642 -70.304,-17.165 -97.447,-27.332 -3.561,-1.3338 -10.048,-3.7323 -14.414,-5.3301 -4.367,-1.5978 -9.887,-3.7515 -12.269,-4.786 -2.381,-1.0343 -9.42,-3.8937 -15.643,-6.354 -20.208,-7.991 -69.397,-32.9998 -82.766,-42.0811 -3.318,-2.2541 -6.413,-4.0985 -6.878,-4.0985 -0.464,0 -4.57,-2.375 -9.122,-5.2778 -4.552,-2.9028 -12.824,-8.1701 -18.382,-11.7053 -5.556,-3.5352 -13.675,-9.0644 -18.041,-12.2873 -4.367,-3.2228 -11.51,-8.4897 -15.876,-11.7042 -32.596,-24 -52.738,-41.5984 -86.603,-75.6675 -42.623,-42.8794 -76.695,-86.3721 -107.814,-137.6224 -35.052,-57.7282 -64.681,-126.9457 -80.469,-187.9973 -0.511,-1.9808 -1.805,-6.8428 -2.873,-10.8044 -10.39,-38.5376 -18.034,-91.5123 -21.176,-146.7382 -2.799,-49.234 1.092,-106.9261 11.237,-166.5906 5.999,-35.2772 19.841,-85.6002 35.069,-127.4922 6.002,-16.5096 16.59,-40.4731 28.639,-64.8267 37.32,-75.4163 80.115,-135.0069 140.273,-195.3201 40.611,-40.714 77.909,-71.3397 121.41,-99.6889 116.612,-75.9923 245.059,-115.6434 384.492,-118.6908 100.693,-2.2008 188.16,12.8233 282.901,48.5931 22.922,8.6544 60.688,26.4841 86.939,41.0457 115.188,63.8934 211.831,156.3323 277.8,265.717 34.329,56.9221 56.335,105.5949 74.573,164.9477 6.98,22.7179 14.659,52.2721 17.405,66.9875 0.959,5.1502 2.31,11.957 2.999,15.1264 0.69,3.1693 1.983,10.9484 2.876,17.287 0.893,6.3386 2.198,15.4143 2.899,20.1683 1.545,10.4814 3.69,34.8567 5.953,67.7077 2.395,34.7285 -0.343,91.4282 -6.64,137.5766 -2.249,16.476 -8.243,49.0465 -10.869,59.0643 -1.63,6.2185 -5.606,22.0289 -7.245,28.8118 -4.632,19.1727 -19.616,64.7496 -22.103,67.2322 -0.527,0.5257 -0.958,1.801 -0.958,2.8339 0,1.033 -1.542,5.3008 -3.425,9.4841 -1.884,4.1831 -5.905,13.4319 -8.937,20.5525 -5.117,12.0228 -20.984,43.8667 -27.644,55.4813 -18.576,32.4047 -24.147,41.525 -38.109,62.4114 -14.453,21.6193 -28.06,39.7395 -43.898,58.464 -2.409,2.8471 -6.294,7.7694 -8.637,10.9388 -2.342,3.1692 -17.258,18.7887 -33.148,34.7099 -29.601,29.6579 -46.852,45.0047 -77.274,68.7415 -18.09,14.1153 -56.755,40.5022 -69.974,47.7543 -3.971,2.1777 -7.867,4.4836 -8.66,5.1246 -6.271,5.0632 -63.414,34.3111 -79.065,40.4677 -4.018,1.5809 -10.28,4.2293 -13.917,5.8856 -16.967,7.7274 -74.313,26.905 -91.049,30.4482 -1.984,0.42 -6.206,1.4654 -9.382,2.3228 -8.144,2.1996 -28.385,6.5776 -40.414,8.7419 -25.933,4.6661 -44.269,7.4772 -60.832,9.3264 -18.619,2.0788 -81.731,3.6936 -108.764,2.7827 z m 160.106,-150.556 c 82.772,-19.7959 146.981,-48.2763 216.237,-95.915 74.79,-51.4447 138.048,-122.2128 184.298,-206.1783 37.636,-68.3243 64.311,-154.323 69.53,-224.1555 l 0.959,-12.8116 -26.532,1.0005 c -47.875,1.8056 -76.776,3.6095 -94.367,5.8905 -23.369,3.0304 -57.04,10.0779 -77.131,16.144 -122.962,37.1267 -221.174,128.0233 -268.966,248.9294 -20.608,52.135 -30.991,102.2032 -34.206,164.9478 -1.599,31.187 -1.937,99.6656 -0.518,104.954 1.087,4.0518 2.602,3.9132 30.696,-2.8058 z m -223.298,-29.7585 c 1.143,-60.0315 -1.907,-108.9894 -9.18,-147.3005 -25.102,-132.2313 -98.992,-239.3423 -207.935,-301.4196 -20.566,-11.7183 -48.989,-25.0003 -65.52,-30.6163 -35.665,-12.1156 -77.524,-21.0628 -114.543,-24.4832 -28.339,-2.6184 -100.421,-5.6587 -102.58,-4.3268 -2.263,1.3954 -0.709,19.5328 4.506,52.5592 2.102,13.3266 4.23,23.8327 8.676,42.8577 4.745,20.2945 20.667,68.2863 28.319,85.3551 1.6,3.5654 4.759,10.6963 7.021,15.8465 31.959,72.7781 91.412,152.5492 152.864,205.1045 46.738,39.9718 76.208,59.928 125.573,85.0353 45.806,23.2969 91.135,39.7492 137.12,49.769 7.939,1.7297 15.732,3.7059 17.321,4.3915 1.587,0.6856 6.22,1.2906 10.296,1.3441 l 7.411,0.098 z m 123.652,-431.9911 c 27.912,-6.4377 51.703,-21.2852 69.537,-43.3969 15.264,-18.9265 22.898,-35.8806 26.756,-59.4317 2.731,-16.6595 2.537,-25.0972 -0.968,-42.2712 -7.766,-38.0345 -34.391,-72.5927 -68.416,-88.8015 -18.136,-8.6394 -33.763,-11.9787 -55.615,-11.8853 -20.74,0.088 -33.527,2.839 -51.295,11.0324 -45.738,21.0917 -75.468,69.7558 -72.458,118.61 2.048,33.248 11.579,55.969 33.118,78.9499 31.43,33.5347 75.567,47.2902 119.341,37.1943 z m -546.154,-259.9218 c 71.267,-18.0897 204.88,-50.4335 230.939,-55.9045 75.943,-15.9425 131.198,-23.9613 202.072,-29.3254 32.284,-2.4433 142.443,-2.4423 173.205,0 113.073,8.9835 182.415,22.4723 406.308,79.0384 47.972,12.12 76.674,18.7656 86.891,20.1181 8.507,1.1264 8.415,1.9618 2.457,-22.3003 -6.76,-27.5247 -18.471,-63.828 -25.974,-80.516 -2.7,-6.0087 -5.506,-12.2959 -11.568,-25.9305 -12.183,-27.4056 -35.356,-68.1082 -52.128,-91.5676 -73.607,-102.956 -169.482,-177.72 -285.465,-222.6044 -30.982,-11.99 -68.325,-22.4823 -98.149,-27.5779 -5.161,-0.8815 -12.63,-2.1853 -16.6,-2.8974 -3.969,-0.712 -11.762,-1.949 -17.319,-2.7488 -5.557,-0.7999 -14.975,-2.2204 -20.93,-3.1569 -14.396,-2.2644 -92.221,-2.2904 -107.53,-0.037 -6.351,0.9352 -16.094,2.3516 -21.652,3.1475 -33.375,4.78 -37.967,5.6686 -77.941,15.089 -12.398,2.922 -43.882,13.3455 -58.294,19.3004 -5.863,2.4231 -11.283,4.4055 -12.039,4.4055 -2.513,0 -56.45,26.708 -71.117,35.2156 -7.939,4.6044 -16.708,9.664 -19.486,11.2435 -19.634,11.1618 -58.632,40.2915 -84.458,63.0907 -91.548,80.8103 -159.749,194.6465 -187.023,312.1598 -1.697,7.316 -2.733,14.2232 -2.299,15.3495 0.969,2.5177 18.094,-0.9008 68.1,-13.5938 z"/></symbol>
+    <!-- nav + ui icons (stroke, Feather-style) -->
+    <symbol id="icon-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></symbol>
+    <symbol id="icon-award" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></symbol>
+    <symbol id="icon-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="icon-megaphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></symbol>
+    <symbol id="icon-bar-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></symbol>
+    <symbol id="icon-log-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></symbol>
+    <symbol id="icon-ban" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></symbol>
+    <symbol id="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+    <symbol id="icon-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+    <symbol id="icon-clipboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></symbol>
+    <symbol id="icon-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></symbol>
+    <symbol id="icon-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></symbol>
+    <symbol id="icon-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></symbol>
+  </svg>
+
+  <!-- boot splash until auth resolves -->
+  <div class="bl-splash" id="blSplash" role="status" aria-label="Loading Backlot">
+    <svg class="bl-splash-logo" aria-hidden="true"><use href="#icon-wheel"/></svg>
+    <div class="bl-splash-brand">BACKLOT</div>
+  </div>
+
+  <div class="bl-app">
+    <!-- ===== top bar ===== -->
+    <header class="bl-topbar">
+      <div class="bl-brand"><svg class="bl-brand-logo" aria-hidden="true"><use href="#icon-wheel"/></svg>BACKLOT <span>MANAGER CONSOLE</span></div>
+      <div class="bl-crumbs">SDF · Louisville · <b id="blCrumb">Dashboard</b></div>
+      <div class="bl-topbar-right">
+        <span class="bl-pill" id="blClock"></span>
+        <div class="bl-avatar" id="blAvatar" title="Signed in">–</div>
+        <button class="bl-btn bl-btn--sm bl-btn--ghost" id="blSignOut"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-log-out"/></svg>Sign out</button>
+      </div>
+    </header>
+
+    <!-- ===== sidebar / tab bar ===== -->
+    <aside class="bl-sidebar" id="blNav">
+      <div class="bl-nav-section">Operations</div>
+      <button class="bl-nav-item is-active" data-section="dashboard" aria-label="Dashboard">
+        <svg class="bl-icon" aria-hidden="true"><use href="#icon-dashboard"/></svg><span class="label-text">Dashboard</span>
+      </button>
+      <button class="bl-nav-item" data-section="records" aria-label="Records">
+        <svg class="bl-icon" aria-hidden="true"><use href="#icon-clipboard"/></svg><span class="label-text">Records</span>
+      </button>
+      <button class="bl-nav-item" data-section="roster" aria-label="Roster &amp; leaderboard">
+        <svg class="bl-icon" aria-hidden="true"><use href="#icon-award"/></svg><span class="label-text">Roster</span>
+      </button>
+
+      <div class="bl-nav-section">Admin</div>
+      <button class="bl-nav-item" data-section="users" aria-label="User management">
+        <svg class="bl-icon" aria-hidden="true"><use href="#icon-users"/></svg><span class="label-text">Users</span>
+      </button>
+      <button class="bl-nav-item" data-section="comms" aria-label="Communications">
+        <svg class="bl-icon" aria-hidden="true"><use href="#icon-megaphone"/></svg><span class="label-text">Comms</span>
+      </button>
+      <button class="bl-nav-item" data-section="reports" aria-label="Reports">
+        <svg class="bl-icon" aria-hidden="true"><use href="#icon-bar-chart"/></svg><span class="label-text">Reports</span>
+      </button>
+    </aside>
+
+    <!-- ===== main ===== -->
+    <main class="bl-main">
+      <section class="bl-section is-active" id="section-dashboard">
+        <div class="bl-page-head">
+          <div><h1>Live Lot Dashboard</h1><div class="sub" id="blDashSub">SDF Enterprise · loading…</div></div>
+          <div class="actions">
+            <button class="bl-btn bl-btn--secondary bl-btn--sm" id="blDashRefresh">Refresh</button>
+          </div>
+        </div>
+
+        <div class="bl-kpis" id="blKpis">
+          <div class="bl-kpi"><div class="label">Cars logged today</div><div class="val" id="blKpiCars">—</div><div class="delta" id="blKpiCarsSub">since midnight</div></div>
+          <div class="bl-kpi"><div class="label">Drivers on shift</div><div class="val" id="blKpiDrivers">—</div><div class="delta" id="blKpiDriversSub">active today</div></div>
+          <div class="bl-kpi"><div class="label">Detailers on shift</div><div class="val" id="blKpiDetailers">—</div><div class="delta" id="blKpiDetailersSub">active today</div></div>
+          <div class="bl-kpi"><div class="label">Ready line</div><div class="val u-accent" id="blKpiReady">—</div><div class="delta">clean / detailed</div></div>
+          <div class="bl-kpi"><div class="label">Dirty</div><div class="val u-warn" id="blKpiDirty">—</div><div class="delta">needs wash</div></div>
+          <div class="bl-kpi"><div class="label">Service / holds</div><div class="val u-danger" id="blKpiService">—</div><div class="delta">PM · maint · hold</div></div>
+          <div class="bl-kpi"><div class="label">Returns</div><div class="val" id="blKpiReturns">—</div><div class="delta" id="blKpiReturnsSub">on lot</div></div>
+          <div class="bl-kpi"><div class="label">Rentals out</div><div class="val" id="blKpiRentals">—</div><div class="delta" id="blKpiRentalsSub">&nbsp;</div></div>
+        </div>
+
+        <div class="bl-grid bl-grid--2">
+          <div class="bl-card">
+            <div class="bl-card-head">Live lot map <span class="right" id="blMapMeta">—</span></div>
+            <div class="bl-lot-map-wrap">
+              <div id="blLotMap" role="img" aria-label="Map of vehicles on the lot"></div>
+            </div>
+            <div class="bl-map-legend">
+              <span><i class="bl-swatch" style="background:var(--st-clean)"></i> Ready <b id="blLegendReady">0</b></span>
+              <span><i class="bl-swatch" style="background:var(--st-dirty)"></i> Dirty <b id="blLegendDirty">0</b></span>
+              <span><i class="bl-swatch" style="background:var(--st-pm)"></i> Service <b id="blLegendService">0</b></span>
+              <span><i class="bl-swatch" style="background:var(--st-shut)"></i> Other <b id="blLegendOther">0</b></span>
+            </div>
+          </div>
+
+          <div class="bl-card">
+            <div class="bl-card-head">Throughput — today <span class="right">cars / hour</span></div>
+            <div class="bl-card-body">
+              <div class="bl-chart" id="blThroughput"><div class="bl-empty">Loading…</div></div>
+              <div class="bl-chart-foot" id="blThroughputFoot"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="bl-section" id="section-records">
+        <div class="bl-page-head">
+          <div><h1>Records</h1><div class="sub" id="blRecSub">Browse, edit and create vehicle records</div></div>
+          <div class="actions">
+            <button class="bl-btn bl-btn--secondary bl-btn--sm" id="blRecRefresh">Refresh</button>
+            <button class="bl-btn bl-btn--primary bl-btn--sm" id="blRecNew"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-plus"/></svg>New record</button>
+          </div>
+        </div>
+        <div class="bl-card">
+          <div class="bl-card-body">
+            <div class="bl-rec-filters">
+              <label class="bl-search">
+                <svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-search"/></svg>
+                <input type="search" id="blRecSearch" placeholder="Search VIN / serial" aria-label="Search VIN or serial">
+              </label>
+              <label class="bl-field"><span class="bl-field-label">Status</span>
+                <select id="blRecStatus"><option value="">All statuses</option></select>
+              </label>
+              <label class="bl-field"><span class="bl-field-label">Driver</span>
+                <select id="blRecDriver"><option value="">All drivers</option></select>
+              </label>
+              <label class="bl-field"><span class="bl-field-label">From</span><input type="date" id="blRecFrom"></label>
+              <label class="bl-field"><span class="bl-field-label">To</span><input type="date" id="blRecTo"></label>
+            </div>
+            <div class="sub" id="blRecCount"></div>
+            <div class="bl-table-wrap">
+              <table class="bl-table">
+                <thead><tr><th>VIN / Serial</th><th>Status</th><th>Destination</th><th>Driver</th><th>When</th><th></th></tr></thead>
+                <tbody id="blRecBody"><tr><td colspan="6"><div class="bl-empty">Loading…</div></td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="bl-section" id="section-roster">
+        <div class="bl-page-head">
+          <div><h1>Roster &amp; Leaderboard</h1><div class="sub">On-shift drivers and detailers</div></div>
+          <div class="actions"><button class="bl-btn bl-btn--secondary bl-btn--sm" id="blRosterRefresh">Refresh</button></div>
+        </div>
+
+        <div class="bl-grid bl-grid--2">
+          <div class="bl-card">
+            <div class="bl-card-head">On shift today <span class="right" id="blRosterCount">—</span></div>
+            <div class="bl-table-wrap">
+              <table class="bl-table">
+                <thead><tr><th>Name</th><th>Role</th><th>Logged</th><th>Pace</th><th>Last</th></tr></thead>
+                <tbody id="blRosterBody"><tr><td colspan="5"><div class="bl-empty">Loading…</div></td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="bl-card">
+            <div class="bl-card-head" id="blLbTitle">Today's Driver Leaders</div>
+            <div class="bl-card-body">
+              <div class="bl-lb-controls">
+                <div class="bl-seg" id="blLbRole" role="group" aria-label="Leaderboard role">
+                  <button class="bl-seg-btn is-active" data-role="driver">Drivers</button>
+                  <button class="bl-seg-btn" data-role="detailer">Detailers</button>
+                </div>
+                <div class="bl-seg" id="blLbPeriod" role="group" aria-label="Leaderboard period">
+                  <button class="bl-seg-btn is-active" data-period="today">Today</button>
+                  <button class="bl-seg-btn" data-period="week">Week</button>
+                  <button class="bl-seg-btn" data-period="month">Month</button>
+                  <button class="bl-seg-btn" data-period="quarter">Quarter</button>
+                </div>
+              </div>
+              <div id="blLeaderboard"><div class="bl-empty">Loading…</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="bl-section" id="section-users">
+        <div class="bl-page-head">
+          <div><h1>User Management</h1><div class="sub">Accounts, roles and access</div></div>
+          <div class="actions">
+            <label class="bl-search">
+              <svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-search"/></svg>
+              <input type="search" id="blUsersSearch" placeholder="Search name or email" aria-label="Search users">
+            </label>
+            <button class="bl-btn bl-btn--primary bl-btn--sm" id="blUsersCreate"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-plus"/></svg>Create user</button>
+          </div>
+        </div>
+        <div class="bl-card"><div id="blUsersList" class="bl-users-list"><div class="bl-empty">Loading…</div></div></div>
+      </section>
+
+      <section class="bl-section" id="section-comms">
+        <div class="bl-page-head"><div><h1>Communications</h1><div class="sub">Broadcasts and extra-driver requests</div></div></div>
+        <div class="bl-grid bl-grid--even">
+
+          <div class="bl-card">
+            <div class="bl-card-head">Broadcast to team</div>
+            <div class="bl-card-body">
+              <form id="blAnnForm">
+                <label class="bl-field"><span class="bl-field-label">New announcement</span>
+                  <textarea name="body" maxlength="1000" placeholder="Type an announcement — the team sees it in DriverTrax…"></textarea>
+                </label>
+                <div class="bl-row" style="justify-content:flex-end; margin-top:var(--sp-3)">
+                  <button type="submit" class="bl-btn bl-btn--primary"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-megaphone"/></svg>Send broadcast</button>
+                </div>
+              </form>
+              <div class="bl-comms-list" id="blAnnList"><div class="bl-empty">Loading…</div></div>
+            </div>
+          </div>
+
+          <div class="bl-card">
+            <div class="bl-card-head">Extra-driver requests</div>
+            <div class="bl-card-body">
+              <form id="blEdrForm" class="bl-edr-form">
+                <div class="bl-field-row">
+                  <label class="bl-field"><span class="bl-field-label">Date</span><input type="date" name="shift_date" required></label>
+                  <label class="bl-field"><span class="bl-field-label">Needed</span><input type="number" name="needed_count" min="1" max="20" value="1" required></label>
+                </div>
+                <div class="bl-field">
+                  <span class="bl-field-label">Shifts</span>
+                  <div class="bl-checks">
+                    <label><input type="checkbox" name="shifts" value="AM"> AM</label>
+                    <label><input type="checkbox" name="shifts" value="MID"> MID</label>
+                    <label><input type="checkbox" name="shifts" value="PM"> PM</label>
+                  </div>
+                </div>
+                <label class="bl-field"><span class="bl-field-label">Position</span>
+                  <select name="position">
+                    <option value="driver">Driver</option>
+                    <option value="detailer">Detailer</option>
+                    <option value="cxr">CXR</option>
+                  </select>
+                </label>
+                <label class="bl-field"><span class="bl-field-label">Note (optional)</span><input name="note" maxlength="200" placeholder="Anything the team should know"></label>
+                <div class="bl-row" style="justify-content:flex-end">
+                  <button type="submit" class="bl-btn bl-btn--primary"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-plus"/></svg>Post request</button>
+                </div>
+              </form>
+              <div class="bl-comms-list" id="blEdrList"><div class="bl-empty">Loading…</div></div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <section class="bl-section" id="section-reports">
+        <div class="bl-page-head"><div><h1>Reports</h1><div class="sub">Pick a dataset, range and grouping — then export</div></div></div>
+        <div class="bl-card">
+          <div class="bl-card-body">
+            <div class="bl-report-controls">
+              <label class="bl-field"><span class="bl-field-label">Dataset</span>
+                <select id="blRepDataset">
+                  <option value="records">Cars scanned</option>
+                  <option value="detail_jobs">Detail jobs</option>
+                  <option value="vehicles">Current inventory</option>
+                </select>
+              </label>
+              <label class="bl-field"><span class="bl-field-label">Group by</span>
+                <select id="blRepGroup"></select>
+              </label>
+              <label class="bl-field" id="blRepFromField"><span class="bl-field-label">From</span><input type="date" id="blRepFrom"></label>
+              <label class="bl-field" id="blRepToField"><span class="bl-field-label">To</span><input type="date" id="blRepTo"></label>
+              <div class="bl-report-actions">
+                <button class="bl-btn bl-btn--primary" id="blRepRun">Run report</button>
+                <button class="bl-btn bl-btn--secondary" id="blRepExport" disabled><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-download"/></svg>Export CSV</button>
+              </div>
+            </div>
+            <div class="sub" id="blRepSummary"></div>
+            <div class="bl-table-wrap">
+              <table class="bl-table">
+                <thead id="blRepHead"></thead>
+                <tbody id="blRepBody"><tr><td><div class="bl-empty">Choose filters and run a report.</div></td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ===== user create/edit modal ===== -->
+  <div class="bl-modal" id="blUsersModal" role="dialog" aria-modal="true" aria-label="User account">
+    <div class="bl-modal-card">
+      <div class="bl-modal-head">
+        <h3 id="blUsersModalTitle">Edit user</h3>
+        <button class="bl-btn bl-btn--icon bl-btn--ghost" id="blUsersModalClose" aria-label="Close"><svg class="bl-icon" aria-hidden="true"><use href="#icon-x"/></svg></button>
+      </div>
+      <form id="blUsersForm" class="bl-modal-body">
+        <input type="hidden" name="id">
+        <label class="bl-field"><span class="bl-field-label">Display name</span><input name="display_name" maxlength="40" autocomplete="off"></label>
+        <label class="bl-field"><span class="bl-field-label">Email</span><input name="email" type="email" autocomplete="off"></label>
+        <label class="bl-field"><span class="bl-field-label">Phone</span><input name="phone" type="tel" autocomplete="off"></label>
+        <label class="bl-field"><span class="bl-field-label">Role</span>
+          <select name="role">
+            <option value="driver">Driver</option>
+            <option value="detailer">Detailer</option>
+            <option value="cxr">CXR</option>
+            <option value="manager">Manager</option>
+            <option value="admin">Admin</option>
+          </select>
+        </label>
+        <label class="bl-field"><span class="bl-field-label">Home airport</span><input name="home_airport" maxlength="8" autocomplete="off" placeholder="e.g. SDF"></label>
+        <label class="bl-field" id="blUsersPasswordRow"><span class="bl-field-label" id="blUsersPasswordLabel">Password</span><input name="password" type="password" autocomplete="new-password"></label>
+        <div id="blUsersResetRow"><button type="button" class="bl-btn bl-btn--secondary bl-btn--sm" id="blUsersReset">Send password-reset email</button></div>
+        <div class="bl-msg" id="blUsersModalMsg" role="status" aria-live="polite"></div>
+        <div class="bl-modal-actions">
+          <button type="button" class="bl-btn bl-btn--ghost" id="blUsersCancel">Cancel</button>
+          <button type="submit" class="bl-btn bl-btn--primary" id="blUsersSubmit">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===== record detail modal ===== -->
+  <div class="bl-modal" id="blRecDetail" role="dialog" aria-modal="true" aria-label="Record detail">
+    <div class="bl-modal-card">
+      <div class="bl-modal-head">
+        <h3 id="blRecDetailTitle">Record</h3>
+        <button class="bl-btn bl-btn--icon bl-btn--ghost" id="blRecDetailClose" aria-label="Close"><svg class="bl-icon" aria-hidden="true"><use href="#icon-x"/></svg></button>
+      </div>
+      <div class="bl-modal-body" id="blRecDetailBody"></div>
+      <div class="bl-modal-actions" style="padding:0 var(--sp-4) var(--sp-4)">
+        <button type="button" class="bl-btn bl-btn--danger" id="blRecDetailDelete"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-trash"/></svg>Delete</button>
+        <span class="bl-spacer"></span>
+        <button type="button" class="bl-btn bl-btn--primary" id="blRecDetailEdit"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-edit"/></svg>Edit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== record create/edit form modal ===== -->
+  <div class="bl-modal" id="blRecFormModal" role="dialog" aria-modal="true" aria-label="Record form">
+    <div class="bl-modal-card">
+      <div class="bl-modal-head">
+        <h3 id="blRecFormTitle">Edit record</h3>
+        <button class="bl-btn bl-btn--icon bl-btn--ghost" id="blRecFormClose" aria-label="Close"><svg class="bl-icon" aria-hidden="true"><use href="#icon-x"/></svg></button>
+      </div>
+      <form id="blRecForm" class="bl-modal-body">
+        <input type="hidden" name="id">
+        <label class="bl-field"><span class="bl-field-label">VIN / Serial</span>
+          <div class="bl-vin-row">
+            <input name="serial_id" id="blRecFormSerial" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Type or scan VIN">
+            <button type="button" class="bl-btn bl-btn--icon bl-btn--secondary" id="blRecFormScan" aria-label="Scan VIN"><svg class="bl-icon" aria-hidden="true"><use href="#icon-camera"/></svg></button>
+          </div>
+        </label>
+        <div class="bl-vin-block is-hidden" id="blRecFormVinInfo"></div>
+
+        <label class="bl-field"><span class="bl-field-label">Status</span><select name="status" id="blRecFormStatus"></select></label>
+        <label class="bl-field is-hidden" id="blRecFormStatusOtherRow"><span class="bl-field-label">Status detail</span><input name="status_other" maxlength="40" autocomplete="off"></label>
+        <div class="bl-field is-hidden" id="blRecFormTiresRow"><span class="bl-field-label">Tires</span>
+          <div class="bl-checks" id="blRecFormTires">
+            <label><input type="checkbox" value="LF"> LF</label>
+            <label><input type="checkbox" value="RF"> RF</label>
+            <label><input type="checkbox" value="LR"> LR</label>
+            <label><input type="checkbox" value="RR"> RR</label>
+            <label><input type="checkbox" value="SPARE"> Spare</label>
+          </div>
+        </div>
+
+        <label class="bl-field"><span class="bl-field-label">Destination</span><select name="destination" id="blRecFormDest"></select></label>
+        <label class="bl-field is-hidden" id="blRecFormDestOtherRow"><span class="bl-field-label">Destination detail</span><input name="destination_other" maxlength="40" autocomplete="off"></label>
+
+        <div class="bl-field-row">
+          <label class="bl-field"><span class="bl-field-label">Fuel</span><select name="fuel_level" id="blRecFormFuel"></select></label>
+          <label class="bl-field"><span class="bl-field-label">Mileage</span><input type="number" name="mileage" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="000000"></label>
+        </div>
+
+        <div class="bl-field"><span class="bl-field-label">Conditions</span><div class="bl-checks" id="blRecFormConditions"></div></div>
+        <div class="bl-field"><span class="bl-field-label">Flags</span>
+          <div class="bl-checks">
+            <label><input type="checkbox" name="no_tag"> No tag</label>
+            <label><input type="checkbox" name="shuttle"> Shuttle</label>
+            <label><input type="checkbox" name="transport"> Transport</label>
+          </div>
+        </div>
+
+        <label class="bl-field"><span class="bl-field-label">Notes</span><textarea name="notes" maxlength="500" placeholder="Optional notes…"></textarea></label>
+
+        <div class="bl-field"><span class="bl-field-label">Photos</span>
+          <input type="file" id="blRecFormPhotoInput" accept="image/*" multiple class="is-hidden">
+          <button type="button" class="bl-btn bl-btn--secondary bl-btn--sm" id="blRecFormPhotoBtn"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-camera"/></svg>Add photos</button>
+          <div class="bl-photo-strip" id="blRecFormPhotos"></div>
+        </div>
+
+        <div class="bl-msg" id="blRecFormMsg" role="status" aria-live="polite"></div>
+        <div class="bl-modal-actions">
+          <button type="button" class="bl-btn bl-btn--ghost" id="blRecFormCancel">Cancel</button>
+          <button type="submit" class="bl-btn bl-btn--primary" id="blRecFormSubmit">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===== scripts (dependency order) ===== -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+          crossorigin=""></script>
+  <script src="https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js"></script>
+  <script src="config.js"></script>
+  <script src="utils.js"></script>
+  <script src="catalogs.js"></script>
+  <script src="vin.js"></script>
+  <script src="auth.js"></script>
+  <script src="nav.js"></script>
+  <script src="dashboard.js"></script>
+  <script src="roster.js"></script>
+  <script src="users.js"></script>
+  <script src="comms.js"></script>
+  <script src="reports.js"></script>
+  <script src="records.js"></script>
+  <script src="record-form.js"></script>
+  <script src="boot.js"></script>
+</body>
+</html>

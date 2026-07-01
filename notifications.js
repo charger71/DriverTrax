@@ -1,8 +1,11 @@
 // ============================================================
 // DriverTrax Web Notifications
-//   Uses the browser Notification API to surface new alerts
-//   (announcements) and coverage requests (extra_driver_requests)
-//   to drivers, detailers, and CXRs while the PWA is running.
+//   Surfaces new alerts (announcements) and coverage requests
+//   (extra_driver_requests) to drivers, detailers, and CXRs while
+//   the PWA is running. Prefers the browser Notification API when
+//   available; falls back to an in-app toast (DT_TOAST) otherwise
+//   — that covers the iOS WKWebView wrapper, denied permission,
+//   and any browser without Notification support.
 //
 //   No server / push subscription — fires from the page when a
 //   Supabase Realtime INSERT arrives. Skips the user's own posts
@@ -11,7 +14,6 @@
 
 (function () {
   if (!window.DT_AUTH) return;
-  if (typeof Notification === "undefined") return;
 
   const sb = DT_AUTH.client;
   const PERM_ASKED_KEY = "drivertrax_notif_perm_asked";
@@ -28,6 +30,7 @@
   }
 
   async function ensurePermission() {
+    if (typeof Notification === "undefined") return false;
     if (Notification.permission === "granted") return true;
     if (Notification.permission === "denied") return false;
     // Only auto-prompt once per device; after that the user can
@@ -43,7 +46,15 @@
   }
 
   async function show(title, body, tag, onClickTab) {
-    if (Notification.permission !== "granted") return;
+    const hasNative = typeof Notification !== "undefined" && Notification.permission === "granted";
+    if (!hasNative) {
+      // WKWebView wrapper, denied permission, or unsupported browser — surface it in-app.
+      if (window.DT_TOAST) {
+        const msg = body ? `${title} — ${body}` : title;
+        DT_TOAST.show(msg.slice(0, 200), "success");
+      }
+      return;
+    }
     const opts = {
       body,
       tag,
@@ -163,8 +174,10 @@
   async function start() {
     if (started) return;
     if (!isTargetRole()) return;
-    const ok = await ensurePermission();
-    if (!ok) return;
+    // Ask for native permission on platforms that support it, but don't
+    // gate the Realtime subscription on the result — show() falls back
+    // to an in-app toast when native notifications aren't available.
+    await ensurePermission();
     started = true;
     ensurePushSubscription();
     chan = sb.channel("dt-notifications")

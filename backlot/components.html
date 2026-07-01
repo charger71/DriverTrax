@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Backlot — Component Library</title>
+<link rel="icon" type="image/png" href="icons/icon.png">
+<link rel="stylesheet" href="styles.css">
+<!-- Guide-chrome only (layout of this reference page). Component styles live
+     in styles.css — never restyle a component here. -->
+<style>
+  body { padding: var(--sp-6); max-width: 1100px; margin: 0 auto; }
+  .guide-head { border-bottom: 2px solid var(--accent); padding-bottom: var(--sp-4); margin-bottom: var(--sp-6); display: flex; align-items: center; gap: var(--sp-3); }
+  .guide-head .bl-brand-logo { width: 34px; height: 34px; }
+  .guide-head h1 { font-size: var(--fs-2xl); font-weight: var(--fw-black); letter-spacing: 1px; color: var(--accent); }
+  .guide-head p { color: var(--muted); font-size: var(--fs-sm); margin-top: 2px; }
+  section.guide { margin: var(--sp-7) 0; }
+  section.guide > h2 { font-size: var(--fs-lg); font-weight: var(--fw-heavy); margin-bottom: var(--sp-2); }
+  section.guide > .lead { color: var(--text-soft); font-size: var(--fs-sm); margin-bottom: var(--sp-4); }
+  .demo { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: center; padding: var(--sp-4); background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg); }
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--sp-3); }
+  .swatch { border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+  .swatch .chip { height: 56px; }
+  .swatch .meta { padding: var(--sp-2) var(--sp-3); font-size: var(--fs-xs); }
+  .swatch .meta b { display: block; color: var(--text); font-weight: var(--fw-bold); }
+  .swatch .meta code { color: var(--muted); }
+  .type-row { display: flex; align-items: baseline; gap: var(--sp-4); padding: var(--sp-2) 0; border-bottom: 1px solid var(--divider); }
+  .type-row code { color: var(--muted); font-size: var(--fs-xs); width: 120px; flex: 0 0 auto; }
+  .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: var(--sp-3); }
+  .icon-cell { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); padding: var(--sp-3); background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); }
+  .icon-cell .bl-icon { width: 26px; height: 26px; color: var(--text); }
+  .icon-cell code { font-size: 10px; color: var(--muted); text-align: center; }
+  pre.code { background: #0b0e12; border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-3); overflow-x: auto; font-size: var(--fs-xs); color: var(--text-soft); margin-top: var(--sp-3); }
+  .spacing-bar { background: var(--accent); height: 16px; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+  <!-- Icon sprite — KEEP IN SYNC with the copy in index.html. -->
+  <svg class="icon-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="icon-wheel" viewBox="14952.496 7440 1477.2065 1477.207" fill="currentColor" stroke="none"><path d="m 15657.9,8916.9469 c -31.53,-1.0624 -64.724,-4.7817 -95.984,-10.7554 -3.969,-0.7584 -12.413,-2.3722 -18.764,-3.5861 -28.586,-5.4642 -70.304,-17.165 -97.447,-27.332 -3.561,-1.3338 -10.048,-3.7323 -14.414,-5.3301 -4.367,-1.5978 -9.887,-3.7515 -12.269,-4.786 -2.381,-1.0343 -9.42,-3.8937 -15.643,-6.354 -20.208,-7.991 -69.397,-32.9998 -82.766,-42.0811 -3.318,-2.2541 -6.413,-4.0985 -6.878,-4.0985 -0.464,0 -4.57,-2.375 -9.122,-5.2778 -4.552,-2.9028 -12.824,-8.1701 -18.382,-11.7053 -5.556,-3.5352 -13.675,-9.0644 -18.041,-12.2873 -4.367,-3.2228 -11.51,-8.4897 -15.876,-11.7042 -32.596,-24 -52.738,-41.5984 -86.603,-75.6675 -42.623,-42.8794 -76.695,-86.3721 -107.814,-137.6224 -35.052,-57.7282 -64.681,-126.9457 -80.469,-187.9973 -0.511,-1.9808 -1.805,-6.8428 -2.873,-10.8044 -10.39,-38.5376 -18.034,-91.5123 -21.176,-146.7382 -2.799,-49.234 1.092,-106.9261 11.237,-166.5906 5.999,-35.2772 19.841,-85.6002 35.069,-127.4922 6.002,-16.5096 16.59,-40.4731 28.639,-64.8267 37.32,-75.4163 80.115,-135.0069 140.273,-195.3201 40.611,-40.714 77.909,-71.3397 121.41,-99.6889 116.612,-75.9923 245.059,-115.6434 384.492,-118.6908 100.693,-2.2008 188.16,12.8233 282.901,48.5931 22.922,8.6544 60.688,26.4841 86.939,41.0457 115.188,63.8934 211.831,156.3323 277.8,265.717 34.329,56.9221 56.335,105.5949 74.573,164.9477 6.98,22.7179 14.659,52.2721 17.405,66.9875 0.959,5.1502 2.31,11.957 2.999,15.1264 0.69,3.1693 1.983,10.9484 2.876,17.287 0.893,6.3386 2.198,15.4143 2.899,20.1683 1.545,10.4814 3.69,34.8567 5.953,67.7077 2.395,34.7285 -0.343,91.4282 -6.64,137.5766 -2.249,16.476 -8.243,49.0465 -10.869,59.0643 -1.63,6.2185 -5.606,22.0289 -7.245,28.8118 -4.632,19.1727 -19.616,64.7496 -22.103,67.2322 -0.527,0.5257 -0.958,1.801 -0.958,2.8339 0,1.033 -1.542,5.3008 -3.425,9.4841 -1.884,4.1831 -5.905,13.4319 -8.937,20.5525 -5.117,12.0228 -20.984,43.8667 -27.644,55.4813 -18.576,32.4047 -24.147,41.525 -38.109,62.4114 -14.453,21.6193 -28.06,39.7395 -43.898,58.464 -2.409,2.8471 -6.294,7.7694 -8.637,10.9388 -2.342,3.1692 -17.258,18.7887 -33.148,34.7099 -29.601,29.6579 -46.852,45.0047 -77.274,68.7415 -18.09,14.1153 -56.755,40.5022 -69.974,47.7543 -3.971,2.1777 -7.867,4.4836 -8.66,5.1246 -6.271,5.0632 -63.414,34.3111 -79.065,40.4677 -4.018,1.5809 -10.28,4.2293 -13.917,5.8856 -16.967,7.7274 -74.313,26.905 -91.049,30.4482 -1.984,0.42 -6.206,1.4654 -9.382,2.3228 -8.144,2.1996 -28.385,6.5776 -40.414,8.7419 -25.933,4.6661 -44.269,7.4772 -60.832,9.3264 -18.619,2.0788 -81.731,3.6936 -108.764,2.7827 z m 160.106,-150.556 c 82.772,-19.7959 146.981,-48.2763 216.237,-95.915 74.79,-51.4447 138.048,-122.2128 184.298,-206.1783 37.636,-68.3243 64.311,-154.323 69.53,-224.1555 l 0.959,-12.8116 -26.532,1.0005 c -47.875,1.8056 -76.776,3.6095 -94.367,5.8905 -23.369,3.0304 -57.04,10.0779 -77.131,16.144 -122.962,37.1267 -221.174,128.0233 -268.966,248.9294 -20.608,52.135 -30.991,102.2032 -34.206,164.9478 -1.599,31.187 -1.937,99.6656 -0.518,104.954 1.087,4.0518 2.602,3.9132 30.696,-2.8058 z m -223.298,-29.7585 c 1.143,-60.0315 -1.907,-108.9894 -9.18,-147.3005 -25.102,-132.2313 -98.992,-239.3423 -207.935,-301.4196 -20.566,-11.7183 -48.989,-25.0003 -65.52,-30.6163 -35.665,-12.1156 -77.524,-21.0628 -114.543,-24.4832 -28.339,-2.6184 -100.421,-5.6587 -102.58,-4.3268 -2.263,1.3954 -0.709,19.5328 4.506,52.5592 2.102,13.3266 4.23,23.8327 8.676,42.8577 4.745,20.2945 20.667,68.2863 28.319,85.3551 1.6,3.5654 4.759,10.6963 7.021,15.8465 31.959,72.7781 91.412,152.5492 152.864,205.1045 46.738,39.9718 76.208,59.928 125.573,85.0353 45.806,23.2969 91.135,39.7492 137.12,49.769 7.939,1.7297 15.732,3.7059 17.321,4.3915 1.587,0.6856 6.22,1.2906 10.296,1.3441 l 7.411,0.098 z m 123.652,-431.9911 c 27.912,-6.4377 51.703,-21.2852 69.537,-43.3969 15.264,-18.9265 22.898,-35.8806 26.756,-59.4317 2.731,-16.6595 2.537,-25.0972 -0.968,-42.2712 -7.766,-38.0345 -34.391,-72.5927 -68.416,-88.8015 -18.136,-8.6394 -33.763,-11.9787 -55.615,-11.8853 -20.74,0.088 -33.527,2.839 -51.295,11.0324 -45.738,21.0917 -75.468,69.7558 -72.458,118.61 2.048,33.248 11.579,55.969 33.118,78.9499 31.43,33.5347 75.567,47.2902 119.341,37.1943 z m -546.154,-259.9218 c 71.267,-18.0897 204.88,-50.4335 230.939,-55.9045 75.943,-15.9425 131.198,-23.9613 202.072,-29.3254 32.284,-2.4433 142.443,-2.4423 173.205,0 113.073,8.9835 182.415,22.4723 406.308,79.0384 47.972,12.12 76.674,18.7656 86.891,20.1181 8.507,1.1264 8.415,1.9618 2.457,-22.3003 -6.76,-27.5247 -18.471,-63.828 -25.974,-80.516 -2.7,-6.0087 -5.506,-12.2959 -11.568,-25.9305 -12.183,-27.4056 -35.356,-68.1082 -52.128,-91.5676 -73.607,-102.956 -169.482,-177.72 -285.465,-222.6044 -30.982,-11.99 -68.325,-22.4823 -98.149,-27.5779 -5.161,-0.8815 -12.63,-2.1853 -16.6,-2.8974 -3.969,-0.712 -11.762,-1.949 -17.319,-2.7488 -5.557,-0.7999 -14.975,-2.2204 -20.93,-3.1569 -14.396,-2.2644 -92.221,-2.2904 -107.53,-0.037 -6.351,0.9352 -16.094,2.3516 -21.652,3.1475 -33.375,4.78 -37.967,5.6686 -77.941,15.089 -12.398,2.922 -43.882,13.3455 -58.294,19.3004 -5.863,2.4231 -11.283,4.4055 -12.039,4.4055 -2.513,0 -56.45,26.708 -71.117,35.2156 -7.939,4.6044 -16.708,9.664 -19.486,11.2435 -19.634,11.1618 -58.632,40.2915 -84.458,63.0907 -91.548,80.8103 -159.749,194.6465 -187.023,312.1598 -1.697,7.316 -2.733,14.2232 -2.299,15.3495 0.969,2.5177 18.094,-0.9008 68.1,-13.5938 z"/></symbol>
+    <symbol id="icon-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></symbol>
+    <symbol id="icon-award" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></symbol>
+    <symbol id="icon-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="icon-megaphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></symbol>
+    <symbol id="icon-bar-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></symbol>
+    <symbol id="icon-log-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></symbol>
+    <symbol id="icon-ban" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></symbol>
+    <symbol id="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+    <symbol id="icon-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+    <symbol id="icon-clipboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></symbol>
+    <symbol id="icon-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></symbol>
+    <symbol id="icon-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></symbol>
+    <symbol id="icon-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></symbol>
+  </svg>
+
+  <header class="guide-head">
+    <svg class="bl-brand-logo" aria-hidden="true"><use href="#icon-wheel"/></svg>
+    <div>
+      <h1>Backlot Components</h1>
+      <p>Living style guide. Mirrors styles.css — when you add a component there, add it here. See STYLE_GUIDE.md for the rules.</p>
+    </div>
+  </header>
+
+  <!-- ============ COLOR TOKENS ============ -->
+  <section class="guide">
+    <h2>Color tokens</h2>
+    <p class="lead">Always reference these variables — never hardcode a hex value.</p>
+    <div class="swatches">
+      <div class="swatch"><div class="chip" style="background:var(--bg)"></div><div class="meta"><b>Background</b><code>--bg</code></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--surface)"></div><div class="meta"><b>Surface</b><code>--surface</code></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--card)"></div><div class="meta"><b>Card</b><code>--card</code></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--card-2)"></div><div class="meta"><b>Card / input</b><code>--card-2</code></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--accent)"></div><div class="meta"><b>Accent</b><code>--accent</code></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--accent-strong)"></div><div class="meta"><b>Accent strong</b><code>--accent-strong</code></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--warn)"></div><div class="meta"><b>Warn</b><code>--warn</code></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--danger)"></div><div class="meta"><b>Danger</b><code>--danger</code></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--info)"></div><div class="meta"><b>Info</b><code>--info</code></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--text)"></div><div class="meta"><b>Text</b><code>--text</code></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--text-soft)"></div><div class="meta"><b>Text soft</b><code>--text-soft</code></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--muted)"></div><div class="meta"><b>Muted</b><code>--muted</code></div></div>
+    </div>
+  </section>
+
+  <!-- ============ TYPOGRAPHY ============ -->
+  <section class="guide">
+    <h2>Type scale</h2>
+    <div class="type-row"><code>--fs-2xl / black</code><span style="font-size:var(--fs-2xl);font-weight:var(--fw-black)">Big stat 487</span></div>
+    <div class="type-row"><code>--fs-xl / heavy</code><span style="font-size:var(--fs-xl);font-weight:var(--fw-heavy)">Page title</span></div>
+    <div class="type-row"><code>--fs-lg / bold</code><span style="font-size:var(--fs-lg);font-weight:var(--fw-bold)">Section heading</span></div>
+    <div class="type-row"><code>--fs-md / normal</code><span style="font-size:var(--fs-md)">Body copy — the default reading size.</span></div>
+    <div class="type-row"><code>--fs-sm / muted</code><span style="font-size:var(--fs-sm);color:var(--text-soft)">Secondary / meta text</span></div>
+    <div class="type-row"><code>--fs-xs / upper</code><span style="font-size:var(--fs-xs);letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:var(--fw-heavy)">Label / eyebrow</span></div>
+  </section>
+
+  <!-- ============ SPACING ============ -->
+  <section class="guide">
+    <h2>Spacing scale</h2>
+    <p class="lead"><code>--sp-1</code> (4px) … <code>--sp-7</code> (48px). Touch target minimum is <code>--touch</code> (44px).</p>
+    <div class="demo" style="flex-direction:column;align-items:flex-start;gap:var(--sp-2)">
+      <div class="spacing-bar" style="width:var(--sp-1)"></div>
+      <div class="spacing-bar" style="width:var(--sp-2)"></div>
+      <div class="spacing-bar" style="width:var(--sp-3)"></div>
+      <div class="spacing-bar" style="width:var(--sp-4)"></div>
+      <div class="spacing-bar" style="width:var(--sp-5)"></div>
+      <div class="spacing-bar" style="width:var(--sp-6)"></div>
+      <div class="spacing-bar" style="width:var(--sp-7)"></div>
+    </div>
+  </section>
+
+  <!-- ============ ICONS ============ -->
+  <section class="guide">
+    <h2>Icons</h2>
+    <p class="lead">Single-color SVG only. Each lives as a <code>&lt;symbol&gt;</code> in the sprite and paints with <code>currentColor</code>. Reference with <code>&lt;svg class="bl-icon"&gt;&lt;use href="#icon-NAME"/&gt;&lt;/svg&gt;</code>. Icon-only buttons need an <code>aria-label</code>.</p>
+    <div class="icon-grid">
+      <div class="icon-cell"><svg class="bl-icon" style="color:var(--accent)"><use href="#icon-wheel"/></svg><code>icon-wheel<br>(logo)</code></div>
+      <div class="icon-cell"><svg class="bl-icon"><use href="#icon-dashboard"/></svg><code>icon-dashboard</code></div>
+      <div class="icon-cell"><svg class="bl-icon"><use href="#icon-award"/></svg><code>icon-award</code></div>
+      <div class="icon-cell"><svg class="bl-icon"><use href="#icon-users"/></svg><code>icon-users</code></div>
+      <div class="icon-cell"><svg class="bl-icon"><use href="#icon-megaphone"/></svg><code>icon-megaphone</code></div>
+      <div class="icon-cell"><svg class="bl-icon"><use href="#icon-bar-chart"/></svg><code>icon-bar-chart</code></div>
+      <div class="icon-cell"><svg class="bl-icon"><use href="#icon-log-out"/></svg><code>icon-log-out</code></div>
+      <div class="icon-cell"><svg class="bl-icon" style="color:var(--danger)"><use href="#icon-ban"/></svg><code>icon-ban</code></div>
+      <div class="icon-cell"><svg class="bl-icon"><use href="#icon-x"/></svg><code>icon-x</code></div>
+      <div class="icon-cell"><svg class="bl-icon"><use href="#icon-plus"/></svg><code>icon-plus</code></div>
+      <div class="icon-cell"><svg class="bl-icon"><use href="#icon-search"/></svg><code>icon-search</code></div>
+      <div class="icon-cell"><svg class="bl-icon"><use href="#icon-download"/></svg><code>icon-download</code></div>
+      <div class="icon-cell"><svg class="bl-icon"><use href="#icon-clipboard"/></svg><code>icon-clipboard</code></div>
+      <div class="icon-cell"><svg class="bl-icon"><use href="#icon-edit"/></svg><code>icon-edit</code></div>
+      <div class="icon-cell"><svg class="bl-icon"><use href="#icon-trash"/></svg><code>icon-trash</code></div>
+      <div class="icon-cell"><svg class="bl-icon"><use href="#icon-camera"/></svg><code>icon-camera</code></div>
+    </div>
+    <pre class="code">&lt;svg class="bl-icon"&gt;&lt;use href="#icon-megaphone"/&gt;&lt;/svg&gt;</pre>
+  </section>
+
+  <!-- ============ BUTTONS ============ -->
+  <section class="guide">
+    <h2>Buttons</h2>
+    <div class="demo">
+      <button class="bl-btn bl-btn--primary">Primary</button>
+      <button class="bl-btn bl-btn--secondary">Secondary</button>
+      <button class="bl-btn bl-btn--ghost">Ghost</button>
+      <button class="bl-btn bl-btn--danger">Danger</button>
+      <button class="bl-btn bl-btn--warn">Warn</button>
+      <button class="bl-btn" disabled>Disabled</button>
+    </div>
+    <div class="demo" style="margin-top:var(--sp-3)">
+      <button class="bl-btn bl-btn--primary bl-btn--sm">Small</button>
+      <button class="bl-btn bl-btn--secondary"><svg class="bl-icon bl-icon--sm"><use href="#icon-log-out"/></svg> With icon</button>
+      <button class="bl-btn bl-btn--icon bl-btn--secondary" aria-label="Sign out"><svg class="bl-icon"><use href="#icon-log-out"/></svg></button>
+    </div>
+    <pre class="code">&lt;button class="bl-btn bl-btn--primary"&gt;Primary&lt;/button&gt;</pre>
+  </section>
+
+  <!-- ============ FORM FIELDS ============ -->
+  <section class="guide">
+    <h2>Form fields</h2>
+    <div class="demo" style="flex-direction:column;align-items:stretch;max-width:420px">
+      <label class="bl-field"><span class="bl-field-label">Email</span><input type="email" placeholder="you@area71.com"></label>
+      <label class="bl-field"><span class="bl-field-label">Role</span><select><option>Manager</option><option>CXR</option></select></label>
+      <label class="bl-field"><span class="bl-field-label">Note</span><textarea placeholder="Optional note…"></textarea></label>
+      <div class="bl-msg bl-msg--ok">Saved.</div>
+    </div>
+  </section>
+
+  <!-- ============ CARDS + KPIs ============ -->
+  <section class="guide">
+    <h2>KPI tiles</h2>
+    <div class="bl-kpis">
+      <div class="bl-kpi"><div class="label">Cars logged today</div><div class="val">487</div><div class="delta">since midnight</div></div>
+      <div class="bl-kpi"><div class="label">Drivers on shift</div><div class="val">14</div><div class="delta">3 on break</div></div>
+      <div class="bl-kpi"><div class="label">Ready-line</div><div class="val u-accent">62</div><div class="delta">target 50 met</div></div>
+      <div class="bl-kpi"><div class="label">PM / service holds</div><div class="val u-danger">9</div><div class="delta">+3 since noon</div></div>
+    </div>
+
+    <h2 style="margin-top:var(--sp-6)">Card</h2>
+    <div class="bl-card" style="max-width:520px">
+      <div class="bl-card-head">Active alerts <span class="right">Last 4 hours</span></div>
+      <div class="bl-card-body">Card body content. Use <code>.bl-card-head</code> + <code>.bl-card-body</code>.</div>
+    </div>
+  </section>
+
+  <!-- ============ STATUS CHIPS ============ -->
+  <section class="guide">
+    <h2>Lot status chips</h2>
+    <div class="demo">
+      <span class="bl-chip bl-chip--clean">Clean / Ready</span>
+      <span class="bl-chip bl-chip--dirty">Dirty</span>
+      <span class="bl-chip bl-chip--pm">PM / Service</span>
+      <span class="bl-chip bl-chip--shut">Shuttle</span>
+    </div>
+  </section>
+
+  <!-- ============ SEGMENTED ============ -->
+  <section class="guide">
+    <h2>Segmented control</h2>
+    <div class="demo">
+      <div class="bl-seg">
+        <button class="bl-seg-btn is-active">Today</button>
+        <button class="bl-seg-btn">Week</button>
+        <button class="bl-seg-btn">Month</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TABLE ============ -->
+  <section class="guide">
+    <h2>Table</h2>
+    <div class="bl-card">
+      <div class="bl-table-wrap">
+        <table class="bl-table">
+          <thead><tr><th>Driver</th><th>Status</th><th>Cars</th><th>Last logged</th></tr></thead>
+          <tbody>
+            <tr><td>M. Alvarez</td><td><span class="bl-chip bl-chip--clean">On lot</span></td><td>52</td><td>23s ago</td></tr>
+            <tr><td>J. Tran</td><td><span class="bl-chip bl-chip--clean">On lot</span></td><td>48</td><td>1m ago</td></tr>
+            <tr><td>S. Kim</td><td><span class="bl-chip bl-chip--dirty">Break</span></td><td>38</td><td>18m ago</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ EMPTY / TOAST ============ -->
+  <section class="guide">
+    <h2>Empty state &amp; toast</h2>
+    <div class="bl-card" style="max-width:520px;margin-bottom:var(--sp-3)"><div class="bl-card-body"><div class="bl-empty">No drivers active yet today.</div></div></div>
+    <div class="demo" style="position:relative;min-height:60px">
+      <div class="bl-toast bl-toast--success is-show" style="position:static;transform:none;opacity:1">Saved successfully.</div>
+    </div>
+    <p class="lead" style="margin-top:var(--sp-3)">Toasts are driven by <code>BL_TOAST.show(msg, "success"|"warn"|"error")</code> — don't build your own.</p>
+  </section>
+
+  <!-- ============ ANTI-PATTERNS ============ -->
+  <section class="guide">
+    <h2>Don't</h2>
+    <ul style="color:var(--text-soft);font-size:var(--fs-sm);line-height:1.9;padding-left:var(--sp-5)">
+      <li>Hardcode a <code>#hex</code>, pixel, or font-size when a token exists.</li>
+      <li>Use emoji or multi-color icons — single-color SVG <code>&lt;symbol&gt;</code> only.</li>
+      <li>Write a second escaper / formatter / toast — use <code>BL_ESC</code>, <code>BL_FORMAT</code>, <code>BL_TOAST</code>.</li>
+      <li>Reference any driver-app file (<code>../app.css</code>, <code>DT_*</code>). Backlot is self-contained.</li>
+      <li>Ship an icon-only control without an <code>aria-label</code>.</li>
+    </ul>
+  </section>
+
+</body>
+</html>

@@ -18,6 +18,8 @@
   let realtimeChan = null, started = false;
   let mode = "edit"; // "edit" | "create"
   let pager = null;
+  const selected = new Set(); // ids of selected users (bulk actions)
+  let lastRenderedIds = new Set(); // ids in the currently rendered page (for select-all scope)
 
   const CXR_EDITABLE = new Set(["driver", "detailer"]);
 
@@ -63,46 +65,185 @@
     pager.setItems(list); // paginates client-side (25/page), draws via renderRows
   }
 
-  // Draws one page of user rows into the list.
-  function renderRows(list) {
+  // Compute per-user permissions in one place; used by row rendering and bulk actions.
+  function permsFor(u) {
     const amAdmin = BL_AUTH.isAdmin();
     const amCxr   = BL_AUTH.isCxr();
     const myId    = BL_AUTH.getUser()?.id || null;
+    const role = u.role || "driver";
+    let canEdit = false, block = "";
+    if (amAdmin) canEdit = true;
+    else if (amCxr) { canEdit = CXR_EDITABLE.has(role); if (!canEdit) block = "CXR can only edit drivers and detailers"; }
+    else { canEdit = role !== "admin"; if (!canEdit) block = "Only an admin can edit another admin"; }
+    const isSelf = myId && u.id === myId;
+    return {
+      canEdit,
+      block,
+      isSelf,
+      canDisable: canEdit && !isSelf,
+      canDelete:  amAdmin && !isSelf,
+      pending:    u.approved === false,
+      disabled:   !!u.disabled,
+    };
+  }
+
+  // Draws one page of user rows into the list.
+  function renderRows(list) {
     const el = $("blUsersList");
     if (!el) return;
 
-    el.innerHTML = list.map((u) => {
-      const role = u.role || "driver";
-      let canEdit = false, block = "";
-      if (amAdmin) canEdit = true;
-      else if (amCxr) { canEdit = CXR_EDITABLE.has(role); if (!canEdit) block = "CXR can only edit drivers and detailers"; }
-      else { canEdit = role !== "admin"; if (!canEdit) block = "Only an admin can edit another admin"; }
+    lastRenderedIds = new Set(list.map((u) => u.id));
+    // Drop selections that fell off the current page (list changed via search/filter/pagination).
+    Array.from(selected).forEach((id) => { if (!lastRenderedIds.has(id)) selected.delete(id); });
 
-      const isSelf = myId && u.id === myId;
-      const canDisable = canEdit && !isSelf;
-      const canDelete  = amAdmin && !isSelf;
-      const pending = u.approved === false;
-      const disabled = !!u.disabled;
+    el.innerHTML = list.map((u) => {
+      const p = permsFor(u);
+      const role = u.role || "driver";
       const contact = u.email || u.phone || "";
+      const isChecked = selected.has(u.id);
+      // Only editable, non-self rows are selectable for bulk actions — mirrors per-row action gating.
+      const selectable = p.canEdit || p.canDelete;
 
       return `
-        <div class="bl-users-row${disabled ? " is-disabled" : ""}">
+        <div class="bl-users-row${p.disabled ? " is-disabled" : ""}${isChecked ? " is-selected" : ""}">
+          <label class="bl-users-check">
+            <input type="checkbox" data-bulk-id="${u.id}"${isChecked ? " checked" : ""}${selectable ? "" : " disabled"} aria-label="Select user">
+          </label>
           <div class="info">
             <div class="name">${esc(u.display_name || "(no name)")}
-              ${pending ? `<span class="bl-pending-pill">Pending</span>` : ""}
-              ${disabled ? `<span class="bl-disabled-pill">Disabled</span>` : ""}
+              ${p.pending ? `<span class="bl-pending-pill">Pending</span>` : ""}
+              ${p.disabled ? `<span class="bl-disabled-pill">Disabled</span>` : ""}
             </div>
             <div class="meta">${esc(contact)}${u.home_airport ? " · " + esc(u.home_airport) : ""}</div>
           </div>
           <span class="bl-role-pill role-${esc(role)}">${esc(role)}</span>
           <div class="actions">
-            ${pending && canEdit ? `<button class="bl-btn bl-btn--sm bl-btn--primary" data-act="approve" data-id="${u.id}">Approve</button>` : ""}
-            <button class="bl-btn bl-btn--sm bl-btn--secondary" data-act="edit" data-id="${u.id}"${canEdit ? "" : ` disabled title="${esc(block)}"`}>Edit</button>
-            ${canDisable ? `<button class="bl-btn bl-btn--sm" data-act="${disabled ? "enable" : "disable"}" data-id="${u.id}">${disabled ? "Enable" : "Disable"}</button>` : ""}
-            ${canDelete ? `<button class="bl-btn bl-btn--sm bl-btn--danger" data-act="delete" data-id="${u.id}">Delete</button>` : ""}
+            ${p.pending && p.canEdit ? `<button class="bl-btn bl-btn--sm bl-btn--primary" data-act="approve" data-id="${u.id}">Approve</button>` : ""}
+            <button class="bl-btn bl-btn--sm bl-btn--secondary" data-act="edit" data-id="${u.id}"${p.canEdit ? "" : ` disabled title="${esc(p.block)}"`}>Edit</button>
+            ${p.canDisable ? `<button class="bl-btn bl-btn--sm" data-act="${p.disabled ? "enable" : "disable"}" data-id="${u.id}">${p.disabled ? "Enable" : "Disable"}</button>` : ""}
+            ${p.canDelete ? `<button class="bl-btn bl-btn--sm bl-btn--danger" data-act="delete" data-id="${u.id}">Delete</button>` : ""}
           </div>
         </div>`;
     }).join("");
+    updateBulkBar();
+  }
+
+  // ---------- bulk actions ----------
+  function selectedUsers() { return users.filter((u) => selected.has(u.id)); }
+  function counts() {
+    const sel = selectedUsers();
+    return {
+      total:   sel.length,
+      approve: sel.filter((u) => permsFor(u).pending && permsFor(u).canEdit).length,
+      enable:  sel.filter((u) => permsFor(u).disabled && permsFor(u).canDisable).length,
+      disable: sel.filter((u) => !permsFor(u).disabled && permsFor(u).canDisable).length,
+      "delete": sel.filter((u) => permsFor(u).canDelete).length,
+    };
+  }
+  function updateBulkBar() {
+    const bar = $("blUsersBulkBar");
+    if (!bar) return;
+    const c = counts();
+    bar.hidden = c.total === 0;
+    const label = $("blUsersSelectedLabel");
+    if (label) label.textContent = `${c.total} selected`;
+    const setBtn = (id, key) => {
+      const btn = $(id);
+      if (!btn) return;
+      btn.disabled = c[key] === 0;
+      const span = btn.querySelector(`[data-count="${key}"]`);
+      if (span) span.textContent = c[key];
+    };
+    setBtn("blUsersBulkApprove", "approve");
+    setBtn("blUsersBulkEnable",  "enable");
+    setBtn("blUsersBulkDisable", "disable");
+    setBtn("blUsersBulkDelete",  "delete");
+    // Update select-all header state
+    const sa = $("blUsersSelectAll");
+    if (sa) {
+      const selectableIds = Array.from(lastRenderedIds).filter((id) => {
+        const u = users.find((x) => x.id === id);
+        if (!u) return false;
+        const p = permsFor(u);
+        return p.canEdit || p.canDelete;
+      });
+      const on = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
+      sa.checked = on;
+      sa.indeterminate = !on && selectableIds.some((id) => selected.has(id));
+    }
+  }
+
+  function onRowCheckboxChange(e) {
+    const cb = e.target.closest('[data-bulk-id]');
+    if (!cb) return;
+    const id = cb.dataset.bulkId;
+    if (cb.checked) selected.add(id); else selected.delete(id);
+    // Toggle row selection styling without a full re-render.
+    cb.closest(".bl-users-row")?.classList.toggle("is-selected", cb.checked);
+    updateBulkBar();
+  }
+
+  function onSelectAllChange() {
+    const sa = $("blUsersSelectAll");
+    if (!sa) return;
+    const shouldSelect = sa.checked;
+    Array.from(lastRenderedIds).forEach((id) => {
+      const u = users.find((x) => x.id === id);
+      if (!u) return;
+      const p = permsFor(u);
+      if (!(p.canEdit || p.canDelete)) return;
+      if (shouldSelect) selected.add(id); else selected.delete(id);
+    });
+    render();
+  }
+  function clearSelection() { selected.clear(); render(); }
+
+  // Sequential batch runner with per-item error accumulation.
+  async function runBulk(kind, filterFn, opFn, verbGerund) {
+    const targets = selectedUsers().filter(filterFn);
+    if (!targets.length) return;
+    const label = `${verbGerund} ${targets.length} user${targets.length === 1 ? "" : "s"}`;
+    if (!confirm(`${label}? This will run one at a time.`)) return;
+    let ok = 0;
+    const errors = [];
+    BL_TOAST.show(`${label}…`, "info");
+    for (const u of targets) {
+      const err = await opFn(u);
+      if (err) errors.push(`${u.display_name || u.email || u.id}: ${err}`);
+      else ok++;
+    }
+    if (errors.length) {
+      BL_TOAST.error(`${ok} succeeded, ${errors.length} failed. First: ${errors[0]}`);
+      console.warn(`[Backlot] bulk ${kind} errors`, errors);
+    } else {
+      BL_TOAST.success(`${label} — done.`);
+    }
+    selected.clear();
+    load();
+  }
+
+  async function bulkApprove() {
+    return runBulk("approve", (u) => permsFor(u).pending && permsFor(u).canEdit,
+      async (u) => {
+        const { error } = await sb.from("profiles").update({ approved: true }).eq("id", u.id);
+        return error ? error.message : null;
+      }, "Approve");
+  }
+  async function bulkToggle(action) {
+    return runBulk(action, (u) => {
+      const p = permsFor(u);
+      if (!p.canDisable) return false;
+      return action === "disable" ? !p.disabled : p.disabled;
+    }, async (u) => {
+      const { error } = await adminCall(action, { user_id: u.id });
+      return error || null;
+    }, action === "disable" ? "Disable" : "Enable");
+  }
+  async function bulkDelete() {
+    return runBulk("delete", (u) => permsFor(u).canDelete, async (u) => {
+      const { error } = await adminCall("delete", { user_id: u.id });
+      return error || null;
+    }, "Delete");
   }
 
   function ensurePager() { if (!pager) pager = BL_PAGINATE.create({ mount: $("blUsersPager"), render: renderRows }); }
@@ -256,6 +397,13 @@
     if (started) return;
     started = true;
     $("blUsersList")?.addEventListener("click", onListClick);
+    $("blUsersList")?.addEventListener("change", onRowCheckboxChange);
+    $("blUsersSelectAll")?.addEventListener("change", onSelectAllChange);
+    $("blUsersBulkApprove")?.addEventListener("click", bulkApprove);
+    $("blUsersBulkEnable")?.addEventListener("click",  () => bulkToggle("enable"));
+    $("blUsersBulkDisable")?.addEventListener("click", () => bulkToggle("disable"));
+    $("blUsersBulkDelete")?.addEventListener("click",  bulkDelete);
+    $("blUsersBulkClear")?.addEventListener("click",   clearSelection);
     $("blUsersSearch")?.addEventListener("input", render);
     $("blUsersCreate")?.addEventListener("click", openCreate);
     $("blUsersModalClose")?.addEventListener("click", hideModal);

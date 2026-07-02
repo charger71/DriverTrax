@@ -208,11 +208,18 @@
 
   <!-- ============ TABLE ============ -->
   <section class="guide">
-    <h2>Table</h2>
+    <h2>Table &amp; pager</h2>
     <div class="bl-card">
       <div class="bl-table-wrap">
         <table class="bl-table">
-          <thead><tr><th>Driver</th><th>Status</th><th>Cars</th><th>Last logged</th></tr></thead>
+          <thead>
+            <tr>
+              <th class="bl-sortable is-sorted"><button type="button" class="bl-sort-btn"><span>Driver</span><span class="bl-sort-ind is-active" aria-hidden="true">▲</span></button></th>
+              <th class="bl-sortable"><button type="button" class="bl-sort-btn"><span>Status</span><span class="bl-sort-ind" aria-hidden="true">↕</span></button></th>
+              <th class="bl-sortable"><button type="button" class="bl-sort-btn"><span>Cars</span><span class="bl-sort-ind" aria-hidden="true">↕</span></button></th>
+              <th>Last logged</th>
+            </tr>
+          </thead>
           <tbody>
             <tr><td>M. Alvarez</td><td><span class="bl-chip bl-chip--clean">On lot</span></td><td>52</td><td>23s ago</td></tr>
             <tr><td>J. Tran</td><td><span class="bl-chip bl-chip--clean">On lot</span></td><td>48</td><td>1m ago</td></tr>
@@ -223,13 +230,81 @@
       <div class="bl-pager">
         <span class="bl-pager-info">1–25 of 138</span>
         <div class="bl-pager-nav">
+          <label class="bl-pager-size"><span>Per page</span>
+            <select class="bl-pager-select" aria-label="Rows per page"><option>25</option><option>50</option><option>100</option></select>
+          </label>
           <button type="button" class="bl-btn bl-btn--sm bl-btn--secondary" disabled>Prev</button>
-          <span class="bl-pager-page">Page 1 / 6</span>
+          <span class="bl-pager-page">Page <input type="number" class="bl-pager-jump" min="1" max="6" value="1" aria-label="Go to page"> / 6</span>
           <button type="button" class="bl-btn bl-btn--sm bl-btn--secondary">Next</button>
         </div>
       </div>
     </div>
-    <p class="lead" style="margin-top:var(--sp-3)">Client-side pager for in-memory lists (25/page by default). Create with <code>BL_PAGINATE.create({ mount, render })</code> and feed it filtered rows via <code>pager.setItems(rows)</code> — it hides itself when a single page fits.</p>
+    <p class="lead" style="margin-top:var(--sp-3)">
+      Client-side pager for in-memory lists (25/page by default; 50 and 100 available via the selector, persisted per list to <code>localStorage</code>).
+      Create with <code>BL_PAGINATE.create({ mount, render })</code> and feed rows via <code>pager.setItems(rows)</code>; the pager hides itself for lists ≤25 rows.
+      Sortable headers get <code>data-sort-key="…"</code> in the markup and are wired with <code>BL_SORT.attach({ thead, columns, onChange })</code> — third click clears the sort. Sort state persists via <code>storageKey</code>.
+    </p>
+  </section>
+
+  <!-- ============ SHORTCUTS ============ -->
+  <section class="guide">
+    <h2>Keyboard shortcuts</h2>
+    <p class="lead">Wired globally by <code>BL_KEYS</code> in <code>utils.js</code>. Scoped to the active section. Ignored while typing in an input, textarea, select, or contenteditable element.</p>
+    <div class="bl-card" style="max-width:520px">
+      <div class="bl-card-body">
+        <dl class="bl-detail-grid" style="grid-template-columns:auto 1fr;gap:var(--sp-2) var(--sp-4)">
+          <dt><kbd style="background:var(--card-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:1px var(--sp-2);font-family:inherit">/</kbd></dt><dd>Focus search input in active section</dd>
+          <dt><kbd style="background:var(--card-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:1px var(--sp-2);font-family:inherit">n</kbd></dt><dd>Click <code>[data-shortcut="new"]</code> in active section</dd>
+          <dt><kbd style="background:var(--card-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:1px var(--sp-2);font-family:inherit">← / →</kbd></dt><dd>Page Prev / Next in active section's pager</dd>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CHIP FILTER ============ -->
+  <section class="guide">
+    <h2>Chip filter</h2>
+    <p class="lead">Small pill group for single-select filtering. Consumer toggles <code>.is-active</code> on click and re-renders the filtered list — see <code>onChipClick</code> in <code>comms.js</code> for the canonical wiring.</p>
+    <div class="bl-card" style="max-width:520px"><div class="bl-card-body">
+      <div class="bl-chip-filter" role="group" aria-label="Example filter">
+        <button type="button" class="bl-chip-btn is-active">All</button>
+        <button type="button" class="bl-chip-btn">Open</button>
+        <button type="button" class="bl-chip-btn">Closed</button>
+        <button type="button" class="bl-chip-btn">Cancelled</button>
+      </div>
+    </div></div>
+    <p class="lead" style="margin-top:var(--sp-3)">Pair with <code>.bl-search--sm</code> inside <code>.bl-comms-filters</code> when the list also needs freeform search — the two share the same row.</p>
+  </section>
+
+  <!-- ============ BULK ACTION BAR ============ -->
+  <section class="guide">
+    <h2>Bulk action bar</h2>
+    <p class="lead">Sticky toolbar that appears when any rows are selected. Left side owns the select-all + count; right side lists eligible actions with a <code>(count)</code> badge each, disabled when zero apply. See <code>users.js</code> for the selection state model and sequential runner.</p>
+    <div class="bl-card">
+      <div class="bl-bulk-bar" style="position:relative">
+        <label class="bl-bulk-selectall"><input type="checkbox"> <span>3 selected</span></label>
+        <div class="bl-bulk-actions">
+          <button type="button" class="bl-btn bl-btn--sm bl-btn--primary">Approve (<span>1</span>)</button>
+          <button type="button" class="bl-btn bl-btn--sm">Enable (<span>1</span>)</button>
+          <button type="button" class="bl-btn bl-btn--sm" disabled>Disable (<span>0</span>)</button>
+          <button type="button" class="bl-btn bl-btn--sm bl-btn--danger">Delete (<span>3</span>)</button>
+          <button type="button" class="bl-btn bl-btn--sm bl-btn--ghost">Clear</button>
+        </div>
+      </div>
+      <div class="bl-users-list">
+        <div class="bl-users-row is-selected">
+          <label class="bl-users-check"><input type="checkbox" checked></label>
+          <div class="info"><div class="name">Bob Driver <span class="bl-pending-pill">Pending</span></div><div class="meta">bob@corp.io</div></div>
+          <span class="bl-role-pill role-driver">driver</span>
+        </div>
+        <div class="bl-users-row">
+          <label class="bl-users-check"><input type="checkbox"></label>
+          <div class="info"><div class="name">Alice Admin</div><div class="meta">alice@corp.io</div></div>
+          <span class="bl-role-pill role-admin">admin</span>
+        </div>
+      </div>
+    </div>
+    <p class="lead" style="margin-top:var(--sp-3)">Only editable rows expose a checkbox — non-editable rows show a disabled checkbox for visual alignment. Selection auto-clears when a row falls off the current page (search, filter, or pagination).</p>
   </section>
 
   <!-- ============ EMPTY / TOAST ============ -->

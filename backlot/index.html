@@ -46,6 +46,8 @@
     <symbol id="icon-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></symbol>
     <symbol id="icon-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></symbol>
     <symbol id="icon-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></symbol>
+    <symbol id="icon-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></symbol>
+    <symbol id="icon-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></symbol>
   </svg>
 
   <!-- boot splash until auth resolves -->
@@ -140,8 +142,13 @@
         <div class="bl-page-head">
           <div><h1>Records</h1><div class="sub" id="blRecSub">Browse, edit and create vehicle records</div></div>
           <div class="actions">
+            <button class="bl-btn bl-btn--secondary bl-btn--sm" id="blRecExport" title="Export current filter to CSV"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-download"/></svg>Export CSV</button>
+            <div class="bl-menu-wrap">
+              <button class="bl-btn bl-btn--secondary bl-btn--sm" id="blRecColumnsBtn" aria-haspopup="true" aria-expanded="false">Columns</button>
+              <div class="bl-menu" id="blRecColumnsMenu" hidden role="menu" aria-label="Column visibility"></div>
+            </div>
             <button class="bl-btn bl-btn--secondary bl-btn--sm" id="blRecRefresh">Refresh</button>
-            <button class="bl-btn bl-btn--primary bl-btn--sm" id="blRecNew"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-plus"/></svg>New record</button>
+            <button class="bl-btn bl-btn--primary bl-btn--sm" id="blRecNew" data-shortcut="new" title="New record (n)"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-plus"/></svg>New record</button>
           </div>
         </div>
         <div class="bl-card">
@@ -160,10 +167,22 @@
               <label class="bl-field"><span class="bl-field-label">From</span><input type="date" id="blRecFrom"></label>
               <label class="bl-field"><span class="bl-field-label">To</span><input type="date" id="blRecTo"></label>
             </div>
+            <div class="bl-preset-row">
+              <span class="bl-preset-label">Presets</span>
+              <div class="bl-preset-chips" id="blRecPresetChips"></div>
+              <button class="bl-btn bl-btn--sm bl-btn--secondary" id="blRecPresetSave">Save current…</button>
+            </div>
             <div class="sub" id="blRecCount"></div>
             <div class="bl-table-wrap">
-              <table class="bl-table">
-                <thead><tr><th>VIN / Serial</th><th>Status</th><th>Destination</th><th>Driver</th><th>When</th><th></th></tr></thead>
+              <table class="bl-table" id="blRecTable">
+                <thead id="blRecThead"><tr>
+                  <th data-sort-key="serial_id" data-col="serial_id">VIN / Serial</th>
+                  <th data-sort-key="status" data-col="status">Status</th>
+                  <th data-col="destination">Destination</th>
+                  <th data-col="driver">Driver</th>
+                  <th data-sort-key="ts" data-col="ts">When</th>
+                  <th data-col="actions"></th>
+                </tr></thead>
                 <tbody id="blRecBody"><tr><td colspan="6"><div class="bl-empty">Loading…</div></td></tr></tbody>
               </table>
             </div>
@@ -220,10 +239,20 @@
               <svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-search"/></svg>
               <input type="search" id="blUsersSearch" placeholder="Search name or email" aria-label="Search users">
             </label>
-            <button class="bl-btn bl-btn--primary bl-btn--sm" id="blUsersCreate"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-plus"/></svg>Create user</button>
+            <button class="bl-btn bl-btn--primary bl-btn--sm" id="blUsersCreate" data-shortcut="new" title="Create user (n)"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-plus"/></svg>Create user</button>
           </div>
         </div>
         <div class="bl-card">
+          <div class="bl-bulk-bar" id="blUsersBulkBar" hidden role="toolbar" aria-label="Bulk user actions">
+            <label class="bl-bulk-selectall"><input type="checkbox" id="blUsersSelectAll"> <span id="blUsersSelectedLabel">0 selected</span></label>
+            <div class="bl-bulk-actions">
+              <button type="button" class="bl-btn bl-btn--sm bl-btn--primary" id="blUsersBulkApprove" disabled>Approve (<span data-count="approve">0</span>)</button>
+              <button type="button" class="bl-btn bl-btn--sm" id="blUsersBulkEnable" disabled>Enable (<span data-count="enable">0</span>)</button>
+              <button type="button" class="bl-btn bl-btn--sm" id="blUsersBulkDisable" disabled>Disable (<span data-count="disable">0</span>)</button>
+              <button type="button" class="bl-btn bl-btn--sm bl-btn--danger" id="blUsersBulkDelete" disabled>Delete (<span data-count="delete">0</span>)</button>
+              <button type="button" class="bl-btn bl-btn--sm bl-btn--ghost" id="blUsersBulkClear">Clear</button>
+            </div>
+          </div>
           <div id="blUsersList" class="bl-users-list"><div class="bl-empty">Loading…</div></div>
           <div class="bl-pager" id="blUsersPager" hidden></div>
         </div>
@@ -244,6 +273,18 @@
                   <button type="submit" class="bl-btn bl-btn--primary"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-megaphone"/></svg>Send broadcast</button>
                 </div>
               </form>
+              <div class="bl-comms-filters">
+                <label class="bl-search bl-search--sm">
+                  <svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-search"/></svg>
+                  <input type="search" id="blAnnSearch" placeholder="Search body or author" aria-label="Search announcements">
+                </label>
+                <div class="bl-chip-filter" id="blAnnStatusChips" role="group" aria-label="Announcement status">
+                  <button type="button" class="bl-chip-btn is-active" data-status="">All</button>
+                  <button type="button" class="bl-chip-btn" data-status="open">Open</button>
+                  <button type="button" class="bl-chip-btn" data-status="closed">Closed</button>
+                  <button type="button" class="bl-chip-btn" data-status="cancelled">Cancelled</button>
+                </div>
+              </div>
               <div class="bl-comms-list" id="blAnnList"><div class="bl-empty">Loading…</div></div>
             </div>
           </div>
@@ -276,6 +317,18 @@
                   <button type="submit" class="bl-btn bl-btn--primary"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-plus"/></svg>Post request</button>
                 </div>
               </form>
+              <div class="bl-comms-filters">
+                <label class="bl-search bl-search--sm">
+                  <svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-search"/></svg>
+                  <input type="search" id="blEdrSearch" placeholder="Search notes or driver" aria-label="Search requests">
+                </label>
+                <div class="bl-chip-filter" id="blEdrStatusChips" role="group" aria-label="Request status">
+                  <button type="button" class="bl-chip-btn is-active" data-status="">All</button>
+                  <button type="button" class="bl-chip-btn" data-status="open">Open</button>
+                  <button type="button" class="bl-chip-btn" data-status="filled">Filled</button>
+                  <button type="button" class="bl-chip-btn" data-status="cancelled">Cancelled</button>
+                </div>
+              </div>
               <div class="bl-comms-list" id="blEdrList"><div class="bl-empty">Loading…</div></div>
             </div>
           </div>
@@ -357,6 +410,9 @@
     <div class="bl-modal-card">
       <div class="bl-modal-head">
         <h3 id="blRecDetailTitle">Record</h3>
+        <span class="bl-detail-nav" id="blRecDetailNav" aria-live="polite"></span>
+        <button class="bl-btn bl-btn--icon bl-btn--ghost bl-btn--sm" id="blRecDetailPrev" aria-label="Previous record (←)" title="Previous (←)"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-chevron-left"/></svg></button>
+        <button class="bl-btn bl-btn--icon bl-btn--ghost bl-btn--sm" id="blRecDetailNext" aria-label="Next record (→)" title="Next (→)"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-chevron-right"/></svg></button>
         <button class="bl-btn bl-btn--icon bl-btn--ghost" id="blRecDetailClose" aria-label="Close"><svg class="bl-icon" aria-hidden="true"><use href="#icon-x"/></svg></button>
       </div>
       <div class="bl-modal-body" id="blRecDetailBody"></div>

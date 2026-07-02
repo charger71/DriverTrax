@@ -15,6 +15,11 @@
   const fmt = window.BL_FORMAT;
 
   let realtimeChan = null, pollTimer = null, started = false;
+  // Client-side filter state; a re-render just re-filters the cached list.
+  const annState = { search: "", status: "" };
+  const edrState = { search: "", status: "" };
+  let annCache = [], annNames = {};
+  let edrCache = [], edrNames = {};
 
   async function resolveNames(ids, fallback) {
     const names = {};
@@ -35,15 +40,34 @@
       .order("created_at", { ascending: false }).limit(80);
     if (error) { el.innerHTML = `<div class="bl-empty">${esc(error.message)}</div>`; return; }
 
-    const rows = data || [];
-    const open     = rows.filter((a) => (a.status || "open") === "open");
-    const archived = rows.filter((a) => (a.status || "open") !== "open");
-    // Resolve names for both announcement authors and reply authors in one pass.
-    const replyAuthorIds = rows.flatMap((a) => (a.announcement_replies || []).map((r) => r.author_id));
-    const names = await resolveNames([...rows.map((a) => a.author_id), ...replyAuthorIds], "Team member");
+    annCache = data || [];
+    const replyAuthorIds = annCache.flatMap((a) => (a.announcement_replies || []).map((r) => r.author_id));
+    annNames = await resolveNames([...annCache.map((a) => a.author_id), ...replyAuthorIds], "Team member");
+    renderAnnouncements();
+  }
 
-    const card = (a, isArchived) => {
+  function renderAnnouncements() {
+    const el = $("blAnnList");
+    if (!el) return;
+    const term = annState.search.trim().toLowerCase();
+    const status = annState.status;
+    const filtered = annCache.filter((a) => {
+      const s = a.status || "open";
+      if (status && s !== status) return false;
+      if (!term) return true;
+      const bodyHit = (a.body || "").toLowerCase().includes(term);
+      const authorHit = (annNames[a.author_id] || "").toLowerCase().includes(term);
+      return bodyHit || authorHit;
+    });
+
+    if (!filtered.length) {
+      el.innerHTML = `<div class="bl-empty">${annCache.length ? "No announcements match these filters." : "No announcements yet."}</div>`;
+      return;
+    }
+
+    el.innerHTML = filtered.map((a) => {
       const status = a.status || "open";
+      const isArchived = status !== "open";
       const actions = isArchived
         ? `<button class="bl-btn bl-btn--sm bl-btn--danger" data-ann-del="${a.id}">Delete</button>`
         : `<button class="bl-btn bl-btn--sm" data-ann-close="${a.id}">Close</button>
@@ -54,7 +78,7 @@
         ? `<details class="bl-disclosure"><summary>Replies (${replies.length})</summary>
             <div class="bl-replies">${replies.map((r) => `
               <div class="bl-reply">
-                <span class="bl-reply-author">${esc(names[r.author_id] || "Team member")}</span>
+                <span class="bl-reply-author">${esc(annNames[r.author_id] || "Team member")}</span>
                 <span class="bl-reply-body">${esc(r.body || "")}</span>
                 <span class="bl-reply-time">${esc(fmt.timeAgo(r.created_at))}</span>
               </div>`).join("")}</div>
@@ -63,18 +87,13 @@
       return `<div class="bl-comms-item">
         <div class="body">${esc(a.body || "")}</div>
         <div class="row">
-          <span class="meta">Posted ${esc(fmt.timeAgo(a.created_at))} by ${esc(names[a.author_id] || "Manager")}</span>
+          <span class="meta">Posted ${esc(fmt.timeAgo(a.created_at))} by ${esc(annNames[a.author_id] || "Manager")}</span>
           <span class="bl-status status-${esc(status)}">${esc(status)}</span>
         </div>
         ${repliesHtml}
         <div class="bl-comms-actions">${actions}</div>
       </div>`;
-    };
-
-    const openHtml = open.length ? open.map((a) => card(a, false)).join("") : `<div class="bl-empty">No open announcements.</div>`;
-    const archHtml = archived.length ? archived.map((a) => card(a, true)).join("") : `<div class="bl-empty">Nothing archived.</div>`;
-    el.innerHTML = `${openHtml}
-      <details class="bl-disclosure"><summary>Archived (${archived.length})</summary>${archHtml}</details>`;
+    }).join("");
   }
 
   function onAnnClick(e) {
@@ -118,13 +137,30 @@
       .order("created_at", { ascending: false }).limit(40);
     if (error) { el.innerHTML = `<div class="bl-empty">${esc(error.message)}</div>`; return; }
 
-    const rows = data || [];
-    const open     = rows.filter((r) => r.status === "open");
-    const archived = rows.filter((r) => r.status !== "open");
-    const driverIds = rows.flatMap((r) => (r.extra_driver_responses || []).map((x) => x.driver_id));
-    const names = await resolveNames(driverIds, "Driver");
+    edrCache = data || [];
+    const driverIds = edrCache.flatMap((r) => (r.extra_driver_responses || []).map((x) => x.driver_id));
+    edrNames = await resolveNames(driverIds, "Driver");
+    renderEdr();
+  }
 
-    const card = (r, isArchived) => {
+  function renderEdr() {
+    const el = $("blEdrList");
+    if (!el) return;
+    const term = edrState.search.trim().toLowerCase();
+    const status = edrState.status;
+    const filtered = edrCache.filter((r) => {
+      if (status && r.status !== status) return false;
+      if (!term) return true;
+      const noteHit = (r.note || "").toLowerCase().includes(term);
+      const driverHit = (r.extra_driver_responses || []).some((x) => (edrNames[x.driver_id] || "").toLowerCase().includes(term));
+      return noteHit || driverHit;
+    });
+    if (!filtered.length) {
+      el.innerHTML = `<div class="bl-empty">${edrCache.length ? "No requests match these filters." : "No requests yet."}</div>`;
+      return;
+    }
+    el.innerHTML = filtered.map((r) => {
+      const isArchived = r.status !== "open";
       const responses = r.extra_driver_responses || [];
       const accepted = responses.filter((x) => x.response === "yes")
         .sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
@@ -133,7 +169,7 @@
       const tags = (r.shifts || []).map((s) => `<span class="bl-shift-tag">${esc(s)}</span>`).join("");
       const pos = POSITION_LABEL[r.position] || "Driver";
       const acceptedHtml = accepted.length
-        ? `<div class="bl-accepted">${accepted.map((a) => esc(names[a.driver_id] || "Driver")).join(" · ")}</div>` : "";
+        ? `<div class="bl-accepted">${accepted.map((a) => esc(edrNames[a.driver_id] || "Driver")).join(" · ")}</div>` : "";
       const actions = isArchived
         ? `<button class="bl-btn bl-btn--sm bl-btn--danger" data-edr-del="${r.id}">Delete</button>`
         : `<button class="bl-btn bl-btn--sm" data-edr-fill="${r.id}">Mark filled</button>
@@ -150,12 +186,7 @@
         ${acceptedHtml}
         <div class="bl-comms-actions">${actions}</div>
       </div>`;
-    };
-
-    const openHtml = open.length ? open.map((r) => card(r, false)).join("") : `<div class="bl-empty">No open requests.</div>`;
-    const archHtml = archived.length ? archived.map((r) => card(r, true)).join("") : `<div class="bl-empty">Nothing archived.</div>`;
-    el.innerHTML = `${openHtml}
-      <details class="bl-disclosure"><summary>Archived (${archived.length})</summary>${archHtml}</details>`;
+    }).join("");
   }
 
   function onEdrClick(e) {
@@ -212,6 +243,25 @@
     }
   }
 
+  function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+  const debounceCache = {};
+  function debouncedRender(kind) {
+    if (debounceCache[kind]) return debounceCache[kind];
+    const state = kind === "ann" ? annState : edrState;
+    const inputId = kind === "ann" ? "blAnnSearch" : "blEdrSearch";
+    const rerender = kind === "ann" ? renderAnnouncements : renderEdr;
+    debounceCache[kind] = debounce(() => { state.search = $(inputId)?.value || ""; rerender(); }, 200);
+    return debounceCache[kind];
+  }
+  function onChipClick(e, state, containerId, rerender) {
+    const btn = e.target.closest(".bl-chip-btn");
+    if (!btn) return;
+    state.status = btn.dataset.status || "";
+    const container = $(containerId);
+    container?.querySelectorAll(".bl-chip-btn").forEach((b) => b.classList.toggle("is-active", b === btn));
+    rerender();
+  }
+
   function refreshAll() { loadAnnouncements(); loadEdr(); }
 
   function start() {
@@ -221,6 +271,11 @@
     $("blEdrList")?.addEventListener("click", onEdrClick);
     $("blAnnForm")?.addEventListener("submit", onAnnSubmit);
     $("blEdrForm")?.addEventListener("submit", onEdrSubmit);
+    // Client-side filter controls — cheap re-render, no re-fetch.
+    $("blAnnSearch")?.addEventListener("input", debouncedRender("ann"));
+    $("blEdrSearch")?.addEventListener("input", debouncedRender("edr"));
+    $("blAnnStatusChips")?.addEventListener("click", (e) => onChipClick(e, annState, "blAnnStatusChips", renderAnnouncements));
+    $("blEdrStatusChips")?.addEventListener("click", (e) => onChipClick(e, edrState, "blEdrStatusChips", renderEdr));
     applyCxrLimits();
     refreshAll();
     if (pollTimer) clearInterval(pollTimer);

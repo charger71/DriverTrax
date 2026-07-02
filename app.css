@@ -2401,84 +2401,89 @@
   .menu-footer { padding: var(--space-4) var(--space-5); border-top: 1px solid var(--border); }
   .menu-version { font-size: var(--font-sm); color: var(--muted); letter-spacing: 0.5px; }
 
-  /* TIRE SELECTOR */
-  .tire-diagram {
-    position: relative;
-    width: 100%;
-    height: 220px;
+  /* TIRE STATUS STRIP (new — replaces old tire-diagram) */
+  /* Rendered inline in the entry form when status="TI" and inside the
+     damage modal. Populates via DT_DAMAGE.mountTireStrip(). */
+  .dt-tire-strip {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
     margin-top: var(--space-3);
+  }
+  @media (min-width: 600px) {
+    .dt-tire-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+  .dt-tire-strip-empty {
+    grid-column: 1 / -1;
+    padding: var(--space-4);
+    text-align: center;
+    color: var(--muted);
+    font-size: var(--font-sm);
+    background: var(--card-soft);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+  }
+  .dt-tire-card {
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .car-body {
-    position: relative;
-    width: 80px;
-    height: 160px;
-    background: var(--card-soft);
-    border-radius: 18px;
-    border: 2px solid var(--border);
+    padding: var(--space-3);
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    gap: var(--space-2);
   }
-  .car-roof {
-    width: 54px;
-    height: 60px;
-    background: var(--border);
-    border-radius: 12px;
-    margin: 0 auto;
-  }
-  .car-hood-front {
-    width: 64px;
-    height: 20px;
-    background: var(--border);
-    border-radius: 0 0 8px 8px;
-    margin-top: var(--space-2);
-  }
-  .car-hood-rear {
-    display: none;
-  }
-  .car-label {
-    position: absolute;
-    top: -22px;
-  }
-  .car-label-rear {
-    position: absolute;
-    bottom: -22px;
-  }
-  .tire-btn {
-    position: absolute;
-    width: 52px;
-    height: 72px;
-    background: var(--card-soft);
-    border: 2px solid var(--border);
-    border-radius: 8px;
+  .dt-tire-card-head {
     display: flex;
     align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-size: var(--font-base);
-    font-weight: 800;
-    color: var(--muted);
-    letter-spacing: 0.5px;
-    user-select: none;
+    justify-content: space-between;
+    gap: var(--space-2);
   }
-  #tire-FL { top: 28px;  left: calc(50% - 106px); }
-  #tire-FR { top: 28px;  right: calc(50% - 106px); }
-  #tire-RL { bottom: 28px; left: calc(50% - 106px); }
-  #tire-RR { bottom: 28px; right: calc(50% - 106px); }
-  .tire-btn.selected {
-    background: var(--danger);
-    border-color: var(--danger);
-    color: var(--text-on-status);
-    transform: scale(1.06);
-    box-shadow: 0 0 12px rgba(232,85,80,0.4);
+  .dt-tire-pos {
+    font-weight: var(--weight-heavy);
+    font-size: var(--font-lg);
+    letter-spacing: 0.5px;
+    color: var(--text);
+  }
+  .dt-tire-pos-label {
+    font-size: var(--font-xs);
+    color: var(--muted);
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+  }
+  .dt-tire-cond {
+    font-size: var(--font-xs);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius);
+    font-weight: var(--weight-bold);
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+  .dt-tire-cond--OK      { background: var(--success-soft); color: var(--success-text); }
+  .dt-tire-cond--worn    { background: var(--warn-soft);    color: var(--warn-text);    }
+  .dt-tire-cond--low     { background: var(--warn-soft);    color: var(--warn-text);    }
+  .dt-tire-cond--flat    { background: var(--danger-soft);  color: var(--danger-text);  }
+  .dt-tire-cond--replace { background: var(--danger-soft);  color: var(--danger-text);  }
+  .dt-tire-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: var(--font-xs);
+    color: var(--muted);
+    letter-spacing: 0.3px;
+  }
+  .dt-tire-field > span { text-transform: uppercase; }
+  .dt-tire-field select,
+  .dt-tire-field input {
+    height: var(--dt-input-h);
+    padding: 0 var(--space-3);
+    background: var(--card-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--font-base);
+    width: 100%;
+    box-sizing: border-box;
   }
   .tire-selected-label {
     font-size: var(--font-sm);
@@ -2488,8 +2493,272 @@
     min-height: 18px;
     font-weight: 600;
   }
-  .tire-selected-label.has-selection {
-    color: var(--danger);
+  .tire-selected-label.has-selection { color: var(--danger); }
+
+  /* ============================
+     DAMAGE INSPECTION MODAL
+     ============================ */
+  .damage-modal {
+    position: fixed;
+    inset: 0;
+    background: var(--scrim);
+    z-index: 1200;
+    display: none;
+    align-items: stretch;
+    justify-content: center;
+    padding: 0;
+  }
+  .damage-modal.show { display: flex; }
+  .damage-modal-card {
+    background: var(--panel);
+    width: 100%;
+    max-width: 560px;
+    display: flex;
+    flex-direction: column;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
+  @media (min-width: 600px) {
+    .damage-modal { padding: var(--space-4); align-items: center; }
+    .damage-modal-card { border-radius: 16px; max-height: calc(100dvh - var(--space-6)); box-shadow: var(--shadow-lg); }
+  }
+  .damage-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-4);
+    border-bottom: 1px solid var(--divider);
+    background: var(--header-bg);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  .damage-modal-title {
+    font-size: var(--font-lg);
+    font-weight: var(--weight-bold);
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .damage-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+  .damage-modal-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--divider);
+    background: var(--header-bg);
+  }
+
+  /* chips */
+  .damage-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .damage-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    min-height: 40px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: var(--font-sm);
+    font-weight: var(--weight-medium);
+    color: var(--text);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .damage-chip.active {
+    background: var(--surface-hover);
+    border-color: var(--border);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+  .damage-sw {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* SVG diagram */
+  .damage-svg-wrap {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: var(--space-3);
+  }
+  #damageSvg {
+    width: 100%;
+    height: auto;
+    display: block;
+    max-width: 420px;
+    margin: 0 auto;
+    touch-action: manipulation;
+  }
+  #damageSvg .damage-dir {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 9px;
+    letter-spacing: 0.6px;
+    fill: var(--muted);
+  }
+  #damageSvg .dp {
+    fill: transparent;
+    stroke: var(--text);
+    stroke-width: 1;
+    transition: fill 0.15s ease;
+  }
+  #damageSvg .dp-thin { stroke: var(--muted); stroke-width: 0.6; }
+  #damageSvg .panel-hit { cursor: pointer; }
+  #damageSvg .panel-hit:hover .dp,
+  #damageSvg .panel-hit.dp:hover { fill: var(--surface-hover); }
+  #damageSvg .panel-hit.has-damage .dp,
+  #damageSvg .panel-hit.has-damage.dp { fill: var(--muted); fill-opacity: 0.28; }
+  #damageSvg .damage-mark text { paint-order: stroke; }
+
+  /* picker */
+  .damage-picker-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-2);
+  }
+  .damage-picker-select {
+    height: var(--dt-input-h);
+    padding: 0 36px 0 var(--space-3);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font: inherit;
+    font-size: var(--font-base);
+    color: var(--text);
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23999' stroke-width='1.5'%3e%3cpath d='M4 6 L8 10 L12 6'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 14px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .damage-picker-add {
+    height: var(--dt-input-h);
+    padding: 0 var(--space-4);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-weight: var(--weight-bold);
+    letter-spacing: 0.4px;
+    cursor: pointer;
+    min-width: 72px;
+  }
+  .damage-picker-add:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* log + tire cards */
+  .damage-log-card,
+  .damage-tire-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  .damage-log-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: var(--font-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--muted);
+    font-weight: var(--weight-bold);
+  }
+  .damage-count-badge {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 11px;
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-soft);
+  }
+  .damage-log-list { display: flex; flex-direction: column; }
+  .damage-empty {
+    font-size: var(--font-sm);
+    color: var(--muted);
+    padding: var(--space-4) var(--space-2);
+    text-align: center;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+  }
+  .damage-log-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) 4px;
+    min-height: 44px;
+    border-bottom: 1px dashed var(--divider);
+    font-size: var(--font-sm);
+  }
+  .damage-log-row:last-child { border-bottom: 0; }
+  .damage-log-num {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    color: var(--text-on-status);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: var(--weight-bold);
+    flex-shrink: 0;
+  }
+  .damage-log-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .damage-log-type { color: var(--text); font-weight: var(--weight-medium); }
+  .damage-log-loc  { color: var(--muted); }
+  .damage-log-when { color: var(--muted); font-size: var(--font-xs); }
+  .damage-log-del {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
+    padding: 4px 8px;
+    min-width: 40px;
+    min-height: 40px;
+    border-radius: var(--radius);
+  }
+  .damage-log-del:hover { background: var(--surface-hover); color: var(--danger); }
+
+  /* record-detail inspect button row */
+  .detail-inspect-row {
+    padding: 0 var(--space-4) var(--space-2);
+  }
+  .detail-inspect-count {
+    margin-left: var(--space-2);
+    font-size: var(--font-xs);
+    color: var(--muted);
+    font-weight: var(--weight-normal);
   }
 
   .map-legend { background: var(--card); border-top: 1px solid var(--border); }

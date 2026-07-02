@@ -1504,12 +1504,29 @@ const ENTRY_CONDITIONS = DT_OPTIONS.CONDITIONS;
 function handleStatusChange() {
   const val = document.getElementById("status").value;
   const tireSection = document.getElementById("tireSelectorSection");
+  const serialVal = (document.getElementById("serial")?.value || "").trim();
+
   if (val === "TI") {
     tireSection.style.display = "block";
+    // Mount the per-vehicle tire strip. selectedTires (used by
+    // saveRecord() below) is populated from the DB inside.
+    window.DT_DAMAGE?.showTireStripInEntry(serialVal || null);
   } else {
     tireSection.style.display = "none";
     resetTires();
+    window.DT_DAMAGE?.hideTireStripInEntry();
   }
+
+  // Auto-open the damage inspection modal when BODY DAMAGE is flagged.
+  // Requires a Serial ID — otherwise there's nothing to attach to.
+  if (val === "BODY") {
+    if (serialVal) {
+      window.DT_DAMAGE?.open(serialVal);
+    } else {
+      DT_TOAST.show("Enter a Serial ID first, then re-pick BODY DAMAGE to open the inspection.", "warn");
+    }
+  }
+
   toggleOtherField("status");
 }
 
@@ -3114,6 +3131,22 @@ function openDetail(id, onDelete) {
     ${r.transport ? '<span class="badge-transport">TRANSPORT</span>' : ""}
     ${r.noTag ? '<span class="badge-notag">BAD TAG</span>' : ""}
   `;
+
+  // Damage inspection button — opens the DT_DAMAGE modal for this VIN
+  const inspectBtn = document.getElementById("detailInspectBtn");
+  const inspectCount = document.getElementById("detailInspectCount");
+  if (inspectBtn) {
+    inspectBtn.onclick = () => window.DT_DAMAGE?.open(r.serialId);
+    if (inspectCount) inspectCount.textContent = "";
+    if (window.DT_DAMAGE?.loadMarks && r.serialId) {
+      window.DT_DAMAGE.loadMarks(r.serialId)
+        .then(marks => {
+          const n = (marks || []).length;
+          if (inspectCount) inspectCount.textContent = n > 0 ? `· ${n} on file` : "";
+        })
+        .catch(() => {});
+    }
+  }
 
   // Vehicle info
   const vinSection = document.getElementById("detailVinSection");

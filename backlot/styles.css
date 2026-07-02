@@ -293,11 +293,46 @@ body.bl-authed .bl-app {
 .bl-table tr:last-child td { border-bottom: 0; }
 
 /* ---- pager (client-side pagination control) ---------------------------- */
-.bl-pager { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--divider); }
+.bl-pager {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap;
+  padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--divider);
+  background: var(--card); position: sticky; bottom: 0; z-index: 1;
+}
 .bl-pager[hidden] { display: none; }
 .bl-pager-info { color: var(--muted); font-size: var(--fs-sm); }
-.bl-pager-nav { display: inline-flex; align-items: center; gap: var(--sp-3); margin-left: auto; }
-.bl-pager-page { color: var(--text-soft); font-size: var(--fs-sm); font-weight: var(--fw-bold); }
+.bl-pager-nav { display: inline-flex; align-items: center; gap: var(--sp-3); margin-left: auto; flex-wrap: wrap; }
+.bl-pager-page { color: var(--text-soft); font-size: var(--fs-sm); font-weight: var(--fw-bold); display: inline-flex; align-items: center; gap: var(--sp-2); }
+.bl-pager-size { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--text-soft); font-size: var(--fs-sm); font-weight: var(--fw-bold); }
+.bl-pager-size > span { color: var(--muted); font-weight: var(--fw-medium); }
+.bl-pager-select {
+  background: var(--card-2); color: var(--text); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 2px var(--sp-2); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-bold);
+  min-height: 28px; cursor: pointer;
+}
+.bl-pager-jump {
+  width: 56px; text-align: center;
+  background: var(--card-2); color: var(--text); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 2px var(--sp-2); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-bold);
+  min-height: 28px;
+  /* strip Firefox spinner arrows to keep the control tight */
+  -moz-appearance: textfield;
+}
+.bl-pager-jump::-webkit-outer-spin-button,
+.bl-pager-jump::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* ---- sortable table headers ------------------------------------------- */
+.bl-table th.bl-sortable { padding: 0; }
+.bl-sort-btn {
+  display: flex; align-items: center; gap: var(--sp-2); width: 100%;
+  background: transparent; border: 0; outline: 0; -webkit-appearance: none; appearance: none;
+  padding: var(--sp-2) var(--sp-4); color: inherit; font: inherit;
+  font-size: var(--fs-xs); letter-spacing: 1px; text-transform: uppercase; font-weight: var(--fw-heavy);
+  cursor: pointer; text-align: left;
+}
+.bl-sort-btn:hover { color: var(--text); background: var(--hover); }
+.bl-sort-ind { color: var(--muted); font-size: var(--fs-xs); font-weight: var(--fw-bold); }
+.bl-sort-ind.is-active { color: var(--accent); }
+.bl-table th.is-sorted { color: var(--text); }
 
 /* ---- 8. Chips / segmented ----------------------------------------------- */
 .bl-chip { display: inline-flex; align-items: center; gap: var(--sp-2); border-radius: var(--r-full); padding: var(--sp-1) var(--sp-3); font-size: var(--fs-xs); font-weight: var(--fw-bold); }
@@ -366,6 +401,61 @@ body.bl-authed .bl-app {
 .bl-rec-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-3); margin-bottom: var(--sp-3); }
 .bl-rec-filters .bl-field { flex: 1 1 140px; min-width: 120px; }
 .bl-rec-filters .bl-search { flex: 2 1 200px; }
+
+/* ---- filter presets row ---- */
+.bl-preset-row { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-3); }
+.bl-preset-label { color: var(--muted); font-size: var(--fs-xs); letter-spacing: 1px; text-transform: uppercase; font-weight: var(--fw-heavy); }
+.bl-preset-chips { display: inline-flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; flex: 1; }
+.bl-preset-empty { color: var(--muted); font-size: var(--fs-sm); font-style: italic; }
+.bl-preset-chip { display: inline-flex; align-items: stretch; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-full); overflow: hidden; }
+.bl-preset-chip .bl-preset-apply { background: transparent; border: 0; color: var(--text); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-bold); padding: 4px var(--sp-3); cursor: pointer; }
+.bl-preset-chip .bl-preset-apply:hover { background: var(--hover); }
+.bl-preset-chip .bl-preset-del { background: transparent; border: 0; color: var(--muted); font-size: var(--fs-md); font-weight: var(--fw-heavy); padding: 0 var(--sp-2); cursor: pointer; border-left: 1px solid var(--border); }
+.bl-preset-chip .bl-preset-del:hover { color: var(--danger); background: var(--hover); }
+
+/* ---- columns menu (popover) ---- */
+.bl-menu-wrap { position: relative; display: inline-block; }
+.bl-menu {
+  position: absolute; right: 0; top: calc(100% + var(--sp-1)); z-index: 5;
+  min-width: 180px; background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md);
+  box-shadow: var(--sh-lg); padding: var(--sp-2); display: flex; flex-direction: column; gap: var(--sp-1);
+}
+.bl-menu[hidden] { display: none; }
+.bl-menu-item { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2); border-radius: var(--r-sm); cursor: pointer; color: var(--text); font-size: var(--fs-sm); }
+.bl-menu-item:hover { background: var(--hover); }
+.bl-menu-item input[type="checkbox"] { accent-color: var(--accent); }
+
+/* ---- bulk-action bar (Users) ---- */
+.bl-bulk-bar {
+  display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
+  padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--divider);
+  background: var(--card-2); position: sticky; top: 0; z-index: 2;
+}
+.bl-bulk-bar[hidden] { display: none; }
+.bl-bulk-selectall { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--text-soft); font-size: var(--fs-sm); font-weight: var(--fw-bold); }
+.bl-bulk-selectall input[type="checkbox"] { accent-color: var(--accent); }
+.bl-bulk-actions { display: inline-flex; align-items: center; gap: var(--sp-2); margin-left: auto; flex-wrap: wrap; }
+.bl-users-row .bl-users-check { display: inline-flex; align-items: center; padding-right: var(--sp-2); }
+.bl-users-row .bl-users-check input[type="checkbox"] { accent-color: var(--accent); }
+.bl-users-row.is-selected { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+/* ---- comms filter row (search + chip filter) ---- */
+.bl-comms-filters { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-top: var(--sp-4); margin-bottom: var(--sp-2); }
+.bl-search--sm { min-height: 32px; padding: 0 var(--sp-2); }
+.bl-search--sm input { font-size: var(--fs-sm); }
+.bl-chip-filter { display: inline-flex; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-full); padding: 2px; gap: 2px; }
+.bl-chip-btn {
+  background: transparent; border: 0; color: var(--text-soft); font: inherit; font-size: var(--fs-xs);
+  letter-spacing: 0.5px; text-transform: uppercase; font-weight: var(--fw-heavy);
+  padding: 4px var(--sp-3); border-radius: var(--r-full); cursor: pointer;
+}
+.bl-chip-btn:hover { color: var(--text); background: var(--hover); }
+.bl-chip-btn.is-active { background: var(--accent); color: var(--text-on-accent); }
+
+/* ---- detail modal prev/next nav ---- */
+/* The <h3> in .bl-modal-head has flex:1, so nav+prev+next+close naturally sit at the right. */
+.bl-detail-nav { color: var(--muted); font-size: var(--fs-sm); font-weight: var(--fw-bold); padding: 0 var(--sp-2); min-width: 40px; text-align: right; }
+.bl-modal-head .bl-btn[disabled] { opacity: 0.35; cursor: not-allowed; }
 #blRecCount { margin-bottom: var(--sp-3); }
 .bl-rowbtn { background: none; border: 0; color: var(--accent); font: inherit; text-align: left; cursor: pointer; padding: 0; }
 .bl-rowbtn:hover { text-decoration: underline; }

@@ -609,6 +609,21 @@
     if (container) container.innerHTML = "";
   }
 
+  // ---------- lifecycle: keep the damage-set warm while signed in ----------
+  function start() {
+    if (!DT_AUTH.getUser()) return;
+    loadDamageSet();
+    subscribeDamageSet();
+  }
+  function stop() {
+    unsubscribeDamageSet();
+    unsubscribeRealtime();
+  }
+  document.addEventListener("dt-auth-change", () => {
+    if (DT_AUTH.getUser()) start(); else stop();
+  });
+  if (DT_AUTH.getUser()) start();
+
   // ---------- public API ----------
   window.DT_DAMAGE = {
     open,
@@ -616,6 +631,16 @@
     showTireStripInEntry,
     hideTireStripInEntry,
     loadMarks,
-    loadTires
+    loadTires,
+    loadClaim,
+    hasDamage,
+    // Read-only vocabulary exposed so other surfaces (VIN history page)
+    // can render marks/tires without duplicating the mapping.
+    COLORS,
+    LABELS,
+    PANEL_NAMES,
+    TIRE_POSITIONS,
+    TIRE_POS_LABEL,
+    TIRE_CONDITION_LABEL
   };
 })();

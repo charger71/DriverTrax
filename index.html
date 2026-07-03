@@ -687,6 +687,17 @@
 
   <div id="entryCurrentState" class="entry-current-state u-hidden"></div>
 
+  <!-- Damage inspection shortcut — reveals as soon as a Serial ID is
+       entered so the CXR can open the damage modal without having to
+       flip status to BODY. Toggled by the dt-vin-scanned listener. -->
+  <div id="entryInspectRow" class="entry-inspect-row u-hidden">
+    <button type="button" class="btn btn-secondary btn--block" id="entryInspectBtn">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="u-icon-mr-1"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+      Inspect damage &amp; tires
+      <span class="detail-inspect-count" id="entryInspectCount"></span>
+    </button>
+  </div>
+
   <div id="tireSelectorSection" class="u-hidden">
     <div class="field-label">Tire Status</div>
     <!-- Rendered by DT_DAMAGE.showTireStripInEntry(); mirrors selectedTires
@@ -1308,6 +1319,19 @@
       <button type="button" class="btn btn-destructive btn-icon" id="damageModalClose" aria-label="Close">&times;</button>
     </div>
     <div class="damage-modal-body">
+
+      <!-- Insurance claim card — the notes field only reveals once a
+           claim # is entered, per user spec. Upserts to vehicle_claims. -->
+      <div class="damage-claim-card">
+        <label class="damage-claim-field">
+          <span class="field-label">Insurance claim #</span>
+          <input type="text" id="damageClaimNumber" placeholder="e.g. INS-2024-01234" autocomplete="off" spellcheck="false" maxlength="60">
+        </label>
+        <label class="damage-claim-field u-hidden" id="damageClaimNotesWrap">
+          <span class="field-label">Claim notes</span>
+          <textarea id="damageClaimNotes" rows="3" placeholder="Describe the incident, adjuster, etc." maxlength="2000"></textarea>
+        </label>
+      </div>
 
       <div class="damage-chips" role="radiogroup" aria-label="Damage type">
         <button type="button" class="damage-chip active" data-type="dent"><span class="damage-sw" style="background:#EF9F27"></span>Dent</button>

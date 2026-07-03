@@ -1614,6 +1614,14 @@ function gateCxrStatusOption() {
 document.addEventListener("dt-auth-change", gateCxrStatusOption);
 document.addEventListener("DOMContentLoaded", gateCxrStatusOption);
 
+// Damage set (per-vehicle damage on-file flag) — re-render record surfaces
+// so the DAMAGE badge appears/disappears when marks are added/removed
+// remotely. damage.js loads and subscribes to the set once per session.
+document.addEventListener("dt-damage-set-changed", () => {
+  try { if (typeof renderRecords === "function") renderRecords(); } catch (e) { console.warn(e); }
+  try { if (typeof renderTodayEntries === "function") renderTodayEntries(); } catch (e) { console.warn(e); }
+});
+
 // Generic: when a <select id="X"> is set to "OTHER", show <input id="XOther">
 function toggleOtherField(selectId) {
   const sel = document.getElementById(selectId);
@@ -2269,7 +2277,8 @@ function recordCard(r, onDelete, onClickAttr) {
     safeDest ? `<span class="badge-dest"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${safeDest}</span>` : "",
     r.shuttle ? `<span class="badge-shuttle"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="6" width="22" height="12" rx="2"/><path d="M16 6V4a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v2"/><line x1="12" y1="6" x2="12" y2="18"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><line x1="1" y1="12" x2="23" y2="12"/></svg> SHUTTLE</span>` : "",
     r.transport ? '<span class="badge-transport">TRANSPORT</span>' : "",
-    r.noTag ? '<span class="badge-notag">BAD TAG</span>' : ""
+    r.noTag ? '<span class="badge-notag">BAD TAG</span>' : "",
+    window.DT_DAMAGE?.hasDamage(r.serialId) ? '<span class="badge-damage">DAMAGE</span>' : ""
   ].filter(Boolean).join("");
 
   const countLine = `<div class="vin-tl-count"><svg xmlns="http://www.w3.org/2000/svg" class="u-icon-mr-1" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${DT_FORMAT.timeAgoOrClock(r.timestamp)}${r._driverName ? ` · <b class="vin-tl-count-driver">${esc(r._driverName)}</b>` : ""}</div>`;
@@ -2685,7 +2694,8 @@ function openVinRecordDetail(r, profileCache) {
     destDisp ? `<span class="badge-dest">${esc(destDisp)}</span>` : "",
     r.shuttle ? '<span class="badge-shuttle">SHUTTLE</span>' : "",
     r.transport ? '<span class="badge-transport">TRANSPORT</span>' : "",
-    r.no_tag ? '<span class="badge-notag">BAD TAG</span>' : ""
+    r.no_tag ? '<span class="badge-notag">BAD TAG</span>' : "",
+    window.DT_DAMAGE?.hasDamage(r.serial_id) ? '<span class="badge-damage">DAMAGE</span>' : ""
   ].filter(Boolean).join("");
 
   const hasGps = Number.isFinite(r.lat) && Number.isFinite(r.lng);
@@ -2853,6 +2863,86 @@ async function _vinFetchProfiles(ids) {
   (data || []).forEach(p => _vinProfileCache.set(p.id, p));
 }
 
+// Page size + shared state for the .vin-tl-list pagination. A single active
+// timeline is fine — either the main VIN LOOKUP results OR the inline
+// entry-form notes render at a time, never both.
+const VIN_TL_PAGE_SIZE = 10;
+let _activeVinTimeline = null;
+
+// Build the HTML for one event row. Extracted so both the initial render
+// and changeVinTimelinePage() can produce identical markup.
+function _buildVinTimelineRowHtml(ev) {
+  const esc = sanitizeText;
+  const r = ev.r;
+  const statusDisp = r.status === "OTHER" && r.status_other ? `OTHER: ${r.status_other}` : statusLabel(r.status);
+  const destDisp   = r.destination === "OTHER" && r.destination_other ? `OTHER: ${r.destination_other}` : (r.destination || "");
+  const condChips = Array.isArray(r.conditions) && r.conditions.length
+    ? `<div class="vin-tl-cond-row">${r.conditions.map(id => {
+        const label = DT_OPTIONS.CONDITIONS.find(c => c.id === id)?.label || id;
+        return `<span class="vin-tl-cond-chip" data-cond="${esc(id)}">${esc(label)}</span>`;
+      }).join("")}</div>` : "";
+  const when = DT_FORMAT.timeAgo(ev.ts);
+  return `
+    <div class="vin-tl-row vin-tl-record" data-record-id="${esc(r.id)}">
+      <div class="vin-tl-head">
+        <div class="vin-tl-badges">
+          <span class="record-status ${statusClass(r.status)}">${esc(statusDisp)}</span>
+          ${destDisp ? `<span class="record-location">${esc(destDisp)}</span>` : ""}
+        </div>
+        <span class="vin-tl-time">${esc(when)}</span>
+      </div>
+      ${condChips}
+      ${r.notes ? `<div class="vin-tl-body">${esc(r.notes)}</div>` : ""}
+    </div>`;
+}
+
+function _buildVinTimelinePagerHtml(current, total) {
+  if (total <= 1) return "";
+  const prev = current <= 1 ? "disabled" : "";
+  const next = current >= total ? "disabled" : "";
+  return `
+    <div class="pagination vin-tl-pager">
+      <button type="button" class="page-btn page-nav" ${prev} onclick="changeVinTimelinePage(${current - 1})">&#8592; Prev</button>
+      <div class="page-numbers"><span class="vin-tl-page-info">Page ${current} of ${total}</span></div>
+      <button type="button" class="page-btn page-nav" ${next} onclick="changeVinTimelinePage(${current + 1})">Next &#8594;</button>
+    </div>`;
+}
+
+function _wireVinTimelineRowClicks(container, records) {
+  const recordsById = new Map(records.map(r => [r.id, r]));
+  container.querySelectorAll('.vin-tl-record').forEach(row => {
+    if (row._wired) return;
+    row._wired = true;
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('a, button')) return;
+      const r = recordsById.get(row.dataset.recordId);
+      if (r) openVinRecordDetail(r, _vinProfileCache);
+    });
+  });
+}
+
+// Global pager click target — same pattern as changeRecordsPage.
+function changeVinTimelinePage(page) {
+  const st = _activeVinTimeline;
+  if (!st || !st.container) return;
+  const total = Math.max(1, Math.ceil(st.events.length / VIN_TL_PAGE_SIZE));
+  const clamped = Math.min(Math.max(1, page), total);
+  st.page = clamped;
+  const start = (clamped - 1) * VIN_TL_PAGE_SIZE;
+  const slice = st.events.slice(start, start + VIN_TL_PAGE_SIZE);
+  const listEl = st.container.querySelector(".vin-tl-list");
+  if (!listEl) return;
+  listEl.innerHTML = slice.map(_buildVinTimelineRowHtml).join("");
+  const newPagerHtml = _buildVinTimelinePagerHtml(clamped, total);
+  const existingPager = st.container.querySelector(".vin-tl-pager");
+  if (existingPager && newPagerHtml) existingPager.outerHTML = newPagerHtml;
+  else if (existingPager) existingPager.remove();
+  else if (newPagerHtml) listEl.insertAdjacentHTML("afterend", newPagerHtml);
+  _wireVinTimelineRowClicks(st.container, st.records);
+  listEl.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 async function renderVinTimeline(vin, opts) {
   opts = opts || {};
   const container = opts.container || document.getElementById("records");
@@ -2931,31 +3021,11 @@ async function renderVinTimeline(vin, opts) {
       })()
     : "";
 
-  const html = events.map(ev => {
-    const r = ev.r;
-    const p = _vinProfileCache.get(r.user_id);
-    const name = esc(p?.display_name || "Someone");
-    const role = p?.role ? `<span class="note-role role-${esc(p.role)}">${esc(p.role)}</span>` : "";
-    const statusDisp = r.status === "OTHER" && r.status_other ? `OTHER: ${r.status_other}` : statusLabel(r.status);
-    const destDisp   = r.destination === "OTHER" && r.destination_other ? `OTHER: ${r.destination_other}` : (r.destination || "");
-    const condChips = Array.isArray(r.conditions) && r.conditions.length
-      ? `<div class="vin-tl-cond-row">${r.conditions.map(id => {
-          const label = DT_OPTIONS.CONDITIONS.find(c => c.id === id)?.label || id;
-          return `<span class="vin-tl-cond-chip" data-cond="${esc(id)}">${esc(label)}</span>`;
-        }).join("")}</div>` : "";
-    return `
-      <div class="vin-tl-row vin-tl-record" data-record-id="${esc(r.id)}">
-        <div class="vin-tl-head">
-          <div class="vin-tl-badges">
-            <span class="record-status ${statusClass(r.status)}">${esc(statusDisp)}</span>
-            ${destDisp ? `<span class="record-location">${esc(destDisp)}</span>` : ""}
-          </div>
-          <span class="vin-tl-time">${esc(ago(ev.ts))}</span>
-        </div>
-        ${condChips}
-        ${r.notes ? `<div class="vin-tl-body">${esc(r.notes)}</div>` : ""}
-      </div>`;
-  }).join("");
+  // Paginate: only render the first VIN_TL_PAGE_SIZE events. changeVinTimelinePage()
+  // handles subsequent page loads without re-fetching from Supabase.
+  const totalPages = Math.max(1, Math.ceil(events.length / VIN_TL_PAGE_SIZE));
+  const html = events.slice(0, VIN_TL_PAGE_SIZE).map(_buildVinTimelineRowHtml).join("");
+  const pagerHtml = _buildVinTimelinePagerHtml(1, totalPages);
 
   const latestRec = records[0] || null;
   const latestStatus = latestRec?.status || "";
@@ -3008,13 +3078,19 @@ async function renderVinTimeline(vin, opts) {
       <div class="vin-tl-count">${events.length} event${events.length === 1 ? "" : "s"}</div>
       ${fuelGauge}
       <div id="vinTlRecalls" class="vin-tl-recalls" hidden></div>
+      <div id="vinTlInspect" class="vin-tl-inspect" hidden></div>
     </div>
     <div class="vin-tl-actions">
       <button type="button" class="btn btn-primary vin-tl-new-entry" onclick="openInlineNewEntry('${esc(vin)}')">+ New Entry</button>
     </div>
     <div id="vinTlEntrySlot" class="vin-tl-entry-slot"></div>
     <div class="vin-tl-list">${html}</div>
+    ${pagerHtml}
   `;
+  // Populate the Damage + Tires collapsibles in the header. Fire-and-forget
+  // so the timeline renders immediately even if Supabase is slow.
+  _renderVinTlInspect(vin, container).catch(err => console.warn("[VIN TL] inspect", err));
+
   // Fetch NHTSA open recalls for this year/make/model and inject a badge +
   // collapsible detail panel into the header once results land. Fire-and-forget
   // so the timeline renders immediately even if the API is slow.
@@ -3056,23 +3132,100 @@ async function renderVinTimeline(vin, opts) {
     });
   }
 
-  const recordsById = new Map(records.map(r => [r.id, r]));
-  container.querySelectorAll('.vin-tl-record').forEach(row => {
-    if (row._wired) return;
-    row._wired = true;
-    row.style.cursor = 'pointer';
-    row.addEventListener('click', (e) => {
-      if (e.target.closest('a, button')) return;
-      const r = recordsById.get(row.dataset.recordId);
-      if (r) openVinRecordDetail(r, _vinProfileCache);
-    });
-  });
+  // Stash the state before wiring clicks so the pager can find it.
+  _activeVinTimeline = { container, events, records, page: 1 };
+  _wireVinTimelineRowClicks(container, records);
 
   container._vinTimelineVin = vin;
 
   const pins = [];
   records.forEach(r => { if (Number.isFinite(r.lat) && Number.isFinite(r.lng)) pins.push({ lat: r.lat, lng: r.lng, label: r.serial_id, ts: new Date(r.ts).getTime() || 0 }); });
   _renderRecordsMapMarkers(pins);
+}
+
+// Populate #vinTlInspect with two collapsible sections — Damage and Tires
+// — showing the current vehicle-level state for the given VIN. Tapping
+// either section's title opens the full damage modal. Reads exclusively
+// from DT_DAMAGE public methods so this stays consistent with the modal.
+async function _renderVinTlInspect(vin, container) {
+  const panel = container.querySelector("#vinTlInspect");
+  if (!panel || !window.DT_DAMAGE) return;
+  const esc = window.DT_ESC;
+  const { loadMarks, loadTires, COLORS, LABELS, PANEL_NAMES, TIRE_POSITIONS, TIRE_POS_LABEL, TIRE_CONDITION_LABEL } = window.DT_DAMAGE;
+  const [marks, tiresMap] = await Promise.all([
+    loadMarks(vin).catch(() => []),
+    loadTires(vin).catch(() => ({}))
+  ]);
+
+  // Tire summary: count of anything not "OK"
+  const flaggedTires = TIRE_POSITIONS.filter(pos => {
+    const t = tiresMap[pos];
+    return t && t.condition && t.condition !== "OK";
+  });
+  const hasAnyTire = TIRE_POSITIONS.some(pos => tiresMap[pos]);
+
+  // Bail entirely if there's nothing on file — no reason to show the
+  // block. The header will simply omit it.
+  if (!marks.length && !hasAnyTire) return;
+
+  const damageBody = marks.length
+    ? `<ol class="vin-tl-inspect-list">${marks.map((m, i) => {
+        const color = COLORS[m.damage_type] || "#888";
+        const label = LABELS[m.damage_type] || m.damage_type;
+        const loc = PANEL_NAMES[m.panel_id] || m.panel_id;
+        const when = window.dtTimeAgo ? window.dtTimeAgo(m.created_at, "") : "";
+        return `<li class="vin-tl-inspect-row">
+          <span class="vin-tl-inspect-num" style="background:${color}">${i + 1}</span>
+          <span class="vin-tl-inspect-text"><b>${esc(label)}</b> · ${esc(loc)}${when ? ` · <span class="vin-tl-inspect-when">${esc(when)}</span>` : ""}</span>
+        </li>`;
+      }).join("")}</ol>`
+    : `<div class="vin-tl-inspect-empty">No damage on file.</div>`;
+
+  const tireCells = TIRE_POSITIONS.map(pos => {
+    const t = tiresMap[pos];
+    const cond = (t && t.condition) || "OK";
+    const psi = t && t.psi != null ? t.psi : "—";
+    const condLabel = TIRE_CONDITION_LABEL[cond] || cond;
+    return `<div class="vin-tl-tire-cell">
+      <div class="vin-tl-tire-cell-head">
+        <span class="vin-tl-tire-pos">${esc(pos)}</span>
+        <span class="dt-tire-cond dt-tire-cond--${esc(cond)}">${esc(condLabel)}</span>
+      </div>
+      <div class="vin-tl-tire-cell-sub">${esc(TIRE_POS_LABEL[pos] || "")} · ${esc(String(psi))} PSI</div>
+    </div>`;
+  }).join("");
+
+  const tiresBody = hasAnyTire
+    ? `<div class="vin-tl-tire-grid">${tireCells}</div>`
+    : `<div class="vin-tl-inspect-empty">No tire status on file.</div>`;
+
+  panel.hidden = false;
+  panel.innerHTML = `
+    <details class="vin-tl-inspect-section" data-kind="damage"${marks.length ? " open" : ""}>
+      <summary>
+        <span class="vin-tl-inspect-title">DAMAGE</span>
+        <span class="vin-tl-inspect-count">${marks.length} mark${marks.length === 1 ? "" : "s"}</span>
+        <span class="vin-tl-inspect-open">Open ↗</span>
+      </summary>
+      <div class="vin-tl-inspect-body">${damageBody}</div>
+    </details>
+    <details class="vin-tl-inspect-section" data-kind="tires">
+      <summary>
+        <span class="vin-tl-inspect-title">TIRES</span>
+        <span class="vin-tl-inspect-count">${flaggedTires.length ? `${flaggedTires.length} flagged` : (hasAnyTire ? "All OK" : "—")}</span>
+        <span class="vin-tl-inspect-open">Open ↗</span>
+      </summary>
+      <div class="vin-tl-inspect-body">${tiresBody}</div>
+    </details>
+  `;
+  panel.querySelectorAll(".vin-tl-inspect-open").forEach(link => {
+    link.addEventListener("click", (e) => {
+      // Prevent the click from also toggling the <details>.
+      e.preventDefault();
+      e.stopPropagation();
+      window.DT_DAMAGE?.open(vin);
+    });
+  });
 }
 
 function renderPaginationControls(current, total) {
@@ -3130,6 +3283,7 @@ function openDetail(id, onDelete) {
     ${r.shuttle ? '<span class="badge-shuttle">SHUTTLE</span>' : ""}
     ${r.transport ? '<span class="badge-transport">TRANSPORT</span>' : ""}
     ${r.noTag ? '<span class="badge-notag">BAD TAG</span>' : ""}
+    ${window.DT_DAMAGE?.hasDamage(r.serialId) ? '<span class="badge-damage">DAMAGE</span>' : ""}
   `;
 
   // Damage inspection button — opens the DT_DAMAGE modal for this VIN
@@ -5477,6 +5631,32 @@ document.addEventListener("dt-vin-scanned", (e) => {
     target.innerHTML = "";
   }
   renderEntryCurrentState(vin);
+
+  // Damage inspection shortcut in the entry form — visible as soon as a
+  // Serial ID is set, regardless of status. Skips the "flip status to
+  // BODY to open the modal" dance for anyone who just wants to look at
+  // (or add to) a vehicle's damage record.
+  const inspectRow = document.getElementById("entryInspectRow");
+  const inspectBtn = document.getElementById("entryInspectBtn");
+  const inspectCount = document.getElementById("entryInspectCount");
+  if (inspectRow && inspectBtn) {
+    if (!vin) {
+      inspectRow.classList.add("u-hidden");
+      inspectBtn.onclick = null;
+      if (inspectCount) inspectCount.textContent = "";
+    } else {
+      inspectRow.classList.remove("u-hidden");
+      inspectBtn.onclick = () => window.DT_DAMAGE?.open(vin);
+      if (inspectCount) {
+        inspectCount.textContent = "";
+        if (window.DT_DAMAGE?.loadMarks) {
+          window.DT_DAMAGE.loadMarks(vin)
+            .then(m => { const n = (m || []).length; inspectCount.textContent = n > 0 ? `· ${n} on file` : ""; })
+            .catch(() => {});
+        }
+      }
+    }
+  }
 });
 
 // Render a read-only banner of the vehicle's current state (status, destination,

@@ -745,7 +745,7 @@
   .record-serial { font-size: var(--font-lg); font-weight: 700; letter-spacing: 1px; color: var(--text); }
   .record-badges { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
   /* Shared base for all record/status badges — variants below override color only. */
-  .record-status, .badge-dest, .badge-notag, .badge-shuttle, .badge-transport {
+  .record-status, .badge-dest, .badge-notag, .badge-shuttle, .badge-transport, .badge-damage {
     font-size: var(--font-xs); font-weight: 700;
     padding: var(--space-1) var(--space-2); border-radius: 6px;
     text-transform: uppercase; letter-spacing: 0.5px;
@@ -754,6 +754,7 @@
   .badge-notag { background: var(--danger-soft); color: var(--danger); }
   .badge-shuttle { background: var(--info-soft); color: var(--info); border: 1px solid var(--info); }
   .badge-transport { background: var(--warn-soft); color: var(--warn); border: 1px solid var(--warn); }
+  .badge-damage { background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); }
   .transport-row:has(input:checked) { border-color: var(--warn); background: var(--warn-soft); }
   .transport-row:has(input:checked) .notag-label { color: var(--warn); }
   .transport-row.transport-checked { border-color: var(--warn); background: var(--warn-soft); }
@@ -964,6 +965,139 @@
     overflow: hidden;
   }
 
+  /* Damage + Tires collapsibles in the VIN HISTORY header */
+  .vin-tl-inspect {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .vin-tl-inspect[hidden] { display: none; }
+  .vin-tl-inspect-section {
+    background: var(--panel);
+    border: var(--border-thin) solid var(--divider);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .vin-tl-inspect-section > summary {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    user-select: none;
+    min-height: 44px;
+    box-sizing: border-box;
+  }
+  .vin-tl-inspect-section > summary::-webkit-details-marker { display: none; }
+  .vin-tl-inspect-section > summary::after {
+    content: "";
+    width: 8px; height: 8px;
+    border-right: 2px solid var(--muted);
+    border-bottom: 2px solid var(--muted);
+    transform: rotate(45deg);
+    transition: transform 0.15s;
+    margin-left: 4px;
+  }
+  .vin-tl-inspect-section[open] > summary::after { transform: rotate(-135deg); }
+  .vin-tl-inspect-title {
+    font-size: 12px;
+    letter-spacing: 1px;
+    font-weight: var(--weight-heavy);
+    color: var(--text);
+  }
+  .vin-tl-inspect-count {
+    flex: 1;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: var(--weight-medium);
+  }
+  .vin-tl-inspect-section[data-kind="damage"] .vin-tl-inspect-count { color: var(--danger); }
+  .vin-tl-inspect-open {
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: var(--weight-bold);
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--accent-muted);
+  }
+  .vin-tl-inspect-body {
+    padding: 8px 12px 12px;
+    border-top: var(--border-thin) solid var(--divider);
+  }
+  .vin-tl-inspect-empty {
+    font-size: 12px;
+    color: var(--muted);
+    padding: 4px 0;
+  }
+  .vin-tl-inspect-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .vin-tl-inspect-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text);
+    padding: 4px 0;
+  }
+  .vin-tl-inspect-num {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    color: var(--text-on-status);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: var(--weight-bold);
+    flex-shrink: 0;
+  }
+  .vin-tl-inspect-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .vin-tl-inspect-when { color: var(--muted); font-size: 11px; }
+  .vin-tl-tire-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .vin-tl-tire-cell {
+    background: var(--card-soft);
+    border: var(--border-thin) solid var(--divider);
+    border-radius: 6px;
+    padding: 6px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .vin-tl-tire-cell-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .vin-tl-tire-pos {
+    font-weight: var(--weight-heavy);
+    letter-spacing: 0.5px;
+    color: var(--text);
+    font-size: 13px;
+  }
+  .vin-tl-tire-cell-sub {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
   /* Horizontal fuel gauge in VIN HISTORY group */
   .vin-tl-fuel { margin-top: 12px; }
   .vin-tl-fuel-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
@@ -1079,6 +1213,16 @@
   .disclosure-summary .field-label { margin: 0; }
 
   /* PAGINATION */
+  /* VIN timeline pager sits directly below .vin-tl-list; the shared
+     .pagination / .page-btn styling handles the rest. */
+  .vin-tl-pager { margin-top: var(--space-3); }
+  .vin-tl-page-info {
+    font-size: var(--font-sm);
+    font-weight: var(--weight-medium);
+    color: var(--muted);
+    letter-spacing: 0.3px;
+  }
+
   .pagination {
     display: flex; align-items: center; justify-content: space-between;
     gap: var(--space-2); margin: var(--space-5) 0 var(--space-2); padding: var(--space-4) var(--space-1);
@@ -2558,6 +2702,41 @@
     padding: var(--space-3) var(--space-4);
     border-top: 1px solid var(--divider);
     background: var(--header-bg);
+  }
+
+  /* insurance claim card */
+  .damage-claim-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  .damage-claim-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .damage-claim-field input,
+  .damage-claim-field textarea {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--card-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0 var(--space-3);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--font-base);
+  }
+  .damage-claim-field input { height: var(--dt-input-h); }
+  .damage-claim-field textarea {
+    padding: var(--space-2) var(--space-3);
+    line-height: 1.4;
+    min-height: 88px;
+    resize: vertical;
   }
 
   /* chips */

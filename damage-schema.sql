@@ -1,15 +1,20 @@
 -- ============================================================
--- DriverTrax vehicle damage + tire inspection schema
+-- DriverTrax vehicle damage + tire + insurance-claim schema
 --
--- Two tables, both keyed by serial_id (the vehicle tag/serial, same key
--- the records table uses). Damage marks are append-only; tire status is
--- upserted so there is exactly one row per (serial_id, position).
+-- Three tables, all keyed by serial_id (same key the records table uses):
+--   vehicle_damage — append-only damage marks
+--   vehicle_tires  — upserted current tire state (one row per position)
+--   vehicle_claims — upserted current insurance claim (one row per vehicle)
 --
 -- Auth model:
 --   read/insert  → any authenticated user
---   update/delete on vehicle_damage → manager or admin only
---   update       on vehicle_tires   → any authenticated user (upsert)
---   delete       on vehicle_tires   → manager or admin only
+--   update       → any authenticated user (upsert) EXCEPT vehicle_damage,
+--                  which is manager/admin only
+--   delete       → manager or admin only on all three tables
+--
+-- Fully idempotent: safe to re-run. Every `create policy` is preceded by
+-- `drop policy if exists`, and the realtime publication registrations are
+-- wrapped in DO blocks that swallow the "already added" error.
 -- ============================================================
 
 -- ---------- vehicle_damage: one row per damage mark ----------
@@ -30,6 +35,11 @@ create index if not exists vehicle_damage_serial_idx  on public.vehicle_damage(s
 create index if not exists vehicle_damage_created_idx on public.vehicle_damage(created_at desc);
 
 alter table public.vehicle_damage enable row level security;
+
+drop policy if exists "vd_read"       on public.vehicle_damage;
+drop policy if exists "vd_insert"     on public.vehicle_damage;
+drop policy if exists "vd_update_mgr" on public.vehicle_damage;
+drop policy if exists "vd_delete_mgr" on public.vehicle_damage;
 
 create policy "vd_read" on public.vehicle_damage
   for select to authenticated using (true);
@@ -65,15 +75,20 @@ create index if not exists vehicle_tires_serial_idx on public.vehicle_tires(seri
 
 alter table public.vehicle_tires enable row level security;
 
+drop policy if exists "vt_read"       on public.vehicle_tires;
+drop policy if exists "vt_insert"     on public.vehicle_tires;
+drop policy if exists "vt_update_any" on public.vehicle_tires;
+drop policy if exists "vt_delete_mgr" on public.vehicle_tires;
+
 create policy "vt_read" on public.vehicle_tires
   for select to authenticated using (true);
 
 create policy "vt_insert" on public.vehicle_tires
   for insert to authenticated with check (updated_by = auth.uid());
 
--- Anyone authenticated can update an existing tire row (line CXR needs to
--- flip a tire from Worn -> Replace without a manager present). The
--- with-check ensures they stamp themselves as the updater.
+-- Anyone authenticated can update an existing tire row (line CXR needs
+-- to flip Worn -> Replace without a manager present). The with-check
+-- ensures they stamp themselves as the updater.
 create policy "vt_update_any" on public.vehicle_tires
   for update to authenticated
   using (true)
@@ -85,8 +100,52 @@ create policy "vt_delete_mgr" on public.vehicle_tires
     exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('manager','admin'))
   );
 
+-- ---------- vehicle_claims: one upserted row per vehicle ----------
+-- Populated when the CXR types an insurance claim # in the damage modal.
+-- The `notes` field only surfaces in the UI once a claim # is present.
+create table if not exists public.vehicle_claims (
+  serial_id     text        primary key,
+  claim_number  text,
+  notes         text,
+  updated_by    uuid        references auth.users(id) on delete set null,
+  updated_at    timestamptz not null default now()
+);
+
+alter table public.vehicle_claims enable row level security;
+
+drop policy if exists "vc_read"       on public.vehicle_claims;
+drop policy if exists "vc_insert"     on public.vehicle_claims;
+drop policy if exists "vc_update_any" on public.vehicle_claims;
+drop policy if exists "vc_delete_mgr" on public.vehicle_claims;
+
+create policy "vc_read" on public.vehicle_claims
+  for select to authenticated using (true);
+
+create policy "vc_insert" on public.vehicle_claims
+  for insert to authenticated with check (updated_by = auth.uid());
+
+-- Any authenticated user can edit an existing claim (line CXR can add
+-- notes without a manager). Delete is manager/admin only.
+create policy "vc_update_any" on public.vehicle_claims
+  for update to authenticated
+  using (true)
+  with check (updated_by = auth.uid());
+
+create policy "vc_delete_mgr" on public.vehicle_claims
+  for delete to authenticated
+  using (
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('manager','admin'))
+  );
+
 -- ---------- realtime ----------
--- Enable Supabase realtime so damage.js can react to remote changes on
--- the currently-open vehicle.
-alter publication supabase_realtime add table public.vehicle_damage;
-alter publication supabase_realtime add table public.vehicle_tires;
+-- Add each table to the supabase_realtime publication, ignoring the
+-- "relation is already member" error (SQLSTATE 42710) so re-runs succeed.
+do $$
+begin
+  begin alter publication supabase_realtime add table public.vehicle_damage;
+  exception when duplicate_object then null; end;
+  begin alter publication supabase_realtime add table public.vehicle_tires;
+  exception when duplicate_object then null; end;
+  begin alter publication supabase_realtime add table public.vehicle_claims;
+  exception when duplicate_object then null; end;
+end $$;

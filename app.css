@@ -452,9 +452,10 @@
     display: flex; align-items: center; gap: var(--space-3);
   }
   .vin-keypad-display {
-    flex: 1; font-family: 'Courier New', monospace;
-    font-size: 36px; font-weight: 700; color: var(--accent);
-    letter-spacing: 2px; min-height: 44px;
+    flex: 1; min-width: 0; font-family: 'Courier New', monospace;
+    font-size: clamp(var(--font-xl), 6vw, var(--font-2xl));
+    font-weight: var(--weight-bold); color: var(--accent);
+    letter-spacing: 1px; min-height: var(--dt-input-h);
     display: flex; align-items: center;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
@@ -788,36 +789,36 @@
   .vin-tl-header {
     background: var(--bg); border: var(--border-thin) solid var(--divider);
     border-radius: var(--radius);
-    padding: 14px 16px; margin-bottom: 12px;
+    padding: var(--space-4); margin-bottom: var(--space-3);
   }
-  .vin-tl-header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .vin-tl-header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
   .vin-tl-header-top > .vin-tl-label { margin-right: auto; }
-  .vin-tl-header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-  .vin-tl-header-right > .vin-tl-count { margin-bottom: 4px; }
-  .vin-tl-pill-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-  .vin-tl-pill-row--bottom { justify-content: flex-start; margin-top: 8px; }
-  .vin-tl-meters { display: flex; align-items: baseline; gap: 10px; justify-content: flex-end; }
-  .vin-tl-fuel-val { font-size: 12px; color: var(--text-soft); }
+  .vin-tl-header-right { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1); }
+  .vin-tl-header-right > .vin-tl-count { margin-bottom: var(--space-1); }
+  .vin-tl-pill-row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end; }
+  .vin-tl-pill-row--bottom { justify-content: flex-start; margin-top: var(--space-2); }
+  .vin-tl-meters { display: flex; align-items: baseline; gap: var(--space-3); justify-content: flex-end; }
+  .vin-tl-fuel-val { font-size: var(--font-sm); color: var(--text-soft); }
   .vin-tl-fuel-val b { color: var(--text); font-weight: var(--weight-bold); }
   .vin-tl-mileage-val {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 18px; font-weight: var(--weight-bold); color: var(--text); letter-spacing: 0.5px;
+    font-size: var(--font-lg); font-weight: var(--weight-bold); color: var(--text); letter-spacing: 0.5px;
   }
-  .vin-tl-mileage-unit { font-size: 11px; color: var(--muted); font-weight: var(--weight-medium); margin-left: 2px; }
+  .vin-tl-mileage-unit { font-size: var(--font-sm); color: var(--muted); font-weight: var(--weight-medium); margin-left: var(--space-1); }
   .vin-tl-priority-pill {
     background: rgba(255,255,255,0.55);
     color: var(--bg);
     border: var(--border-thin) solid var(--text-on-status);
     border-radius: 999px;
-    padding: 2px 8px;
-    font-size: 10px;
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-xs);
     font-weight: var(--weight-heavy);
     letter-spacing: 0.5px;
     text-transform: uppercase;
     white-space: nowrap;
   }
-  .vin-tl-label  { font-size: 11px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; font-weight: var(--weight-bold); text-align: left; }
-  .vin-tl-status-pill { display: inline-block; padding: 4px 12px; border-radius: 999px; background: var(--panel); color: var(--info-text); border: var(--border-thin) solid var(--info-soft); font-weight: var(--weight-heavy); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+  .vin-tl-label  { font-size: var(--font-sm); color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; font-weight: var(--weight-bold); text-align: left; }
+  .vin-tl-status-pill { display: inline-block; padding: var(--space-1) var(--space-3); border-radius: 999px; background: var(--panel); color: var(--info-text); border: var(--border-thin) solid var(--info-soft); font-weight: var(--weight-heavy); font-size: var(--font-sm); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
   .vin-tl-header--hold { background: var(--warn-soft); border-color: var(--warn-strong); }
   .vin-tl-header--hold .vin-tl-status-pill { background: var(--warn-strong); color: var(--warn-soft); border-color: var(--warn-strong); }
   .vin-tl-header--dnr  { background: var(--danger-soft); border-color: var(--danger-strong); }
@@ -827,10 +828,10 @@
   .vin-tl-header--priority .vin-tl-vin,
   .vin-tl-header--priority .vin-tl-label,
   .vin-tl-header--priority .vin-tl-mileage { color: var(--bg); }
-  .vin-tl-vin    { font-size: 20px; font-weight: var(--weight-black); letter-spacing: 2px; color: var(--text); font-family: ui-monospace, "SF Mono", Menlo, monospace; margin-top: 2px; }
+  .vin-tl-vin    { font-size: var(--font-xl); font-weight: var(--weight-black); letter-spacing: 2px; color: var(--text); font-family: ui-monospace, "SF Mono", Menlo, monospace; margin-top: var(--space-1); }
   .vin-tl-vehicle{
-    font-size: 13px; color: var(--text-soft); margin-top: 4px; font-weight: var(--weight-medium);
-    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    font-size: var(--font-base); color: var(--text-soft); margin-top: var(--space-1); font-weight: var(--weight-medium);
+    display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;
   }
   .vin-tl-vehicle .vin-tl-vehicle-name { flex: 1; min-width: 0; }
   /* When the timeline is embedded under the New Entry form, the form itself
@@ -839,28 +840,28 @@
   #entryVinNotes .vin-tl-entry-slot { display: none; }
   /* Decoded NHTSA specs printed under the year/make/model line */
   .vin-tl-chips {
-    display: flex; flex-wrap: wrap; gap: 4px 6px;
-    margin-top: 6px;
+    display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2);
+    margin-top: var(--space-2);
   }
   .vin-tl-chip {
     background: var(--panel); color: var(--text-soft);
     border: var(--border-thin) solid var(--divider); border-radius: 999px;
-    padding: 2px 8px;
-    font-size: 11px; font-weight: var(--weight-medium); letter-spacing: 0.2px;
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-sm); font-weight: var(--weight-medium); letter-spacing: 0.2px;
     white-space: nowrap;
   }
   .vin-tl-mfg {
-    margin-top: 6px;
-    font-size: 10px; color: var(--muted);
+    margin-top: var(--space-2);
+    font-size: var(--font-xs); color: var(--muted);
     letter-spacing: 0.5px; text-transform: uppercase;
   }
-  .vin-tl-mileage{ font-size: 13px; color: var(--info-text); margin-top: 4px; font-weight: var(--weight-medium); }
-  .vin-tl-cond-row { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 14px; }
+  .vin-tl-mileage{ font-size: var(--font-base); color: var(--info-text); margin-top: var(--space-1); font-weight: var(--weight-medium); }
+  .vin-tl-cond-row { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); margin-top: var(--space-4); }
   .vin-tl-cond-chip {
     background: var(--warn-soft); color: var(--warn-text);
     border: var(--border-thin) solid var(--warn-strong); border-radius: 999px;
-    padding: 2px 8px;
-    font-size: 10px; font-weight: var(--weight-bold); letter-spacing: 0.5px;
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-xs); font-weight: var(--weight-bold); letter-spacing: 0.5px;
     text-transform: uppercase; white-space: nowrap;
   }
   .vin-tl-cond-chip[data-cond="REGULAR"],
@@ -873,163 +874,163 @@
   .vin-tl-cond-chip[data-cond="PRIORITY"] {
     background: var(--text); color: var(--bg); border-color: var(--text-on-status);
   }
-  .vin-tl-count  { font-size: 11px; color: var(--muted); }
-  .vin-tl-list   { display: flex; flex-direction: column; gap: 8px; }
-  .vin-tl-empty  { color: var(--muted); text-align: center; padding: 30px 16px; font-size: 14px; }
+  .vin-tl-count  { font-size: var(--font-sm); color: var(--muted); }
+  .vin-tl-list   { display: flex; flex-direction: column; gap: var(--space-2); }
+  .vin-tl-empty  { color: var(--muted); text-align: center; padding: var(--space-6) var(--space-4); font-size: var(--font-base); }
   .vin-tl-row {
     background: var(--panel); border: var(--border-thin) solid var(--divider);
-    border-radius: 8px; padding: 12px 14px;
-    cursor: pointer; transition: background 0.15s;
+    border-radius: var(--radius); padding: var(--space-3) var(--space-4);
+    cursor: pointer; transition: background var(--duration-base);
   }
   .vin-tl-row:hover { background: var(--card-soft); }
-  .vin-tl-head   { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
-  .vin-tl-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+  .vin-tl-head   { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
+  .vin-tl-badges { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
   .vin-tl-record .record-location {
     display: inline-flex; align-items: center;
-    padding: 3px 8px; border-radius: 999px;
+    padding: var(--space-1) var(--space-2); border-radius: 999px;
     background: var(--surface-hover, var(--card-soft));
     color: var(--text-soft);
     border: var(--border-thin) solid var(--divider);
-    font-size: 11px; font-weight: var(--weight-bold); letter-spacing: 0.3px;
+    font-size: var(--font-sm); font-weight: var(--weight-bold); letter-spacing: 0.3px;
     text-transform: uppercase; white-space: nowrap;
   }
-  .vin-tl-time   { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .vin-tl-time   { font-size: var(--font-sm); color: var(--muted); white-space: nowrap; }
   .vin-tl-gps    { display: inline-flex; align-items: center; color: var(--muted); text-decoration: none; }
   .vin-tl-gps:hover { color: var(--info); }
   .vin-tl-gps .ico-pin { width: 14px; height: 14px; }
-  .vin-detail-side .vin-tl-gps { padding: 4px; }
+  .vin-detail-side .vin-tl-gps { padding: var(--space-1); }
   .vin-detail-side .vin-tl-gps .ico-pin { width: 16px; height: 16px; }
-  .vin-tl-meta   { font-size: 12px; color: var(--text-soft); }
-  .vin-tl-meta-sub { font-size: 11px; color: var(--muted); margin-top: 4px; letter-spacing: .03em; }
-  .vin-tl-body   { font-size: 14px; color: var(--text); white-space: pre-wrap; margin-top: 6px; }
+  .vin-tl-meta   { font-size: var(--font-sm); color: var(--text-soft); }
+  .vin-tl-meta-sub { font-size: var(--font-sm); color: var(--muted); margin-top: var(--space-1); letter-spacing: .03em; }
+  .vin-tl-body   { font-size: var(--font-base); color: var(--text); white-space: pre-wrap; margin-top: var(--space-2); }
   .vin-tl-kind {
-    font-size: 10px; font-weight: var(--weight-heavy); letter-spacing: 1.5px; text-transform: uppercase;
-    color: var(--warn); padding: 3px 8px; border-radius: 999px; background: var(--warn-soft);
+    font-size: var(--font-xs); font-weight: var(--weight-heavy); letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--warn); padding: var(--space-1) var(--space-2); border-radius: 999px; background: var(--warn-soft);
   }
   /* VIN history: New Entry trigger sits under the header group, right-aligned. */
   .vin-tl-actions {
     display: flex; justify-content: flex-end;
-    margin: 10px 0 6px;
+    margin: var(--space-3) 0 var(--space-2);
   }
-  .vin-tl-new-entry { padding: 8px 16px; font-size: 13px; }
+  .vin-tl-new-entry { padding: var(--space-2) var(--space-4); font-size: var(--font-sm); }
   .vin-tl-entry-slot:empty { display: none; }
   .vin-tl-entry-slot {
-    margin: 6px 0 14px; padding: 12px;
-    background: var(--bg); border: var(--border-thin) solid var(--divider); border-radius: 10px;
+    margin: var(--space-2) 0 var(--space-4); padding: var(--space-3);
+    background: var(--bg); border: var(--border-thin) solid var(--divider); border-radius: var(--radius);
   }
-  .vin-tl-entry-close-row { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+  .vin-tl-entry-close-row { display: flex; justify-content: flex-end; margin-bottom: var(--space-2); }
 
   /* OPEN RECALLS — surfaced in the VIN history header */
-  .vin-tl-recalls { margin-top: 12px; }
+  .vin-tl-recalls { margin-top: var(--space-3); }
   .recall-toggle {
-    display: flex; align-items: center; gap: 8px;
-    width: 100%; padding: 8px 10px;
+    display: flex; align-items: center; gap: var(--space-2);
+    width: 100%; padding: var(--space-2) var(--space-3);
     background: var(--warn-soft); color: var(--warn);
-    border: var(--border-thin) solid var(--warn-strong); border-radius: 8px;
+    border: var(--border-thin) solid var(--warn-strong); border-radius: var(--radius);
     font: inherit; font-weight: var(--weight-heavy); cursor: pointer;
     text-align: left;
   }
   .recall-badge {
     background: var(--warn-strong); color: var(--warn-soft);
     border-radius: 999px;
-    min-width: 22px; height: 22px; padding: 0 6px;
+    min-width: 22px; height: 22px; padding: 0 var(--space-2);
     display: inline-flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: var(--weight-black);
+    font-size: var(--font-sm); font-weight: var(--weight-black);
   }
-  .recall-toggle-label { flex: 1; font-size: 12px; letter-spacing: 1px; }
-  .recall-chevron { font-size: 14px; color: var(--warn); transition: transform .15s; }
+  .recall-toggle-label { flex: 1; font-size: var(--font-sm); letter-spacing: 1px; }
+  .recall-chevron { font-size: var(--font-base); color: var(--warn); transition: transform var(--duration-base); }
   .recall-toggle[aria-expanded="true"] .recall-chevron { transform: rotate(180deg); }
   .recall-list {
-    list-style: none; padding: 8px 4px 0; margin: 6px 0 0;
-    display: flex; flex-direction: column; gap: 8px;
+    list-style: none; padding: var(--space-2) var(--space-1) 0; margin: var(--space-2) 0 0;
+    display: flex; flex-direction: column; gap: var(--space-2);
   }
   .recall-list[hidden] { display: none; }
   .recall-row {
     background: var(--panel); border: var(--border-thin) solid var(--divider);
-    border-radius: 6px; padding: 8px 10px;
+    border-radius: var(--radius); padding: var(--space-2) var(--space-3);
   }
   .recall-title {
-    font-size: 13px; font-weight: var(--weight-heavy); color: var(--text);
+    font-size: var(--font-base); font-weight: var(--weight-heavy); color: var(--text);
     text-decoration: none;
   }
   a.recall-title:hover { color: var(--accent); text-decoration: underline; }
   .recall-id {
-    display: inline-block; margin-left: 6px;
-    font-size: 10px; color: var(--muted); font-weight: var(--weight-medium);
+    display: inline-block; margin-left: var(--space-2);
+    font-size: var(--font-xs); color: var(--muted); font-weight: var(--weight-medium);
     letter-spacing: 1px;
   }
   .recall-summary {
-    margin-top: 4px;
-    font-size: 12px; color: var(--text-soft); line-height: 1.4;
+    margin-top: var(--space-1);
+    font-size: var(--font-sm); color: var(--text-soft); line-height: var(--leading-base);
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
     overflow: hidden;
   }
 
   /* Damage + Tires collapsibles in the VIN HISTORY header */
   .vin-tl-inspect {
-    margin-top: 10px;
+    margin-top: var(--space-3);
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--space-2);
   }
   .vin-tl-inspect[hidden] { display: none; }
   .vin-tl-inspect-section {
     background: var(--panel);
     border: var(--border-thin) solid var(--divider);
-    border-radius: 8px;
+    border-radius: var(--radius);
     overflow: hidden;
   }
   .vin-tl-inspect-section > summary {
     list-style: none;
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
+    gap: var(--space-2);
+    padding: var(--space-3);
     cursor: pointer;
     user-select: none;
-    min-height: 44px;
+    min-height: var(--dt-input-h);
     box-sizing: border-box;
   }
   .vin-tl-inspect-section > summary::-webkit-details-marker { display: none; }
   .vin-tl-inspect-section > summary::after {
     content: "";
     width: 8px; height: 8px;
-    border-right: 2px solid var(--muted);
-    border-bottom: 2px solid var(--muted);
+    border-right: var(--border-strong) solid var(--muted);
+    border-bottom: var(--border-strong) solid var(--muted);
     transform: rotate(45deg);
-    transition: transform 0.15s;
-    margin-left: 4px;
+    transition: transform var(--duration-base);
+    margin-left: var(--space-1);
   }
   .vin-tl-inspect-section[open] > summary::after { transform: rotate(-135deg); }
   .vin-tl-inspect-title {
-    font-size: 12px;
+    font-size: var(--font-sm);
     letter-spacing: 1px;
     font-weight: var(--weight-heavy);
     color: var(--text);
   }
   .vin-tl-inspect-count {
     flex: 1;
-    font-size: 12px;
+    font-size: var(--font-sm);
     color: var(--muted);
     font-weight: var(--weight-medium);
   }
   .vin-tl-inspect-section[data-kind="damage"] .vin-tl-inspect-count { color: var(--danger); }
   .vin-tl-inspect-open {
-    font-size: 11px;
+    font-size: var(--font-sm);
     color: var(--accent);
     font-weight: var(--weight-bold);
-    padding: 4px 8px;
-    border-radius: 6px;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius);
     background: var(--accent-muted);
   }
   .vin-tl-inspect-body {
-    padding: 8px 12px 12px;
+    padding: var(--space-2) var(--space-3) var(--space-3);
     border-top: var(--border-thin) solid var(--divider);
   }
   .vin-tl-inspect-empty {
-    font-size: 12px;
+    font-size: var(--font-sm);
     color: var(--muted);
-    padding: 4px 0;
+    padding: var(--space-1) 0;
   }
   .vin-tl-inspect-list {
     list-style: none;
@@ -1037,15 +1038,15 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-1);
   }
   .vin-tl-inspect-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 13px;
+    gap: var(--space-2);
+    font-size: var(--font-base);
     color: var(--text);
-    padding: 4px 0;
+    padding: var(--space-1) 0;
   }
   .vin-tl-inspect-num {
     width: 20px;
@@ -1055,7 +1056,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 10px;
+    font-size: var(--font-xs);
     font-weight: var(--weight-bold);
     flex-shrink: 0;
   }
@@ -1066,52 +1067,52 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .vin-tl-inspect-when { color: var(--muted); font-size: 11px; }
+  .vin-tl-inspect-when { color: var(--muted); font-size: var(--font-sm); }
   .vin-tl-tire-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
+    gap: var(--space-2);
   }
   .vin-tl-tire-cell {
     background: var(--card-soft);
     border: var(--border-thin) solid var(--divider);
-    border-radius: 6px;
-    padding: 6px 8px;
+    border-radius: var(--radius);
+    padding: var(--space-2);
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--space-1);
   }
   .vin-tl-tire-cell-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 6px;
+    gap: var(--space-2);
   }
   .vin-tl-tire-pos {
     font-weight: var(--weight-heavy);
     letter-spacing: 0.5px;
     color: var(--text);
-    font-size: 13px;
+    font-size: var(--font-base);
   }
   .vin-tl-tire-cell-sub {
-    font-size: 11px;
+    font-size: var(--font-sm);
     color: var(--muted);
   }
 
   /* Horizontal fuel gauge in VIN HISTORY group */
-  .vin-tl-fuel { margin-top: 12px; }
-  .vin-tl-fuel-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
-  .vin-tl-fuel-label { font-size: 11px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; font-weight: var(--weight-bold); }
-  .vin-tl-fuel-label .ico-fuel { width: 16px; height: 16px; flex: 0 0 16px; margin-right: 6px; vertical-align: middle; }
-  .vin-tl-fuel-value { font-size: 13px; color: var(--text); font-weight: var(--weight-heavy); letter-spacing: .05em; }
-  .vin-tl-fuel-gauge { position: relative; height: 14px; background: var(--bg); border: var(--border-thin) solid var(--divider); border-radius: 8px; overflow: hidden; }
-  .vin-tl-fuel-fill  { position: absolute; top: 0; bottom: 0; left: 0; background: linear-gradient(90deg, var(--accent), var(--accent-strong)); transition: width .3s ease; }
+  .vin-tl-fuel { margin-top: var(--space-3); }
+  .vin-tl-fuel-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-2); }
+  .vin-tl-fuel-label { font-size: var(--font-sm); color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; font-weight: var(--weight-bold); }
+  .vin-tl-fuel-label .ico-fuel { width: 16px; height: 16px; flex: 0 0 16px; margin-right: var(--space-2); vertical-align: middle; }
+  .vin-tl-fuel-value { font-size: var(--font-base); color: var(--text); font-weight: var(--weight-heavy); letter-spacing: .05em; }
+  .vin-tl-fuel-gauge { position: relative; height: 14px; background: var(--bg); border: var(--border-thin) solid var(--divider); border-radius: var(--radius); overflow: hidden; }
+  .vin-tl-fuel-fill  { position: absolute; top: 0; bottom: 0; left: 0; background: linear-gradient(90deg, var(--accent), var(--accent-strong)); transition: width var(--duration-slow) var(--ease-standard); }
   .vin-tl-fuel-gauge.is-mid .vin-tl-fuel-fill { background: linear-gradient(90deg, var(--warn-strong), var(--warn-strong)); }
   .vin-tl-fuel-gauge.is-low .vin-tl-fuel-fill { background: linear-gradient(90deg, var(--danger-strong), var(--danger-strong)); }
   .vin-tl-fuel-ticks { position: absolute; inset: 0; display: flex; pointer-events: none; }
   .vin-tl-fuel-ticks span { flex: 1; border-right: var(--border-thin) solid rgba(255,255,255,.08); }
   .vin-tl-fuel-ticks span:last-child { border-right: none; }
-  .vin-tl-fuel-scale { display: flex; justify-content: space-between; margin-top: 4px; font-size: 10px; color: var(--muted); font-weight: var(--weight-bold); letter-spacing: 1px; }
+  .vin-tl-fuel-scale { display: flex; justify-content: space-between; margin-top: var(--space-1); font-size: var(--font-xs); color: var(--muted); font-weight: var(--weight-bold); letter-spacing: 1px; }
 
   /* RECORDS TAB */
   .filter-row { display: flex; gap: var(--space-2); margin-bottom: var(--space-2); }
@@ -1211,6 +1212,24 @@
   .disclosure[open] > .disclosure-summary::after { transform: rotate(90deg); background-color: var(--accent); }
   .disclosure-body { padding: 0 var(--space-4) var(--space-4); }
   .disclosure-summary .field-label { margin: 0; }
+  /* Compact "N marks" / "N flagged" chip shown in the summary of the
+     Body damage + Tires collapsibles in the entry form. */
+  .disclosure-count {
+    margin-left: auto;
+    font-size: var(--font-xs);
+    font-weight: var(--weight-bold);
+    color: var(--muted);
+    letter-spacing: 0.5px;
+  }
+  #entryDamageCollapse .disclosure-count:not(:empty),
+  #entryTireCollapse   .disclosure-count:not(:empty) { color: var(--danger); }
+  /* Hint text shown when the user hasn't entered a Serial ID yet. */
+  .entry-collapse-hint {
+    margin-top: var(--space-2);
+    font-size: var(--font-sm);
+    color: var(--muted);
+    line-height: 1.4;
+  }
 
   /* PAGINATION */
   /* VIN timeline pager sits directly below .vin-tl-list; the shared
@@ -2704,6 +2723,44 @@
     background: var(--header-bg);
   }
 
+  /* Vehicle picker card — shown at the top of the damage modal body
+     when open() is called with a null serial. Once the user submits a
+     Serial ID here, damage.js re-invokes open() and hides this card. */
+  .damage-vehicle-picker {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  .damage-vehicle-picker-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .damage-vehicle-picker-field input {
+    width: 100%;
+    box-sizing: border-box;
+    height: var(--dt-input-h);
+    padding: 0 var(--space-3);
+    background: var(--card-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--font-base);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .damage-vehicle-picker-hint {
+    margin: 0;
+    font-size: var(--font-xs);
+    color: var(--muted);
+    line-height: 1.4;
+  }
+
   /* insurance claim card */
   .damage-claim-card {
     background: var(--card);
@@ -2915,6 +2972,22 @@
   .damage-log-type { color: var(--text); font-weight: var(--weight-medium); }
   .damage-log-loc  { color: var(--muted); }
   .damage-log-when { color: var(--muted); font-size: var(--font-xs); }
+  /* Pending badge for pre-VIN buffered marks. Flushes and disappears
+     once a Serial ID is entered. */
+  .damage-log-pending {
+    display: inline-block;
+    margin-left: var(--space-2);
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--warn-soft);
+    color: var(--warn-text);
+    font-size: 10px;
+    font-weight: var(--weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    vertical-align: 1px;
+  }
+  .damage-log-row--pending { opacity: 0.9; }
   .damage-log-del {
     border: 0;
     background: transparent;

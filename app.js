@@ -1503,22 +1503,12 @@ const ENTRY_CONDITIONS = DT_OPTIONS.CONDITIONS;
 
 function handleStatusChange() {
   const val = document.getElementById("status").value;
-  const tireSection = document.getElementById("tireSelectorSection");
   const serialVal = (document.getElementById("serial")?.value || "").trim();
 
-  if (val === "TI") {
-    tireSection.style.display = "block";
-    // Mount the per-vehicle tire strip. selectedTires (used by
-    // saveRecord() below) is populated from the DB inside.
-    window.DT_DAMAGE?.showTireStripInEntry(serialVal || null);
-  } else {
-    tireSection.style.display = "none";
-    resetTires();
-    window.DT_DAMAGE?.hideTireStripInEntry();
-  }
-
-  // Auto-open the damage inspection modal when BODY DAMAGE is flagged.
-  // Requires a Serial ID — otherwise there's nothing to attach to.
+  // The tire strip and body damage collapsibles are always visible in the
+  // entry form, and are driven by the dt-vin-scanned listener — status
+  // no longer shows/hides them. Auto-open the damage modal on BODY as a
+  // convenience trigger; the collapsible has its own button.
   if (val === "BODY") {
     if (serialVal) {
       window.DT_DAMAGE?.open(serialVal);
@@ -5632,29 +5622,59 @@ document.addEventListener("dt-vin-scanned", (e) => {
   }
   renderEntryCurrentState(vin);
 
-  // Damage inspection shortcut in the entry form — visible as soon as a
-  // Serial ID is set, regardless of status. Skips the "flip status to
-  // BODY to open the modal" dance for anyone who just wants to look at
-  // (or add to) a vehicle's damage record.
-  const inspectRow = document.getElementById("entryInspectRow");
+  // Body damage collapsible — always visible AND always tappable. The
+  // modal opens with the current Serial ID (if any) or in a "pick a
+  // vehicle" state where the CXR can enter one inside the modal. No
+  // VIN gatekeeping here; the modal handles the null case.
   const inspectBtn = document.getElementById("entryInspectBtn");
   const inspectCount = document.getElementById("entryInspectCount");
-  if (inspectRow && inspectBtn) {
+  const inspectHint = document.getElementById("entryInspectHint");
+  const damageSummaryCount = document.getElementById("entryDamageSummaryCount");
+  if (inspectBtn) {
+    inspectBtn.disabled = false;
+    inspectBtn.onclick = () => {
+      const currentVin = (document.getElementById("serial")?.value || "").trim().toUpperCase();
+      window.DT_DAMAGE?.open(currentVin || null);
+    };
     if (!vin) {
-      inspectRow.classList.add("u-hidden");
-      inspectBtn.onclick = null;
       if (inspectCount) inspectCount.textContent = "";
+      if (damageSummaryCount) damageSummaryCount.textContent = "";
+      if (inspectHint) inspectHint.style.display = "";
     } else {
-      inspectRow.classList.remove("u-hidden");
-      inspectBtn.onclick = () => window.DT_DAMAGE?.open(vin);
-      if (inspectCount) {
-        inspectCount.textContent = "";
-        if (window.DT_DAMAGE?.loadMarks) {
-          window.DT_DAMAGE.loadMarks(vin)
-            .then(m => { const n = (m || []).length; inspectCount.textContent = n > 0 ? `· ${n} on file` : ""; })
-            .catch(() => {});
-        }
+      if (inspectHint) inspectHint.style.display = "none";
+      if (inspectCount) inspectCount.textContent = "";
+      if (damageSummaryCount) damageSummaryCount.textContent = "";
+      if (window.DT_DAMAGE?.loadMarks) {
+        window.DT_DAMAGE.loadMarks(vin)
+          .then(m => {
+            const n = (m || []).length;
+            if (inspectCount) inspectCount.textContent = n > 0 ? `· ${n} on file` : "";
+            if (damageSummaryCount) damageSummaryCount.textContent = n > 0 ? `${n} mark${n === 1 ? "" : "s"}` : "";
+          })
+          .catch(() => {});
       }
+    }
+  }
+
+  // Tire collapsible — always visible. Mount the strip on every VIN
+  // change (null shows the "enter a Serial ID" placeholder and clears
+  // selectedTires so saveRecord() doesn't stamp stale positions).
+  if (window.DT_DAMAGE?.showTireStripInEntry) {
+    window.DT_DAMAGE.showTireStripInEntry(vin || null);
+  }
+  const tireSummaryCount = document.getElementById("entryTireSummaryCount");
+  if (tireSummaryCount) {
+    if (!vin) {
+      tireSummaryCount.textContent = "";
+    } else if (window.DT_DAMAGE?.loadTires) {
+      tireSummaryCount.textContent = "";
+      window.DT_DAMAGE.loadTires(vin).then(tires => {
+        const flagged = ["FL","FR","RL","RR"].filter(pos => {
+          const t = tires[pos];
+          return t && t.condition && t.condition !== "OK";
+        });
+        tireSummaryCount.textContent = flagged.length ? `${flagged.length} flagged` : "";
+      }).catch(() => {});
     }
   }
 });

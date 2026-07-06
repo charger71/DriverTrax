@@ -687,25 +687,11 @@
 
   <div id="entryCurrentState" class="entry-current-state u-hidden"></div>
 
-  <!-- Damage inspection shortcut — reveals as soon as a Serial ID is
-       entered so the CXR can open the damage modal without having to
-       flip status to BODY. Toggled by the dt-vin-scanned listener. -->
-  <div id="entryInspectRow" class="entry-inspect-row u-hidden">
-    <button type="button" class="btn btn-secondary btn--block" id="entryInspectBtn">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="u-icon-mr-1"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
-      Inspect damage &amp; tires
-      <span class="detail-inspect-count" id="entryInspectCount"></span>
-    </button>
-  </div>
-
-  <div id="tireSelectorSection" class="u-hidden">
-    <div class="field-label">Tire Status</div>
-    <!-- Rendered by DT_DAMAGE.showTireStripInEntry(); mirrors selectedTires
-         so app.js:749 saveRecord() still populates records.tires. -->
-    <div id="tireStripInEntry" class="dt-tire-strip"></div>
-    <!-- Legacy label kept for backward compat with updateTireLabel(). -->
-    <div class="tire-selected-label" id="tireSelectedLabel">No tires selected</div>
-  </div>
+  <!-- Body damage + Tire collapsibles were moved to sit under the
+       Conditions panel further down. Kept #tireSelectorSection here as a
+       no-op so `document.getElementById("tireSelectorSection").style.display`
+       calls in the entry-reset path (app.js ~line 775) don't null-error. -->
+  <div id="tireSelectorSection" hidden></div>
 
   <div class="entry-form-row">
     <label class="u-flex-1">
@@ -786,6 +772,41 @@
            is hidden for detailers via the body.is-detailer rule so the two
            chip lists never render at the same time. -->
       <div id="detailConditions" class="detail-conditions detailer-only"></div>
+    </div>
+  </details>
+
+  <!-- Body damage collapsible — always visible, always usable (no VIN
+       required to open the modal). If tapped without a Serial ID, the
+       click handler focuses the Serial ID input above and toasts a hint. -->
+  <details class="disclosure entry-collapse" id="entryDamageCollapse" data-collapse-key="damage">
+    <summary class="disclosure-summary">
+      <span class="field-label">Body damage</span>
+      <span class="disclosure-count" id="entryDamageSummaryCount"></span>
+    </summary>
+    <div class="disclosure-body">
+      <button type="button" class="btn btn-secondary btn--block" id="entryInspectBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="u-icon-mr-1"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+        Inspect damage &amp; tires
+        <span class="detail-inspect-count" id="entryInspectCount"></span>
+      </button>
+      <div id="entryInspectHint" class="entry-collapse-hint">Add damage or tire status now — it&rsquo;ll attach automatically once you set a Serial ID.</div>
+    </div>
+  </details>
+
+  <!-- Tire status collapsible — always visible. The strip mirrors
+       selectedTires so app.js:749 saveRecord() still populates
+       records.tires when status="TI". Legacy #tireSelectedLabel kept
+       so updateTireLabel() stays safe. -->
+  <details class="disclosure entry-collapse" id="entryTireCollapse" data-collapse-key="tires">
+    <summary class="disclosure-summary">
+      <span class="field-label">Tires</span>
+      <span class="disclosure-count" id="entryTireSummaryCount"></span>
+    </summary>
+    <div class="disclosure-body">
+      <div id="tireStripInEntry" class="dt-tire-strip">
+        <div class="dt-tire-strip-empty">Scan or type a Serial ID to load tire status.</div>
+      </div>
+      <div class="tire-selected-label" id="tireSelectedLabel">No tires selected</div>
     </div>
   </details>
 
@@ -1319,6 +1340,18 @@
       <button type="button" class="btn btn-destructive btn-icon" id="damageModalClose" aria-label="Close">&times;</button>
     </div>
     <div class="damage-modal-body">
+
+      <!-- Vehicle picker — shown only when the modal is opened without a
+           Serial ID. Typing + Enter (or Load) re-invokes DT_DAMAGE.open()
+           with that serial. Hidden by damage.js once a serial is set. -->
+      <div class="damage-vehicle-picker u-hidden" id="damageModalVehiclePicker">
+        <label class="damage-vehicle-picker-field">
+          <span class="field-label">Serial ID</span>
+          <input type="text" id="damageModalVehicleInput" placeholder="Type or paste a Serial ID" autocomplete="off" spellcheck="false" autocapitalize="characters">
+        </label>
+        <button type="button" class="btn btn-primary btn--block" id="damageModalVehicleLoad">Load vehicle</button>
+        <p class="damage-vehicle-picker-hint">Optional — you can add damage marks, tire status, and a claim # now and set the Serial ID later. Everything you enter attaches automatically once a VIN is scanned or typed.</p>
+      </div>
 
       <!-- Insurance claim card — the notes field only reveals once a
            claim # is entered, per user spec. Upserts to vehicle_claims. -->

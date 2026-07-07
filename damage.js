@@ -1,40 +1,36 @@
 // ============================================================
-// DriverTrax Vehicle Damage & Tire Inspection
+// DriverTrax damage + tire + claim (v2 — per-record, inline)
 //
-//   - Per-vehicle damage marks (dent/scratch/chip/crack/missing) placed
-//     on a 4-view schematic and persisted in `vehicle_damage` keyed by
-//     serial_id. All authenticated users can add; manager/admin edits
-//     or deletes.
-//   - Per-vehicle tire status strip (position × condition × PSI) upserted
-//     into `vehicle_tires`, one row per (serial_id, position).
-//   - Modal surface (#damageModal) is triggered by:
-//       - the "Inspect damage" button in the record detail sheet,
-//       - status="BODY" in the entry form (auto-opens the modal),
-//   - status="TI" in the entry form mounts the tire strip inline
-//     inside #tireStripInEntry instead of opening the modal.
-//   - Realtime: subscribes to changes on the currently-open serial_id
-//     while the modal is open.
-//   - The legacy `selectedTires` global at app.js:1497 is kept in sync
-//     with the strip so saveRecord() at app.js:749 still populates
-//     records.tires for status="TI" entries.
+// The whole inspection UI lives inline in the New Entry form's
+// Body damage + Tires collapsibles. Damage marks, tire condition/PSI,
+// and insurance claim data are held in module-local state until
+// saveRecord() reads them via DT_DAMAGE.getEntryState() and bundles
+// them into the record row (damage_marks jsonb, tire_details jsonb,
+// claim_number text, claim_notes text).
+//
+// No modal, no Supabase writes here, no realtime, no per-vehicle
+// buffer. Anyone can edit until the record is saved.
+//
+// Public API (window.DT_DAMAGE):
+//   getEntryState()  → { damage_marks, tire_details, claim_number, claim_notes }
+//   reset()          — clear all local state + UI (called from the
+//                      entry-form reset path in app.js)
+//   Read-only vocabulary (COLORS, LABELS, PANEL_NAMES, TIRE_*) is
+//   exposed for read-only rendering in the detail overlay etc.
 // ============================================================
 (function () {
   if (!window.DT_AUTH) return;
-  const sb = DT_AUTH.client;
   const $ = (id) => document.getElementById(id);
   const esc = window.DT_ESC;
 
   const COLORS = { dent:"#EF9F27", scratch:"#D85A30", chip:"#7F77DD", crack:"#E24B4A", missing:"#5F5E5A" };
   const LABELS = { dent:"Dent", scratch:"Scratch", chip:"Chip", crack:"Crack", missing:"Missing" };
 
-  // Tire positions match legacy `selectedTires` codes so app.js:749
-  // saveRecord's `tires` array stays a stable string[].
   const TIRE_POSITIONS = ["FL", "FR", "RL", "RR"];
   const TIRE_POS_LABEL = { FL:"Front left", FR:"Front right", RL:"Rear left", RR:"Rear right" };
   const TIRE_CONDITIONS = ["OK", "worn", "low", "flat", "replace"];
   const TIRE_CONDITION_LABEL = { OK:"OK", worn:"Worn", low:"Low PSI", flat:"Flat", replace:"Replace" };
 
-  // Panel ids exist as SVG element ids inside #damageSvg (see index.html).
   const PANEL_NAMES = {
     FRONT_BUMPERS:"Front bumper", FRONT_GRILL:"Front grille", FRONT_PANEL:"Front fascia",
     FRONT_NUMBER_PLATE:"Front license plate", FRONT_NEAR_SIDE_HEADLAMP:"Driver headlight",
@@ -71,463 +67,132 @@
 
   const SVG_NS = "http://www.w3.org/2000/svg";
 
-  // ---------- module state ----------
-  let currentSerial = null;
-  let currentType = "dent";
-  let marks = [];
-  let realtimeChan = null;
-  let pickerInitialized = false;
-  let panelClickInitialized = false;
-  let modalActionsInitialized = false;
+  // ---------- module state (per-entry, cleared by reset()) ----------
+  let activeType = "dent";
+  let marks = [];   // [{ panel_id, damage_type, x, y }]
+  let tires = {};   // { FL: { condition?, psi? }, ... }
+  let claim = { claim_number: "", notes: "" };
 
-  // Global set of serial_ids that have ANY damage on file. Populated once
-  // per auth session and kept fresh via a realtime channel; record cards
-  // read this via DT_DAMAGE.hasDamage(serialId) to render the DAMAGE badge.
-  const damageSet = new Set();
-  let damageSetChan = null;
-  // Insurance claim cache: serial_id → { claim_number, notes } for the
-  // currently-open vehicle. Loaded on modal open.
-  let currentClaim = { claim_number: "", notes: "" };
-  // Pending buffers — populated while there is no currentSerial so the
-  // CXR can enter data before they scan the VIN. flushPendingToSerial()
-  // drains them to Supabase for whichever serial finally lands.
-  //   pending marks: kept as _pending items inside `marks` (see addMark)
-  //   pendingTires: { position: { condition?, psi? } }
-  //   pendingClaim: { claim_number, notes } | null
-  let pendingTires = {};
-  let pendingClaim = null;
+  const svgEl = () => $("entryDamageSvg");
 
-  // ---------- helpers ----------
-  function screenToSvg(svg, clientX, clientY) {
-    const pt = svg.createSVGPoint();
-    pt.x = clientX; pt.y = clientY;
-    return pt.matrixTransform(svg.getScreenCTM().inverse());
-  }
-
-  function canEditOthers() {
-    return !!(DT_AUTH.isManager?.() || DT_AUTH.isAdmin?.());
-  }
-
-  // ---------- marker rendering ----------
-  function makeMarkNode(mark, index) {
+  // ---------- SVG mark rendering ----------
+  function makeMarkNode(m, idx) {
     const g = document.createElementNS(SVG_NS, "g");
-    g.setAttribute("class", "damage-mark");
-    g.dataset.markId = mark.id;
     const halo = document.createElementNS(SVG_NS, "circle");
-    halo.setAttribute("cx", mark.x); halo.setAttribute("cy", mark.y);
+    halo.setAttribute("cx", m.x); halo.setAttribute("cy", m.y);
     halo.setAttribute("r", 9);
-    halo.setAttribute("fill", COLORS[mark.damage_type] || "#888");
+    halo.setAttribute("fill", COLORS[m.damage_type] || "#888");
     halo.setAttribute("opacity", "0.25");
     const dot = document.createElementNS(SVG_NS, "circle");
-    dot.setAttribute("cx", mark.x); dot.setAttribute("cy", mark.y);
+    dot.setAttribute("cx", m.x); dot.setAttribute("cy", m.y);
     dot.setAttribute("r", 6);
-    dot.setAttribute("fill", COLORS[mark.damage_type] || "#888");
+    dot.setAttribute("fill", COLORS[m.damage_type] || "#888");
     dot.setAttribute("stroke", "var(--panel)");
     dot.setAttribute("stroke-width", "1");
     const text = document.createElementNS(SVG_NS, "text");
-    text.setAttribute("x", mark.x); text.setAttribute("y", mark.y + 2.5);
+    text.setAttribute("x", m.x); text.setAttribute("y", m.y + 2.5);
     text.setAttribute("text-anchor", "middle");
     text.setAttribute("font-size", "7");
     text.setAttribute("font-weight", "600");
     text.setAttribute("fill", "white");
     text.setAttribute("font-family", "ui-monospace, SFMono-Regular, monospace");
-    text.textContent = index + 1;
+    text.textContent = idx + 1;
     g.appendChild(halo); g.appendChild(dot); g.appendChild(text);
     return g;
   }
 
-  function renderAllMarks() {
-    const svg = $("damageSvg");
-    const marksGroup = $("damageMarksGroup");
-    if (!svg || !marksGroup) return;
-    while (marksGroup.firstChild) marksGroup.removeChild(marksGroup.firstChild);
+  function renderMarks() {
+    const svg = svgEl();
+    if (!svg) return;
+    const marksGroup = svg.querySelector(".entry-damage-marks");
+    if (marksGroup) {
+      while (marksGroup.firstChild) marksGroup.removeChild(marksGroup.firstChild);
+    }
     svg.querySelectorAll(".panel-hit.has-damage").forEach(el => el.classList.remove("has-damage"));
     marks.forEach((m, idx) => {
-      marksGroup.appendChild(makeMarkNode(m, idx));
-      const panel = document.getElementById(m.panel_id);
+      if (marksGroup) marksGroup.appendChild(makeMarkNode(m, idx));
+      const panel = svg.querySelector("#" + m.panel_id);
       if (panel) panel.classList.add("has-damage");
     });
     renderLog();
+    updateCounts();
   }
 
   function renderLog() {
-    const list = $("damageList");
-    const empty = $("damageEmptyMsg");
-    const badge = $("damageCountBadge");
-    if (!list || !empty || !badge) return;
-    badge.textContent = String(marks.length).padStart(2, "0");
+    const list = $("entryDamageList");
+    const empty = $("entryDamageEmpty");
+    if (!list || !empty) return;
     list.querySelectorAll(".damage-log-row").forEach(n => n.remove());
     empty.style.display = marks.length ? "none" : "block";
-    const canDelete = canEditOthers();
     marks.forEach((m, idx) => {
       const row = document.createElement("div");
-      row.className = "damage-log-row" + (m._pending ? " damage-log-row--pending" : "");
+      row.className = "damage-log-row";
       const color = COLORS[m.damage_type] || "#888";
       const label = LABELS[m.damage_type] || m.damage_type;
       const location = PANEL_NAMES[m.panel_id] || m.panel_id;
-      const when = m._pending ? "" : (window.dtTimeAgo ? window.dtTimeAgo(m.created_at, "") : "");
       row.innerHTML = `
         <span class="damage-log-num" style="background:${color}">${idx + 1}</span>
         <span class="damage-log-name">
           <span class="damage-log-type">${esc(label)}</span>
           <span class="damage-log-loc"> · ${esc(location)}</span>
-          ${when ? `<span class="damage-log-when"> · ${esc(when)}</span>` : ""}
-          ${m._pending ? `<span class="damage-log-pending">pending</span>` : ""}
         </span>
-        ${canDelete || m._pending ? `<button type="button" class="damage-log-del" data-id="${esc(m.id)}" aria-label="Remove">&times;</button>` : ""}
+        <button type="button" class="damage-log-del" data-idx="${idx}" aria-label="Remove">&times;</button>
       `;
       list.appendChild(row);
     });
     list.querySelectorAll(".damage-log-del").forEach(btn => {
-      btn.addEventListener("click", () => deleteMark(btn.dataset.id));
-    });
-  }
-
-  // ---------- Supabase ops ----------
-  async function loadMarks(serialId) {
-    const { data, error } = await sb.from("vehicle_damage")
-      .select("id,serial_id,panel_id,damage_type,notes,x,y,created_by,created_at")
-      .eq("serial_id", serialId)
-      .order("created_at", { ascending: true });
-    if (error) { console.warn("[Damage] loadMarks", error); return []; }
-    return data || [];
-  }
-
-  async function addMark(panelId, x, y) {
-    const user = DT_AUTH.getUser();
-    if (!user) return;
-    const payload = {
-      serial_id: currentSerial,   // may be null — mark stays pending
-      panel_id: panelId,
-      damage_type: currentType,
-      x, y,
-      created_by: user.id
-    };
-    // Optimistic UI — always render the mark first so panel clicks feel
-    // instant regardless of whether we're saving to Supabase.
-    const tempId = "tmp-" + Math.random().toString(36).slice(2);
-    marks.push({
-      ...payload,
-      id: tempId,
-      created_at: new Date().toISOString(),
-      _pending: !currentSerial
-    });
-    renderAllMarks();
-
-    if (!currentSerial) {
-      // Buffered — will flush when a Serial ID is eventually set.
-      return;
-    }
-
-    const { data, error } = await sb.from("vehicle_damage").insert(payload).select().single();
-    if (error) {
-      marks = marks.filter(m => m.id !== tempId);
-      renderAllMarks();
-      DT_TOAST.show("Could not save damage: " + error.message, "error");
-      return;
-    }
-    const i = marks.findIndex(m => m.id === tempId);
-    if (i >= 0) marks[i] = data;
-    renderAllMarks();
-  }
-
-  async function deleteMark(id) {
-    if (!id) return;
-    // Pending marks aren't in Supabase yet — anyone who added them can
-    // pull them straight back out of the local buffer.
-    if (id.startsWith("tmp-")) {
-      marks = marks.filter(m => m.id !== id);
-      renderAllMarks();
-      return;
-    }
-    if (!canEditOthers()) {
-      DT_TOAST.show("Only managers can delete saved damage marks.", "warn");
-      return;
-    }
-    const { error } = await sb.from("vehicle_damage").delete().eq("id", id);
-    if (error) {
-      if (DT_ERR.isMissing(error)) DT_TOAST.missing("damage mark");
-      else DT_TOAST.show("Could not delete: " + error.message, "error");
-      return;
-    }
-    marks = marks.filter(m => m.id !== id);
-    renderAllMarks();
-  }
-
-  // ---------- realtime ----------
-  function subscribeRealtime(serialId) {
-    unsubscribeRealtime();
-    realtimeChan = sb.channel("vd-" + serialId)
-      .on("postgres_changes",
-        { event: "*", schema: "public", table: "vehicle_damage", filter: "serial_id=eq." + serialId },
-        async () => { marks = await loadMarks(serialId); renderAllMarks(); }
-      )
-      .on("postgres_changes",
-        { event: "*", schema: "public", table: "vehicle_tires", filter: "serial_id=eq." + serialId },
-        async () => {
-          const modalStrip = $("damageModalTireStrip");
-          if (modalStrip) await mountTireStrip(modalStrip, serialId);
+      btn.addEventListener("click", () => {
+        const idx = parseInt(btn.dataset.idx, 10);
+        if (Number.isFinite(idx)) {
+          marks.splice(idx, 1);
+          renderMarks();
         }
-      )
-      .on("postgres_changes",
-        { event: "*", schema: "public", table: "vehicle_claims", filter: "serial_id=eq." + serialId },
-        async () => { if (currentSerial === serialId) await mountClaim(serialId); }
-      )
-      .subscribe();
-  }
-
-  function unsubscribeRealtime() {
-    if (realtimeChan) { sb.removeChannel(realtimeChan); realtimeChan = null; }
-  }
-
-  // ---------- modal open/close ----------
-  async function open(serialId) {
-    const modal = $("damageModal");
-    if (!modal) { console.warn("[Damage] #damageModal not in DOM"); return; }
-
-    // Null serial is allowed — modal opens in a "pick a vehicle" state
-    // with a Serial ID input at the top. Selecting a vehicle inside the
-    // modal just re-invokes open() with the new serial.
-    const serial = serialId ? String(serialId).trim().toUpperCase() : null;
-    currentSerial = serial;
-
-    const titleEl = $("damageModalTitle");
-    if (titleEl) titleEl.textContent = serial ? "Inspection · " + serial : "Vehicle inspection";
-
-    const pickerCard = $("damageModalVehiclePicker");
-    const pickerInput = $("damageModalVehicleInput");
-    if (pickerCard) pickerCard.classList.toggle("u-hidden", !!serial);
-    if (pickerInput && !serial) {
-      pickerInput.value = "";
-      setTimeout(() => pickerInput.focus(), 100);
-    }
-
-    initChips();
-    initPicker();
-    initPanelClicks();
-    initModalActions();
-
-    if (serial) {
-      // If there's pending pre-VIN data, attach it to this serial before
-      // we load fresh state from Supabase.
-      if (hasPending()) {
-        const flushed = await flushPendingToSerial(serial);
-        toastFlushed(serial, flushed);
-      }
-      marks = await loadMarks(serial);
-      renderAllMarks();
-      await mountTireStrip($("damageModalTireStrip"), serial);
-      await mountClaim(serial);
-      subscribeRealtime(serial);
-    } else {
-      // No vehicle yet — render whatever's pending (marks[] may still hold
-      // _pending items from a prior no-VIN session; pendingTires and
-      // pendingClaim survive close() too).
-      renderAllMarks();
-      await mountTireStrip($("damageModalTireStrip"), null);
-      // Reflect pendingClaim in the modal's claim inputs, if any.
-      const claimNumberEl = $("damageClaimNumber");
-      const claimNotesEl = $("damageClaimNotes");
-      const claimNotesWrap = $("damageClaimNotesWrap");
-      if (claimNumberEl) claimNumberEl.value = pendingClaim?.claim_number || "";
-      if (claimNotesEl)  claimNotesEl.value  = pendingClaim?.notes || "";
-      if (claimNotesWrap) claimNotesWrap.classList.toggle("u-hidden", !pendingClaim?.claim_number);
-      currentClaim = {
-        claim_number: pendingClaim?.claim_number || "",
-        notes: pendingClaim?.notes || ""
-      };
-      unsubscribeRealtime();
-    }
-
-    modal.classList.add("show");
-    modal.setAttribute("aria-hidden", "false");
-  }
-
-  function close() {
-    const modal = $("damageModal");
-    if (!modal) return;
-    modal.classList.remove("show");
-    modal.setAttribute("aria-hidden", "true");
-    unsubscribeRealtime();
-    // If we were attached to a vehicle, clear the modal's visible state.
-    // If we were in "no VIN" mode, preserve pending marks/tires/claim so
-    // the user can bail out and come back — they'll flush automatically
-    // once a Serial ID is set (via the picker or entry-form scan).
-    if (currentSerial) {
-      currentSerial = null;
-      marks = [];
-      const marksGroup = $("damageMarksGroup");
-      if (marksGroup) while (marksGroup.firstChild) marksGroup.removeChild(marksGroup.firstChild);
-      document.querySelectorAll("#damageSvg .panel-hit").forEach(el => el.classList.remove("has-damage"));
-    }
-  }
-
-  // ---------- init sub-parts ----------
-  function initChips() {
-    const chips = document.querySelectorAll(".damage-chip");
-    // Restore active chip to reflect currentType
-    chips.forEach(chip => chip.classList.toggle("active", chip.dataset.type === currentType));
-    chips.forEach(chip => {
-      if (chip._wired) return;
-      chip._wired = true;
-      chip.addEventListener("click", () => {
-        currentType = chip.dataset.type;
-        chips.forEach(c => c.classList.toggle("active", c === chip));
       });
     });
   }
 
-  function initPicker() {
-    const picker = $("damagePickerSelect");
-    const addBtn = $("damagePickerAdd");
-    if (!picker || !addBtn) return;
-    if (pickerInitialized) return;
-    pickerInitialized = true;
-    Object.entries(PICKER_GROUPS).forEach(([section, ids]) => {
-      const og = document.createElement("optgroup");
-      og.label = section;
-      ids.forEach(id => {
-        const opt = document.createElement("option");
-        opt.value = id;
-        opt.textContent = PANEL_NAMES[id];
-        og.appendChild(opt);
-      });
-      picker.appendChild(og);
-    });
-    picker.addEventListener("change", () => { addBtn.disabled = !picker.value; });
-    addBtn.addEventListener("click", () => {
-      const id = picker.value;
-      if (!id) return;
-      const el = document.getElementById(id);
-      if (!el) return;
-      const svg = $("damageSvg");
-      if (!svg) return;
-      const rect = el.getBoundingClientRect();
-      const loc = screenToSvg(svg, rect.left + rect.width / 2, rect.top + rect.height / 2);
-      addMark(id, loc.x, loc.y);
-      picker.value = "";
-      addBtn.disabled = true;
-    });
+  function updateCounts() {
+    const badge = $("entryDamageCount");
+    if (badge) badge.textContent = String(marks.length).padStart(2, "0");
+    const summary = $("entryDamageSummaryCount");
+    if (summary) summary.textContent = marks.length ? `${marks.length} mark${marks.length === 1 ? "" : "s"}` : "";
   }
 
-  function initPanelClicks() {
-    if (panelClickInitialized) return;
-    const svg = $("damageSvg");
-    if (!svg) return;
-    panelClickInitialized = true;
-    Object.keys(PANEL_NAMES).forEach(id => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.classList.add("panel-hit");
-      el.dataset.panel = id;
-      el.addEventListener("click", (e) => {
-        e.stopPropagation();
-        // No currentSerial gate — addMark buffers when there's no VIN.
-        const loc = screenToSvg(svg, e.clientX, e.clientY);
-        addMark(id, loc.x, loc.y);
-      });
+  function updateTireSummary() {
+    const summary = $("entryTireSummaryCount");
+    if (!summary) return;
+    const flagged = TIRE_POSITIONS.filter(pos => {
+      const t = tires[pos];
+      return t && t.condition && t.condition !== "OK";
     });
-  }
-
-  function initModalActions() {
-    if (modalActionsInitialized) return;
-    modalActionsInitialized = true;
-    const closeBtn = $("damageModalClose");
-    const doneBtn = $("damageModalDone");
-    const resetBtn = $("damageModalReset");
-    if (closeBtn) closeBtn.addEventListener("click", close);
-    if (doneBtn)  doneBtn.addEventListener("click", close);
-    if (resetBtn) {
-      resetBtn.addEventListener("click", async () => {
-        if (!canEditOthers()) {
-          DT_TOAST.show("Only managers can reset all damage marks.", "warn");
-          return;
-        }
-        if (!confirm("Clear ALL damage marks on file for this vehicle? This cannot be undone.")) return;
-        const { error } = await sb.from("vehicle_damage").delete().eq("serial_id", currentSerial);
-        if (error) { DT_TOAST.show("Reset failed: " + error.message, "error"); return; }
-        marks = [];
-        renderAllMarks();
-      });
-    }
-    // Tap-outside-card closes
-    const modal = $("damageModal");
-    if (modal) {
-      modal.addEventListener("click", (e) => { if (e.target === modal) close(); });
-    }
-
-    // Vehicle picker (shown when the modal opens without a Serial ID):
-    // typing + Enter or tapping Load re-invokes open() with that serial.
-    const pickerInput = $("damageModalVehicleInput");
-    const pickerLoad = $("damageModalVehicleLoad");
-    const submitPicker = () => {
-      if (!pickerInput) return;
-      const val = (pickerInput.value || "").trim().toUpperCase();
-      if (!val) { pickerInput.focus(); return; }
-      open(val);
-    };
-    if (pickerLoad) pickerLoad.addEventListener("click", submitPicker);
-    if (pickerInput) {
-      pickerInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") { e.preventDefault(); submitPicker(); }
-      });
-    }
+    summary.textContent = flagged.length ? `${flagged.length} flagged` : "";
   }
 
   // ---------- tire strip ----------
-  async function loadTires(serialId) {
-    const { data, error } = await sb.from("vehicle_tires")
-      .select("serial_id,position,condition,psi,notes,updated_by,updated_at")
-      .eq("serial_id", serialId);
-    if (error) { console.warn("[Damage] loadTires", error); return {}; }
-    const out = {};
-    (data || []).forEach(t => { out[t.position] = t; });
-    return out;
-  }
-
-  async function upsertTire(serialId, position, patch) {
-    const user = DT_AUTH.getUser();
-    if (!user || !serialId) return;
-    const payload = {
-      serial_id: serialId,
-      position,
-      updated_by: user.id,
-      updated_at: new Date().toISOString(),
-      ...patch
-    };
-    const { error } = await sb.from("vehicle_tires")
-      .upsert(payload, { onConflict: "serial_id,position" });
-    if (error) DT_TOAST.show("Tire update failed: " + error.message, "error");
-  }
-
-  async function mountTireStrip(container, serialId) {
+  function renderTireStrip() {
+    const container = $("tireStripInEntry");
     if (!container) return;
-    // Null serial = render 4 "OK / no PSI" defaults. Dropdown changes
-    // in that state stay local (upsertTire is a no-op without a serial).
-    const tires = serialId ? await loadTires(serialId) : {};
     container.innerHTML = TIRE_POSITIONS.map(pos => {
       const t = tires[pos] || {};
       const cond = t.condition || "OK";
       const psi = t.psi != null ? t.psi : "";
-      return `
-        <div class="dt-tire-card" data-pos="${pos}">
-          <div class="dt-tire-card-head">
-            <span class="dt-tire-pos">${pos}</span>
-            <span class="dt-tire-cond dt-tire-cond--${cond}" data-cond-chip>${esc(TIRE_CONDITION_LABEL[cond])}</span>
-          </div>
-          <div class="dt-tire-pos-label">${esc(TIRE_POS_LABEL[pos])}</div>
-          <label class="dt-tire-field">
-            <span>Condition</span>
-            <select class="dt-tire-condition-select">
-              ${TIRE_CONDITIONS.map(c => `<option value="${c}"${c === cond ? " selected" : ""}>${esc(TIRE_CONDITION_LABEL[c])}</option>`).join("")}
-            </select>
-          </label>
-          <label class="dt-tire-field">
-            <span>PSI</span>
-            <input type="number" class="dt-tire-psi-input" min="0" max="200" step="1" value="${esc(psi)}" placeholder="—" inputmode="numeric">
-          </label>
+      return `<div class="dt-tire-card" data-pos="${pos}">
+        <div class="dt-tire-card-head">
+          <span class="dt-tire-pos">${pos}</span>
+          <span class="dt-tire-cond dt-tire-cond--${cond}" data-cond-chip>${esc(TIRE_CONDITION_LABEL[cond])}</span>
         </div>
-      `;
+        <div class="dt-tire-pos-label">${esc(TIRE_POS_LABEL[pos])}</div>
+        <label class="dt-tire-field">
+          <span>Condition</span>
+          <select class="dt-tire-condition-select">
+            ${TIRE_CONDITIONS.map(c => `<option value="${c}"${c === cond ? " selected" : ""}>${esc(TIRE_CONDITION_LABEL[c])}</option>`).join("")}
+          </select>
+        </label>
+        <label class="dt-tire-field">
+          <span>PSI</span>
+          <input type="number" class="dt-tire-psi-input" min="0" max="200" step="1" value="${esc(psi)}" placeholder="—" inputmode="numeric">
+        </label>
+      </div>`;
     }).join("");
 
     container.querySelectorAll(".dt-tire-card").forEach(card => {
@@ -535,34 +200,26 @@
       const sel = card.querySelector(".dt-tire-condition-select");
       const psi = card.querySelector(".dt-tire-psi-input");
       const chip = card.querySelector("[data-cond-chip]");
-      sel.addEventListener("change", async () => {
+      sel.addEventListener("change", () => {
         const cond = sel.value;
         chip.className = "dt-tire-cond dt-tire-cond--" + cond;
         chip.textContent = TIRE_CONDITION_LABEL[cond];
-        syncSelectedTiresFromLocal(pos, cond);
-        // Read currentSerial at call time (not the mount-time serialId
-        // closure) so a serial set AFTER mount lands the write directly.
-        if (currentSerial) {
-          await upsertTire(currentSerial, pos, { condition: cond });
-        } else {
-          pendingTires[pos] = { ...(pendingTires[pos] || {}), condition: cond };
-        }
+        tires[pos] = { ...(tires[pos] || {}), condition: cond };
+        syncLegacySelectedTires(pos, cond);
+        updateTireSummary();
       });
-      psi.addEventListener("change", async () => {
+      psi.addEventListener("change", () => {
         const raw = psi.value === "" ? null : Number(psi.value);
         const val = Number.isFinite(raw) ? raw : null;
-        if (currentSerial) {
-          await upsertTire(currentSerial, pos, { psi: val });
-        } else {
-          pendingTires[pos] = { ...(pendingTires[pos] || {}), psi: val };
-        }
+        tires[pos] = { ...(tires[pos] || {}), psi: val };
       });
     });
+    updateTireSummary();
   }
 
-  // Mirror a single tire's condition into the legacy selectedTires global.
-  // "OK" removes it from the array; anything else adds it.
-  function syncSelectedTiresFromLocal(pos, cond) {
+  // Keep legacy `selectedTires` global (a position[] array) in sync so
+  // saveRecord() in app.js still fills records.tires when status="TI".
+  function syncLegacySelectedTires(pos, cond) {
     if (!Array.isArray(window.selectedTires)) return;
     const arr = window.selectedTires;
     const idx = arr.indexOf(pos);
@@ -571,275 +228,153 @@
     if (typeof window.updateTireLabel === "function") window.updateTireLabel();
   }
 
-  // Populate selectedTires from the DB truth. Called when the entry form
-  // opens the tire strip so a fresh page load reflects prior tire flags.
-  async function syncSelectedTiresFromDB(serialId) {
-    if (!Array.isArray(window.selectedTires)) return;
-    const tires = await loadTires(serialId);
-    const flagged = TIRE_POSITIONS.filter(pos => tires[pos] && tires[pos].condition && tires[pos].condition !== "OK");
-    window.selectedTires.length = 0;
-    flagged.forEach(p => window.selectedTires.push(p));
-    if (typeof window.updateTireLabel === "function") window.updateTireLabel();
-  }
+  // ---------- init wiring (runs once on DOMContentLoaded) ----------
+  function init() {
+    // Chip row
+    document.querySelectorAll("#entryDamageCollapse .damage-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        activeType = chip.dataset.type;
+        document.querySelectorAll("#entryDamageCollapse .damage-chip").forEach(c => c.classList.toggle("active", c === chip));
+      });
+    });
 
-  // ---------- pending buffer flush ----------
-  function hasPending() {
-    return marks.some(m => m._pending)
-      || Object.keys(pendingTires).length > 0
-      || !!(pendingClaim && pendingClaim.claim_number);
-  }
-
-  // Attach whatever's buffered to `serialId`. Bulk-inserts pending marks,
-  // upserts pending tires, and upserts a pending claim. Called from
-  // open(realSerial) and from a dt-vin-scanned listener so the CXR's
-  // pre-VIN work lands on the right vehicle no matter which path finally
-  // sets the Serial ID.
-  async function flushPendingToSerial(serialId) {
-    const user = DT_AUTH.getUser();
-    if (!user || !serialId) return { marks: 0, tires: 0, claim: 0 };
-
-    const pMarks = marks.filter(m => m._pending);
-    const tirePositions = Object.keys(pendingTires);
-    const hadClaim = !!(pendingClaim && pendingClaim.claim_number);
-
-    if (pMarks.length) {
-      const payloads = pMarks.map(m => ({
-        serial_id: serialId,
-        panel_id: m.panel_id,
-        damage_type: m.damage_type,
-        x: m.x,
-        y: m.y,
-        created_by: user.id
-      }));
-      const { error } = await sb.from("vehicle_damage").insert(payloads);
-      if (error) {
-        DT_TOAST.show("Failed to save pending damage: " + error.message, "error");
-        // Leave pending marks in place so the user can retry; still flush
-        // tires + claim below.
-      } else {
-        // Drop the pending marks from `marks` — caller (open) will reload
-        // fresh rows from Supabase which include what we just inserted.
-        marks = marks.filter(m => !m._pending);
-      }
-    }
-
-    for (const pos of tirePositions) {
-      await upsertTire(serialId, pos, pendingTires[pos]);
-    }
-    pendingTires = {};
-
-    if (hadClaim) {
-      await upsertClaim(serialId, {
-        claim_number: pendingClaim.claim_number,
-        notes: pendingClaim.notes || null
+    // SVG panel click → add a mark
+    const svg = svgEl();
+    if (svg) {
+      Object.keys(PANEL_NAMES).forEach(id => {
+        const el = svg.querySelector("#" + id);
+        if (!el) return;
+        el.classList.add("panel-hit");
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const pt = svg.createSVGPoint();
+          pt.x = e.clientX; pt.y = e.clientY;
+          const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
+          marks.push({ panel_id: id, damage_type: activeType, x: loc.x, y: loc.y });
+          renderMarks();
+        });
       });
     }
-    pendingClaim = null;
 
-    return { marks: pMarks.length, tires: tirePositions.length, claim: hadClaim ? 1 : 0 };
-  }
-
-  function toastFlushed(serialId, r) {
-    const total = r.marks + r.tires + r.claim;
-    if (!total) return;
-    const parts = [];
-    if (r.marks) parts.push(`${r.marks} damage mark${r.marks === 1 ? "" : "s"}`);
-    if (r.tires) parts.push(`${r.tires} tire${r.tires === 1 ? "" : "s"}`);
-    if (r.claim) parts.push(`claim #`);
-    DT_TOAST.show(`Attached ${parts.join(", ")} to ${serialId}.`, "success");
-  }
-
-  // Auto-flush when the entry form's Serial ID lands. The modal doesn't
-  // need to be open — the buffer is module-level.
-  document.addEventListener("dt-vin-scanned", async (e) => {
-    const vin = (e.detail || "").toUpperCase().trim();
-    if (!vin || !hasPending()) return;
-    const flushed = await flushPendingToSerial(vin);
-    toastFlushed(vin, flushed);
-    // If the modal is showing pending marks, reload from DB so the temp
-    // IDs get replaced with real ones.
-    if ($("damageModal")?.classList.contains("show") && !currentSerial) {
-      // Modal was open in no-VIN mode; just re-render whatever's left
-      // (should be empty for marks now).
-      renderAllMarks();
+    // Panel picker (fallback for hard-to-tap panels)
+    const picker = $("entryDamagePicker");
+    const pickerAdd = $("entryDamagePickerAdd");
+    if (picker) {
+      Object.entries(PICKER_GROUPS).forEach(([section, ids]) => {
+        const og = document.createElement("optgroup");
+        og.label = section;
+        ids.forEach(id => {
+          const opt = document.createElement("option");
+          opt.value = id;
+          opt.textContent = PANEL_NAMES[id];
+          og.appendChild(opt);
+        });
+        picker.appendChild(og);
+      });
+      picker.addEventListener("change", () => { if (pickerAdd) pickerAdd.disabled = !picker.value; });
     }
-  });
+    if (pickerAdd) {
+      pickerAdd.addEventListener("click", () => {
+        const id = picker && picker.value;
+        if (!id || !svg) return;
+        const el = svg.querySelector("#" + id);
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const pt = svg.createSVGPoint();
+        pt.x = rect.left + rect.width / 2;
+        pt.y = rect.top + rect.height / 2;
+        const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
+        marks.push({ panel_id: id, damage_type: activeType, x: loc.x, y: loc.y });
+        renderMarks();
+        picker.value = "";
+        pickerAdd.disabled = true;
+      });
+    }
 
-  // ---------- global damage set (for record-card badges) ----------
-  async function loadDamageSet() {
-    const { data, error } = await sb.from("vehicle_damage").select("serial_id");
-    if (error) { console.warn("[Damage] loadDamageSet", error); return; }
-    damageSet.clear();
-    (data || []).forEach(r => { if (r.serial_id) damageSet.add(r.serial_id); });
-    document.dispatchEvent(new CustomEvent("dt-damage-set-changed"));
+    // Insurance claim inputs (notes reveal once a number is typed)
+    const claimNum = $("entryClaimNumber");
+    const claimNotes = $("entryClaimNotes");
+    const claimNotesWrap = $("entryClaimNotesWrap");
+    if (claimNum) {
+      claimNum.addEventListener("input", () => {
+        claim.claim_number = claimNum.value.trim();
+        if (claimNotesWrap) claimNotesWrap.classList.toggle("u-hidden", !claim.claim_number);
+        if (!claim.claim_number) {
+          if (claimNotes) claimNotes.value = "";
+          claim.notes = "";
+        }
+      });
+    }
+    if (claimNotes) {
+      claimNotes.addEventListener("input", () => { claim.notes = claimNotes.value.trim(); });
+    }
+
+    renderTireStrip();
+    renderMarks();
   }
 
-  function subscribeDamageSet() {
-    if (damageSetChan) return;
-    damageSetChan = sb.channel("vd-set")
-      .on("postgres_changes",
-        { event: "*", schema: "public", table: "vehicle_damage" },
-        loadDamageSet
-      )
-      .subscribe();
+  // ---------- reset (called from entry-form reset in app.js) ----------
+  function reset() {
+    marks = [];
+    tires = {};
+    claim = { claim_number: "", notes: "" };
+    activeType = "dent";
+    // Reset chip row visual to the "Dent" default
+    document.querySelectorAll("#entryDamageCollapse .damage-chip").forEach(c => {
+      c.classList.toggle("active", c.dataset.type === "dent");
+    });
+    // Clear claim inputs
+    const claimNum = $("entryClaimNumber");
+    const claimNotes = $("entryClaimNotes");
+    const claimNotesWrap = $("entryClaimNotesWrap");
+    if (claimNum) claimNum.value = "";
+    if (claimNotes) claimNotes.value = "";
+    if (claimNotesWrap) claimNotesWrap.classList.add("u-hidden");
+    renderTireStrip();
+    renderMarks();
   }
 
-  function unsubscribeDamageSet() {
-    if (damageSetChan) { sb.removeChannel(damageSetChan); damageSetChan = null; }
-    damageSet.clear();
-  }
-
-  function hasDamage(serialId) {
-    return !!serialId && damageSet.has(serialId);
-  }
-
-  // ---------- insurance claim ----------
-  async function loadClaim(serialId) {
-    const { data, error } = await sb.from("vehicle_claims")
-      .select("serial_id,claim_number,notes,updated_by,updated_at")
-      .eq("serial_id", serialId)
-      .maybeSingle();
-    if (error && error.code !== "PGRST116") console.warn("[Damage] loadClaim", error);
-    return data || null;
-  }
-
-  async function upsertClaim(serialId, patch) {
-    const user = DT_AUTH.getUser();
-    if (!user || !serialId) return;
-    const payload = {
-      serial_id: serialId,
-      updated_by: user.id,
-      updated_at: new Date().toISOString(),
-      ...patch
+  // ---------- public getter (called by saveRecord) ----------
+  function getEntryState() {
+    return {
+      damage_marks: marks.slice(),
+      tire_details: { ...tires },
+      claim_number: claim.claim_number || null,
+      claim_notes: claim.notes || null
     };
-    const { error } = await sb.from("vehicle_claims")
-      .upsert(payload, { onConflict: "serial_id" });
-    if (error) DT_TOAST.show("Claim save failed: " + error.message, "error");
   }
 
-  async function mountClaim(serialId) {
-    const numberEl = $("damageClaimNumber");
-    const notesEl = $("damageClaimNotes");
-    const notesWrap = $("damageClaimNotesWrap");
-    if (!numberEl || !notesEl || !notesWrap) return;
-
-    const row = await loadClaim(serialId);
-    currentClaim = {
-      claim_number: (row && row.claim_number) || "",
-      notes: (row && row.notes) || ""
+  // Prefill the collapsible with an existing record's damage so the
+  // Edit overlay can reuse the same UI. (Optional — no-op if the
+  // record has none.)
+  function loadFromRecord(record) {
+    marks = Array.isArray(record?.damage_marks) ? record.damage_marks.slice() : [];
+    tires = record?.tire_details && typeof record.tire_details === "object" ? { ...record.tire_details } : {};
+    claim = {
+      claim_number: record?.claim_number || "",
+      notes: record?.claim_notes || ""
     };
-    numberEl.value = currentClaim.claim_number;
-    notesEl.value = currentClaim.notes;
-    updateClaimNotesVisibility();
-
-    if (!numberEl._wired) {
-      numberEl._wired = true;
-      // Reveal notes as soon as the CXR types a claim number; hide + clear
-      // notes when they empty it out.
-      numberEl.addEventListener("input", updateClaimNotesVisibility);
-      numberEl.addEventListener("change", async () => {
-        const val = numberEl.value.trim();
-        currentClaim.claim_number = val;
-        if (currentSerial) {
-          await upsertClaim(currentSerial, {
-            claim_number: val || null,
-            notes: val ? currentClaim.notes : null
-          });
-        } else if (val) {
-          pendingClaim = pendingClaim || { claim_number: "", notes: "" };
-          pendingClaim.claim_number = val;
-        } else {
-          pendingClaim = null;
-        }
-        if (!val) {
-          notesEl.value = "";
-          currentClaim.notes = "";
-        }
-      });
-    }
-    if (!notesEl._wired) {
-      notesEl._wired = true;
-      notesEl.addEventListener("change", async () => {
-        const val = notesEl.value.trim();
-        currentClaim.notes = val;
-        // Only save notes when there IS a claim number — otherwise they'd
-        // orphan a row we've cleared.
-        if ((currentClaim.claim_number || "").trim()) {
-          if (currentSerial) {
-            await upsertClaim(currentSerial, { notes: val || null });
-          } else {
-            pendingClaim = pendingClaim || { claim_number: currentClaim.claim_number, notes: "" };
-            pendingClaim.notes = val || null;
-          }
-        }
-      });
-    }
+    const claimNum = $("entryClaimNumber");
+    const claimNotes = $("entryClaimNotes");
+    const claimNotesWrap = $("entryClaimNotesWrap");
+    if (claimNum) claimNum.value = claim.claim_number;
+    if (claimNotes) claimNotes.value = claim.notes;
+    if (claimNotesWrap) claimNotesWrap.classList.toggle("u-hidden", !claim.claim_number);
+    renderTireStrip();
+    renderMarks();
   }
 
-  function updateClaimNotesVisibility() {
-    const numberEl = $("damageClaimNumber");
-    const notesWrap = $("damageClaimNotesWrap");
-    if (!numberEl || !notesWrap) return;
-    const has = numberEl.value.trim().length > 0;
-    notesWrap.classList.toggle("u-hidden", !has);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
   }
 
-  // ---------- entry-form integrations ----------
-  async function showTireStripInEntry(serialId) {
-    const container = $("tireStripInEntry");
-    if (!container) return;
-    // Always render the 4 tire cards, VIN or not — matches how the rest
-    // of the entry form (Options, Conditions, Status, Notes) behaves.
-    // Without a Serial ID, dropdown changes update the UI locally and
-    // land in pendingTires (flushed once a VIN is entered). Always sync
-    // currentSerial so tire-change handlers write to the right target.
-    currentSerial = serialId || null;
-    await mountTireStrip(container, serialId || null);
-    if (serialId) {
-      await syncSelectedTiresFromDB(serialId);
-    } else if (Array.isArray(window.selectedTires)) {
-      window.selectedTires.length = 0;
-      if (typeof window.updateTireLabel === "function") window.updateTireLabel();
-    }
-  }
-
-  function hideTireStripInEntry() {
-    const container = $("tireStripInEntry");
-    if (container) container.innerHTML = "";
-  }
-
-  // ---------- lifecycle: keep the damage-set warm while signed in ----------
-  function start() {
-    if (!DT_AUTH.getUser()) return;
-    loadDamageSet();
-    subscribeDamageSet();
-  }
-  function stop() {
-    unsubscribeDamageSet();
-    unsubscribeRealtime();
-  }
-  document.addEventListener("dt-auth-change", () => {
-    if (DT_AUTH.getUser()) start(); else stop();
-  });
-  if (DT_AUTH.getUser()) start();
-
-  // ---------- public API ----------
   window.DT_DAMAGE = {
-    open,
-    close,
-    showTireStripInEntry,
-    hideTireStripInEntry,
-    loadMarks,
-    loadTires,
-    loadClaim,
-    hasDamage,
-    // Read-only vocabulary exposed so other surfaces (VIN history page)
-    // can render marks/tires without duplicating the mapping.
-    COLORS,
-    LABELS,
-    PANEL_NAMES,
-    TIRE_POSITIONS,
-    TIRE_POS_LABEL,
-    TIRE_CONDITION_LABEL
+    getEntryState,
+    reset,
+    loadFromRecord,
+    COLORS, LABELS, PANEL_NAMES,
+    TIRE_POSITIONS, TIRE_POS_LABEL, TIRE_CONDITION_LABEL
   };
 })();

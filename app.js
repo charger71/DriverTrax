@@ -759,6 +759,16 @@ function saveRecord() {
     fuel_level: fuelVal || null,
     timestamp: Date.now()
   };
+  // Fold the Body damage + Tires + Insurance claim collapsibles into
+  // the record row. damage.js keeps this state in memory and clears it
+  // via DT_DAMAGE.reset() after we finish saving.
+  if (window.DT_DAMAGE?.getEntryState) {
+    const s = DT_DAMAGE.getEntryState();
+    recordData.damage_marks = s.damage_marks;
+    recordData.tire_details = s.tire_details;
+    recordData.claim_number = s.claim_number;
+    recordData.claim_notes = s.claim_notes;
+  }
 
   function doSave(lat, lng, gpsError) {
     if (lat !== null) { recordData.lat = lat; recordData.lng = lng; }
@@ -772,8 +782,8 @@ function saveRecord() {
     updateVinCount();
     document.getElementById("notes").value = "";
     document.getElementById("status").selectedIndex = 0;
-    document.getElementById("tireSelectorSection").style.display = "none";
     resetTires();
+    window.DT_DAMAGE?.reset?.();
     selectedCxrConditions = [];
     renderCxrConditions();
     clearEntryCurrentState();
@@ -1502,21 +1512,9 @@ let selectedCxrConditions = [];
 const ENTRY_CONDITIONS = DT_OPTIONS.CONDITIONS;
 
 function handleStatusChange() {
-  const val = document.getElementById("status").value;
-  const serialVal = (document.getElementById("serial")?.value || "").trim();
-
-  // The tire strip and body damage collapsibles are always visible in the
-  // entry form, and are driven by the dt-vin-scanned listener — status
-  // no longer shows/hides them. Auto-open the damage modal on BODY as a
-  // convenience trigger; the collapsible has its own button.
-  if (val === "BODY") {
-    if (serialVal) {
-      window.DT_DAMAGE?.open(serialVal);
-    } else {
-      DT_TOAST.show("Enter a Serial ID first, then re-pick BODY DAMAGE to open the inspection.", "warn");
-    }
-  }
-
+  // The Body damage + Tires collapsibles live inline in the entry form
+  // and are always available regardless of status — nothing status-
+  // specific to do here anymore.
   toggleOtherField("status");
 }
 
@@ -2268,7 +2266,7 @@ function recordCard(r, onDelete, onClickAttr) {
     r.shuttle ? `<span class="badge-shuttle"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="6" width="22" height="12" rx="2"/><path d="M16 6V4a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v2"/><line x1="12" y1="6" x2="12" y2="18"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><line x1="1" y1="12" x2="23" y2="12"/></svg> SHUTTLE</span>` : "",
     r.transport ? '<span class="badge-transport">TRANSPORT</span>' : "",
     r.noTag ? '<span class="badge-notag">BAD TAG</span>' : "",
-    window.DT_DAMAGE?.hasDamage(r.serialId) ? '<span class="badge-damage">DAMAGE</span>' : ""
+    (r.damage_marks && r.damage_marks.length) ? '<span class="badge-damage">DAMAGE</span>' : ""
   ].filter(Boolean).join("");
 
   const countLine = `<div class="vin-tl-count"><svg xmlns="http://www.w3.org/2000/svg" class="u-icon-mr-1" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${DT_FORMAT.timeAgoOrClock(r.timestamp)}${r._driverName ? ` · <b class="vin-tl-count-driver">${esc(r._driverName)}</b>` : ""}</div>`;
@@ -2685,7 +2683,7 @@ function openVinRecordDetail(r, profileCache) {
     r.shuttle ? '<span class="badge-shuttle">SHUTTLE</span>' : "",
     r.transport ? '<span class="badge-transport">TRANSPORT</span>' : "",
     r.no_tag ? '<span class="badge-notag">BAD TAG</span>' : "",
-    window.DT_DAMAGE?.hasDamage(r.serial_id) ? '<span class="badge-damage">DAMAGE</span>' : ""
+    (r.damage_marks && r.damage_marks.length) ? '<span class="badge-damage">DAMAGE</span>' : ""
   ].filter(Boolean).join("");
 
   const hasGps = Number.isFinite(r.lat) && Number.isFinite(r.lng);
@@ -3068,7 +3066,6 @@ async function renderVinTimeline(vin, opts) {
       <div class="vin-tl-count">${events.length} event${events.length === 1 ? "" : "s"}</div>
       ${fuelGauge}
       <div id="vinTlRecalls" class="vin-tl-recalls" hidden></div>
-      <div id="vinTlInspect" class="vin-tl-inspect" hidden></div>
     </div>
     <div class="vin-tl-actions">
       <button type="button" class="btn btn-primary vin-tl-new-entry" onclick="openInlineNewEntry('${esc(vin)}')">+ New Entry</button>
@@ -3077,10 +3074,6 @@ async function renderVinTimeline(vin, opts) {
     <div class="vin-tl-list">${html}</div>
     ${pagerHtml}
   `;
-  // Populate the Damage + Tires collapsibles in the header. Fire-and-forget
-  // so the timeline renders immediately even if Supabase is slow.
-  _renderVinTlInspect(vin, container).catch(err => console.warn("[VIN TL] inspect", err));
-
   // Fetch NHTSA open recalls for this year/make/model and inject a badge +
   // collapsible detail panel into the header once results land. Fire-and-forget
   // so the timeline renders immediately even if the API is slow.
@@ -3131,91 +3124,6 @@ async function renderVinTimeline(vin, opts) {
   const pins = [];
   records.forEach(r => { if (Number.isFinite(r.lat) && Number.isFinite(r.lng)) pins.push({ lat: r.lat, lng: r.lng, label: r.serial_id, ts: new Date(r.ts).getTime() || 0 }); });
   _renderRecordsMapMarkers(pins);
-}
-
-// Populate #vinTlInspect with two collapsible sections — Damage and Tires
-// — showing the current vehicle-level state for the given VIN. Tapping
-// either section's title opens the full damage modal. Reads exclusively
-// from DT_DAMAGE public methods so this stays consistent with the modal.
-async function _renderVinTlInspect(vin, container) {
-  const panel = container.querySelector("#vinTlInspect");
-  if (!panel || !window.DT_DAMAGE) return;
-  const esc = window.DT_ESC;
-  const { loadMarks, loadTires, COLORS, LABELS, PANEL_NAMES, TIRE_POSITIONS, TIRE_POS_LABEL, TIRE_CONDITION_LABEL } = window.DT_DAMAGE;
-  const [marks, tiresMap] = await Promise.all([
-    loadMarks(vin).catch(() => []),
-    loadTires(vin).catch(() => ({}))
-  ]);
-
-  // Tire summary: count of anything not "OK"
-  const flaggedTires = TIRE_POSITIONS.filter(pos => {
-    const t = tiresMap[pos];
-    return t && t.condition && t.condition !== "OK";
-  });
-  const hasAnyTire = TIRE_POSITIONS.some(pos => tiresMap[pos]);
-
-  // Bail entirely if there's nothing on file — no reason to show the
-  // block. The header will simply omit it.
-  if (!marks.length && !hasAnyTire) return;
-
-  const damageBody = marks.length
-    ? `<ol class="vin-tl-inspect-list">${marks.map((m, i) => {
-        const color = COLORS[m.damage_type] || "#888";
-        const label = LABELS[m.damage_type] || m.damage_type;
-        const loc = PANEL_NAMES[m.panel_id] || m.panel_id;
-        const when = window.dtTimeAgo ? window.dtTimeAgo(m.created_at, "") : "";
-        return `<li class="vin-tl-inspect-row">
-          <span class="vin-tl-inspect-num" style="background:${color}">${i + 1}</span>
-          <span class="vin-tl-inspect-text"><b>${esc(label)}</b> · ${esc(loc)}${when ? ` · <span class="vin-tl-inspect-when">${esc(when)}</span>` : ""}</span>
-        </li>`;
-      }).join("")}</ol>`
-    : `<div class="vin-tl-inspect-empty">No damage on file.</div>`;
-
-  const tireCells = TIRE_POSITIONS.map(pos => {
-    const t = tiresMap[pos];
-    const cond = (t && t.condition) || "OK";
-    const psi = t && t.psi != null ? t.psi : "—";
-    const condLabel = TIRE_CONDITION_LABEL[cond] || cond;
-    return `<div class="vin-tl-tire-cell">
-      <div class="vin-tl-tire-cell-head">
-        <span class="vin-tl-tire-pos">${esc(pos)}</span>
-        <span class="dt-tire-cond dt-tire-cond--${esc(cond)}">${esc(condLabel)}</span>
-      </div>
-      <div class="vin-tl-tire-cell-sub">${esc(TIRE_POS_LABEL[pos] || "")} · ${esc(String(psi))} PSI</div>
-    </div>`;
-  }).join("");
-
-  const tiresBody = hasAnyTire
-    ? `<div class="vin-tl-tire-grid">${tireCells}</div>`
-    : `<div class="vin-tl-inspect-empty">No tire status on file.</div>`;
-
-  panel.hidden = false;
-  panel.innerHTML = `
-    <details class="vin-tl-inspect-section" data-kind="damage"${marks.length ? " open" : ""}>
-      <summary>
-        <span class="vin-tl-inspect-title">DAMAGE</span>
-        <span class="vin-tl-inspect-count">${marks.length} mark${marks.length === 1 ? "" : "s"}</span>
-        <span class="vin-tl-inspect-open">Open ↗</span>
-      </summary>
-      <div class="vin-tl-inspect-body">${damageBody}</div>
-    </details>
-    <details class="vin-tl-inspect-section" data-kind="tires">
-      <summary>
-        <span class="vin-tl-inspect-title">TIRES</span>
-        <span class="vin-tl-inspect-count">${flaggedTires.length ? `${flaggedTires.length} flagged` : (hasAnyTire ? "All OK" : "—")}</span>
-        <span class="vin-tl-inspect-open">Open ↗</span>
-      </summary>
-      <div class="vin-tl-inspect-body">${tiresBody}</div>
-    </details>
-  `;
-  panel.querySelectorAll(".vin-tl-inspect-open").forEach(link => {
-    link.addEventListener("click", (e) => {
-      // Prevent the click from also toggling the <details>.
-      e.preventDefault();
-      e.stopPropagation();
-      window.DT_DAMAGE?.open(vin);
-    });
-  });
 }
 
 function renderPaginationControls(current, total) {
@@ -3273,24 +3181,9 @@ function openDetail(id, onDelete) {
     ${r.shuttle ? '<span class="badge-shuttle">SHUTTLE</span>' : ""}
     ${r.transport ? '<span class="badge-transport">TRANSPORT</span>' : ""}
     ${r.noTag ? '<span class="badge-notag">BAD TAG</span>' : ""}
-    ${window.DT_DAMAGE?.hasDamage(r.serialId) ? '<span class="badge-damage">DAMAGE</span>' : ""}
+    ${(r.damage_marks && r.damage_marks.length) ? '<span class="badge-damage">DAMAGE</span>' : ""}
   `;
 
-  // Damage inspection button — opens the DT_DAMAGE modal for this VIN
-  const inspectBtn = document.getElementById("detailInspectBtn");
-  const inspectCount = document.getElementById("detailInspectCount");
-  if (inspectBtn) {
-    inspectBtn.onclick = () => window.DT_DAMAGE?.open(r.serialId);
-    if (inspectCount) inspectCount.textContent = "";
-    if (window.DT_DAMAGE?.loadMarks && r.serialId) {
-      window.DT_DAMAGE.loadMarks(r.serialId)
-        .then(marks => {
-          const n = (marks || []).length;
-          if (inspectCount) inspectCount.textContent = n > 0 ? `· ${n} on file` : "";
-        })
-        .catch(() => {});
-    }
-  }
 
   // Vehicle info
   const vinSection = document.getElementById("detailVinSection");
@@ -5622,61 +5515,8 @@ document.addEventListener("dt-vin-scanned", (e) => {
   }
   renderEntryCurrentState(vin);
 
-  // Body damage collapsible — always visible AND always tappable. The
-  // modal opens with the current Serial ID (if any) or in a "pick a
-  // vehicle" state where the CXR can enter one inside the modal. No
-  // VIN gatekeeping here; the modal handles the null case.
-  const inspectBtn = document.getElementById("entryInspectBtn");
-  const inspectCount = document.getElementById("entryInspectCount");
-  const inspectHint = document.getElementById("entryInspectHint");
-  const damageSummaryCount = document.getElementById("entryDamageSummaryCount");
-  if (inspectBtn) {
-    inspectBtn.disabled = false;
-    inspectBtn.onclick = () => {
-      const currentVin = (document.getElementById("serial")?.value || "").trim().toUpperCase();
-      window.DT_DAMAGE?.open(currentVin || null);
-    };
-    if (!vin) {
-      if (inspectCount) inspectCount.textContent = "";
-      if (damageSummaryCount) damageSummaryCount.textContent = "";
-      if (inspectHint) inspectHint.style.display = "";
-    } else {
-      if (inspectHint) inspectHint.style.display = "none";
-      if (inspectCount) inspectCount.textContent = "";
-      if (damageSummaryCount) damageSummaryCount.textContent = "";
-      if (window.DT_DAMAGE?.loadMarks) {
-        window.DT_DAMAGE.loadMarks(vin)
-          .then(m => {
-            const n = (m || []).length;
-            if (inspectCount) inspectCount.textContent = n > 0 ? `· ${n} on file` : "";
-            if (damageSummaryCount) damageSummaryCount.textContent = n > 0 ? `${n} mark${n === 1 ? "" : "s"}` : "";
-          })
-          .catch(() => {});
-      }
-    }
-  }
-
-  // Tire collapsible — always visible. Mount the strip on every VIN
-  // change (null shows the "enter a Serial ID" placeholder and clears
-  // selectedTires so saveRecord() doesn't stamp stale positions).
-  if (window.DT_DAMAGE?.showTireStripInEntry) {
-    window.DT_DAMAGE.showTireStripInEntry(vin || null);
-  }
-  const tireSummaryCount = document.getElementById("entryTireSummaryCount");
-  if (tireSummaryCount) {
-    if (!vin) {
-      tireSummaryCount.textContent = "";
-    } else if (window.DT_DAMAGE?.loadTires) {
-      tireSummaryCount.textContent = "";
-      window.DT_DAMAGE.loadTires(vin).then(tires => {
-        const flagged = ["FL","FR","RL","RR"].filter(pos => {
-          const t = tires[pos];
-          return t && t.condition && t.condition !== "OK";
-        });
-        tireSummaryCount.textContent = flagged.length ? `${flagged.length} flagged` : "";
-      }).catch(() => {});
-    }
-  }
+  // Body damage + Tires collapsibles are now purely local form fields
+  // driven by damage.js — no VIN-scoped side effects to run here.
 });
 
 // Render a read-only banner of the vehicle's current state (status, destination,

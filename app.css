@@ -2836,7 +2836,7 @@
     border-radius: var(--radius);
     padding: var(--space-3);
   }
-  #damageSvg {
+  #entryDamageSvg {
     width: 100%;
     height: auto;
     display: block;
@@ -2844,25 +2844,25 @@
     margin: 0 auto;
     touch-action: manipulation;
   }
-  #damageSvg .damage-dir {
+  #entryDamageSvg .damage-dir {
     font-family: ui-monospace, SFMono-Regular, monospace;
     font-size: 9px;
     letter-spacing: 0.6px;
     fill: var(--muted);
   }
-  #damageSvg .dp {
+  #entryDamageSvg .dp {
     fill: transparent;
     stroke: var(--text);
     stroke-width: 1;
     transition: fill 0.15s ease;
   }
-  #damageSvg .dp-thin { stroke: var(--muted); stroke-width: 0.6; }
-  #damageSvg .panel-hit { cursor: pointer; }
-  #damageSvg .panel-hit:hover .dp,
-  #damageSvg .panel-hit.dp:hover { fill: var(--surface-hover); }
-  #damageSvg .panel-hit.has-damage .dp,
-  #damageSvg .panel-hit.has-damage.dp { fill: var(--muted); fill-opacity: 0.28; }
-  #damageSvg .damage-mark text { paint-order: stroke; }
+  #entryDamageSvg .dp-thin { stroke: var(--muted); stroke-width: 0.6; }
+  #entryDamageSvg .panel-hit { cursor: pointer; }
+  #entryDamageSvg .panel-hit:hover .dp,
+  #entryDamageSvg .panel-hit.dp:hover { fill: var(--surface-hover); }
+  #entryDamageSvg .panel-hit.has-damage .dp,
+  #entryDamageSvg .panel-hit.has-damage.dp { fill: var(--muted); fill-opacity: 0.28; }
+  #entryDamageSvg .damage-mark text { paint-order: stroke; }
 
   /* picker */
   .damage-picker-row {

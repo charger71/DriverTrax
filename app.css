@@ -3002,6 +3002,43 @@
   }
   .damage-log-del:hover { background: var(--surface-hover); color: var(--danger); }
 
+  /* Read-only damage viewer — cloned silhouette rendered without ID.
+     Mirrors #entryDamageSvg's shell styling but keyed by class so both
+     the record detail overlay and the VIN history aggregate use it. */
+  .damage-viewer-svg {
+    width: 100%; height: auto; display: block;
+    max-width: 420px; margin: 0 auto;
+  }
+  .damage-viewer-svg .damage-dir {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 9px; letter-spacing: 0.6px; fill: var(--muted);
+  }
+  .damage-viewer-svg .dp { fill: transparent; stroke: var(--text); stroke-width: 1; }
+  .damage-viewer-svg .dp-thin { stroke: var(--muted); stroke-width: 0.6; }
+  .damage-viewer-svg .panel-hit.has-damage .dp,
+  .damage-viewer-svg .panel-hit.has-damage.dp { fill: var(--muted); fill-opacity: 0.28; }
+  .damage-svg-wrap--ro,
+  .damage-log-card--ro,
+  .damage-claim-card--ro { margin-top: var(--space-3); }
+  .detail-damage-panel:empty,
+  .detail-tire-panel:empty { display: none; }
+  .detail-damage-panel { margin-top: var(--space-3); }
+  .detail-tire-panel   { margin-top: var(--space-3); }
+
+  /* Read-only tire cards — no controls, just condition + PSI at a glance. */
+  .dt-tire-strip--ro { gap: var(--space-2); }
+  .dt-tire-card--ro { padding: var(--space-2) var(--space-3); }
+  .dt-tire-psi-ro {
+    font-size: var(--font-sm); color: var(--text-soft); margin-top: var(--space-1);
+  }
+  .dt-tire-psi-ro b { color: var(--text); font-weight: var(--weight-bold); }
+
+  /* Aggregate collapsibles in the VIN history header — a bit tighter than
+     the entry-form collapsibles to fit inside the header card. */
+  .vin-tl-collapse { margin-top: var(--space-3); }
+  .vin-tl-collapse .disclosure-summary { padding: var(--space-2) var(--space-3); }
+  .vin-tl-collapse .disclosure-body { padding-top: var(--space-2); }
+
   /* record-detail inspect button row */
   .detail-inspect-row {
     padding: 0 var(--space-4) var(--space-2);

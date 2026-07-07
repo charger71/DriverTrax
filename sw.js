@@ -1,6 +1,6 @@
 // DriverTrax Service Worker
 // Provides offline support and caches app assets
-const CACHE_VERSION = "drivertrax-v8.6-inline-damage";
+const CACHE_VERSION = "drivertrax-v8.8-vin-tl-damage-tire-panels";
 const APP_SHELL = [
   "./",
   "./index.html",

@@ -370,10 +370,109 @@
     init();
   }
 
+  // ---------- read-only viewers (used by VIN history detail overlay and
+  // the aggregate panel at the top of the timeline). Both take a
+  // record-shaped object: { damage_marks, tire_details, tires, claim_number, claim_notes }.
+  function _cloneDamageSilhouette() {
+    const source = $("entryDamageSvg");
+    if (!source) return null;
+    const cloned = source.cloneNode(true);
+    cloned.removeAttribute("id");
+    cloned.querySelectorAll("[id]").forEach(el => {
+      const id = el.id;
+      el.removeAttribute("id");
+      if (PANEL_NAMES[id]) el.setAttribute("data-panel", id);
+    });
+    const marksGroup = cloned.querySelector(".entry-damage-marks");
+    if (marksGroup) while (marksGroup.firstChild) marksGroup.removeChild(marksGroup.firstChild);
+    cloned.classList.add("damage-viewer-svg");
+    return cloned;
+  }
+
+  function renderDamageViewer(container, record) {
+    if (!container) return;
+    const rawMarks = Array.isArray(record?.damage_marks) ? record.damage_marks : [];
+    const claimNum = record?.claim_number || "";
+    const claimNotes = record?.claim_notes || "";
+    if (!rawMarks.length && !claimNum) { container.innerHTML = ""; return; }
+
+    const svgHost = document.createElement("div");
+    svgHost.className = "damage-svg-wrap damage-svg-wrap--ro";
+    const cloned = _cloneDamageSilhouette();
+    if (cloned) {
+      const marksGroup = cloned.querySelector(".entry-damage-marks");
+      rawMarks.forEach((m, idx) => {
+        if (marksGroup) marksGroup.appendChild(makeMarkNode(m, idx));
+        const panel = cloned.querySelector(`[data-panel="${m.panel_id}"]`);
+        if (panel) panel.classList.add("has-damage");
+      });
+      svgHost.appendChild(cloned);
+    }
+
+    const logRows = rawMarks.map((m, idx) => {
+      const color = COLORS[m.damage_type] || "#888";
+      const label = LABELS[m.damage_type] || m.damage_type;
+      const location = PANEL_NAMES[m.panel_id] || m.panel_id;
+      return `<div class="damage-log-row damage-log-row--ro">
+        <span class="damage-log-num" style="background:${color}">${idx + 1}</span>
+        <span class="damage-log-name">
+          <span class="damage-log-type">${esc(label)}</span>
+          <span class="damage-log-loc"> · ${esc(location)}</span>
+        </span>
+      </div>`;
+    }).join("");
+
+    const logCard = rawMarks.length ? `
+      <div class="damage-log-card damage-log-card--ro">
+        <div class="damage-log-header">
+          <span>Damage log</span>
+          <span class="damage-count-badge">${String(rawMarks.length).padStart(2, "0")}</span>
+        </div>
+        <div class="damage-log-list">${logRows}</div>
+      </div>` : "";
+
+    const claimCard = claimNum ? `
+      <div class="damage-claim-card damage-claim-card--ro">
+        <div class="detail-row"><span class="detail-label">Claim #</span><span class="detail-val">${esc(claimNum)}</span></div>
+        ${claimNotes ? `<div class="detail-row"><span class="detail-label">Claim notes</span><span class="detail-val">${esc(claimNotes)}</span></div>` : ""}
+      </div>` : "";
+
+    container.innerHTML = "";
+    container.appendChild(svgHost);
+    container.insertAdjacentHTML("beforeend", logCard + claimCard);
+  }
+
+  function renderTireViewer(container, record) {
+    if (!container) return;
+    const details = record?.tire_details && typeof record.tire_details === "object" ? record.tire_details : null;
+    const legacy = Array.isArray(record?.tires) ? record.tires : [];
+    const hasAny = (details && Object.keys(details).length) || legacy.length;
+    if (!hasAny) { container.innerHTML = ""; return; }
+
+    const cards = TIRE_POSITIONS.map(pos => {
+      const t = details?.[pos] || {};
+      const cond = t.condition || (legacy.includes(pos) ? "flat" : "OK");
+      const psi = t.psi != null && t.psi !== "" ? t.psi : "";
+      const condLabel = TIRE_CONDITION_LABEL[cond] || cond;
+      return `<div class="dt-tire-card dt-tire-card--ro" data-pos="${pos}">
+        <div class="dt-tire-card-head">
+          <span class="dt-tire-pos">${pos}</span>
+          <span class="dt-tire-cond dt-tire-cond--${cond}">${esc(condLabel)}</span>
+        </div>
+        <div class="dt-tire-pos-label">${esc(TIRE_POS_LABEL[pos])}</div>
+        ${psi !== "" ? `<div class="dt-tire-psi-ro">PSI: <b>${esc(psi)}</b></div>` : ""}
+      </div>`;
+    }).join("");
+
+    container.innerHTML = `<div class="dt-tire-strip dt-tire-strip--ro">${cards}</div>`;
+  }
+
   window.DT_DAMAGE = {
     getEntryState,
     reset,
     loadFromRecord,
+    renderDamageViewer,
+    renderTireViewer,
     COLORS, LABELS, PANEL_NAMES,
     TIRE_POSITIONS, TIRE_POS_LABEL, TIRE_CONDITION_LABEL
   };

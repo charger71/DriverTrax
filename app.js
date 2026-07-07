@@ -2759,10 +2759,16 @@ function openVinRecordDetail(r, profileCache) {
     </div>
     ${badges ? `<div class="detail-badges">${badges}</div>` : ""}
     <div class="detail-body">${rows}</div>
+    <div id="vinRecordDamagePanel" class="detail-damage-panel"></div>
+    <div id="vinRecordTirePanel" class="detail-tire-panel"></div>
     ${photoBlock}
     ${mapBlock}
     ${gpsAction ? `<div class="detail-actions detail-actions--single detail-actions--mt">${gpsAction}</div>` : ""}
   `;
+  if (window.DT_DAMAGE) {
+    DT_DAMAGE.renderDamageViewer(document.getElementById("vinRecordDamagePanel"), r);
+    DT_DAMAGE.renderTireViewer(document.getElementById("vinRecordTirePanel"), r);
+  }
   document.getElementById("recordDetailOverlay").classList.add("open");
 
   if (hasGps && window.L) {
@@ -2870,16 +2876,21 @@ function _buildVinTimelineRowHtml(ev) {
         return `<span class="vin-tl-cond-chip" data-cond="${esc(id)}">${esc(label)}</span>`;
       }).join("")}</div>` : "";
   const when = DT_FORMAT.timeAgo(ev.ts);
+  const damageBadge = (r.damage_marks && r.damage_marks.length) ? '<span class="badge-damage">DAMAGE</span>' : "";
+  const safeTires = Array.isArray(r.tires) && r.tires.length ? r.tires.map(esc).join(", ") : "";
+  const tiresLine = safeTires ? `<div class="vin-tl-count vin-tl-count--mt">Tires: <b class="vin-tl-tires-val">${safeTires}</b></div>` : "";
   return `
     <div class="vin-tl-row vin-tl-record" data-record-id="${esc(r.id)}">
       <div class="vin-tl-head">
         <div class="vin-tl-badges">
           <span class="record-status ${statusClass(r.status)}">${esc(statusDisp)}</span>
           ${destDisp ? `<span class="record-location">${esc(destDisp)}</span>` : ""}
+          ${damageBadge}
         </div>
         <span class="vin-tl-time">${esc(when)}</span>
       </div>
       ${condChips}
+      ${tiresLine}
       ${r.notes ? `<div class="vin-tl-body">${esc(r.notes)}</div>` : ""}
     </div>`;
 }
@@ -2941,7 +2952,7 @@ async function renderVinTimeline(vin, opts) {
   const sb = DT_AUTH.client;
 
   const { data: recordsData } = await sb.from("records")
-    .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,mileage,fuel_level,photo_url,photo_urls,conditions")
+    .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,mileage,fuel_level,photo_url,photo_urls,conditions,damage_marks,tires,tire_details,claim_number,claim_notes")
     .eq("serial_id", vin)
     .order("ts", { ascending: false });
 
@@ -3055,6 +3066,55 @@ async function renderVinTimeline(vin, opts) {
   const headerRight = (statusPill || mileageLine)
     ? `<div class="vin-tl-header-right">${statusPill}${mileageLine}</div>` : "";
 
+  // Aggregate damage marks + latest tire state across every record for this VIN.
+  // Damage is deduped by (panel_id + damage_type), keeping the most recent
+  // occurrence. Tire state is whichever record most recently reported it.
+  const aggDamageMap = new Map();
+  const aggTireDetails = {};
+  let aggClaimNum = "";
+  let aggClaimNotes = "";
+  let aggLegacyTires = [];
+  for (let i = records.length - 1; i >= 0; i--) {
+    const rec = records[i];
+    if (Array.isArray(rec.damage_marks)) {
+      rec.damage_marks.forEach(m => {
+        const key = `${m.panel_id}|${m.damage_type}`;
+        aggDamageMap.set(key, m);
+      });
+    }
+    if (rec.tire_details && typeof rec.tire_details === "object") {
+      Object.entries(rec.tire_details).forEach(([pos, val]) => { aggTireDetails[pos] = val; });
+    }
+    if (rec.claim_number) { aggClaimNum = rec.claim_number; aggClaimNotes = rec.claim_notes || ""; }
+    if (Array.isArray(rec.tires) && rec.tires.length) aggLegacyTires = rec.tires;
+  }
+  const aggDamageMarks = Array.from(aggDamageMap.values());
+  const hasAggDamage = aggDamageMarks.length > 0 || aggClaimNum;
+  const hasAggTire = Object.keys(aggTireDetails).length > 0 || aggLegacyTires.length > 0;
+  const aggDamageCount = aggDamageMarks.length;
+  const aggTireFlagged = DT_DAMAGE
+    ? DT_DAMAGE.TIRE_POSITIONS.filter(pos => {
+        const t = aggTireDetails[pos];
+        return (t && t.condition && t.condition !== "OK") || aggLegacyTires.includes(pos);
+      }).length
+    : 0;
+  const aggDamagePanel = hasAggDamage ? `
+    <details class="disclosure vin-tl-collapse" id="vinTlDamageCollapse">
+      <summary class="disclosure-summary">
+        <span class="field-label">Body damage on file</span>
+        <span class="disclosure-count">${aggDamageCount ? `${aggDamageCount} mark${aggDamageCount === 1 ? "" : "s"}` : (aggClaimNum ? "claim" : "")}</span>
+      </summary>
+      <div class="disclosure-body"><div id="vinTlDamageMount"></div></div>
+    </details>` : "";
+  const aggTirePanel = hasAggTire ? `
+    <details class="disclosure vin-tl-collapse" id="vinTlTireCollapse">
+      <summary class="disclosure-summary">
+        <span class="field-label">Tires — latest</span>
+        <span class="disclosure-count">${aggTireFlagged ? `${aggTireFlagged} flagged` : ""}</span>
+      </summary>
+      <div class="disclosure-body"><div id="vinTlTireMount"></div></div>
+    </details>` : "";
+
   container.innerHTML = `
     <div class="vin-tl-header ${headerMod}">
       <div class="vin-tl-header-top">
@@ -3066,6 +3126,8 @@ async function renderVinTimeline(vin, opts) {
       <div class="vin-tl-count">${events.length} event${events.length === 1 ? "" : "s"}</div>
       ${fuelGauge}
       <div id="vinTlRecalls" class="vin-tl-recalls" hidden></div>
+      ${aggDamagePanel}
+      ${aggTirePanel}
     </div>
     <div class="vin-tl-actions">
       <button type="button" class="btn btn-primary vin-tl-new-entry" onclick="openInlineNewEntry('${esc(vin)}')">+ New Entry</button>
@@ -3074,6 +3136,21 @@ async function renderVinTimeline(vin, opts) {
     <div class="vin-tl-list">${html}</div>
     ${pagerHtml}
   `;
+  if (window.DT_DAMAGE) {
+    if (hasAggDamage) {
+      DT_DAMAGE.renderDamageViewer(document.getElementById("vinTlDamageMount"), {
+        damage_marks: aggDamageMarks,
+        claim_number: aggClaimNum,
+        claim_notes: aggClaimNotes
+      });
+    }
+    if (hasAggTire) {
+      DT_DAMAGE.renderTireViewer(document.getElementById("vinTlTireMount"), {
+        tire_details: aggTireDetails,
+        tires: aggLegacyTires
+      });
+    }
+  }
   // Fetch NHTSA open recalls for this year/make/model and inject a badge +
   // collapsible detail panel into the header once results land. Fire-and-forget
   // so the timeline renders immediately even if the API is slow.

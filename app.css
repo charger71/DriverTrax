@@ -3002,6 +3002,26 @@
   }
   .damage-log-del:hover { background: var(--surface-hover); color: var(--danger); }
 
+  /* Deploy version footer — pinned to the viewport bottom (over the auth
+     splash, tab bars, etc.) so a deploy landing or a stale SW is easy
+     to spot without devtools. pointer-events:none so it never blocks
+     clicks on whatever's underneath. */
+  .app-version-footer {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 99999;
+    pointer-events: none;
+    text-align: center;
+    padding: 4px var(--space-3) calc(env(safe-area-inset-bottom, 0px) + 4px);
+    color: var(--muted);
+    font: var(--weight-medium) var(--font-xs) / 1.2 ui-monospace, SFMono-Regular, monospace;
+    letter-spacing: 0.4px;
+    background: linear-gradient(to top, var(--bg) 40%, transparent);
+    user-select: text;
+    opacity: 0.7;
+  }
+  .app-version-footer--mismatch { color: var(--warn); opacity: 1; }
+
   /* Read-only damage viewer — cloned silhouette rendered without ID.
      Mirrors #entryDamageSvg's shell styling but keyed by class so both
      the record detail overlay and the VIN history aggregate use it. */

@@ -110,6 +110,10 @@
       photo_urls: Array.isArray(rec.photo_urls) && rec.photo_urls.length ? rec.photo_urls : null,
       mileage: Number.isFinite(rec.mileage) ? rec.mileage : null,
       fuel_level: rec.fuel_level || null,
+      damage_marks: Array.isArray(rec.damage_marks) && rec.damage_marks.length ? rec.damage_marks : null,
+      tire_details: rec.tire_details && Object.keys(rec.tire_details).length ? rec.tire_details : null,
+      claim_number: rec.claim_number || null,
+      claim_notes: rec.claim_notes || null,
       ts: new Date(rec.timestamp || Date.now()).toISOString()
     };
   }
@@ -136,6 +140,10 @@
       photo_urls: Array.isArray(row.photo_urls) ? row.photo_urls : (row.photo_urls ? [].concat(row.photo_urls) : []),
       mileage: Number.isFinite(row.mileage) ? row.mileage : null,
       fuel_level: row.fuel_level || "",
+      damage_marks: Array.isArray(row.damage_marks) ? row.damage_marks : [],
+      tire_details: row.tire_details && typeof row.tire_details === "object" ? row.tire_details : {},
+      claim_number: row.claim_number || "",
+      claim_notes: row.claim_notes || "",
       timestamp: row.ts ? new Date(row.ts).getTime() : Date.now()
     };
   }

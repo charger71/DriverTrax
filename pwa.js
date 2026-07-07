@@ -152,6 +152,105 @@
     }).catch(() => {});
   }
 
+  // ---------- App version footer ----------
+  // Show the running SW's CACHE_VERSION at the bottom of the page so a
+  // deploy landing (or a stale SW) is obvious without devtools. Sources
+  // are tried in parallel and the first non-empty wins:
+  //   1. Ask the controlling SW directly via postMessage (most accurate —
+  //      it reflects the SW that's actually intercepting requests).
+  //   2. Read caches.keys() and pick the drivertrax-* entry.
+  //   3. Fetch sw.js with a cache-buster to force a network round-trip
+  //      that the SW's cache-first handler can't short-circuit.
+  // First-load timing: on the very first visit, the SW isn't installed
+  // yet — sources 1 and 2 are empty. Source 3 is the only signal, and
+  // if it fails the footer retries once after the SW has time to install.
+  // Deferred to DOM ready because pwa.js loads before the footer element.
+  function showAppVersion() {
+    const el = document.getElementById("appVersionFooter");
+    if (!el) return;
+    // file:// — no service worker and cross-origin fetches to sibling
+    // files are blocked. Show a friendly indicator and stop; there's
+    // nothing to compare against and no SW to be stale.
+    if (location.protocol === "file:") {
+      el.textContent = "file:// (no SW)";
+      return;
+    }
+    const parseVer = (txt) => {
+      const m = txt && txt.match(/CACHE_VERSION\s*=\s*["']([^"']+)["']/);
+      return m ? m[1] : "";
+    };
+    const askSw = () => new Promise((resolve) => {
+      const ctrl = navigator.serviceWorker?.controller;
+      if (!ctrl) { resolve(""); return; }
+      const ch = new MessageChannel();
+      const timer = setTimeout(() => resolve(""), 1200);
+      ch.port1.onmessage = (ev) => {
+        clearTimeout(timer);
+        resolve((ev.data && ev.data.version) || "");
+      };
+      try { ctrl.postMessage({ type: "GET_VERSION" }, [ch.port2]); }
+      catch { clearTimeout(timer); resolve(""); }
+    });
+    const askCaches = () => (window.caches?.keys?.() || Promise.resolve([]))
+      .then(keys => keys.find(k => k.startsWith("drivertrax-")) || "")
+      .catch(() => "");
+    // Absolute URL avoids a base-href surprise (some hosts serve index
+    // from a subpath). If the fetch fails or the response body has no
+    // CACHE_VERSION match, we surface the failure reason in the console
+    // so a real deploy issue is diagnosable without editing the code.
+    const askNetwork = async (diag) => {
+      const url = new URL("sw.js", document.baseURI).href + `?_v=${Date.now()}`;
+      diag.url = url;
+      try {
+        const r = await fetch(url, { cache: "no-store" });
+        diag.status = r.status;
+        diag.contentType = r.headers.get("content-type") || "";
+        if (!r.ok) return "";
+        const t = await r.text();
+        diag.bodyLen = t.length;
+        diag.bodyHead = t.slice(0, 80);
+        return parseVer(t);
+      } catch (err) {
+        diag.error = String(err && err.message || err);
+        return "";
+      }
+    };
+    let attempts = 0;
+    const run = () => {
+      const netDiag = {};
+      Promise.all([askSw(), askCaches(), askNetwork(netDiag)]).then(([running, cache, deployed]) => {
+        const active = running || cache;
+        const shown = deployed || active || "";
+        const mismatch = deployed && active && deployed !== active;
+        if (shown) {
+          el.textContent = mismatch ? `${shown}  ·  active: ${active}` : shown;
+          el.classList.toggle("app-version-footer--mismatch", !!mismatch);
+          return;
+        }
+        // All three empty. On first load the SW is likely still installing —
+        // wait a beat and try one more time so the cache has a chance to fill.
+        if (attempts === 0) {
+          attempts++;
+          el.textContent = "installing…";
+          setTimeout(run, 2500);
+          return;
+        }
+        el.textContent = "unknown";
+        console.warn("[appVersion] all sources empty", {
+          running, cache, deployed, network: netDiag,
+          swSupport: "serviceWorker" in navigator,
+          controller: !!navigator.serviceWorker?.controller
+        });
+      });
+    };
+    run();
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", showAppVersion);
+  } else {
+    showAppVersion();
+  }
+
   // ---------- Install prompt ----------
   let deferredInstallEvent = null;
 

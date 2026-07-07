@@ -1,6 +1,6 @@
 // DriverTrax Service Worker
 // Provides offline support and caches app assets
-const CACHE_VERSION = "drivertrax-v8.8-vin-tl-damage-tire-panels";
+const CACHE_VERSION = "drivertrax-v9.4-version-footer-file-check";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -39,10 +39,19 @@ self.addEventListener("install", (event) => {
 });
 
 // Page can ask the waiting SW to activate immediately when the user
-// accepts the "Update available" toast.
+// accepts the "Update available" toast. The version-footer in pwa.js
+// also asks the running SW for its CACHE_VERSION via GET_VERSION.
 self.addEventListener("message", (event) => {
-  if (event.data && event.data.type === "SKIP_WAITING") {
+  const data = event.data;
+  if (!data) return;
+  if (data.type === "SKIP_WAITING") {
     self.skipWaiting();
+    return;
+  }
+  if (data.type === "GET_VERSION") {
+    const port = event.ports && event.ports[0];
+    if (port) port.postMessage({ version: CACHE_VERSION });
+    return;
   }
 });
 

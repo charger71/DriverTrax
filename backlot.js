@@ -24,7 +24,7 @@
 
   async function loadFleetStats() {
     const since = startOfToday().toISOString();
-    const { data: records, error } = await sb.from("records").select("user_id,status,no_tag,ts,source").gte("ts", since).or("source.is.null,source.eq.scan");
+    const { data: records, error } = await sb.from("records").select("user_id,status,no_tag,ts").gte("ts", since);
     if (error) { console.warn("[Backlot] stats", error); return; }
     const total = records.length;
     const driverIds = new Set(records.map(r => r.user_id));
@@ -216,8 +216,7 @@
         .from("records")
         .select("user_id,ts,status")
         .gte("ts", since)
-        .neq("status", "DETAILING")
-        .or("source.is.null,source.eq.scan");
+        .neq("status", "DETAILING");
       if (error) { console.warn("[Backlot] leaderboard", error); return; }
       (records || []).forEach(r => {
         const u = byUser[r.user_id] || (byUser[r.user_id] = { count: 0, first: r.ts, last: r.ts });

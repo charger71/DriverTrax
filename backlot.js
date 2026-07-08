@@ -48,7 +48,7 @@
     const bd = $("blStatusBreakdown");
     bd.innerHTML = entries.length
       ? entries.map(([s,c]) => `<div class="bl-bar-row"><div class="label">${esc(s)}</div><div class="bar"><span style="width:${(c/max)*100}%"></span></div><div class="count">${c}</div></div>`).join("")
-      : `<div class="bl-empty">No cars logged yet today.</div>`;
+      : `<div class="u-empty">No cars logged yet today.</div>`;
 
     // Active drivers list — every driver who logged at least one car today
     // (exclude DETAILING records — those belong to detailers, shown separately)
@@ -62,7 +62,7 @@
     const listEl = $("blActiveDrivers");
     if (!listEl) return;
     if (!activeIds.length) {
-      listEl.innerHTML = `<div class="bl-empty">No drivers active yet today.</div>`;
+      listEl.innerHTML = `<div class="u-empty">No drivers active yet today.</div>`;
       return;
     }
     const { data: profs } = await sb.from("profiles").select("id,display_name").in("id", activeIds);
@@ -90,7 +90,7 @@
       .gte("started_at", since);
     if (error) { console.warn("[Backlot] detailers", error); return; }
     if (!jobs || !jobs.length) {
-      listEl.innerHTML = `<div class="bl-empty">No detailers active yet today.</div>`;
+      listEl.innerHTML = `<div class="u-empty">No detailers active yet today.</div>`;
       return;
     }
     const active = {};
@@ -243,7 +243,7 @@
                  : lbState.period === "week" ? "this week"
                  : lbState.period === "month" ? "this month"
                  : "this quarter";
-      el.innerHTML = `<div class="bl-empty">No ${who} active ${when}.</div>`;
+      el.innerHTML = `<div class="u-empty">No ${who} active ${when}.</div>`;
       return;
     }
     el.innerHTML = rows.map((r, i) => {
@@ -320,7 +320,7 @@
   async function loadAnnouncements() {
     const { data, error } = await sb.from("announcements").select("*").order("created_at", { ascending: false }).limit(80);
     const el = $("blAnnList");
-    if (error) { el.innerHTML = `<div class="bl-empty">${esc(error.message)}</div>`; return; }
+    if (error) { el.innerHTML = `<div class="u-empty">${esc(error.message)}</div>`; return; }
 
     const open     = (data || []).filter(a => (a.status || "open") === "open");
     const archived = (data || []).filter(a => (a.status || "open") !== "open");
@@ -361,8 +361,8 @@
         </div>`;
     }
 
-    const openHtml     = open.length     ? open.map(a => renderCard(a, false)).join("")     : `<div class="bl-empty">No open alerts.</div>`;
-    const archivedHtml = archived.length ? archived.map(a => renderCard(a, true)).join("")  : `<div class="bl-empty">Nothing archived yet.</div>`;
+    const openHtml     = open.length     ? open.map(a => renderCard(a, false)).join("")     : `<div class="u-empty">No open alerts.</div>`;
+    const archivedHtml = archived.length ? archived.map(a => renderCard(a, true)).join("")  : `<div class="u-empty">Nothing archived yet.</div>`;
 
     el.innerHTML = `
       ${openHtml}
@@ -454,7 +454,7 @@
       .select("*, extra_driver_responses(response,driver_id,shifts,created_at)")
       .order("created_at", { ascending: false }).limit(40);
     const el = $("blEdrList");
-    if (error) { el.innerHTML = `<div class="bl-empty">${esc(error.message)}</div>`; return; }
+    if (error) { el.innerHTML = `<div class="u-empty">${esc(error.message)}</div>`; return; }
 
     const open     = (data || []).filter(r => r.status === "open");
     const archived = (data || []).filter(r => r.status !== "open");
@@ -504,8 +504,8 @@
       </div>`;
     }
 
-    const openHtml     = open.length     ? open.map(r => renderCard(r, false)).join("")     : `<div class="bl-empty">No open requests.</div>`;
-    const archivedHtml = archived.length ? archived.map(r => renderCard(r, true)).join("")  : `<div class="bl-empty">Nothing archived yet.</div>`;
+    const openHtml     = open.length     ? open.map(r => renderCard(r, false)).join("")     : `<div class="u-empty">No open requests.</div>`;
+    const archivedHtml = archived.length ? archived.map(r => renderCard(r, true)).join("")  : `<div class="u-empty">Nothing archived yet.</div>`;
 
     el.innerHTML = `
       ${openHtml}

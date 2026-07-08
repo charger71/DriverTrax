@@ -1,6 +1,6 @@
 // DriverTrax Service Worker
 // Provides offline support and caches app assets
-const CACHE_VERSION = "drivertrax-v9.5-sync-damage-marks-notnull";
+const CACHE_VERSION = "drivertrax-v9.10-select-appearance-none-chevron";
 const APP_SHELL = [
   "./",
   "./index.html",

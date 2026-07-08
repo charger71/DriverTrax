@@ -208,12 +208,14 @@ body.bl-authed .bl-app {
 .bl-field { display: block; }
 .bl-field-label { display: block; font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-soft); margin-bottom: var(--sp-1); }
 .bl-input, .bl-field input, .bl-field select, .bl-field textarea {
-  width: 100%; min-height: var(--touch);
+  width: 100%; height: var(--touch); min-height: var(--touch);
   background: var(--card-2); color: var(--text);
   border: 1px solid var(--border); border-radius: var(--r-md);
   padding: 0 var(--sp-3); font: inherit; font-size: var(--fs-md);
 }
-.bl-field textarea { min-height: 84px; padding: var(--sp-3); resize: vertical; }
+/* height: auto so `resize: vertical` still works — the base rule pins
+   inputs/selects to var(--touch) but a fixed height would freeze textareas. */
+.bl-field textarea { height: auto; min-height: 84px; padding: var(--sp-3); resize: vertical; }
 .bl-input:focus, .bl-field input:focus, .bl-field select:focus, .bl-field textarea:focus { border-color: var(--accent); outline: none; box-shadow: var(--focus-ring); }
 .bl-input::placeholder { color: var(--muted); }
 

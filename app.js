@@ -2802,7 +2802,7 @@ window.openContactCard = async function openContactCard(userId) {
   const body = document.getElementById("contactBody");
   const overlay = document.getElementById("contactOverlay");
   if (!body || !overlay || !window.DT_AUTH) return;
-  body.innerHTML = `<div class="bl-empty">Loading…</div>`;
+  body.innerHTML = `<div class="u-empty">Loading…</div>`;
   overlay.classList.add("open");
   const esc = (s) => sanitizeText(s);
   try {
@@ -2811,7 +2811,7 @@ window.openContactCard = async function openContactCard(userId) {
       .select("id,display_name,email,phone,role,home_airport,avatar_url")
       .eq("id", userId).maybeSingle();
     if (!data) {
-      body.innerHTML = `<div class="bl-empty">Contact not found.</div>`;
+      body.innerHTML = `<div class="u-empty">Contact not found.</div>`;
       return;
     }
     const name  = esc(data.display_name || "Unknown");
@@ -2837,7 +2837,7 @@ window.openContactCard = async function openContactCard(userId) {
     `;
   } catch (e) {
     console.warn("[contact] load failed", e);
-    body.innerHTML = `<div class="bl-empty">Couldn't load contact.</div>`;
+    body.innerHTML = `<div class="u-empty">Couldn't load contact.</div>`;
   }
 };
 window.closeContactCard = function closeContactCard() {
@@ -3894,7 +3894,7 @@ function renderVinDetailList(items) {
   });
   const rows = Array.from(seen.values()).sort((a, b) => b.last - a.last);
   if (!rows.length) {
-    el.innerHTML = `<div class="bl-empty">No VINs in current results.</div>`;
+    el.innerHTML = `<div class="u-empty">No VINs in current results.</div>`;
     return;
   }
   const esc = (s) => sanitizeText(s);
@@ -3986,7 +3986,7 @@ async function openVinDetailPanel(vin) {
   const body  = document.getElementById('vinDetailBody');
   if (!body || !window.DT_AUTH) return;
   if (title) title.textContent = vin;
-  body.innerHTML = `<div class="bl-empty">Loading…</div>`;
+  body.innerHTML = `<div class="u-empty">Loading…</div>`;
   if (typeof showTab === "function") showTab('vin-detail');
   renderVinTimeline(vin, { container: body, countEl: null });
 }

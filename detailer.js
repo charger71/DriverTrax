@@ -255,7 +255,7 @@
     if (!el) return;
     const locked = isJobLocked();
     if (!currentJob.todo.length) {
-      el.innerHTML = `<div class="bl-empty">Pick a condition to generate the list.</div>`;
+      el.innerHTML = `<div class="u-empty">Pick a condition to generate the list.</div>`;
       if (actions && !currentJob.id) actions.style.display = "none";
       return;
     }
@@ -432,9 +432,9 @@
       .is("completed_at", null)
       .order("started_at", { ascending: false })
       .limit(50);
-    if (error) { el.innerHTML = `<div class="bl-empty">${esc(error.message)}</div>`; if (countEl) countEl.textContent = "0"; return; }
+    if (error) { el.innerHTML = `<div class="u-empty">${esc(error.message)}</div>`; if (countEl) countEl.textContent = "0"; return; }
     if (!data || !data.length) {
-      el.innerHTML = `<div class="bl-empty">No open jobs.</div>`;
+      el.innerHTML = `<div class="u-empty">No open jobs.</div>`;
       if (countEl) countEl.textContent = "0";
       return;
     }
@@ -471,9 +471,9 @@
       .gte("started_at", shiftStart)
       .order("started_at", { ascending: false })
       .limit(100);
-    if (error) { el.innerHTML = `<div class="bl-empty">${esc(error.message)}</div>`; if (countEl) countEl.textContent = "0"; return; }
+    if (error) { el.innerHTML = `<div class="u-empty">${esc(error.message)}</div>`; if (countEl) countEl.textContent = "0"; return; }
     if (!jobs || !jobs.length) {
-      el.innerHTML = `<div class="bl-empty">No jobs this shift yet.</div>`;
+      el.innerHTML = `<div class="u-empty">No jobs this shift yet.</div>`;
       if (countEl) countEl.textContent = "0";
       return;
     }
@@ -564,7 +564,7 @@
       hideJobActions();
       setLockedBanner(null);
       const body = $("entryJobChecklistBody");
-      if (body) body.innerHTML = `<div class="bl-empty">Pick a condition to generate the list.</div>`;
+      if (body) body.innerHTML = `<div class="u-empty">Pick a condition to generate the list.</div>`;
       const dc = $("detailConditions");
       if (dc) dc.innerHTML = "";
     }
@@ -621,7 +621,7 @@
           const label = (CONDITIONS.find(x => x.id === c) || {}).label || c;
           return `<div class="bl-bar-row"><div class="label">${esc(label)}</div><div class="bar"><span style="width:${(n/max)*100}%"></span></div><div class="count">${n}</div></div>`;
         }).join("")
-      : `<div class="bl-empty">No jobs in the last 30 days.</div>`;
+      : `<div class="u-empty">No jobs in the last 30 days.</div>`;
 
     const recentRows = jobs.slice(0, 10);
     const recentEl = document.getElementById("detailRecentList");
@@ -635,7 +635,7 @@
             </div>
           </div>
         `).join("")
-      : `<div class="bl-empty">No jobs yet.</div>`;
+      : `<div class="u-empty">No jobs yet.</div>`;
     recentEl.querySelectorAll(".detail-history-row").forEach(row => {
       row.addEventListener("click", () => openJobFromHistory(row.dataset.jobId));
     });

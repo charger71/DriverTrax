@@ -19,6 +19,14 @@
   let realtimeChan = null;
   let started = false;
   let mode = "edit"; // "edit" | "create"
+  let sortBy = "name"; // "name" | "role"
+
+  // Order used when sorting by role: most-privileged first, then alpha by name.
+  const ROLE_ORDER = ["admin", "manager", "cxr", "driver", "detailer"];
+  const roleRank = (r) => {
+    const i = ROLE_ORDER.indexOf(r || "driver");
+    return i === -1 ? ROLE_ORDER.length : i;
+  };
 
   async function adminCall(action, payload) {
     const { data: sess } = await sb.auth.getSession();
@@ -47,7 +55,7 @@
       .select("id,display_name,email,phone,role,home_airport,shuttle_subrole,callbacks_opt_in,approved,disabled,created_at")
       .order("display_name", { ascending: true, nullsFirst: false });
     if (error) {
-      $("usersList").innerHTML = `<div class="bl-empty">${esc(error.message)}</div>`;
+      $("usersList").innerHTML = `<div class="u-empty">${esc(error.message)}</div>`;
       return;
     }
     users = data || [];
@@ -63,9 +71,16 @@
     const list = visible.filter(u => !term
       || (u.display_name || "").toLowerCase().includes(term)
       || (u.email || "").toLowerCase().includes(term));
+
+    const nameOf = (u) => (u.display_name || u.email || "").toLowerCase();
+    if (sortBy === "role") {
+      list.sort((a, b) => roleRank(a.role) - roleRank(b.role) || nameOf(a).localeCompare(nameOf(b)));
+    } else {
+      list.sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+    }
     const el = $("usersList");
     if (!list.length) {
-      el.innerHTML = `<div class="bl-empty">No users match.</div>`;
+      el.innerHTML = `<div class="u-empty">No users match.</div>`;
       return;
     }
     const myId = (DT_AUTH.getUser && DT_AUTH.getUser()?.id) || null;
@@ -82,7 +97,6 @@
       }
       const isSelf = myId && u.id === myId;
       const canDisable = canEdit && !isSelf;
-      const canDelete  = amAdmin && !isSelf;
       const pending = u.approved === false;
       const disabled = !!u.disabled;
       const contact = u.email || u.phone || "";
@@ -102,9 +116,6 @@
           ${canDisable
             ? `<button class="toggle-disabled" data-id="${u.id}" data-action="${disabled ? "enable" : "disable"}">${disabled ? "Enable" : "Disable"}</button>`
             : ""}
-          ${canDelete
-            ? `<button class="delete" data-id="${u.id}" title="Delete user permanently">Delete</button>`
-            : ""}
         </div>
       `;
     }).join("");
@@ -117,9 +128,6 @@
     el.querySelectorAll(".toggle-disabled").forEach(b => {
       b.addEventListener("click", () => onToggleDisabled(b.dataset.id, b.dataset.action));
     });
-    el.querySelectorAll(".delete").forEach(b => {
-      b.addEventListener("click", () => onDelete(b.dataset.id));
-    });
 
     const invite = $("usersInviteBtn");
     if (invite) invite.style.display = "";
@@ -131,19 +139,23 @@
     const verb = action === "disable" ? "Disable" : "Enable";
     if (!confirm(`${verb} ${u.display_name || u.email || "this user"}? ${action === "disable" ? "They will not be able to sign in." : "They will be able to sign in again."}`)) return;
     const { error } = await adminCall(action, { user_id: id });
-    if (error) { alert(`${verb} failed: ${error}`); return; }
+    if (error) { DT_TOAST.show(`${verb} failed: ${error}`, "error"); return; }
     load();
   }
 
-  async function onDelete(id) {
+  async function onDelete() {
+    const id = $("usersForm").elements.id.value;
     const u = users.find(x => x.id === id);
     if (!u) { DT_TOAST.missing("user"); return; }
     const label = u.display_name || u.email || "this user";
     if (!confirm(`Permanently delete ${label}? This cannot be undone.`)) return;
     if (!confirm(`Really delete ${label}? Type-once confirmation.`)) return;
+    setMsg("Deleting…");
     const { error } = await adminCall("delete", { user_id: id });
-    if (error) { alert("Delete failed: " + error); return; }
+    if (error) { setMsg("Delete failed: " + error, "err"); return; }
+    setMsg("User deleted.", "ok");
     load();
+    setTimeout(hideModal, 500);
   }
 
   async function onApprove(id) {
@@ -151,7 +163,7 @@
     if (!u) { DT_TOAST.missing("user"); return; }
     if (!confirm(`Approve ${u.display_name || u.email || "this user"}?`)) return;
     const { error } = await sb.from("profiles").update({ approved: true }).eq("id", id);
-    if (error) { alert("Approve failed: " + error.message); return; }
+    if (error) { DT_TOAST.show("Approve failed: " + error.message, "error"); return; }
     load();
   }
 
@@ -200,6 +212,11 @@
     $("usersPasswordRow").style.display = "";
     $("usersResetRow").style.display = "";
 
+    const amAdmin = DT_AUTH.isAdmin && DT_AUTH.isAdmin();
+    const myId = (DT_AUTH.getUser && DT_AUTH.getUser()?.id) || null;
+    const canDelete = amAdmin && u.id !== myId;
+    $("usersDeleteRow").style.display = canDelete ? "" : "none";
+
     applyCxrRoleLimits();
     setFormForRole(form.elements.role.value);
     showModal();
@@ -219,6 +236,7 @@
 
     $("usersPasswordRow").style.display = "";
     $("usersResetRow").style.display = "none";
+    $("usersDeleteRow").style.display = "none";
 
     applyCxrRoleLimits();
     setFormForRole("driver");
@@ -306,6 +324,18 @@
     $("usersForm")?.addEventListener("submit", onSubmit);
     $("usersForm")?.elements.role.addEventListener("change", (e) => setFormForRole(e.target.value));
     $("usersResetBtn")?.addEventListener("click", onResetPassword);
+    $("usersDeleteBtn")?.addEventListener("click", onDelete);
+    document.querySelectorAll(".users-sort .bl-seg-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        sortBy = btn.dataset.sort;
+        document.querySelectorAll(".users-sort .bl-seg-btn").forEach(b => {
+          const active = b === btn;
+          b.classList.toggle("is-active", active);
+          b.setAttribute("aria-pressed", active ? "true" : "false");
+        });
+        render();
+      });
+    });
 
     load();
     realtimeChan = sb.channel("users-feed")

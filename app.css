@@ -368,9 +368,13 @@
 
   /* Elearning admin toolbar row (button group). */
   .admin-toolbar { display: flex; gap: var(--space-2); }
-  /* Consistent height for single-line form controls across the app */
+  /* Consistent height for single-line form controls across the app.
+     min-height mirrors height so iOS Safari (which sometimes ignores
+     `height` on <select>) still renders selects at the input height. */
   input[type=text], input[type=number], input[type=date], input[type=time], input[type=email], input[type=password], input[type=search], input[type=tel], input[type=url], select {
-    box-sizing: border-box; height: var(--dt-input-h); line-height: 1.2;
+    box-sizing: border-box;
+    height: var(--dt-input-h); min-height: var(--dt-input-h);
+    line-height: 1.2;
   }
   /* VIN / serial fields stay uppercase — they're scanned codes, not free text */
   #serial, #editSerial { text-transform: uppercase; }
@@ -393,6 +397,20 @@
     outline: none;
   }
   textarea { text-transform: none; height: 80px; resize: vertical; }
+  /* Neutralise native <select> chrome so height/padding rules apply
+     consistently across Chrome, Safari and iOS Safari (which otherwise
+     imposes intrinsic sizing that makes selects look shorter than sibling
+     inputs). A custom chevron replaces the native arrow. Individual rules
+     that already ship an appearance:none + chevron (e.g. .damage-picker-select)
+     override this cleanly. */
+  select {
+    -webkit-appearance: none; appearance: none;
+    padding-right: 36px;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%238a94a1' stroke-width='1.5'%3e%3cpath d='M4 6 L8 10 L12 6'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 14px;
+  }
   /* When a select is on its empty/placeholder option, render the displayed
      label in the same muted color as text-input placeholders so a pre-fill
      hint doesn't look like a real selection. */
@@ -1349,7 +1367,6 @@
   .bl-edr-item .row { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-soft); }
   .bl-edr-item .status { font-weight: var(--weight-bold); color: var(--accent); text-transform: uppercase; }
   .bl-edr-item .responses { margin-top: 6px; font-size: 13px; }
-  .bl-empty { color: var(--muted); text-align: center; padding: var(--space-5); font-size: 13px; }
   .bl-lb-controls { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
   .bl-seg { display: flex; flex-wrap: wrap; gap: 4px; background: var(--bg); border: var(--border-thin) solid var(--divider); border-radius: 999px; padding: 3px; }
   /* bl-seg-btn extends .btn .btn-ghost .btn--sm .btn--pill — only the flex-row layout is unique here. */
@@ -1490,7 +1507,8 @@
     padding: 8px 14px;
   }
   .users-invite-btn svg { flex-shrink: 0; }
-  .users-search { margin-bottom: var(--space-4); }
+  .users-search { margin-bottom: var(--space-3); }
+  .users-sort { margin-bottom: var(--space-4); }
   /* legacy toolbar still used by some references */
   .users-toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
   .users-toolbar input { flex: 1; }
@@ -1853,6 +1871,10 @@
     cursor: pointer;
   }
   .users-reset-btn:hover { background: var(--panel); }
+  .users-delete-row {
+    margin-top: var(--space-3); padding-top: var(--space-3);
+    border-top: var(--border-thin) solid var(--divider);
+  }
   #usersForm select:disabled { opacity: 0.55; cursor: not-allowed; }
 
   /* Collapsible dash sections (e.g. Request Coverage) — lightweight chevron disclosure
@@ -3674,7 +3696,7 @@
   /* Empty state messages inside dashboard cards */
   .u-empty {
     color: var(--muted); font-size: 13px;
-    text-align: center; padding: var(--space-4);
+    text-align: center; padding: var(--space-5);
   }
   .u-empty-sm {
     color: var(--muted); font-size: 13px; padding: var(--space-2) 0;

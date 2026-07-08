@@ -235,7 +235,7 @@
     const el = $("annDriverList");
     if (!el) return;
     if (!announcements.length) {
-      el.innerHTML = `<div class="bl-empty">No alerts yet.</div>`;
+      el.innerHTML = `<div class="u-empty">No alerts yet.</div>`;
       return;
     }
     const dismissed = getDismissed();

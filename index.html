@@ -550,7 +550,7 @@
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="u-icon-mr-1"><path d="M3 11l18-8-4 18-6-6-8-4z"/></svg>
       Alerts
     </div>
-    <div id="annDriverList"><div class="bl-empty">Loading…</div></div>
+    <div id="annDriverList"><div class="u-empty">Loading…</div></div>
   </div>
 </div>
 
@@ -989,7 +989,7 @@
   <details class="disclosure detailer-only" id="entryJobChecklist" open>
     <summary class="disclosure-summary"><span class="field-label">Job Checklist</span></summary>
     <div class="disclosure-body">
-      <div id="entryJobChecklistBody"><div class="bl-empty">Pick a condition to generate the list.</div></div>
+      <div id="entryJobChecklistBody"><div class="u-empty">Pick a condition to generate the list.</div></div>
     </div>
   </details>
 
@@ -1093,7 +1093,7 @@
   <details class="disclosure" id="vinDetailDisclosure" open>
     <summary class="disclosure-summary">VIN Detail</summary>
     <div class="disclosure-body">
-      <div id="vinDetailList" class="vin-detail-list vin-detail-list--open"><div class="bl-empty">Search to list VINs.</div></div>
+      <div id="vinDetailList" class="vin-detail-list vin-detail-list--open"><div class="u-empty">Search to list VINs.</div></div>
     </div>
   </details>
 
@@ -1105,7 +1105,7 @@
   <div class="panel-back-row">
     <button type="button" class="btn btn-secondary records-back-btn" onclick="showTab('records')" aria-label="Back">&larr; Back</button>
   </div>
-  <div id="vinDetailBody"><div class="bl-empty">Loading…</div></div>
+  <div id="vinDetailBody"><div class="u-empty">Loading…</div></div>
 </div>
 
 <!-- CONTACT CARD OVERLAY (opened from author name on a record detail) -->
@@ -1116,7 +1116,7 @@
       <div class="detail-time">Contact</div>
       <button class="btn btn-destructive btn-icon detail-close" onclick="closeContactCard()" aria-label="Close"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
-    <div id="contactBody"><div class="bl-empty">Loading…</div></div>
+    <div id="contactBody"><div class="u-empty">Loading…</div></div>
   </div>
 </div>
 
@@ -1124,7 +1124,7 @@
 <div id="recordDetailOverlay" class="detail-overlay" onclick="if(event.target===this)closeRecordDetailOverlay()">
   <div class="detail-sheet" id="recordDetailSheet">
     <div class="detail-handle"></div>
-    <div id="recordDetailBody"><div class="bl-empty">Loading…</div></div>
+    <div id="recordDetailBody"><div class="u-empty">Loading…</div></div>
   </div>
 </div>
 
@@ -1177,15 +1177,15 @@
   </div>
   <div class="dash-section">
     <div class="dash-title">Status breakdown</div>
-    <div id="blStatusBreakdown" class="bl-breakdown"><div class="bl-empty">Loading…</div></div>
+    <div id="blStatusBreakdown" class="bl-breakdown"><div class="u-empty">Loading…</div></div>
   </div>
   <div class="dash-section">
     <div class="dash-title">Latest 5 drivers</div>
-    <div id="blActiveDrivers"><div class="bl-empty">Loading…</div></div>
+    <div id="blActiveDrivers"><div class="u-empty">Loading…</div></div>
   </div>
   <div class="dash-section">
     <div class="dash-title">Latest 5 detailers</div>
-    <div id="blActiveDetailers"><div class="bl-empty">Loading…</div></div>
+    <div id="blActiveDetailers"><div class="u-empty">Loading…</div></div>
   </div>
 </div>
 
@@ -1204,7 +1204,7 @@
         <button type="button" class="btn btn-ghost btn--sm btn--pill bl-seg-btn" data-period="quarter">Quarter</button>
       </div>
     </div>
-    <div id="blLeaderboard"><div class="bl-empty">Loading…</div></div>
+    <div id="blLeaderboard"><div class="u-empty">Loading…</div></div>
   </div>
 </div>
 
@@ -1240,7 +1240,7 @@
     <details id="blRecentDisclosure" class="disclosure" open>
       <summary class="disclosure-summary">Recent Alerts</summary>
       <div class="disclosure-body">
-    <div id="blAnnList"><div class="bl-empty">Loading…</div></div>
+    <div id="blAnnList"><div class="u-empty">Loading…</div></div>
       </div>
     </details>
   </div>
@@ -1274,7 +1274,7 @@
     <details id="blOpenReqDisclosure" class="disclosure" open>
       <summary class="disclosure-summary">Open Requests</summary>
       <div class="disclosure-body">
-    <div id="blEdrList"><div class="bl-empty">Loading…</div></div>
+    <div id="blEdrList"><div class="u-empty">Loading…</div></div>
       </div>
     </details>
   </div>
@@ -1293,7 +1293,14 @@
   <div class="dash-section">
     <div class="dash-title">Users</div>
     <input type="text" id="usersSearch" class="users-search" placeholder="Search name or email" autocomplete="off">
-    <div id="usersList"><div class="bl-empty">Loading…</div></div>
+    <div class="users-sort">
+      <span class="field-label">Sort by</span>
+      <div class="bl-seg" role="group" aria-label="Sort users">
+        <button type="button" class="btn btn-ghost btn--sm btn--pill bl-seg-btn is-active" data-sort="name" aria-pressed="true">Name</button>
+        <button type="button" class="btn btn-ghost btn--sm btn--pill bl-seg-btn" data-sort="role" aria-pressed="false">Role</button>
+      </div>
+    </div>
+    <div id="usersList"><div class="u-empty">Loading…</div></div>
   </div>
 </div>
 
@@ -1311,10 +1318,10 @@
     </div>
 
     <div class="today-header"><span class="today-title">Open Jobs</span><span class="today-count" id="detailOpenJobsCount">0</span></div>
-    <div id="detailOpenJobsList"><div class="bl-empty">Loading…</div></div>
+    <div id="detailOpenJobsList"><div class="u-empty">Loading…</div></div>
 
     <div class="today-header"><span class="today-title">This Shift</span><span class="today-count" id="detailShiftJobsCount">0</span></div>
-    <div id="detailShiftJobsList"><div class="bl-empty">Loading…</div></div>
+    <div id="detailShiftJobsList"><div class="u-empty">Loading…</div></div>
   </div>
   <!-- Loaded-VIN shell removed: detailers now use #panel-entry once a VIN is
        picked. This panel is the open-jobs landing screen only. -->
@@ -1339,12 +1346,12 @@
 
   <div class="dash-section">
     <div class="dash-title">Conditions Breakdown (30 days)</div>
-    <div id="detailConditionsBreakdown" class="bl-breakdown"><div class="bl-empty">Loading…</div></div>
+    <div id="detailConditionsBreakdown" class="bl-breakdown"><div class="u-empty">Loading…</div></div>
   </div>
 
   <div class="dash-section">
     <div class="dash-title">Recent Jobs</div>
-    <div id="detailRecentList"><div class="bl-empty">Loading…</div></div>
+    <div id="detailRecentList"><div class="u-empty">Loading…</div></div>
   </div>
 </div>
 
@@ -1399,8 +1406,11 @@
       </div>
       <div class="users-modal-msg" id="usersModalMsg"></div>
       <div class="users-modal-actions">
-        <button type="button" class="btn btn-destructive" id="usersModalCancel">Cancel</button>
+        <button type="button" class="btn btn-secondary" id="usersModalCancel">Cancel</button>
         <button type="submit" class="btn btn-primary btn--block" id="usersModalSubmit">Save</button>
+      </div>
+      <div class="users-delete-row" id="usersDeleteRow" style="display:none;">
+        <button type="button" class="btn btn-destructive btn--full" id="usersDeleteBtn">Delete user permanently</button>
       </div>
     </form>
   </div>
@@ -1487,7 +1497,7 @@
       </label>
       <div id="editVinStatus" class="gps-status u-hidden"></div>
       <div class="detail-actions edit-detail-actions">
-        <button class="btn btn-destructive" onclick="closeEdit()">Cancel</button>
+        <button class="btn btn-secondary" onclick="closeEdit()">Cancel</button>
         <button class="btn btn-primary btn--block" id="editSaveBtn" onclick="saveEdit()">Save Changes</button>
       </div>
     </div>

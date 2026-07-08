@@ -110,8 +110,8 @@
       photo_urls: Array.isArray(rec.photo_urls) && rec.photo_urls.length ? rec.photo_urls : null,
       mileage: Number.isFinite(rec.mileage) ? rec.mileage : null,
       fuel_level: rec.fuel_level || null,
-      damage_marks: Array.isArray(rec.damage_marks) && rec.damage_marks.length ? rec.damage_marks : null,
-      tire_details: rec.tire_details && Object.keys(rec.tire_details).length ? rec.tire_details : null,
+      damage_marks: Array.isArray(rec.damage_marks) ? rec.damage_marks : [],
+      tire_details: rec.tire_details && typeof rec.tire_details === "object" ? rec.tire_details : {},
       claim_number: rec.claim_number || null,
       claim_notes: rec.claim_notes || null,
       ts: new Date(rec.timestamp || Date.now()).toISOString()

@@ -125,7 +125,7 @@
     const bounds = [];
     pinned.forEach((v) => {
       const c = categoryOf(v.current_status);
-      const cls = c === "ready" ? "" : " is-" + c;
+      const cls = c === "ready" ? "" : ` bl-lot-pin--${c}`;
       const icon = L.divIcon({ className: "", html: `<div class="bl-lot-pin${cls}"></div>`, iconSize: [16, 16], iconAnchor: [8, 8] });
       const who = names[v.last_user_id] ? ` · ${esc(names[v.last_user_id])}` : "";
       L.marker([v.last_lat, v.last_lng], { icon }).addTo(pinLayer)

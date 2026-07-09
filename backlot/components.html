@@ -76,13 +76,18 @@
       <div class="swatch"><div class="chip" style="background:var(--card-2)"></div><div class="meta"><b>Card / input</b><code>--card-2</code></div></div>
       <div class="swatch"><div class="chip" style="background:var(--accent)"></div><div class="meta"><b>Accent</b><code>--accent</code></div></div>
       <div class="swatch"><div class="chip" style="background:var(--accent-strong)"></div><div class="meta"><b>Accent strong</b><code>--accent-strong</code></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--accent-soft)"></div><div class="meta"><b>Accent soft</b><code>--accent-soft</code></div></div>
       <div class="swatch"><div class="chip" style="background:var(--warn)"></div><div class="meta"><b>Warn</b><code>--warn</code></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--warn-soft)"></div><div class="meta"><b>Warn soft</b><code>--warn-soft</code></div></div>
       <div class="swatch"><div class="chip" style="background:var(--danger)"></div><div class="meta"><b>Danger</b><code>--danger</code></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--danger-soft)"></div><div class="meta"><b>Danger soft</b><code>--danger-soft</code></div></div>
       <div class="swatch"><div class="chip" style="background:var(--info)"></div><div class="meta"><b>Info</b><code>--info</code></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--info-soft)"></div><div class="meta"><b>Info soft</b><code>--info-soft</code></div></div>
       <div class="swatch"><div class="chip" style="background:var(--text)"></div><div class="meta"><b>Text</b><code>--text</code></div></div>
       <div class="swatch"><div class="chip" style="background:var(--text-soft)"></div><div class="meta"><b>Text soft</b><code>--text-soft</code></div></div>
       <div class="swatch"><div class="chip" style="background:var(--muted)"></div><div class="meta"><b>Muted</b><code>--muted</code></div></div>
     </div>
+    <p class="lead" style="margin-top:var(--sp-3)">Foreground-on-status tokens: <code>--text-on-accent</code> (on solid green), <code>--text-on-warn</code> (on yellow), <code>--text-on-status</code> (on solid danger / info). Use these on any solid <code>--accent</code> / <code>--warn</code> / <code>--danger</code> / <code>--info</code> background — never hardcode <code>#fff</code>.</p>
   </section>
 
   <!-- ============ TYPOGRAPHY ============ -->
@@ -94,13 +99,15 @@
     <div class="type-row"><code>--fs-md / normal</code><span style="font-size:var(--fs-md)">Body copy — the default reading size.</span></div>
     <div class="type-row"><code>--fs-sm / muted</code><span style="font-size:var(--fs-sm);color:var(--text-soft)">Secondary / meta text</span></div>
     <div class="type-row"><code>--fs-xs / upper</code><span style="font-size:var(--fs-xs);letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:var(--fw-heavy)">Label / eyebrow</span></div>
+    <div class="type-row"><code>--fs-2xs / dense</code><span style="font-size:var(--fs-2xs);color:var(--muted)">Chart axis / attribution — below the reading tier; reserve for dense meta.</span></div>
   </section>
 
   <!-- ============ SPACING ============ -->
   <section class="guide">
     <h2>Spacing scale</h2>
-    <p class="lead"><code>--sp-1</code> (4px) … <code>--sp-7</code> (48px). Touch target minimum is <code>--touch</code> (44px).</p>
+    <p class="lead"><code>--sp-0</code> (2px, hairline) · <code>--sp-1</code> (4px) … <code>--sp-7</code> (48px). Touch target minimum is <code>--touch</code> (44px) for primary controls, <code>--touch-sm</code> (34px) for the documented small tier (pager, segmented, chip filter, <code>.bl-btn--sm</code>).</p>
     <div class="demo" style="flex-direction:column;align-items:flex-start;gap:var(--sp-2)">
+      <div class="spacing-bar" style="width:var(--sp-0)"></div>
       <div class="spacing-bar" style="width:var(--sp-1)"></div>
       <div class="spacing-bar" style="width:var(--sp-2)"></div>
       <div class="spacing-bar" style="width:var(--sp-3)"></div>
@@ -115,7 +122,13 @@
   <section class="guide">
     <h2>Icons</h2>
     <p class="lead">Single-color SVG only. Each lives as a <code>&lt;symbol&gt;</code> in the sprite and paints with <code>currentColor</code>. Reference with <code>&lt;svg class="bl-icon"&gt;&lt;use href="#icon-NAME"/&gt;&lt;/svg&gt;</code>. Icon-only buttons need an <code>aria-label</code>.</p>
-    <div class="icon-grid">
+    <p class="lead">Sizes: default 20px (<code>.bl-icon</code>), <code>.bl-icon--sm</code> 16px, <code>.bl-icon--lg</code> 28px.</p>
+    <div class="demo" style="align-items:center">
+      <svg class="bl-icon bl-icon--sm"><use href="#icon-search"/></svg>
+      <svg class="bl-icon"><use href="#icon-search"/></svg>
+      <svg class="bl-icon bl-icon--lg"><use href="#icon-search"/></svg>
+    </div>
+    <div class="icon-grid" style="margin-top:var(--sp-3)">
       <div class="icon-cell"><svg class="bl-icon" style="color:var(--accent)"><use href="#icon-wheel"/></svg><code>icon-wheel<br>(logo)</code></div>
       <div class="icon-cell"><svg class="bl-icon"><use href="#icon-dashboard"/></svg><code>icon-dashboard</code></div>
       <div class="icon-cell"><svg class="bl-icon"><use href="#icon-award"/></svg><code>icon-award</code></div>
@@ -144,15 +157,23 @@
       <button class="bl-btn bl-btn--secondary">Secondary</button>
       <button class="bl-btn bl-btn--ghost">Ghost</button>
       <button class="bl-btn bl-btn--danger">Danger</button>
+      <button class="bl-btn bl-btn--destructive">Destructive</button>
       <button class="bl-btn bl-btn--warn">Warn</button>
       <button class="bl-btn" disabled>Disabled</button>
     </div>
+    <p class="lead" style="margin-top:var(--sp-3)"><b>Danger</b> is a solid red for prominent, standalone destructive actions (bulk delete, hard confirmations). <b>Destructive</b> is an outline-red variant for a Delete that sits next to a primary Edit/Save — it stays clearly destructive without competing for visual weight.</p>
     <div class="demo" style="margin-top:var(--sp-3)">
       <button class="bl-btn bl-btn--primary bl-btn--sm">Small</button>
       <button class="bl-btn bl-btn--secondary"><svg class="bl-icon bl-icon--sm"><use href="#icon-log-out"/></svg> With icon</button>
       <button class="bl-btn bl-btn--icon bl-btn--secondary" aria-label="Sign out"><svg class="bl-icon"><use href="#icon-log-out"/></svg></button>
+      <button class="bl-btn bl-btn--link">Link-style</button>
     </div>
-    <pre class="code">&lt;button class="bl-btn bl-btn--primary"&gt;Primary&lt;/button&gt;</pre>
+    <div class="demo" style="margin-top:var(--sp-3);flex-direction:column;align-items:stretch;max-width:340px">
+      <button class="bl-btn bl-btn--primary bl-btn--block">Block (full-width)</button>
+    </div>
+    <pre class="code">&lt;button class="bl-btn bl-btn--primary"&gt;Primary&lt;/button&gt;
+&lt;button class="bl-btn bl-btn--primary bl-btn--block"&gt;Full-width&lt;/button&gt;
+&lt;button class="bl-btn bl-btn--link"&gt;Link-style&lt;/button&gt;</pre>
   </section>
 
   <!-- ============ FORM FIELDS ============ -->
@@ -295,16 +316,21 @@
         <div class="bl-users-row is-selected">
           <label class="bl-users-check"><input type="checkbox" checked></label>
           <div class="info"><div class="name">Bob Driver <span class="bl-pending-pill">Pending</span></div><div class="meta">bob@corp.io</div></div>
-          <span class="bl-role-pill role-driver">driver</span>
+          <span class="bl-role-pill bl-role-pill--driver">driver</span>
         </div>
         <div class="bl-users-row">
           <label class="bl-users-check"><input type="checkbox"></label>
           <div class="info"><div class="name">Alice Admin</div><div class="meta">alice@corp.io</div></div>
-          <span class="bl-role-pill role-admin">admin</span>
+          <span class="bl-role-pill bl-role-pill--admin">admin</span>
+        </div>
+        <div class="bl-users-row is-disabled">
+          <label class="bl-users-check"><input type="checkbox" disabled></label>
+          <div class="info"><div class="name">Sam CXR <span class="bl-disabled-pill">Disabled</span></div><div class="meta">sam@corp.io</div></div>
+          <span class="bl-role-pill bl-role-pill--cxr">cxr</span>
         </div>
       </div>
     </div>
-    <p class="lead" style="margin-top:var(--sp-3)">Only editable rows expose a checkbox — non-editable rows show a disabled checkbox for visual alignment. Selection auto-clears when a row falls off the current page (search, filter, or pagination).</p>
+    <p class="lead" style="margin-top:var(--sp-3)">Role pill variants: <code>--manager</code>, <code>--admin</code>, <code>--cxr</code>, <code>--driver</code>, <code>--detailer</code>. Only editable rows expose a checkbox — non-editable rows show a disabled checkbox for visual alignment. Selection auto-clears when a row falls off the current page (search, filter, or pagination).</p>
   </section>
 
   <!-- ============ EMPTY / TOAST ============ -->
@@ -315,6 +341,575 @@
       <div class="bl-toast bl-toast--success is-show" style="position:static;transform:none;opacity:1">Saved successfully.</div>
     </div>
     <p class="lead" style="margin-top:var(--sp-3)">Toasts are driven by <code>BL_TOAST.show(msg, "success"|"warn"|"error")</code> — don't build your own.</p>
+  </section>
+
+  <!-- ============ SEARCH (base) ============ -->
+  <section class="guide">
+    <h2>Search field</h2>
+    <p class="lead">Full-height search input for section toolbars. Focus lives on the wrapper — the inner input strips its own ring so the icon + input read as one control. Use <code>.bl-search--sm</code> when it shares a row with a chip filter.</p>
+    <div class="demo">
+      <label class="bl-search">
+        <svg class="bl-icon bl-icon--sm"><use href="#icon-search"/></svg>
+        <input type="search" placeholder="Search records…">
+      </label>
+      <label class="bl-search bl-search--sm">
+        <svg class="bl-icon bl-icon--sm"><use href="#icon-search"/></svg>
+        <input type="search" placeholder="Filter…">
+      </label>
+    </div>
+  </section>
+
+  <!-- ============ FILTER PRESETS ============ -->
+  <section class="guide">
+    <h2>Filter presets</h2>
+    <p class="lead">Named filter combos the user has saved. Each chip is a split button: the label applies the preset, the <kbd>×</kbd> removes it.</p>
+    <div class="bl-preset-row">
+      <span class="bl-preset-label">Presets</span>
+      <div class="bl-preset-chips">
+        <span class="bl-preset-chip">
+          <button type="button" class="bl-preset-apply">Ready today</button>
+          <button type="button" class="bl-preset-del" aria-label="Delete preset">×</button>
+        </span>
+        <span class="bl-preset-chip">
+          <button type="button" class="bl-preset-apply">Service holds</button>
+          <button type="button" class="bl-preset-del" aria-label="Delete preset">×</button>
+        </span>
+        <span class="bl-preset-empty">No preset applied</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ MENU / POPOVER ============ -->
+  <section class="guide">
+    <h2>Columns menu (popover)</h2>
+    <p class="lead">Anchored to a trigger button, single-column list of checkable rows. Toggle visibility with the <code>hidden</code> attribute; close on outside-click and Escape.</p>
+    <div class="demo" style="align-items:flex-start;min-height:200px">
+      <div class="bl-menu-wrap">
+        <button type="button" class="bl-btn bl-btn--sm bl-btn--secondary">Columns ▾</button>
+        <div class="bl-menu" style="position:static">
+          <label class="bl-menu-item"><input type="checkbox" checked> VIN</label>
+          <label class="bl-menu-item"><input type="checkbox" checked> Driver</label>
+          <label class="bl-menu-item"><input type="checkbox"> Odometer</label>
+          <label class="bl-menu-item"><input type="checkbox" checked> Status</label>
+          <label class="bl-menu-item"><input type="checkbox"> Notes</label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ MODAL ============ -->
+  <section class="guide">
+    <h2>Modal</h2>
+    <p class="lead">Centered overlay for edit forms and confirmation. Toggle <code>.is-open</code> on the root; use <code>role="dialog"</code> + <code>aria-modal="true"</code> + <code>aria-label</code>, and wire Escape to close. Preview below is inlined (no overlay backdrop) so it stays visible on the guide page.</p>
+    <div class="demo" style="padding:0;background:transparent;border:0">
+      <div class="bl-modal-card" role="dialog" aria-modal="true" aria-label="Example modal">
+        <div class="bl-modal-head">
+          <h3>Edit user</h3>
+          <span class="bl-detail-nav">3 / 12</span>
+          <button type="button" class="bl-btn bl-btn--icon bl-btn--ghost" aria-label="Previous"><svg class="bl-icon"><use href="#icon-x"/></svg></button>
+          <button type="button" class="bl-btn bl-btn--icon bl-btn--ghost" aria-label="Close"><svg class="bl-icon"><use href="#icon-x"/></svg></button>
+        </div>
+        <div class="bl-modal-body">
+          <label class="bl-field"><span class="bl-field-label">Display name</span><input type="text" value="Alice Admin"></label>
+          <label class="bl-field"><span class="bl-field-label">Role</span><select><option>manager</option><option>admin</option><option>cxr</option></select></label>
+          <div class="bl-modal-actions">
+            <button class="bl-btn bl-btn--ghost">Cancel</button>
+            <button class="bl-btn bl-btn--primary">Save</button>
+          </div>
+        </div>
+        <div class="bl-modal-actions bl-modal-actions--center">
+          <button type="button" class="bl-btn bl-btn--destructive"><svg class="bl-icon bl-icon--sm"><use href="#icon-trash"/></svg>Delete</button>
+          <button type="button" class="bl-btn bl-btn--primary"><svg class="bl-icon bl-icon--sm"><use href="#icon-edit"/></svg>Edit</button>
+        </div>
+      </div>
+    </div>
+    <p class="lead" style="margin-top:var(--sp-3)">Two footer patterns: <b>Cancel + Save</b> right-aligned (default <code>.bl-modal-actions</code>) for edit forms, and <b>Delete + Edit</b> centered for detail overlays (add <code>.bl-modal-actions--center</code>). The centered pattern pairs <code>--destructive</code> with <code>--primary</code> so Delete reads as destructive but subordinate. Note: the app's CSP blocks inline <code>style="..."</code>, so use the modifier class — not <code>style="justify-content:center"</code>.</p>
+  </section>
+
+  <!-- ============ GLOBAL SEARCH ============ -->
+  <section class="guide">
+    <h2>Global search (topbar)</h2>
+    <p class="lead">VIN / serial lookup that lives in the topbar on every section. Debounced <code>ilike</code> against <code>records.serial_id</code>, then <b>deduped by VIN client-side</b> — one row per unique vehicle with its <b>latest</b> status. Selecting a result opens the <b>vehicle-history modal</b> via <code>BL_RECORDS.openVinHistory(serial)</code>, which lists every event for that VIN and lets managers drill into any single record.</p>
+
+    <div class="demo" style="align-items:stretch;flex-direction:column;gap:var(--sp-3);padding:var(--sp-4)">
+      <div class="bl-topbar-search" style="flex:1;position:relative">
+        <label class="bl-search" aria-label="Find record">
+          <svg class="bl-icon bl-icon--sm"><use href="#icon-search"/></svg>
+          <input type="search" value="4T1G" placeholder="Find VIN or serial… (⌘K)" aria-label="Find VIN or serial">
+        </label>
+        <div class="bl-search-dropdown" role="listbox" aria-label="Search results" style="position:static">
+          <button type="button" class="bl-search-result is-active" role="option">
+            <span class="bl-search-serial">4T1G11AK6RU123456</span>
+            <span class="bl-search-vehicle">2024 Toyota Camry</span>
+            <span class="bl-search-status">Clean</span>
+            <span class="bl-search-when">12m ago</span>
+          </button>
+          <button type="button" class="bl-search-result" role="option">
+            <span class="bl-search-serial">4T1G91AKXRU987654</span>
+            <span class="bl-search-vehicle">2024 Toyota Corolla</span>
+            <span class="bl-search-status">PM</span>
+            <span class="bl-search-when">1d ago</span>
+          </button>
+          <button type="button" class="bl-search-result" role="option">
+            <span class="bl-search-serial">4T1GA1BB8RU456789</span>
+            <span class="bl-search-vehicle">2024 Toyota Highlander</span>
+            <span class="bl-search-status">Dirty</span>
+            <span class="bl-search-when">3h ago</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <p class="lead" style="margin-top:var(--sp-3)"><b>Empty and error states</b> reuse the same <code>.bl-search-empty</code> row inside the dropdown:</p>
+    <div class="demo" style="flex-direction:column;align-items:stretch;gap:var(--sp-3)">
+      <div class="bl-search-dropdown" style="position:static">
+        <div class="bl-search-empty">Searching…</div>
+      </div>
+      <div class="bl-search-dropdown" style="position:static">
+        <div class="bl-search-empty">No records match <b>4T1XZ</b>.</div>
+      </div>
+    </div>
+
+    <p class="lead" style="margin-top:var(--sp-3)"><b>Keyboard:</b> <code>⌘K</code> / <code>Ctrl+K</code> focuses the input, <code>↑ / ↓</code> walk results, <code>Enter</code> opens, <code>Escape</code> clears. Wired by <code>search.js</code>; the fetch pulls up to 50 rows ordered <code>ts DESC</code> and dedupes client-side keeping the first row per <code>serial_id</code>, capped at 8 unique VINs.</p>
+  </section>
+
+  <!-- ============ DAMAGE + TIRE PANELS ============ -->
+  <section class="guide">
+    <h2>Damage + tire panels</h2>
+    <p class="lead">Read-only panels inside the record-detail modal, ported from the driver app's inspection UI (<code>damage.js</code>). Backlot re-implements them under the <code>bl-vin-*</code> namespace to keep the app self-contained. Both are wrapped by <code>renderDamagePanel(r)</code> / <code>renderTirePanel(r)</code> in <code>records.js</code> — each returns an empty string when the record has no marks / no tire data, so quiet records stay quiet.</p>
+
+    <div class="bl-vin-section-label">Body damage · 4 marks</div>
+    <div class="bl-vin-damage" style="margin-bottom:var(--sp-4)">
+      <div class="bl-vin-damage-layout">
+        <div class="bl-vin-damage-list">
+          <div class="bl-vin-damage-row">
+            <span class="bl-vin-damage-num bl-vin-damage-num--dent">1</span>
+            <span class="bl-vin-damage-name">
+              <span class="bl-vin-damage-type">Dent</span>
+              <span class="bl-vin-damage-loc"> · Hood</span>
+            </span>
+          </div>
+          <div class="bl-vin-damage-row">
+            <span class="bl-vin-damage-num bl-vin-damage-num--scratch">2</span>
+            <span class="bl-vin-damage-name">
+              <span class="bl-vin-damage-type">Scratch</span>
+              <span class="bl-vin-damage-loc"> · Driver front door</span>
+            </span>
+          </div>
+          <div class="bl-vin-damage-row">
+            <span class="bl-vin-damage-num bl-vin-damage-num--chip">3</span>
+            <span class="bl-vin-damage-name">
+              <span class="bl-vin-damage-type">Chip</span>
+              <span class="bl-vin-damage-loc"> · Windshield</span>
+            </span>
+          </div>
+          <div class="bl-vin-damage-row">
+            <span class="bl-vin-damage-num bl-vin-damage-num--crack">4</span>
+            <span class="bl-vin-damage-name">
+              <span class="bl-vin-damage-type">Crack</span>
+              <span class="bl-vin-damage-loc"> · Passenger taillight</span>
+            </span>
+          </div>
+        </div>
+        <div class="bl-vin-damage-svg-wrap">
+          <!-- Static preview of the silhouette. In the live app, records.js
+               clones the #blCarSilhouette template and mounts it here after
+               innerHTML runs, with numbered marks placed at each (x, y). -->
+          <svg class="bl-vin-damage-svg" viewBox="0 0 100 160" xmlns="http://www.w3.org/2000/svg" aria-label="Damage diagram preview">
+            <text x="50" y="8" text-anchor="middle" class="damage-dir">FRONT</text>
+            <text x="50" y="158" text-anchor="middle" class="damage-dir">REAR</text>
+            <rect class="dp" x="30" y="14" width="40" height="14" rx="3"/>
+            <rect class="dp" x="26" y="30" width="48" height="30" rx="2"/>
+            <rect class="dp" x="30" y="62" width="40" height="52" rx="2"/>
+            <rect class="dp" x="26" y="116" width="48" height="26" rx="2"/>
+            <rect class="dp" x="30" y="144" width="40" height="8" rx="2"/>
+            <g><circle class="bl-dmg-halo bl-dmg-halo--dent" cx="50" cy="20" r="5"/><circle class="bl-dmg-dot bl-dmg-dot--dent" cx="50" cy="20" r="3.5"/><text class="bl-dmg-num" x="50" y="21.5" text-anchor="middle">1</text></g>
+            <g><circle class="bl-dmg-halo bl-dmg-halo--scratch" cx="30" cy="80" r="5"/><circle class="bl-dmg-dot bl-dmg-dot--scratch" cx="30" cy="80" r="3.5"/><text class="bl-dmg-num" x="30" y="81.5" text-anchor="middle">2</text></g>
+            <g><circle class="bl-dmg-halo bl-dmg-halo--chip" cx="50" cy="45" r="5"/><circle class="bl-dmg-dot bl-dmg-dot--chip" cx="50" cy="45" r="3.5"/><text class="bl-dmg-num" x="50" y="46.5" text-anchor="middle">3</text></g>
+            <g><circle class="bl-dmg-halo bl-dmg-halo--crack" cx="70" cy="130" r="5"/><circle class="bl-dmg-dot bl-dmg-dot--crack" cx="70" cy="130" r="3.5"/><text class="bl-dmg-num" x="70" y="131.5" text-anchor="middle">4</text></g>
+          </svg>
+        </div>
+      </div>
+      <dl class="bl-vin-damage-claim">
+        <dt>Claim #</dt><dd>C-2026-0714</dd>
+        <dt>Notes</dt><dd>Comprehensive filed — awaiting adjuster.</dd>
+      </dl>
+    </div>
+
+    <p class="lead" style="margin-top:var(--sp-3)"><b>Damage-type swatches</b> are semantic (not reused from <code>--warn</code>/<code>--danger</code>). Tokens: <code>--dmg-dent</code>, <code>--dmg-scratch</code>, <code>--dmg-chip</code>, <code>--dmg-crack</code>, <code>--dmg-missing</code>. Copied verbatim from the driver app so the same VIN reads the same in both surfaces. The silhouette sits in <code>.bl-vin-damage-svg-wrap</code> to the right of the log at desktop, stacks below the log at ≤640px. In the live app it's a clone of the <code>#blCarSilhouette</code> template mounted by <code>records.js</code>; the preview above shows the mark/dot styling only.</p>
+
+    <div class="bl-vin-section-label" style="margin-top:var(--sp-5)">Tires · 2 flagged</div>
+    <div class="bl-vin-tires">
+      <div class="bl-vin-tires-grid">
+        <div class="bl-vin-tire">
+          <div class="bl-vin-tire-head">
+            <span class="bl-vin-tire-pos">FL</span>
+            <span class="bl-vin-tire-cond bl-vin-tire-cond--OK">OK</span>
+          </div>
+          <span class="bl-vin-tire-pos-label">Front left</span>
+          <span class="bl-vin-tire-psi">PSI: <b>32</b></span>
+        </div>
+        <div class="bl-vin-tire">
+          <div class="bl-vin-tire-head">
+            <span class="bl-vin-tire-pos">FR</span>
+            <span class="bl-vin-tire-cond bl-vin-tire-cond--low">Low PSI</span>
+          </div>
+          <span class="bl-vin-tire-pos-label">Front right</span>
+          <span class="bl-vin-tire-psi">PSI: <b>22</b></span>
+        </div>
+        <div class="bl-vin-tire">
+          <div class="bl-vin-tire-head">
+            <span class="bl-vin-tire-pos">RL</span>
+            <span class="bl-vin-tire-cond bl-vin-tire-cond--OK">OK</span>
+          </div>
+          <span class="bl-vin-tire-pos-label">Rear left</span>
+          <span class="bl-vin-tire-psi">PSI: <b>33</b></span>
+        </div>
+        <div class="bl-vin-tire">
+          <div class="bl-vin-tire-head">
+            <span class="bl-vin-tire-pos">RR</span>
+            <span class="bl-vin-tire-cond bl-vin-tire-cond--flat">Flat</span>
+          </div>
+          <span class="bl-vin-tire-pos-label">Rear right</span>
+        </div>
+      </div>
+    </div>
+
+    <p class="lead" style="margin-top:var(--sp-3)"><b>Tire condition chips</b> reuse the semantic status palette: <code>OK</code> = accent-soft, <code>worn</code> / <code>low</code> = warn-soft, <code>flat</code> / <code>replace</code> = danger-soft. The grid uses <code>auto-fit · minmax(140px, 1fr)</code> so it wraps 2×2 on tablet, 4-across on desktop.</p>
+  </section>
+
+  <!-- ============ VEHICLE HISTORY ============ -->
+  <section class="guide">
+    <h2>Vehicle history modal</h2>
+    <p class="lead">Body of <code>#blVinHistory</code>. Reuses the <code>.bl-vin-header</code> from the record-detail page (VIN + vehicle + latest status + summary meters). If the vehicle has body damage on file anywhere in its history, a <b>Body damage panel</b> renders below the header (marks unioned across all records, deduped by <code>panel_id + damage_type</code>, using the newest x/y for each). If any record logged tire issues, a <b>Tires panel</b> renders below that (latest full snapshot wins). Then the <code>.bl-vin-timeline</code> of every event. Each timeline row is a button — click drills into the single-record detail modal (nested; the record modal sits later in the DOM so it stacks on top).</p>
+
+    <div class="bl-vin-header" style="margin-bottom:var(--sp-4)">
+      <div class="bl-vin-eyebrow-row">
+        <span class="bl-vin-eyebrow">Vehicle history</span>
+        <span class="bl-vin-seen">Last seen <b>12m ago</b></span>
+      </div>
+      <div class="bl-vin-vin">4T1G11AK6RU123456</div>
+      <div class="bl-vin-vehicle"><b>2024 Toyota Camry</b> · SE<span class="specs">4-door sedan · 2.5L I4 · Gasoline</span></div>
+      <div class="bl-vin-pill-row">
+        <span class="bl-vin-status-pill">Clean</span>
+      </div>
+      <div class="bl-vin-meters">
+        <div class="bl-vin-meter"><span class="label">Records</span><span class="val">14</span></div>
+        <div class="bl-vin-meter"><span class="label">First seen</span><span class="val val--text">Jun 12, 2026</span></div>
+        <div class="bl-vin-meter"><span class="label">Latest mileage</span><span class="val">38,412<span class="unit">mi</span></span></div>
+      </div>
+    </div>
+
+    <div class="bl-vin-section-label">Timeline · 4 events</div>
+    <div class="bl-vin-timeline" style="border:1px solid var(--border);border-radius:var(--r-lg);background:var(--card)">
+      <details class="bl-vin-tl-row">
+        <summary>
+          <div class="bl-vin-tl-time">
+            <span class="bl-vin-tl-ago">12m ago</span>
+            <span class="bl-vin-tl-full">Jul 9, 2:14 PM</span>
+          </div>
+          <span class="bl-vin-tl-dot" aria-hidden="true"></span>
+          <div class="bl-vin-tl-body">
+            <div class="bl-vin-tl-status">
+              <span class="bl-vin-status-pill">Clean</span>
+              <span class="bl-vin-tl-dest">→ <b>Ready line</b></span>
+            </div>
+            <div class="bl-vin-tl-meta">M. Alvarez · 38,412 mi · Fuel 3/4</div>
+          </div>
+          <span class="bl-vin-tl-chev" aria-hidden="true">▾</span>
+        </summary>
+        <div class="bl-vin-tl-expanded">
+          <dl class="bl-vin-tl-fields">
+            <dt>Shift</dt><dd>2</dd>
+            <dt>Coordinates</dt><dd>38.18608, -85.74227</dd>
+          </dl>
+          <div class="bl-vin-tl-flags">
+            <span class="bl-vin-flag bl-vin-flag--info">Shuttle</span>
+            <span class="bl-vin-flag">Photos · 3</span>
+          </div>
+          <div class="bl-vin-tl-actions">
+            <button type="button" class="bl-btn bl-btn--sm bl-btn--secondary"><svg class="bl-icon bl-icon--sm"><use href="#icon-clipboard"/></svg>Open full record</button>
+          </div>
+        </div>
+      </details>
+      <details class="bl-vin-tl-row" open>
+        <summary>
+          <div class="bl-vin-tl-time">
+            <span class="bl-vin-tl-ago">1d ago</span>
+            <span class="bl-vin-tl-full">Jul 8, 4:22 PM</span>
+          </div>
+          <span class="bl-vin-tl-dot bl-vin-tl-dot--service" aria-hidden="true"></span>
+          <div class="bl-vin-tl-body">
+            <div class="bl-vin-tl-status">
+              <span class="bl-vin-status-pill bl-vin-status-pill--service">Hold</span>
+              <span class="bl-vin-tl-dest">→ <b>Service</b></span>
+            </div>
+            <div class="bl-vin-tl-meta">S. Kim · 38,391 mi · Fuel 1/8</div>
+          </div>
+          <span class="bl-vin-tl-chev" aria-hidden="true">▾</span>
+        </summary>
+        <div class="bl-vin-tl-expanded">
+          <dl class="bl-vin-tl-fields">
+            <dt>Shift</dt><dd>1</dd>
+            <dt>Conditions</dt><dd>Low tire · Body damage</dd>
+            <dt>Coordinates</dt><dd>38.18571, -85.74198</dd>
+          </dl>
+          <div class="bl-vin-tl-flags">
+            <span class="bl-vin-flag bl-vin-flag--warn">Bad tag</span>
+            <span class="bl-vin-flag bl-vin-flag--warn">Damage · 2 marks</span>
+            <span class="bl-vin-flag bl-vin-flag--warn">Tires · 2 flagged</span>
+            <span class="bl-vin-flag">Photos · 5</span>
+          </div>
+          <div class="bl-vin-tl-notes-block">Customer reported vibration at highway speed — refer to PM. Left rear tire visibly low.</div>
+          <div class="bl-vin-tl-actions">
+            <button type="button" class="bl-btn bl-btn--sm bl-btn--secondary"><svg class="bl-icon bl-icon--sm"><use href="#icon-clipboard"/></svg>Open full record</button>
+          </div>
+        </div>
+      </details>
+      <details class="bl-vin-tl-row">
+        <summary>
+          <div class="bl-vin-tl-time">
+            <span class="bl-vin-tl-ago">2d ago</span>
+            <span class="bl-vin-tl-full">Jul 7, 9:08 AM</span>
+          </div>
+          <span class="bl-vin-tl-dot bl-vin-tl-dot--shut" aria-hidden="true"></span>
+          <div class="bl-vin-tl-body">
+            <div class="bl-vin-tl-status">
+              <span class="bl-vin-status-pill bl-vin-status-pill--shut">Shuttle</span>
+              <span class="bl-vin-tl-dest">→ <b>Airport transfer</b></span>
+            </div>
+            <div class="bl-vin-tl-meta">M. Alvarez · 38,201 mi · Fuel Full</div>
+          </div>
+          <span class="bl-vin-tl-chev" aria-hidden="true">▾</span>
+        </summary>
+        <div class="bl-vin-tl-expanded">
+          <dl class="bl-vin-tl-fields">
+            <dt>Shift</dt><dd>1</dd>
+          </dl>
+          <div class="bl-vin-tl-flags">
+            <span class="bl-vin-flag bl-vin-flag--info">Shuttle</span>
+          </div>
+          <div class="bl-vin-tl-actions">
+            <button type="button" class="bl-btn bl-btn--sm bl-btn--secondary"><svg class="bl-icon bl-icon--sm"><use href="#icon-clipboard"/></svg>Open full record</button>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <p class="lead" style="margin-top:var(--sp-3)">Each row is a native <code>&lt;details&gt;</code> — the collapsed summary shows time, status pill, destination, and a compact <i>driver · mileage · fuel</i> meta line. Clicking the summary toggles the expanded body: shift, conditions, coordinates, flag chips (including summary counts for <b>Damage</b> and <b>Tires</b> when this specific record contributed data), notes, and an <i>Open full record</i> button that drops into the record-detail modal for edit / delete / prev-next. VIN, vehicle name, and latest status stay in the header — they don't repeat per row. Timeline dots are colored by status category — <b>clean</b> (green), <b>dirty</b> (yellow), <b>service</b> (red), <b>shut</b> / other (blue).</p>
+  </section>
+
+  <!-- ============ COMMS FEED ============ -->
+  <section class="guide">
+    <h2>Comms feed</h2>
+    <p class="lead">Vertical list of announcements + extra-driver requests. Each item has a body, meta line, optional shift tags, status pill, and a collapsible replies block. Statuses: <code>status-open</code>, <code>status-closed</code>, <code>status-filled</code>, <code>status-cancelled</code>.</p>
+    <div class="bl-card"><div class="bl-card-body">
+      <div class="bl-comms-list">
+        <div class="bl-comms-item">
+          <div class="row">
+            <b>Need extra driver — Saturday close</b>
+            <span class="bl-status status-open">open</span>
+          </div>
+          <div class="body">Anyone able to stay 4–8pm this Saturday? 15 returns forecast.</div>
+          <div class="bl-shift-tags">
+            <span class="bl-shift-tag">Sat 16:00–20:00</span>
+            <span class="bl-shift-tag">$25/hr</span>
+          </div>
+          <div class="meta">M. Alvarez · 12m ago</div>
+          <div class="bl-comms-actions">
+            <button class="bl-btn bl-btn--sm bl-btn--secondary">Fill</button>
+            <button class="bl-btn bl-btn--sm bl-btn--ghost">Cancel</button>
+          </div>
+          <details class="bl-disclosure" open>
+            <summary>2 replies</summary>
+            <div class="bl-accepted">J. Tran accepted — 4m ago</div>
+            <div class="bl-replies">
+              <div class="bl-reply"><span class="bl-reply-author">J. Tran</span><span class="bl-reply-body">I can cover the full window.</span><span class="bl-reply-time">4m ago</span></div>
+              <div class="bl-reply"><span class="bl-reply-author">S. Kim</span><span class="bl-reply-body">Only until 6pm — take J. if he's in.</span><span class="bl-reply-time">6m ago</span></div>
+            </div>
+          </details>
+        </div>
+        <div class="bl-comms-item">
+          <div class="row">
+            <b>Lot 3 washer offline</b>
+            <span class="bl-status status-closed">closed</span>
+          </div>
+          <div class="body">Service came out — back up. Thanks all.</div>
+          <div class="meta">M. Alvarez · 2h ago</div>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- ============ RECORDS: FILTERS + SCAN ROW ============ -->
+  <section class="guide">
+    <h2>Records filters</h2>
+    <p class="lead">Top-of-page filter row on the Records browser: status / driver selects + wrapper search + a VIN entry with a camera-scan button.</p>
+    <div class="bl-card" style="max-width:640px"><div class="bl-card-body">
+      <div class="bl-rec-filters">
+        <label class="bl-field"><span class="bl-field-label">Status</span><select><option>All</option><option>Ready</option><option>Dirty</option></select></label>
+        <label class="bl-field"><span class="bl-field-label">Driver</span><select><option>All</option><option>M. Alvarez</option></select></label>
+        <label class="bl-search"><svg class="bl-icon bl-icon--sm"><use href="#icon-search"/></svg><input type="search" placeholder="VIN or serial…"></label>
+      </div>
+      <div class="bl-vin-row" style="margin-top:var(--sp-3)">
+        <input type="text" placeholder="Enter VIN…" value="4T1G11AK6RU123456">
+        <button class="bl-btn bl-btn--secondary bl-btn--icon" aria-label="Scan VIN"><svg class="bl-icon"><use href="#icon-camera"/></svg></button>
+      </div>
+    </div></div>
+    <p class="lead" style="margin-top:var(--sp-3)">Camera scan is a fullscreen overlay (<code>.bl-scan-overlay</code>) mounted when the scan button is pressed — not previewed inline.</p>
+  </section>
+
+  <!-- ============ VIN / RECORD DETAIL PAGE ============ -->
+  <section class="guide">
+    <h2>Record detail (VIN page)</h2>
+    <p class="lead">Body of <code>#blRecDetail</code>. Mirrors the driver-app "VIN history" pattern: a header card (VIN, vehicle, meters, status pill + flag chips + condition chips), then facts, notes, location, and photos. Status is carried by the pill only — the header card itself stays neutral. Buckets: <code>clean/dirty/service/shut</code> — same categories the dashboard pins use.</p>
+
+    <div class="bl-vin-header" style="margin-bottom:var(--sp-4)">
+      <div class="bl-vin-eyebrow-row">
+        <span class="bl-vin-eyebrow">Record</span>
+        <span class="bl-vin-seen">Last seen <b>12m ago</b></span>
+      </div>
+      <div class="bl-vin-vin">4T1G11AK6RU123456</div>
+      <div class="bl-vin-vehicle"><b>2024 Toyota Camry</b> · SE<span class="specs">4-door sedan · 2.5L I4 · Gasoline</span></div>
+      <div class="bl-vin-pill-row">
+        <span class="bl-vin-status-pill">Clean</span>
+        <span class="bl-vin-flag bl-vin-flag--info">Shuttle</span>
+      </div>
+      <div class="bl-vin-meters">
+        <div class="bl-vin-meter"><span class="label">Mileage</span><span class="val">38,412<span class="unit">mi</span></span></div>
+        <div class="bl-vin-meter">
+          <div class="bl-vin-fuel">
+            <div class="bl-vin-fuel-head"><span class="bl-vin-fuel-label">Fuel</span><span class="bl-vin-fuel-value">3/4</span></div>
+            <div class="bl-vin-fuel-gauge">
+              <div class="bl-vin-fuel-fill bl-vin-fuel-fill--75"></div>
+              <div class="bl-vin-fuel-ticks"><span></span><span></span><span></span><span></span></div>
+            </div>
+            <div class="bl-vin-fuel-scale"><span>E</span><span>¼</span><span>½</span><span>¾</span><span>F</span></div>
+          </div>
+        </div>
+        <div class="bl-vin-meter"><span class="label">Logged</span><span class="val val--text">12m ago</span><span class="sub">Fri, Jul 8, 2:14 PM</span></div>
+      </div>
+    </div>
+
+    <div class="bl-vin-header" style="margin-bottom:var(--sp-4)">
+      <div class="bl-vin-eyebrow-row">
+        <span class="bl-vin-eyebrow">Record</span>
+        <span class="bl-vin-seen">Last seen <b>2h ago</b></span>
+      </div>
+      <div class="bl-vin-vin">1HGCM82633A222222</div>
+      <div class="bl-vin-vehicle"><b>2022 Chevy Malibu</b> · LT<span class="specs">4-door sedan · 1.5L I4 · Gasoline</span></div>
+      <div class="bl-vin-pill-row">
+        <span class="bl-vin-status-pill bl-vin-status-pill--service">Hold</span>
+        <span class="bl-vin-flag bl-vin-flag--warn">Bad tag</span>
+        <span class="bl-vin-flag">No GPS</span>
+      </div>
+      <div class="bl-vin-cond-row">
+        <span class="bl-vin-cond-chip">Low tire</span>
+        <span class="bl-vin-cond-chip">Body damage</span>
+      </div>
+      <div class="bl-vin-meters">
+        <div class="bl-vin-meter"><span class="label">Mileage</span><span class="val">104,982<span class="unit">mi</span></span></div>
+        <div class="bl-vin-meter">
+          <div class="bl-vin-fuel">
+            <div class="bl-vin-fuel-head"><span class="bl-vin-fuel-label">Fuel</span><span class="bl-vin-fuel-value">Empty</span></div>
+            <div class="bl-vin-fuel-gauge is-low">
+              <div class="bl-vin-fuel-fill bl-vin-fuel-fill--0"></div>
+              <div class="bl-vin-fuel-ticks"><span></span><span></span><span></span><span></span></div>
+            </div>
+            <div class="bl-vin-fuel-scale"><span>E</span><span>¼</span><span>½</span><span>¾</span><span>F</span></div>
+          </div>
+        </div>
+        <div class="bl-vin-meter"><span class="label">Logged</span><span class="val val--text">2h ago</span><span class="sub">Fri, Jul 8, 12:03 PM</span></div>
+      </div>
+    </div>
+
+    <div class="bl-vin-section-label">Details</div>
+    <div class="bl-vin-facts">
+      <div class="bl-vin-fact"><span class="k">Driver</span><span class="v">M. Alvarez</span></div>
+      <div class="bl-vin-fact"><span class="k">Destination</span><span class="v">Ready line</span></div>
+      <div class="bl-vin-fact"><span class="k">Tires</span><span class="v">LR</span></div>
+      <div class="bl-vin-fact"><span class="k">Coordinates</span><span class="v">38.18608, -85.74227</span></div>
+    </div>
+
+    <div class="bl-vin-section-label">Notes</div>
+    <div class="bl-vin-notes">Customer reported vibration at highway speed. Referred to service — do not put back on ready line until PM verifies.</div>
+
+    <div class="bl-vin-section-label">Location</div>
+    <div class="bl-vin-map"></div>
+
+    <p class="lead" style="margin-top:var(--sp-3)">Status-pill variants: default (clean/ready), <code>.bl-vin-status-pill--dirty</code>, <code>.bl-vin-status-pill--service</code>, <code>.bl-vin-status-pill--shut</code>. Fuel gauge width steps: <code>.bl-vin-fuel-fill--0/25/50/75/100</code> (discrete because the app's CSP blocks inline <code>width</code>). Fuel gauge colors: default (green), <code>.is-mid</code> (yellow, ≤50%), <code>.is-low</code> (red, ≤25%). The detail modal itself uses <code>.bl-modal-card--wide</code> to hold the wider layout.</p>
+  </section>
+
+  <!-- ============ CHART ============ -->
+  <section class="guide">
+    <h2>Throughput chart</h2>
+    <p class="lead">Fixed-height column chart with a <code>.is-peak</code> bar highlight. Column labels use <code>--fs-2xs</code>.</p>
+    <div class="bl-card"><div class="bl-card-body">
+      <div class="bl-chart">
+        <div class="col"><div class="bar-track"><div class="bar" style="height:30%"></div></div><div class="hr">8a</div></div>
+        <div class="col"><div class="bar-track"><div class="bar" style="height:55%"></div></div><div class="hr">10a</div></div>
+        <div class="col"><div class="bar-track"><div class="bar" style="height:72%"></div></div><div class="hr">12p</div></div>
+        <div class="col"><div class="bar-track"><div class="bar is-peak" style="height:96%"></div></div><div class="hr">2p</div></div>
+        <div class="col"><div class="bar-track"><div class="bar" style="height:64%"></div></div><div class="hr">4p</div></div>
+        <div class="col"><div class="bar-track"><div class="bar" style="height:40%"></div></div><div class="hr">6p</div></div>
+      </div>
+      <div class="bl-chart-foot"><span>Today</span><span>Peak 2p — 96 cars</span></div>
+    </div></div>
+  </section>
+
+  <!-- ============ LEADERBOARD ============ -->
+  <section class="guide">
+    <h2>Leaderboard row</h2>
+    <p class="lead">Ranked list with a gold-highlight rank on top spot (<code>.is-gold</code>).</p>
+    <div class="bl-card" style="max-width:520px"><div class="bl-card-body">
+      <div class="bl-lb-controls">
+        <div class="bl-seg">
+          <button class="bl-seg-btn is-active">Drivers</button>
+          <button class="bl-seg-btn">Detailers</button>
+        </div>
+      </div>
+      <div class="bl-leader-row">
+        <div class="bl-leader-rank is-gold">1</div>
+        <div><div class="bl-leader-name">M. Alvarez</div><div class="bl-leader-sub">4.9/hr · started 07:12</div></div>
+        <div class="bl-leader-count">52</div>
+      </div>
+      <div class="bl-leader-row">
+        <div class="bl-leader-rank">2</div>
+        <div><div class="bl-leader-name">J. Tran</div><div class="bl-leader-sub">4.5/hr · started 07:18</div></div>
+        <div class="bl-leader-count">48</div>
+      </div>
+      <div class="bl-leader-row">
+        <div class="bl-leader-rank">3</div>
+        <div><div class="bl-leader-name">S. Kim</div><div class="bl-leader-sub">3.6/hr · on break</div></div>
+        <div class="bl-leader-count">38</div>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- ============ REPORTS SUMMARY ============ -->
+  <section class="guide">
+    <h2>Reports summary</h2>
+    <p class="lead">Report tables right-align numeric columns (<code>.bl-num</code>) and give the totals row a bolder top border (<code>.bl-report-total</code>).</p>
+    <div class="bl-card"><div class="bl-card-body">
+      <div class="bl-report-controls">
+        <label class="bl-field"><span class="bl-field-label">Range</span><select><option>Today</option><option>Week</option><option>Month</option></select></label>
+        <label class="bl-field"><span class="bl-field-label">Team</span><select><option>All</option></select></label>
+        <div class="bl-report-actions">
+          <button class="bl-btn bl-btn--secondary"><svg class="bl-icon bl-icon--sm"><use href="#icon-download"/></svg> Export</button>
+        </div>
+      </div>
+      <div class="bl-table-wrap">
+        <table class="bl-table">
+          <thead><tr><th>Driver</th><th class="bl-num">Cars</th><th class="bl-num">Avg/hr</th></tr></thead>
+          <tbody>
+            <tr><td>M. Alvarez</td><td class="bl-num">52</td><td class="bl-num">4.9</td></tr>
+            <tr><td>J. Tran</td><td class="bl-num">48</td><td class="bl-num">4.5</td></tr>
+            <tr><td>S. Kim</td><td class="bl-num">38</td><td class="bl-num">3.6</td></tr>
+            <tr class="bl-report-total"><td>Total</td><td class="bl-num">138</td><td class="bl-num">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div></div>
   </section>
 
   <!-- ============ ANTI-PATTERNS ============ -->

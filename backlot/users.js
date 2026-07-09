@@ -116,7 +116,7 @@
             </div>
             <div class="meta">${esc(contact)}${u.home_airport ? " · " + esc(u.home_airport) : ""}</div>
           </div>
-          <span class="bl-role-pill role-${esc(role)}">${esc(role)}</span>
+          <span class="bl-role-pill bl-role-pill--${esc(role)}">${esc(role)}</span>
           <div class="actions">
             ${p.pending && p.canEdit ? `<button class="bl-btn bl-btn--sm bl-btn--primary" data-act="approve" data-id="${u.id}">Approve</button>` : ""}
             <button class="bl-btn bl-btn--sm bl-btn--secondary" data-act="edit" data-id="${u.id}"${p.canEdit ? "" : ` disabled title="${esc(p.block)}"`}>Edit</button>

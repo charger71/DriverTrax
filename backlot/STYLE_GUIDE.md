@@ -33,12 +33,15 @@ backlot/
   vin.js               # BL_VIN — VIN validate, NHTSA decode, camera scan (zxing)
   dashboard.js roster.js users.js comms.js reports.js  # feature modules (per phase)
   records.js record-form.js   # records browser + create/edit form
+  search.js            # global VIN/serial search (topbar) → BL_RECORDS.openVinHistory
 ```
 
 ## Naming
 
 - **JS globals:** `BL_*` (`BL_AUTH`, `BL_ESC`, `BL_NAV`, …). Never `DT_*`.
-- **CSS classes:** `bl-` prefix (`.bl-btn`, `.bl-card`, `.bl-kpi`). State classes: `.is-active`, `.is-hidden`, `.is-show`.
+- **CSS classes:** `bl-` prefix (`.bl-btn`, `.bl-card`, `.bl-kpi`).
+- **Variants use BEM modifiers**: `.bl-btn--primary`, `.bl-chip--clean`, `.bl-role-pill--driver`, `.bl-lot-pin--dirty`. Never a bare `.role-driver` or `.is-dirty` on something that's a variant, not a state.
+- **State classes** are shared and prefixed `is-`: `.is-active`, `.is-hidden`, `.is-show`, `.is-open` (modals/gates), `.is-selected`, `.is-disabled`, `.is-sorted`, `.is-peak`, `.is-gold`. Reserve `is-*` for runtime state; use `--modifier` for permanent variants.
 - **Icon symbols:** `icon-NAME` in the sprite.
 
 ## Module pattern (use verbatim for new feature modules)
@@ -67,18 +70,24 @@ backlot/
 
 - Surfaces: `--bg`, `--surface`, `--card`, `--card-2`, `--hover`
 - Lines: `--border`, `--divider`
-- Text: `--text`, `--text-soft`, `--muted`, `--text-on-accent`
-- Brand/status: `--accent` (+ `-strong`, `-soft`), `--warn`, `--danger`, `--info`, `--success`
+- Text: `--text`, `--text-soft`, `--muted`
+- Foreground-on-status: `--text-on-accent` (on solid green), `--text-on-warn` (on yellow), `--text-on-status` (on solid danger / info). Use one of these on any solid brand/status background — never a bare `#fff`.
+- Brand/status: `--accent` (+ `-strong`, `-soft`), `--warn` (+ `-soft`), `--danger` (+ `-soft`), `--info` (+ `-soft`), `--success`
 - Lot status: `--st-clean`, `--st-dirty`, `--st-pm`, `--st-shut`
-- Spacing: `--sp-1` (4px) … `--sp-7` (48px) · touch min `--touch` (44px)
-- Type: `--fs-xs` … `--fs-2xl` · weights `--fw-normal` … `--fw-black`
+- Spacing: `--sp-0` (2px, hairline) · `--sp-1` (4px) … `--sp-7` (48px)
+- Touch targets: `--touch` (44px) for primary controls, `--touch-sm` (34px) for the documented small tier — pager, segmented, chip filter, `.bl-btn--sm`. Never invent a new smaller size.
+- Type: `--fs-2xs` (10px, dense meta only) · `--fs-xs` … `--fs-2xl` · weights `--fw-normal` … `--fw-black`
 - Radii `--r-sm/md/lg/full` · shadows `--sh-sm/md/lg` · `--focus-ring`
 
 Theme: **dark only for v1.** `:root` is dark; the structure is ready for `:root[data-theme="light"]` as a drop-in later — keep every value tokenised so that day is easy.
 
 ### Component classes (reuse — see components.html)
 
-Buttons `.bl-btn` + `--primary/--secondary/--ghost/--danger/--warn/--link/--icon/--sm/--block` · fields `.bl-field` + `.bl-field-label` · cards `.bl-card` + `.bl-card-head` + `.bl-card-body` · `.bl-kpis`/`.bl-kpi` · `.bl-table` (wrap in `.bl-table-wrap`) · chips `.bl-chip--clean/dirty/pm/shut` · segmented `.bl-seg`/`.bl-seg-btn` · `.bl-empty` · `.bl-toast` (via `BL_TOAST`) · `.bl-msg` (via `BL_UI.setMessage`).
+Buttons `.bl-btn` + `--primary/--secondary/--ghost/--danger/--destructive/--warn/--link/--icon/--sm/--block` (`--danger` = solid red for prominent destructive actions; `--destructive` = outline red for secondary Delete-next-to-Save) · fields `.bl-field` + `.bl-field-label` · cards `.bl-card` + `.bl-card-head` + `.bl-card-body` · `.bl-kpis`/`.bl-kpi` · `.bl-table` (wrap in `.bl-table-wrap`) · chips `.bl-chip--clean/dirty/pm/shut` · segmented `.bl-seg`/`.bl-seg-btn` · `.bl-empty` · `.bl-toast` (via `BL_TOAST`) · `.bl-msg` (via `BL_UI.setMessage`).
+
+### Casing — buttons + badges are always uppercase
+
+Every `.bl-btn` (all variants) and every badge / pill / chip / tag (`.bl-chip`, `.bl-role-pill`, `.bl-pending-pill`, `.bl-disabled-pill`, `.bl-shift-tag`, `.bl-status`, `.bl-nav-badge`, `.bl-vin-status-pill`, `.bl-vin-flag`, `.bl-vin-cond-chip`) renders **UPPERCASE**, applied via CSS `text-transform: uppercase`. Write the source text in normal case (`"Delete"`, `"driver"`, `"Pending"`) — the CSS handles the transform. Do **not** hand-uppercase strings (`"DELETE"`, `"DRIVER"`) in HTML/JS; that breaks copy tools and screen-reader pronunciation. Add `letter-spacing: .5px` (or `.6px` on buttons) alongside any new uppercase style so glyph spacing stays legible.
 
 ## Icons — single-color SVG only
 
@@ -94,7 +103,7 @@ Buttons `.bl-btn` + `--primary/--secondary/--ghost/--danger/--warn/--link/--icon
 - Icon-only controls need `aria-label`.
 - Overlays/modals: `role="dialog"` + `aria-modal="true"` + `aria-label`, and Escape-to-close.
 - Focus rings come from `--focus-ring`; don't override `:focus-visible` per component.
-- Touch targets ≥ `--touch` (44px); never depend on hover for a primary action (tablet-first).
+- Touch targets: primary controls ≥ `--touch` (44px); dense secondary controls (pager, segmented, chip filter, `.bl-btn--sm`) may use `--touch-sm` (34px). Nothing smaller. Never depend on hover for a primary action (tablet-first).
 
 ## Responsive
 
@@ -107,6 +116,7 @@ One shell, two first-class form factors:
 
 - `esc()` (= `BL_ESC`) every user-provided string before putting it in `innerHTML`.
 - Strict CSP in `index.html` — no new external origins without updating it (and bumping `CACHE_VERSION`).
+- **The CSP blocks `style="..."` attributes** (`style-src` has no `'unsafe-inline'`). Any `<div style="…">` you write into `index.html` or emit from JS `innerHTML` is silently ignored. Add a modifier class to `styles.css` instead — e.g. `.bl-modal-actions--center` and `.bl-vin-fuel-fill--75` were introduced for exactly this reason. `components.html` isn't served under the CSP, so demo pages there may use inline styles for guide chrome, but do not copy those patterns into the app.
 
 ## Service worker
 

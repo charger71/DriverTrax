@@ -27,7 +27,7 @@
   const label = (s) => (window.BL_STATUS_LABEL ? BL_STATUS_LABEL(s) : s) || "";
   const condLabel = (id) => (window.BL_CONDITION_LABEL ? BL_CONDITION_LABEL(id) : id);
 
-  const REC_COLS = "id,user_id,serial_id,status,status_other,destination,destination_other,conditions,no_tag,shuttle,transport,notes,lat,lng,mileage,fuel_level,tires,vin_data,ts,photo_urls,photo_url";
+  const REC_COLS = "id,user_id,serial_id,status,status_other,destination,destination_other,conditions,no_tag,shuttle,transport,notes,lat,lng,mileage,fuel_level,tires,tire_details,damage_marks,claim_number,claim_notes,vin_data,ts,photo_urls,photo_url";
   const CSV_CAP = 5000; // hard cap on CSV export size
   const CSV_BATCH = 1000;
 
@@ -333,44 +333,436 @@
   }
 
   // ---------- detail modal ----------
-  function openDetail(id) {
-    const r = findRec(id);
-    if (!r) { BL_TOAST.missing("record"); return; }
-    currentIdx = currentPage.findIndex((x) => x.id === id);
+  // Status categories mirror dashboard.js — the header + status pill recolor
+  // off the same buckets so status reads consistently across the app.
+  const READY_SET   = new Set(["CLEAN", "DETAILED"]);
+  const DIRTY_SET   = new Set(["DIRTY", "REWASH", "DETAILING", "GLASS"]);
+  const SERVICE_SET = new Set(["PM", "MK", "MR", "OM", "BODY", "TI", "HOLD", "DNR", "AUDIT FAIL", "WI/DELETE"]);
+  function statusCategory(status) {
+    const s = (status || "").toUpperCase();
+    if (READY_SET.has(s))   return "clean";
+    if (DIRTY_SET.has(s))   return "dirty";
+    if (SERVICE_SET.has(s)) return "service";
+    return "shut";
+  }
+  // FUEL_LEVELS = ["EMPTY","1/4","1/2","3/4","FULL"] → 0/25/50/75/100 %.
+  // `is-low` at ≤25, `is-mid` at 26–50, default green above.
+  function fuelInfo(level) {
+    const L = (level || "").toUpperCase();
+    const map = { "EMPTY": 0, "1/4": 25, "1/2": 50, "3/4": 75, "FULL": 100 };
+    if (!(L in map)) return null;
+    const pct = map[L];
+    const kind = pct <= 25 ? "is-low" : (pct <= 50 ? "is-mid" : "");
+    return { pct, kind, label: level };
+  }
+
+  // ---------- damage + tire catalogs (read-only, ported from the driver
+  // app's damage.js). We reproduce them here so backlot stays self-contained
+  // per the STYLE_GUIDE isolation rule. Keep in sync if the driver-app
+  // catalog grows a panel or tire condition. ------------------------------
+  const DAMAGE_LABELS = { dent: "Dent", scratch: "Scratch", chip: "Chip", crack: "Crack", missing: "Missing" };
+  const DAMAGE_TYPES = new Set(Object.keys(DAMAGE_LABELS));
+  const TIRE_POSITIONS = ["FL", "FR", "RL", "RR"];
+  const TIRE_POS_LABEL = { FL: "Front left", FR: "Front right", RL: "Rear left", RR: "Rear right" };
+  const TIRE_CONDITION_LABEL = { OK: "OK", worn: "Worn", low: "Low PSI", flat: "Flat", replace: "Replace" };
+  const PANEL_NAMES = {
+    FRONT_BUMPERS: "Front bumper", FRONT_GRILL: "Front grille", FRONT_PANEL: "Front fascia",
+    FRONT_NUMBER_PLATE: "Front license plate", FRONT_NEAR_SIDE_HEADLAMP: "Driver headlight",
+    FRONT_OFF_SIDE_HEADLAMP: "Passenger headlight", FRONT_NEAR_SIDE_FOG_LIGHT: "Driver fog light",
+    FRONT_OFF_SIDE_FOG_LIGHT: "Passenger fog light", FRONT_BONNET: "Hood", FRONT_WINDSCREEN: "Windshield",
+    REAR_BUMPER: "Rear bumper", REAR_PANEL: "Rear fascia", REAR_NUMBER_PLATE: "Rear license plate",
+    NEAR_SIDE_REAR_HEADLAMP: "Driver taillight", OFF_SIDE_REAR_HEADLAMP: "Passenger taillight",
+    FRONT_REAR_WINDOW: "Rear windshield", FRONT_ROOF_PANEL: "Roof",
+    NEAR_SIDE_DRIVER_DOOR: "Driver front door", NEAR_SIDE_PASSENGER_DOOR: "Driver rear door",
+    NEAR_SIDE_DRIVER_WINDOW: "Driver front window", NEAR_SIDE_PASSENGER_WINDOW: "Driver rear window",
+    NEAR_SIDE_SIDE_WINDOW: "Driver quarter window", NEAR_SIDE_FRONT_PANEL: "Driver front fender",
+    NEAR_SIDE_FENDERS: "Driver rear quarter", NEAR_SIDE_REAR_BUMPER: "Driver rear bumper corner",
+    NEAR_SIDE_WING_MIRROR: "Driver side mirror", NEAR_SIDE_DRIVER_HANDLE: "Driver front door handle",
+    NEAR_SIDE_PASSENGER_HANDLE: "Driver rear door handle", NEAR_SIDE_FRONT_WHEEL: "Driver front wheel",
+    NEAR_SIDE_REAR_WHEEL: "Driver rear wheel", NEAR_SIDE_FRONT_TYPE: "Driver front tire",
+    NEAR_SIDE_REAR_TYPE: "Driver rear tire", NEAR_SIDE_FUEL_CAP: "Fuel cap",
+    OFF_SIDE_DRIVER_DOOR: "Passenger front door", OFF_SIDE_PASSENGER_DOOR: "Passenger rear door",
+    OFF_SIDE_DRIVER_WINDOW: "Passenger front window", OFF_SIDE_PASSENGER_WINDOW: "Passenger rear window",
+    OFF_SIDE_SIDE_WINDOW: "Passenger quarter window", OFF_SIDE_FRONT_PANEL: "Passenger front fender",
+    OFF_SIDE_FENDERS: "Passenger rear quarter", OFF_SIDE_REAR_BUMPER: "Passenger rear bumper corner",
+    OFF_SIDE_WING_MIRROR: "Passenger side mirror", OFF_SIDE_DRIVER_HANDLE: "Passenger front door handle",
+    OFF_SIDE_PASSENGER_HANDLE: "Passenger rear door handle", OFF_SIDE_FRONT_WHEEL: "Passenger front wheel",
+    OFF_SIDE_REAR_WHEEL: "Passenger rear wheel", OFF_SIDE_FRONT_TYPE: "Passenger front tire",
+    OFF_SIDE_REAR_TYPE: "Passenger rear tire", BODY_TRIM: "Body trim"
+  };
+
+  // Return HTML for the body-damage panel (log rows + optional claim block),
+  // or an empty string when the record has no damage marks and no claim.
+  function renderDamagePanel(r) {
+    const marks = Array.isArray(r.damage_marks) ? r.damage_marks : [];
+    const claimNum   = r.claim_number || "";
+    const claimNotes = r.claim_notes  || "";
+    if (!marks.length && !claimNum) return "";
+
+    const rows = marks.map((m, i) => {
+      const type = DAMAGE_TYPES.has(m.damage_type) ? m.damage_type : "missing";
+      const typeLabel = DAMAGE_LABELS[type] || type;
+      const location  = PANEL_NAMES[m.panel_id] || m.panel_id || "—";
+      return `
+        <div class="bl-vin-damage-row">
+          <span class="bl-vin-damage-num bl-vin-damage-num--${esc(type)}">${i + 1}</span>
+          <span class="bl-vin-damage-name">
+            <span class="bl-vin-damage-type">${esc(typeLabel)}</span>
+            <span class="bl-vin-damage-loc"> · ${esc(location)}</span>
+          </span>
+        </div>`;
+    }).join("");
+
+    const claimBlock = claimNum
+      ? `<dl class="bl-vin-damage-claim">
+           <dt>Claim #</dt><dd>${esc(claimNum)}</dd>
+           ${claimNotes ? `<dt>Notes</dt><dd>${esc(claimNotes)}</dd>` : ""}
+         </dl>`
+      : "";
+
+    const countText = marks.length
+      ? `${marks.length} mark${marks.length === 1 ? "" : "s"}`
+      : "Claim on file";
+    // The SVG mounts into `.bl-vin-damage-svg-wrap` after innerHTML runs
+    // (mountDamageSvg is called by the caller). Only include it when there
+    // are marks worth painting; a claim-only record skips the diagram.
+    const svgSlot = marks.length ? `<div class="bl-vin-damage-svg-wrap" data-damage-slot="1"></div>` : "";
+    const layout = marks.length
+      ? `<div class="bl-vin-damage-layout">
+           <div class="bl-vin-damage-list">${rows}</div>
+           ${svgSlot}
+         </div>`
+      : "";
+    return `
+      <div class="bl-vin-section-label">Body damage · ${countText}</div>
+      <div class="bl-vin-damage">
+        ${layout}
+        ${claimBlock}
+      </div>`;
+  }
+
+  // Clone the inert car-silhouette template and rewrite its IDs to
+  // data-panel attrs so the clone can be inserted into the live document
+  // without leaking those IDs. Returns null if the template isn't present.
+  function cloneCarSilhouette() {
+    const tpl = document.getElementById("blCarSilhouette");
+    if (!tpl || !tpl.content) return null;
+    const source = tpl.content.querySelector("svg");
+    if (!source) return null;
+    const clone = source.cloneNode(true);
+    clone.querySelectorAll("[id]").forEach((el) => {
+      const id = el.id;
+      el.removeAttribute("id");
+      if (PANEL_NAMES[id]) el.setAttribute("data-panel", id);
+    });
+    clone.classList.add("bl-vin-damage-svg");
+    return clone;
+  }
+
+  // Paint the numbered mark dots onto a cloned silhouette + tint the
+  // affected panels. Mounts the whole SVG into every empty slot inside
+  // `root` (there's usually exactly one — the damage panel).
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  function mountDamageSvg(root, marks) {
+    if (!root) return;
+    const slots = root.querySelectorAll('[data-damage-slot="1"]');
+    if (!slots.length || !marks.length) return;
+    slots.forEach((slot) => {
+      const svg = cloneCarSilhouette();
+      if (!svg) return;
+      const marksGroup = svg.querySelector(".bl-vin-damage-marks");
+      marks.forEach((m, i) => {
+        const type = DAMAGE_TYPES.has(m.damage_type) ? m.damage_type : "missing";
+        const panel = svg.querySelector(`[data-panel="${m.panel_id}"]`);
+        if (panel) panel.classList.add("has-damage");
+        const g = document.createElementNS(SVG_NS, "g");
+        const halo = document.createElementNS(SVG_NS, "circle");
+        halo.setAttribute("cx", m.x); halo.setAttribute("cy", m.y);
+        halo.setAttribute("r", 9);
+        halo.setAttribute("class", `bl-dmg-halo bl-dmg-halo--${type}`);
+        const dot = document.createElementNS(SVG_NS, "circle");
+        dot.setAttribute("cx", m.x); dot.setAttribute("cy", m.y);
+        dot.setAttribute("r", 6);
+        dot.setAttribute("class", `bl-dmg-dot bl-dmg-dot--${type}`);
+        const text = document.createElementNS(SVG_NS, "text");
+        text.setAttribute("x", m.x); text.setAttribute("y", m.y + 2.5);
+        text.setAttribute("text-anchor", "middle");
+        text.setAttribute("class", "bl-dmg-num");
+        text.textContent = i + 1;
+        g.appendChild(halo); g.appendChild(dot); g.appendChild(text);
+        (marksGroup || svg).appendChild(g);
+      });
+      slot.appendChild(svg);
+    });
+  }
+
+  // Return HTML for the tire-condition panel, or an empty string when the
+  // record has no tire_details and no legacy tires[] flags.
+  function renderTirePanel(r) {
+    const details = (r.tire_details && typeof r.tire_details === "object") ? r.tire_details : null;
+    const legacy  = Array.isArray(r.tires) ? r.tires : [];
+    const hasAny  = (details && Object.keys(details).length) || legacy.length;
+    if (!hasAny) return "";
+
+    let flagged = 0;
+    const cards = TIRE_POSITIONS.map((pos) => {
+      const t = (details && details[pos]) || {};
+      const cond = t.condition || (legacy.includes(pos) ? "flat" : "OK");
+      if (cond !== "OK") flagged++;
+      const condLabel = TIRE_CONDITION_LABEL[cond] || cond;
+      const psi = (t.psi != null && t.psi !== "") ? t.psi : null;
+      return `
+        <div class="bl-vin-tire">
+          <div class="bl-vin-tire-head">
+            <span class="bl-vin-tire-pos">${esc(pos)}</span>
+            <span class="bl-vin-tire-cond bl-vin-tire-cond--${esc(cond)}">${esc(condLabel)}</span>
+          </div>
+          <span class="bl-vin-tire-pos-label">${esc(TIRE_POS_LABEL[pos] || pos)}</span>
+          ${psi != null ? `<span class="bl-vin-tire-psi">PSI: <b>${esc(String(psi))}</b></span>` : ""}
+        </div>`;
+    }).join("");
+    const countText = flagged ? `${flagged} flagged` : "All OK";
+    return `
+      <div class="bl-vin-section-label">Tires · ${countText}</div>
+      <div class="bl-vin-tires">
+        <div class="bl-vin-tires-grid">${cards}</div>
+      </div>`;
+  }
+
+  // ---------- vehicle-history timeline: expanded body -----------------
+  // Renders the details revealed when a timeline row is opened. Kept lean:
+  // VIN, vehicle, and latest status live in the header — no need to repeat
+  // them per record. Focus on what this specific event actually changed.
+  function renderTimelineExpanded(r) {
+    const fields = [];
+    const push = (k, v) => { if (v != null && v !== "") fields.push([k, v]); };
+    // Full timestamp is already in the summary; drop from fields.
+    push("Shift", r.shift_num);
+    if (r.status === "OTHER") push("Status detail", r.status_other);
+    const conds = (r.conditions || []).map(condLabel).filter(Boolean).join(", ");
+    if (conds) push("Conditions", conds);
+    if (r.lat != null && r.lng != null) push("Coordinates", `${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}`);
+    const fieldsHtml = fields.length
+      ? `<dl class="bl-vin-tl-fields">
+           ${fields.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(String(v))}</dd>`).join("")}
+         </dl>`
+      : "";
+
+    // Flag chips: only render if the flag applies. Damage/tire chips summarize
+    // this record's contribution — the full lists live in the aggregate panels
+    // above the timeline.
+    const flags = [];
+    if (r.shuttle)   flags.push(`<span class="bl-vin-flag bl-vin-flag--info">Shuttle</span>`);
+    if (r.transport) flags.push(`<span class="bl-vin-flag bl-vin-flag--info">Transport</span>`);
+    if (r.no_tag)    flags.push(`<span class="bl-vin-flag bl-vin-flag--warn">Bad tag</span>`);
+    const photoCount = (Array.isArray(r.photo_urls) && r.photo_urls.length)
+      || (r.photo_url ? 1 : 0);
+    if (photoCount) flags.push(`<span class="bl-vin-flag">Photos · ${photoCount}</span>`);
+    const dmgCount = Array.isArray(r.damage_marks) ? r.damage_marks.length : 0;
+    if (dmgCount) flags.push(`<span class="bl-vin-flag bl-vin-flag--warn">Damage · ${dmgCount} mark${dmgCount === 1 ? "" : "s"}</span>`);
+    const tireDetails = (r.tire_details && typeof r.tire_details === "object") ? r.tire_details : null;
+    const legacyTires = Array.isArray(r.tires) ? r.tires : [];
+    let tireFlagged = 0;
+    if (tireDetails) {
+      for (const pos of TIRE_POSITIONS) {
+        const t = tireDetails[pos];
+        if (t && t.condition && t.condition !== "OK") tireFlagged++;
+      }
+    } else if (legacyTires.length) {
+      tireFlagged = legacyTires.length;
+    }
+    if (tireFlagged) flags.push(`<span class="bl-vin-flag bl-vin-flag--warn">Tires · ${tireFlagged} flagged</span>`);
+    const flagsHtml = flags.length ? `<div class="bl-vin-tl-flags">${flags.join("")}</div>` : "";
+
+    const notesHtml = r.notes
+      ? `<div class="bl-vin-tl-notes-block">${esc(r.notes)}</div>`
+      : "";
+
+    // "Open full record" drops into the existing detail modal so the manager
+    // can still edit / delete / walk prev-next when needed.
+    const openBtn = `<button type="button" class="bl-btn bl-btn--sm bl-btn--secondary" data-open-detail="${esc(r.id)}"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-clipboard"/></svg>Open full record</button>`;
+
+    return `
+      <div class="bl-vin-tl-expanded">
+        ${fieldsHtml}
+        ${flagsHtml}
+        ${notesHtml}
+        <div class="bl-vin-tl-actions">${openBtn}</div>
+      </div>`;
+  }
+
+  let _detailMap = null;
+
+  async function openDetail(id) {
+    let r = findRec(id);
+    if (r) {
+      currentIdx = currentPage.findIndex((x) => x.id === id);
+    } else {
+      // Not in the current page cache — the global topbar search may have
+      // jumped straight to this record. Fetch the full row + its driver name
+      // so the detail renders every field. Prev/Next stays disabled because
+      // there's no page context to walk.
+      const { data, error } = await sb.from("records").select(REC_COLS).eq("id", id).maybeSingle();
+      if (BL_ERR.isMissing(error, data)) { BL_TOAST.missing("record"); return; }
+      if (error) { BL_TOAST.error("Load failed: " + error.message); return; }
+      r = data;
+      currentIdx = -1;
+      if (r.user_id && !profilesMap[r.user_id]) {
+        const { data: prof } = await sb.from("profiles").select("id,display_name").eq("id", r.user_id).maybeSingle();
+        if (prof) profilesMap[prof.id] = prof.display_name || "(no name)";
+      }
+    }
     renderDetail(r);
     $("blRecDetail").classList.add("is-open");
   }
 
   function renderDetail(r) {
-    $("blRecDetailTitle").textContent = r.serial_id || "Record";
-    const vd = r.vin_data || {};
-    const rows = [];
-    const add = (k, v) => { if (v != null && v !== "" && !(Array.isArray(v) && !v.length)) rows.push([k, v]); };
-    add("Status", label(r.status) || r.status);
-    if (r.status === "OTHER") add("Status detail", r.status_other);
-    add("Destination", r.destination === "OTHER" ? (r.destination_other || "Other") : r.destination);
-    if (r.conditions && r.conditions.length) add("Conditions", r.conditions.map(condLabel).join(", "));
-    if (r.tires && r.tires.length) add("Tires", r.tires.join(", "));
-    add("Fuel", r.fuel_level);
-    add("Mileage", r.mileage != null ? r.mileage.toLocaleString() : null);
-    add("No tag", r.no_tag ? "Yes" : null);
-    add("Shuttle", r.shuttle ? "Yes" : null);
-    add("Transport", r.transport ? "Yes" : null);
-    add("Notes", r.notes);
-    add("Driver", driverName(r.user_id));
-    add("Logged", new Date(r.ts).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: fmt.TZ }));
-    if (r.lat != null && r.lng != null) add("Location", `${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}`);
+    // Any prior map instance dies with the previous render — Leaflet doesn't
+    // like sharing a container across .setView calls once it's been remove()d.
+    if (_detailMap) { try { _detailMap.remove(); } catch (e) {} _detailMap = null; }
 
-    const vinBlock = (vd.year || vd.make || vd.model)
-      ? `<div class="bl-vin-block"><span class="yr">${esc([vd.year, vd.make, vd.model].filter(Boolean).join(" "))}</span>${vd.trim ? ` · ${esc(vd.trim)}` : ""}${vd.bodyClass ? `<br>${esc(vd.bodyClass)}` : ""}</div>`
+    $("blRecDetailTitle").textContent = r.serial_id || "Record";
+
+    const vd = r.vin_data || {};
+    const cat = statusCategory(r.status);
+    const statusText  = label(r.status) || r.status || "—";
+    const statusPillMod = cat === "clean" ? "" : ` bl-vin-status-pill--${cat}`;
+
+    // Vehicle: bold Year Make Model + trim, specs on second line.
+    const nameLine = [vd.year, vd.make, vd.model].filter(Boolean).map(esc).join(" ");
+    const trimLine = vd.trim ? " · " + esc(vd.trim) : "";
+    const specs    = [vd.bodyClass, vd.engine, vd.fuelType].filter(Boolean).map(esc).join(" · ");
+    const vehicleBlock = nameLine
+      ? `<div class="bl-vin-vehicle"><b>${nameLine}</b>${trimLine}${specs ? `<span class="specs">${specs}</span>` : ""}</div>`
+      : "";
+
+    // Utility flags share the pill row.
+    const flags = [];
+    if (r.shuttle)   flags.push(`<span class="bl-vin-flag bl-vin-flag--info">Shuttle</span>`);
+    if (r.transport) flags.push(`<span class="bl-vin-flag bl-vin-flag--info">Transport</span>`);
+    if (r.no_tag)    flags.push(`<span class="bl-vin-flag bl-vin-flag--warn">Bad tag</span>`);
+    if (r.lat == null || r.lng == null) flags.push(`<span class="bl-vin-flag">No GPS</span>`);
+
+    const conds = (r.conditions || []).map((c) => `<span class="bl-vin-cond-chip">${esc(condLabel(c))}</span>`).join("");
+    const condsBlock = conds ? `<div class="bl-vin-cond-row">${conds}</div>` : "";
+
+    // Meters row: mileage, fuel gauge, logged time.
+    const fi = fuelInfo(r.fuel_level);
+    const tsAgo  = r.ts ? fmt.timeAgo(r.ts) : "";
+    const tsFull = r.ts
+      ? new Date(r.ts).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: fmt.TZ })
+      : "";
+    const mileageVal = r.mileage != null
+      ? `<span class="val">${esc(r.mileage.toLocaleString())}<span class="unit">mi</span></span>`
+      : `<span class="val val--muted">—</span><span class="sub">Not recorded</span>`;
+    const fuelMeter = fi
+      ? `<div class="bl-vin-meter">
+           <div class="bl-vin-fuel">
+             <div class="bl-vin-fuel-head">
+               <span class="bl-vin-fuel-label">Fuel</span>
+               <span class="bl-vin-fuel-value">${esc(fi.label)}</span>
+             </div>
+             <div class="bl-vin-fuel-gauge ${fi.kind}">
+               <div class="bl-vin-fuel-fill bl-vin-fuel-fill--${fi.pct}"></div>
+               <div class="bl-vin-fuel-ticks"><span></span><span></span><span></span><span></span></div>
+             </div>
+             <div class="bl-vin-fuel-scale"><span>E</span><span>¼</span><span>½</span><span>¾</span><span>F</span></div>
+           </div>
+         </div>`
+      : "";
+    const loggedMeter = r.ts
+      ? `<div class="bl-vin-meter">
+           <span class="label">Logged</span>
+           <span class="val val--text">${esc(tsAgo || "—")}</span>
+           <span class="sub">${esc(tsFull)}</span>
+         </div>`
+      : "";
+    const metersHtml = `
+      <div class="bl-vin-meters">
+        <div class="bl-vin-meter"><span class="label">Mileage</span>${mileageVal}</div>
+        ${fuelMeter}
+        ${loggedMeter}
+      </div>`;
+
+    // Facts (below header) — anything not surfaced above. Tires used to land
+    // here as a comma-joined list of positions; the tire panel below now
+    // surfaces the full condition + PSI grid, so drop the flat fact.
+    const facts = [];
+    const push = (k, v) => { if (v != null && v !== "") facts.push([k, v]); };
+    push("Driver",       driverName(r.user_id));
+    push("Destination",  r.destination === "OTHER" ? (r.destination_other || "Other") : r.destination);
+    if (r.status === "OTHER") push("Status detail", r.status_other);
+    if (r.lat != null && r.lng != null) push("Coordinates", `${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}`);
+    const factsHtml = facts.length
+      ? `<div class="bl-vin-section-label">Details</div>
+         <div class="bl-vin-facts">
+           ${facts.map(([k, v]) => `<div class="bl-vin-fact"><span class="k">${esc(k)}</span><span class="v">${esc(String(v))}</span></div>`).join("")}
+         </div>`
+      : "";
+
+    const damageBlock = renderDamagePanel(r);
+    const tireBlock   = renderTirePanel(r);
+
+    const notesBlock = r.notes
+      ? `<div class="bl-vin-section-label">Notes</div>
+         <div class="bl-vin-notes">${esc(r.notes)}</div>`
+      : "";
+
+    const locBlock = (r.lat != null && r.lng != null)
+      ? `<div class="bl-vin-section-label">Location</div>
+         <div class="bl-vin-map" id="blRecDetailMap"></div>`
+      : "";
+
+    const hasPhotos = (Array.isArray(r.photo_urls) && r.photo_urls.length) || r.photo_url;
+    const photosBlock = hasPhotos
+      ? `<div class="bl-vin-section-label">Photos</div>
+         <div class="bl-photo-strip" id="blRecDetailPhotos"></div>`
       : "";
 
     $("blRecDetailBody").innerHTML = `
-      <dl class="bl-detail-grid">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(String(v))}</dd>`).join("")}</dl>
-      ${vinBlock}
-      <div class="bl-photo-strip" id="blRecDetailPhotos"></div>`;
-    renderDetailPhotos(r);
+      <div class="bl-vin-header">
+        <div class="bl-vin-eyebrow-row">
+          <span class="bl-vin-eyebrow">Record</span>
+          ${tsAgo ? `<span class="bl-vin-seen">Last seen <b>${esc(tsAgo)}</b></span>` : ""}
+        </div>
+        <div class="bl-vin-vin">${esc(r.serial_id || "—")}</div>
+        ${vehicleBlock}
+        <div class="bl-vin-pill-row">
+          <span class="bl-vin-status-pill${statusPillMod}">${esc(statusText)}</span>
+          ${flags.join("")}
+        </div>
+        ${condsBlock}
+        ${metersHtml}
+      </div>
+      ${factsHtml}
+      ${damageBlock}
+      ${tireBlock}
+      ${notesBlock}
+      ${locBlock}
+      ${photosBlock}`;
+
+    if (hasPhotos) renderDetailPhotos(r);
+    if (r.lat != null && r.lng != null) renderDetailMap(r);
+    mountDamageSvg($("blRecDetailBody"), Array.isArray(r.damage_marks) ? r.damage_marks : []);
     updateDetailNav();
+  }
+
+  function renderDetailMap(r) {
+    const mount = $("blRecDetailMap");
+    if (!mount || !window.L) return;
+    // The modal is display:none until .is-open so the container has no size on
+    // first paint; deferring a frame gives Leaflet real dimensions.
+    setTimeout(() => {
+      _detailMap = L.map(mount, { zoomControl: true, scrollWheelZoom: false, attributionControl: true })
+        .setView([r.lat, r.lng], 17);
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        maxZoom: 20, attribution: "© OpenStreetMap, © CARTO",
+      }).addTo(_detailMap);
+      const cat = statusCategory(r.status);
+      const pinMod = cat === "clean" ? "" : ` bl-lot-pin--${cat === "shut" ? "other" : cat}`;
+      const icon = L.divIcon({ className: "", html: `<div class="bl-lot-pin${pinMod}"></div>`, iconSize: [16, 16], iconAnchor: [8, 8] });
+      L.marker([r.lat, r.lng], { icon }).addTo(_detailMap);
+    }, 60);
   }
 
   function updateDetailNav() {
@@ -381,6 +773,182 @@
     if (nav) nav.textContent = total > 1 && currentIdx >= 0 ? `${currentIdx + 1} / ${total}` : "";
     if (prev) prev.disabled = !(currentIdx > 0);
     if (next) next.disabled = !(currentIdx >= 0 && currentIdx < total - 1);
+  }
+
+  // ---------- vehicle-history modal ----------
+  const VIN_HISTORY_LIMIT = 100;
+
+  async function openVinHistory(serial) {
+    if (!serial) return;
+    // Show the modal immediately with a "loading" body so the click feels
+    // instant even before Supabase responds.
+    $("blVinHistoryTitle").textContent = serial;
+    $("blVinHistoryBody").innerHTML = `<div class="bl-empty">Loading history…</div>`;
+    $("blVinHistory").classList.add("is-open");
+
+    const { data, error } = await sb.from("records")
+      .select(REC_COLS)
+      .eq("serial_id", serial)
+      .order("ts", { ascending: false })
+      .limit(VIN_HISTORY_LIMIT);
+    if (error) {
+      $("blVinHistoryBody").innerHTML = `<div class="bl-empty">Load failed: ${esc(error.message)}</div>`;
+      return;
+    }
+    const rows = data || [];
+    if (!rows.length) {
+      $("blVinHistoryBody").innerHTML = `<div class="bl-empty">No records for <b>${esc(serial)}</b>.</div>`;
+      return;
+    }
+    // Backfill any driver names we don't already have cached so the timeline
+    // meta line renders M. Alvarez instead of a blank.
+    const missing = [...new Set(rows.map((r) => r.user_id).filter((id) => id && !profilesMap[id]))];
+    if (missing.length) {
+      const { data: profs } = await sb.from("profiles").select("id,display_name").in("id", missing);
+      (profs || []).forEach((p) => { profilesMap[p.id] = p.display_name || "(no name)"; });
+    }
+    renderVinHistory(serial, rows);
+  }
+
+  function renderVinHistory(serial, rows) {
+    const latest = rows[0];
+    const oldest = rows[rows.length - 1];
+    const vd = latest.vin_data || {};
+    const cat = statusCategory(latest.status);
+    const statusText = label(latest.status) || latest.status || "—";
+    const statusPillMod = cat === "clean" ? "" : ` bl-vin-status-pill--${cat}`;
+    const tsAgo = latest.ts ? fmt.timeAgo(latest.ts) : "";
+
+    const nameLine = [vd.year, vd.make, vd.model].filter(Boolean).map(esc).join(" ");
+    const trimLine = vd.trim ? " · " + esc(vd.trim) : "";
+    const specs    = [vd.bodyClass, vd.engine, vd.fuelType].filter(Boolean).map(esc).join(" · ");
+    const vehicleBlock = nameLine
+      ? `<div class="bl-vin-vehicle"><b>${nameLine}</b>${trimLine}${specs ? `<span class="specs">${specs}</span>` : ""}</div>`
+      : "";
+
+    // Summary meters at the top of the history: N records / first seen / latest mileage.
+    const firstSeen = oldest.ts ? new Date(oldest.ts).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: fmt.TZ }) : "—";
+    const latestMileage = rows.find((r) => r.mileage != null)?.mileage;
+    const metersHtml = `
+      <div class="bl-vin-meters">
+        <div class="bl-vin-meter">
+          <span class="label">Records</span>
+          <span class="val">${rows.length}${rows.length >= VIN_HISTORY_LIMIT ? "+" : ""}</span>
+        </div>
+        <div class="bl-vin-meter">
+          <span class="label">First seen</span>
+          <span class="val val--text">${esc(firstSeen)}</span>
+        </div>
+        <div class="bl-vin-meter">
+          <span class="label">Latest mileage</span>
+          ${latestMileage != null
+            ? `<span class="val">${esc(latestMileage.toLocaleString())}<span class="unit">mi</span></span>`
+            : `<span class="val val--muted">—</span>`}
+        </div>
+      </div>`;
+
+    // Aggregate damage + tires across every record so the header shows
+    // whether the vehicle has damage / tire issues on file at a glance.
+    // Damage marks: union across all records, deduped by (panel_id, damage_type)
+    //   — first occurrence wins, which given ts DESC ordering is the newest
+    //   x/y for that damage. Repeated logging of the same damage doesn't
+    //   inflate the count.
+    // Claim: most recent record with a claim number wins.
+    // Tires: most recent record with any tire data wins (full snapshot).
+    const dmgSeen = new Map();
+    for (const rec of rows) {
+      const list = Array.isArray(rec.damage_marks) ? rec.damage_marks : [];
+      for (const m of list) {
+        if (!m || !m.panel_id || !m.damage_type) continue;
+        const key = `${m.panel_id}|${m.damage_type}`;
+        if (!dmgSeen.has(key)) dmgSeen.set(key, m);
+      }
+    }
+    const claimRec = rows.find((r) => r.claim_number);
+    const tireRec  = rows.find((r) => (r.tire_details && Object.keys(r.tire_details).length) || (Array.isArray(r.tires) && r.tires.length));
+    const aggRec = {
+      damage_marks: [...dmgSeen.values()],
+      claim_number: claimRec?.claim_number || null,
+      claim_notes:  claimRec?.claim_notes  || null,
+      tire_details: tireRec?.tire_details  || null,
+      tires:        tireRec?.tires         || [],
+    };
+    const aggDamageHtml = renderDamagePanel(aggRec);
+    const aggTireHtml   = renderTirePanel(aggRec);
+
+    const timelineHtml = rows.map((r) => {
+      const rcat = statusCategory(r.status);
+      const rStat = label(r.status) || r.status || "—";
+      const rStatPillMod = rcat === "clean" ? "" : ` bl-vin-status-pill--${rcat}`;
+      const dotMod = rcat === "clean" ? "" : ` bl-vin-tl-dot--${rcat}`;
+      const ago = r.ts ? fmt.timeAgo(r.ts) : "";
+      const full = r.ts ? new Date(r.ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: fmt.TZ }) : "";
+      const dest = r.destination === "OTHER" ? (r.destination_other || "Other") : r.destination;
+      // Compact meta line kept on the collapsed summary — enough context to
+      // scan the timeline without expanding every row.
+      const metaBits = [];
+      if (r.user_id) metaBits.push(esc(driverName(r.user_id)));
+      if (r.mileage != null) metaBits.push(`${esc(r.mileage.toLocaleString())} mi`);
+      if (r.fuel_level) metaBits.push(`Fuel ${esc(r.fuel_level)}`);
+      return `
+        <details class="bl-vin-tl-row" data-id="${esc(r.id)}">
+          <summary>
+            <div class="bl-vin-tl-time">
+              <span class="bl-vin-tl-ago">${esc(ago || "—")}</span>
+              <span class="bl-vin-tl-full">${esc(full)}</span>
+            </div>
+            <span class="bl-vin-tl-dot${dotMod}" aria-hidden="true"></span>
+            <div class="bl-vin-tl-body">
+              <div class="bl-vin-tl-status">
+                <span class="bl-vin-status-pill${rStatPillMod}">${esc(rStat)}</span>
+                ${dest ? `<span class="bl-vin-tl-dest">→ <b>${esc(dest)}</b></span>` : ""}
+              </div>
+              ${metaBits.length ? `<div class="bl-vin-tl-meta">${metaBits.join(" · ")}</div>` : ""}
+            </div>
+            <span class="bl-vin-tl-chev" aria-hidden="true">▾</span>
+          </summary>
+          ${renderTimelineExpanded(r)}
+        </details>`;
+    }).join("");
+
+    $("blVinHistoryTitle").textContent = serial;
+    $("blVinHistoryBody").innerHTML = `
+      <div class="bl-vin-header">
+        <div class="bl-vin-eyebrow-row">
+          <span class="bl-vin-eyebrow">Vehicle history</span>
+          ${tsAgo ? `<span class="bl-vin-seen">Last seen <b>${esc(tsAgo)}</b></span>` : ""}
+        </div>
+        <div class="bl-vin-vin">${esc(serial)}</div>
+        ${vehicleBlock}
+        <div class="bl-vin-pill-row">
+          <span class="bl-vin-status-pill${statusPillMod}">${esc(statusText)}</span>
+        </div>
+        ${metersHtml}
+      </div>
+      ${aggDamageHtml}
+      ${aggTireHtml}
+      <div class="bl-vin-section-label">Timeline · ${rows.length}${rows.length >= VIN_HISTORY_LIMIT ? "+" : ""} event${rows.length === 1 ? "" : "s"}</div>
+      <div class="bl-vin-timeline">${timelineHtml}</div>`;
+
+    mountDamageSvg($("blVinHistoryBody"), aggRec.damage_marks);
+  }
+
+  function closeVinHistory() { $("blVinHistory").classList.remove("is-open"); }
+
+  function onVinHistoryClick(e) {
+    // Row summary clicks toggle the <details> element natively — nothing to
+    // wire here. Only the "Open full record" button inside an expanded row
+    // drills into the single-record detail modal. Reads the id from the
+    // ancestor <details>, not from the button itself, so we survive markup
+    // tweaks that move the button around.
+    const openBtn = e.target.closest("[data-open-detail]");
+    if (!openBtn) return;
+    const row = openBtn.closest(".bl-vin-tl-row");
+    const id = openBtn.dataset.openDetail || row?.dataset.id;
+    if (!id) return;
+    // Nested drill-down: leave the VIN history modal open in the background;
+    // the record detail modal has a higher effective z-index by being later in DOM.
+    openDetail(id);
   }
 
   function stepDetail(delta) {
@@ -403,7 +971,11 @@
     } catch (e) { /* photos best-effort */ }
   }
 
-  function closeDetail() { $("blRecDetail").classList.remove("is-open"); currentIdx = -1; }
+  function closeDetail() {
+    $("blRecDetail").classList.remove("is-open");
+    currentIdx = -1;
+    if (_detailMap) { try { _detailMap.remove(); } catch (e) {} _detailMap = null; }
+  }
 
   async function deleteDetail() {
     if (currentIdx < 0) return;
@@ -483,11 +1055,23 @@
     $("blRecDetailPrev")?.addEventListener("click", () => stepDetail(-1));
     $("blRecDetailNext")?.addEventListener("click", () => stepDetail(1));
 
-    // Modal keyboard: Escape closes; arrow keys step through the current page.
+    $("blVinHistoryClose")?.addEventListener("click", closeVinHistory);
+    $("blVinHistory")?.addEventListener("click", (e) => { if (e.target.id === "blVinHistory") closeVinHistory(); });
+    $("blVinHistoryBody")?.addEventListener("click", onVinHistoryClick);
+
+    // Modal keyboard: Escape closes the topmost open modal; arrow keys step
+    // through the current records page only when the record-detail modal
+    // owns the foreground.
     document.addEventListener("keydown", (e) => {
-      const open = $("blRecDetail")?.classList.contains("is-open");
-      if (!open) return;
-      if (e.key === "Escape") { closeDetail(); return; }
+      const detailOpen  = $("blRecDetail")?.classList.contains("is-open");
+      const historyOpen = $("blVinHistory")?.classList.contains("is-open");
+      if (!detailOpen && !historyOpen) return;
+      if (e.key === "Escape") {
+        if (detailOpen)      closeDetail();
+        else if (historyOpen) closeVinHistory();
+        return;
+      }
+      if (!detailOpen) return;
       if (e.key === "ArrowLeft")  { e.preventDefault(); stepDetail(-1); }
       if (e.key === "ArrowRight") { e.preventDefault(); stepDetail(1); }
     });
@@ -508,5 +1092,5 @@
   if (BL_AUTH.canEnter()) start();
   document.addEventListener("bl-section-shown", (e) => { if (e.detail === "records" && started) reload(); });
 
-  window.BL_RECORDS = { reload, profilesMap };
+  window.BL_RECORDS = { reload, profilesMap, openDetail, openVinHistory };
 })();

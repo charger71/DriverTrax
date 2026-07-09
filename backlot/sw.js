@@ -5,7 +5,7 @@
 // Backlot shell. BUMP CACHE_VERSION on ANY change to a precached
 // asset below, or installed PWAs keep serving the stale file.
 // ============================================================
-const CACHE_VERSION = "backlot-v2.6-bulk-actions-comms-filters";
+const CACHE_VERSION = "backlot-v3.8-timeline-collapsible";
 
 // Same-origin shell only. CDN libs (supabase-js, leaflet) are runtime-cached.
 const SHELL = [
@@ -25,6 +25,7 @@ const SHELL = [
   "./reports.js",
   "./records.js",
   "./record-form.js",
+  "./search.js",
   "./boot.js",
   "./manifest.webmanifest",
   "./icons/icon.png",

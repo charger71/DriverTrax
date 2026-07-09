@@ -98,7 +98,7 @@
       const unit = r.role === "detailer" ? "job" : "car";
       return `<tr>
         <td>${esc(r.name)}</td>
-        <td><span class="bl-role bl-role--${r.role}">${r.role}</span></td>
+        <td><span class="bl-role-pill bl-role-pill--${r.role}">${r.role}</span></td>
         <td><b>${r.count}</b> <span class="u-muted">${unit}${r.count === 1 ? "" : "s"}</span></td>
         <td>${esc(paceSub(r.count, r.first, r.last))}</td>
         <td>${esc(fmt.timeAgo(r.last))}</td>

@@ -32,7 +32,9 @@
   --text:        #e9edf2;
   --text-soft:   #aeb8c4;
   --muted:       #6f7a87;
-  --text-on-accent: #04130a;
+  --text-on-accent: #04130a;   /* on --accent (green) */
+  --text-on-warn:   #1a1500;   /* on --warn (yellow) */
+  --text-on-status: #ffffff;   /* on --danger / --info solid backgrounds */
 
   /* brand / status (Enterprise green) */
   --accent:        #16b364;
@@ -52,14 +54,24 @@
   --st-pm:    var(--danger);
   --st-shut:  var(--info);
 
-  /* spacing scale */
-  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  /* body-damage type swatches — copied verbatim from the driver-app palette
+     so the same VIN reads the same in both apps. Semantic per type; do not
+     substitute --warn/--danger. */
+  --dmg-dent:    #ef9f27;
+  --dmg-scratch: #d85a30;
+  --dmg-chip:    #7f77dd;
+  --dmg-crack:   #e24b4a;
+  --dmg-missing: #5f5e5a;
+
+  /* spacing scale — --sp-0 is a hairline used for pill paddings + tight seg gaps */
+  --sp-0: 2px; --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
   --sp-5: 24px; --sp-6: 32px; --sp-7: 48px;
 
   /* radii */
   --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-full: 999px;
 
-  /* type */
+  /* type — --fs-2xs is for dense chart / attribution labels below the reading tier */
+  --fs-2xs: 10px;
   --fs-xs: 11px; --fs-sm: 12px; --fs-md: 14px; --fs-lg: 16px;
   --fs-xl: 20px; --fs-2xl: 26px;
   --fw-normal: 500; --fw-medium: 600; --fw-bold: 700; --fw-heavy: 800; --fw-black: 900;
@@ -70,8 +82,11 @@
   --sh-lg: 0 12px 40px rgba(0,0,0,.55);
   --scrim: rgba(6, 9, 13, 0.72);
 
-  /* touch + layout */
+  /* touch + layout — --touch-sm is the documented small-control tier (pager,
+     segmented, chip filter, ".bl-btn--sm"). Do not go below --touch-sm for any
+     new control; primary controls stay at --touch. */
   --touch: 44px;
+  --touch-sm: 34px;
   --topbar-h: 56px;
   --sidebar-w: 232px;
   --focus-ring: 0 0 0 3px rgba(22, 179, 100, 0.45);
@@ -153,6 +168,46 @@ body.bl-authed .bl-app {
   display: grid; place-items: center; font-weight: var(--fw-heavy); font-size: var(--fs-sm);
 }
 
+/* ---- 3b. Global search (topbar) --------------------------------------- */
+/* Search-first entry point for VIN / serial. Sits in the topbar and opens
+   the record-detail modal directly on select — no page navigation. Managers
+   who start from a VIN handed to them by a CXR can jump straight to it. */
+.bl-topbar-search { position: relative; flex: 0 1 340px; min-width: 0; }
+.bl-topbar-search .bl-search { width: 100%; min-height: var(--touch-sm); }
+.bl-topbar-search .bl-search input { min-width: 0; }
+
+.bl-search-dropdown {
+  position: absolute; top: calc(100% + var(--sp-1)); left: 0; right: 0; z-index: 20;
+  max-height: 60vh; overflow: auto;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md);
+  box-shadow: var(--sh-lg);
+  display: flex; flex-direction: column;
+}
+.bl-search-dropdown[hidden] { display: none; }
+
+.bl-search-empty {
+  padding: var(--sp-3) var(--sp-4);
+  color: var(--muted); font-size: var(--fs-sm);
+}
+.bl-search-empty b { color: var(--text); font-weight: var(--fw-bold); }
+
+.bl-search-result {
+  display: grid;
+  grid-template-columns: minmax(140px, auto) 1fr auto auto;
+  align-items: baseline;
+  gap: var(--sp-2) var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: transparent; border: 0; border-bottom: 1px solid var(--divider);
+  color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.bl-search-result:last-child { border-bottom: 0; }
+.bl-search-result:hover,
+.bl-search-result.is-active { background: var(--hover); }
+.bl-search-serial  { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: var(--fw-heavy); font-size: var(--fs-sm); }
+.bl-search-vehicle { color: var(--text-soft); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.bl-search-status  { color: var(--muted); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .5px; font-weight: var(--fw-heavy); }
+.bl-search-when    { color: var(--muted); font-size: var(--fs-xs); white-space: nowrap; }
+
 /* sidebar nav */
 .bl-sidebar {
   background: var(--surface); border-right: 1px solid var(--border);
@@ -169,7 +224,7 @@ body.bl-authed .bl-app {
 .bl-nav-item .ico { width: 18px; text-align: center; opacity: .9; }
 .bl-nav-item:hover { background: var(--hover); color: var(--text); }
 .bl-nav-item.is-active { background: var(--hover); color: var(--text); border-left-color: var(--accent); font-weight: var(--fw-bold); }
-.bl-nav-badge { margin-left: auto; background: var(--danger); color: #fff; font-size: var(--fs-xs); font-weight: var(--fw-heavy); padding: 1px 6px; border-radius: var(--r-full); }
+.bl-nav-badge { margin-left: auto; background: var(--danger); color: var(--text-on-status); font-size: var(--fs-xs); font-weight: var(--fw-heavy); padding: var(--sp-0) var(--sp-1); border-radius: var(--r-full); text-transform: uppercase; letter-spacing: .5px; }
 
 /* main + sections */
 .bl-main { overflow: auto; padding: var(--sp-5); }
@@ -186,7 +241,8 @@ body.bl-authed .bl-app {
   min-height: var(--touch); padding: 0 var(--sp-4);
   background: var(--card-2); color: var(--text); border: 1px solid var(--border);
   border-radius: var(--r-md); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-bold);
-  letter-spacing: .3px; cursor: pointer; transition: background .15s, border-color .15s, opacity .15s;
+  text-transform: uppercase; letter-spacing: .6px;
+  cursor: pointer; transition: background .15s, border-color .15s, opacity .15s;
   -webkit-tap-highlight-color: transparent;
 }
 .bl-btn:hover { background: var(--hover); }
@@ -196,10 +252,16 @@ body.bl-authed .bl-app {
 .bl-btn--secondary { background: var(--card-2); }
 .bl-btn--ghost { background: transparent; border-color: transparent; }
 .bl-btn--ghost:hover { background: var(--hover); }
-.bl-btn--danger { background: var(--danger); border-color: var(--danger); color: #fff; }
-.bl-btn--warn { background: var(--warn); border-color: var(--warn); color: #1a1500; }
+.bl-btn--danger { background: var(--danger); border-color: var(--danger); color: var(--text-on-status); }
+/* Subtle destructive variant — outline red that fills on hover. Use when a
+   Delete lives next to a primary Save/Edit and a solid --danger would fight
+   the primary for attention (e.g. detail-modal footers). Bulk / standalone
+   destructive actions should stay on --danger. */
+.bl-btn--destructive { background: transparent; border-color: var(--danger); color: var(--danger); }
+.bl-btn--destructive:hover { background: var(--danger); border-color: var(--danger); color: var(--text-on-status); }
+.bl-btn--warn { background: var(--warn); border-color: var(--warn); color: var(--text-on-warn); }
 .bl-btn--block { width: 100%; }
-.bl-btn--sm { min-height: 34px; padding: 0 var(--sp-3); font-size: var(--fs-xs); }
+.bl-btn--sm { min-height: var(--touch-sm); padding: 0 var(--sp-3); font-size: var(--fs-xs); }
 .bl-btn--icon { width: var(--touch); padding: 0; }
 .bl-btn--link { background: none; border: 0; min-height: 0; color: var(--accent); font-weight: var(--fw-medium); padding: var(--sp-1); }
 .bl-btn--link:hover { background: none; text-decoration: underline; }
@@ -246,16 +308,16 @@ body.bl-authed .bl-app {
 .leaflet-container { background: var(--bg); font: inherit; }
 .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--card); color: var(--text); box-shadow: var(--sh-md); }
 .leaflet-popup-content { font-size: var(--fs-sm); }
-.leaflet-control-attribution { font-size: 9px !important; background: rgba(0,0,0,.55) !important; color: var(--text-soft) !important; }
+.leaflet-control-attribution { font-size: var(--fs-2xs) !important; background: var(--scrim) !important; color: var(--text-soft) !important; }
 .leaflet-control-attribution a { color: var(--accent) !important; }
 .bl-lot-pin {
   width: 16px; height: 16px; border-radius: 50%;
-  border: 2px solid var(--bg); box-shadow: 0 0 0 1px rgba(0,0,0,.5);
+  border: 2px solid var(--bg); box-shadow: var(--sh-sm);
   background: var(--st-clean);
 }
-.bl-lot-pin.is-dirty   { background: var(--st-dirty); }
-.bl-lot-pin.is-service { background: var(--st-pm); }
-.bl-lot-pin.is-other   { background: var(--st-shut); }
+.bl-lot-pin--dirty   { background: var(--st-dirty); }
+.bl-lot-pin--service { background: var(--st-pm); }
+.bl-lot-pin--other   { background: var(--st-shut); }
 .bl-map-legend { display: flex; flex-wrap: wrap; gap: var(--sp-4); padding: 0 var(--sp-4) var(--sp-4); }
 .bl-map-legend span { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--text-soft); font-size: var(--fs-sm); }
 .bl-map-legend b { color: var(--text); }
@@ -264,9 +326,9 @@ body.bl-authed .bl-app {
 .bl-chart { display: flex; align-items: flex-end; gap: var(--sp-2); height: 150px; padding-top: var(--sp-2); }
 .bl-chart .col { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); min-width: 0; }
 .bl-chart .col .bar-track { width: 100%; height: 120px; display: flex; align-items: flex-end; justify-content: center; }
-.bl-chart .col .bar { width: 60%; max-width: 16px; min-height: 2px; background: var(--accent); border-radius: 3px 3px 0 0; }
+.bl-chart .col .bar { width: 60%; max-width: 16px; min-height: 2px; background: var(--accent); border-radius: var(--r-sm) var(--r-sm) 0 0; }
 .bl-chart .col .bar.is-peak { background: var(--accent-strong); }
-.bl-chart .col .hr { color: var(--muted); font-size: 10px; font-weight: var(--fw-bold); letter-spacing: .5px; white-space: nowrap; }
+.bl-chart .col .hr { color: var(--muted); font-size: var(--fs-2xs); font-weight: var(--fw-bold); letter-spacing: .5px; white-space: nowrap; }
 .bl-chart-foot { display: flex; justify-content: space-between; gap: var(--sp-3); margin-top: var(--sp-3); color: var(--text-soft); font-size: var(--fs-xs); }
 
 /* ---- 6c. Roster & leaderboard ------------------------------------- */
@@ -274,15 +336,10 @@ body.bl-authed .bl-app {
 .bl-leader-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--sp-3); padding: var(--sp-2) 0; border-bottom: 1px solid var(--divider); }
 .bl-leader-row:last-child { border-bottom: 0; }
 .bl-leader-rank { width: 26px; height: 26px; flex: 0 0 auto; display: grid; place-items: center; border-radius: var(--r-full); background: var(--card-2); color: var(--text-soft); font-size: var(--fs-xs); font-weight: var(--fw-heavy); }
-.bl-leader-rank.is-gold { background: var(--warn); color: #1a1500; }
+.bl-leader-rank.is-gold { background: var(--warn); color: var(--text-on-warn); }
 .bl-leader-name { font-weight: var(--fw-bold); }
 .bl-leader-sub { color: var(--muted); font-size: var(--fs-xs); }
 .bl-leader-count { font-size: var(--fs-lg); font-weight: var(--fw-black); }
-
-/* role chip — small, color-coded */
-.bl-role { display: inline-block; border-radius: var(--r-full); padding: 1px var(--sp-2); font-size: var(--fs-xs); font-weight: var(--fw-bold); }
-.bl-role--driver { background: var(--info-soft); color: var(--info); }
-.bl-role--detailer { background: var(--accent-soft); color: var(--accent); }
 
 /* ---- 7. Tables ---------------------------------------------------------- */
 .bl-table-wrap { overflow-x: auto; }
@@ -308,14 +365,14 @@ body.bl-authed .bl-app {
 .bl-pager-size > span { color: var(--muted); font-weight: var(--fw-medium); }
 .bl-pager-select {
   background: var(--card-2); color: var(--text); border: 1px solid var(--border);
-  border-radius: var(--r-sm); padding: 2px var(--sp-2); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-bold);
-  min-height: 28px; cursor: pointer;
+  border-radius: var(--r-sm); padding: var(--sp-0) var(--sp-2); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-bold);
+  min-height: var(--touch-sm); cursor: pointer;
 }
 .bl-pager-jump {
   width: 56px; text-align: center;
   background: var(--card-2); color: var(--text); border: 1px solid var(--border);
-  border-radius: var(--r-sm); padding: 2px var(--sp-2); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-bold);
-  min-height: 28px;
+  border-radius: var(--r-sm); padding: var(--sp-0) var(--sp-2); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-bold);
+  min-height: var(--touch-sm);
   /* strip Firefox spinner arrows to keep the control tight */
   -moz-appearance: textfield;
 }
@@ -336,18 +393,20 @@ body.bl-authed .bl-app {
 .bl-sort-ind.is-active { color: var(--accent); }
 .bl-table th.is-sorted { color: var(--text); }
 
-/* ---- 8. Chips / segmented ----------------------------------------------- */
-.bl-chip { display: inline-flex; align-items: center; gap: var(--sp-2); border-radius: var(--r-full); padding: var(--sp-1) var(--sp-3); font-size: var(--fs-xs); font-weight: var(--fw-bold); }
+/* ---- 8a. Chips / segmented ---------------------------------------------- */
+.bl-chip { display: inline-flex; align-items: center; gap: var(--sp-2); border-radius: var(--r-full); padding: var(--sp-1) var(--sp-3); font-size: var(--fs-xs); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: .5px; }
 .bl-chip--clean { background: var(--accent-soft); color: var(--accent); }
 .bl-chip--dirty { background: var(--warn-soft); color: var(--warn); }
 .bl-chip--pm { background: var(--danger-soft); color: var(--danger); }
 .bl-chip--shut { background: var(--info-soft); color: var(--info); }
 
-.bl-seg { display: inline-flex; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 3px; gap: 3px; }
-.bl-seg-btn { min-height: 36px; padding: 0 var(--sp-3); background: none; border: 0; border-radius: var(--r-sm); color: var(--text-soft); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-bold); cursor: pointer; }
+.bl-seg { display: inline-flex; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-0); gap: var(--sp-0); }
+.bl-seg-btn { min-height: var(--touch-sm); padding: 0 var(--sp-3); background: none; border: 0; border-radius: var(--r-sm); color: var(--text-soft); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-bold); cursor: pointer; }
 .bl-seg-btn.is-active { background: var(--accent); color: var(--text-on-accent); }
 
 /* ---- 8b. Search field --------------------------------------------------- */
+/* Focus lives on the wrapper (`.bl-search:focus-within`) so the icon + input
+   read as one control. That's why the inner input strips its own ring. */
 .bl-search { display: inline-flex; align-items: center; gap: var(--sp-2); background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 0 var(--sp-3); min-height: var(--touch); color: var(--muted); }
 .bl-search input { background: none; border: 0; color: var(--text); font: inherit; min-height: auto; padding: 0; min-width: 180px; }
 .bl-search input:focus { outline: none; box-shadow: none; }
@@ -361,14 +420,17 @@ body.bl-authed .bl-app {
 .bl-users-row .info { flex: 1 1 200px; min-width: 0; }
 .bl-users-row .name { font-weight: var(--fw-bold); display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .bl-users-row .meta { color: var(--muted); font-size: var(--fs-sm); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; }
-.bl-role-pill { display: inline-block; border-radius: var(--r-full); padding: 2px var(--sp-3); font-size: var(--fs-xs); font-weight: var(--fw-bold); background: var(--card-2); color: var(--text-soft); text-transform: capitalize; }
-.bl-role-pill.role-manager, .bl-role-pill.role-admin { background: var(--accent-soft); color: var(--accent); }
-.bl-role-pill.role-cxr { background: var(--info-soft); color: var(--info); }
-.bl-pending-pill { background: var(--warn-soft); color: var(--warn); border-radius: var(--r-full); padding: 1px var(--sp-2); font-size: var(--fs-xs); font-weight: var(--fw-bold); }
-.bl-disabled-pill { background: var(--danger-soft); color: var(--danger); border-radius: var(--r-full); padding: 1px var(--sp-2); font-size: var(--fs-xs); font-weight: var(--fw-bold); }
+.bl-role-pill { display: inline-block; border-radius: var(--r-full); padding: var(--sp-0) var(--sp-3); font-size: var(--fs-xs); font-weight: var(--fw-bold); background: var(--card-2); color: var(--text-soft); text-transform: uppercase; letter-spacing: .5px; }
+.bl-role-pill--manager,
+.bl-role-pill--admin    { background: var(--accent-soft); color: var(--accent); }
+.bl-role-pill--cxr      { background: var(--info-soft);   color: var(--info); }
+.bl-role-pill--driver   { background: var(--info-soft);   color: var(--info); }
+.bl-role-pill--detailer { background: var(--accent-soft); color: var(--accent); }
+.bl-pending-pill  { background: var(--warn-soft);   color: var(--warn);   border-radius: var(--r-full); padding: var(--sp-0) var(--sp-2); font-size: var(--fs-xs); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: .5px; }
+.bl-disabled-pill { background: var(--danger-soft); color: var(--danger); border-radius: var(--r-full); padding: var(--sp-0) var(--sp-2); font-size: var(--fs-xs); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: .5px; }
 .bl-users-row .actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
 
-/* ---- 8e. Comms: announcements + extra-driver requests ------------- */
+/* ---- 8d. Comms: announcements + extra-driver requests ------------------ */
 .bl-field-row { display: flex; gap: var(--sp-3); }
 .bl-field-row > .bl-field { flex: 1; }
 .bl-checks { display: flex; gap: var(--sp-3); flex-wrap: wrap; }
@@ -384,8 +446,8 @@ body.bl-authed .bl-app {
 .bl-comms-item .row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; }
 .bl-comms-actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-2); flex-wrap: wrap; }
 .bl-shift-tags { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin: var(--sp-1) 0; }
-.bl-shift-tag { background: var(--card-2); border-radius: var(--r-full); padding: 1px var(--sp-2); font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--text-soft); }
-.bl-status { border-radius: var(--r-full); padding: 1px var(--sp-2); font-size: var(--fs-xs); font-weight: var(--fw-bold); text-transform: capitalize; }
+.bl-shift-tag { background: var(--card-2); border-radius: var(--r-full); padding: var(--sp-0) var(--sp-2); font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--text-soft); text-transform: uppercase; letter-spacing: .5px; }
+.bl-status { border-radius: var(--r-full); padding: var(--sp-0) var(--sp-2); font-size: var(--fs-xs); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: .5px; }
 .bl-status.status-open { background: var(--accent-soft); color: var(--accent); }
 .bl-status.status-closed, .bl-status.status-filled { background: var(--info-soft); color: var(--info); }
 .bl-status.status-cancelled { background: var(--danger-soft); color: var(--danger); }
@@ -399,7 +461,7 @@ body.bl-authed .bl-app {
 .bl-reply-body { color: var(--text-soft); word-break: break-word; }
 .bl-reply-time { color: var(--muted); font-size: var(--fs-xs); margin-left: auto; }
 
-/* ---- 8g. Records browser ------------------------------------------------ */
+/* ---- 8e. Records browser ------------------------------------------------ */
 .bl-rec-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-3); margin-bottom: var(--sp-3); }
 .bl-rec-filters .bl-field { flex: 1 1 140px; min-width: 120px; }
 .bl-rec-filters .bl-search { flex: 2 1 200px; }
@@ -410,7 +472,7 @@ body.bl-authed .bl-app {
 .bl-preset-chips { display: inline-flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; flex: 1; }
 .bl-preset-empty { color: var(--muted); font-size: var(--fs-sm); font-style: italic; }
 .bl-preset-chip { display: inline-flex; align-items: stretch; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-full); overflow: hidden; }
-.bl-preset-chip .bl-preset-apply { background: transparent; border: 0; color: var(--text); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-bold); padding: 4px var(--sp-3); cursor: pointer; }
+.bl-preset-chip .bl-preset-apply { background: transparent; border: 0; color: var(--text); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-bold); padding: var(--sp-1) var(--sp-3); cursor: pointer; }
 .bl-preset-chip .bl-preset-apply:hover { background: var(--hover); }
 .bl-preset-chip .bl-preset-del { background: transparent; border: 0; color: var(--muted); font-size: var(--fs-md); font-weight: var(--fw-heavy); padding: 0 var(--sp-2); cursor: pointer; border-left: 1px solid var(--border); }
 .bl-preset-chip .bl-preset-del:hover { color: var(--danger); background: var(--hover); }
@@ -443,13 +505,13 @@ body.bl-authed .bl-app {
 
 /* ---- comms filter row (search + chip filter) ---- */
 .bl-comms-filters { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-top: var(--sp-4); margin-bottom: var(--sp-2); }
-.bl-search--sm { min-height: 32px; padding: 0 var(--sp-2); }
+.bl-search--sm { min-height: var(--touch-sm); padding: 0 var(--sp-2); }
 .bl-search--sm input { font-size: var(--fs-sm); }
-.bl-chip-filter { display: inline-flex; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-full); padding: 2px; gap: 2px; }
+.bl-chip-filter { display: inline-flex; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-full); padding: var(--sp-0); gap: var(--sp-0); }
 .bl-chip-btn {
   background: transparent; border: 0; color: var(--text-soft); font: inherit; font-size: var(--fs-xs);
   letter-spacing: 0.5px; text-transform: uppercase; font-weight: var(--fw-heavy);
-  padding: 4px var(--sp-3); border-radius: var(--r-full); cursor: pointer;
+  min-height: var(--touch-sm); padding: 0 var(--sp-3); border-radius: var(--r-full); cursor: pointer;
 }
 .bl-chip-btn:hover { color: var(--text); background: var(--hover); }
 .bl-chip-btn.is-active { background: var(--accent); color: var(--text-on-accent); }
@@ -473,14 +535,24 @@ body.bl-authed .bl-app {
 .bl-photo-strip { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
 .bl-photo-thumb { width: 72px; height: 72px; border-radius: var(--r-md); object-fit: cover; border: 1px solid var(--border); background: var(--card-2); }
 .bl-photo-wrap { position: relative; }
-.bl-photo-wrap .rm { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: 50%; background: var(--danger); color: #fff; border: 0; cursor: pointer; display: grid; place-items: center; padding: 0; }
-.bl-photo-wrap .rm .bl-icon { width: 12px; height: 12px; }
+/* Circular delete affordance that overlaps the corner of the thumbnail.
+   Size is --touch-sm so it hits the tablet touch tier documented in the guide;
+   the negative offsets keep the icon visually anchored to the thumb corner. */
+.bl-photo-wrap .rm {
+  position: absolute; top: calc(-1 * var(--sp-2)); right: calc(-1 * var(--sp-2));
+  width: var(--touch-sm); height: var(--touch-sm);
+  border-radius: 50%; background: var(--danger); color: var(--text-on-status);
+  border: 0; cursor: pointer; display: grid; place-items: center; padding: 0;
+}
+.bl-photo-wrap .rm .bl-icon { width: var(--sp-4); height: var(--sp-4); }
 .bl-vin-row { display: flex; gap: var(--sp-2); }
 .bl-vin-row input { flex: 1; text-transform: uppercase; }
 
 /* camera scan overlay */
 .bl-scan-overlay { position: fixed; inset: 0; z-index: 9500; display: grid; place-items: center; padding: var(--sp-4); background: var(--scrim); backdrop-filter: blur(4px); }
 .bl-scan-box { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: var(--sp-3); }
+/* Explicit black behind the video keeps the preview truly opaque before the
+   camera stream attaches; tokens would tint it slightly and read as a bug. */
 .bl-scan-box video { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #000; border: 1px solid var(--border); border-radius: var(--r-md); }
 .bl-scan-hint { text-align: center; color: var(--text-soft); font-size: var(--fs-sm); }
 
@@ -492,14 +564,348 @@ body.bl-authed .bl-app {
 .bl-report-total td { font-weight: var(--fw-heavy); border-top: 2px solid var(--border); }
 .bl-num { text-align: right; font-variant-numeric: tabular-nums; }
 
-/* ---- 8d. Modal ---------------------------------------------------------- */
+/* ---- 8g. Modal ---------------------------------------------------------- */
 .bl-modal { position: fixed; inset: 0; z-index: 7000; display: none; place-items: center; padding: var(--sp-4); background: var(--scrim); backdrop-filter: blur(4px); }
 .bl-modal.is-open { display: grid; }
 .bl-modal-card { width: 100%; max-width: 440px; max-height: 90vh; overflow: auto; background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--sh-lg); }
+.bl-modal-card--wide { max-width: 720px; }
 .bl-modal-head { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-4); border-bottom: 1px solid var(--divider); }
 .bl-modal-head h3 { font-size: var(--fs-lg); font-weight: var(--fw-heavy); flex: 1; }
 .bl-modal-body { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); }
 .bl-modal-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); margin-top: var(--sp-2); }
+/* Centered footer for detail overlays where destructive + primary sit as a
+   balanced pair (record-detail Delete + Edit). Handled as a class because the
+   app's CSP blocks `style="justify-content:..."`. */
+.bl-modal-actions--center { justify-content: center; gap: var(--sp-3); padding: 0 var(--sp-4) var(--sp-4); margin-top: 0; }
+
+/* ---- 8h. VIN detail (record detail body) ------------------------------- */
+/* Mirrors the driver-app "VIN history" pattern: a header card with VIN +
+   vehicle + meters + status pill + flag/condition chips, then a fact grid,
+   notes, photo strip, and (optional) map. Status is communicated by the
+   .bl-vin-status-pill color — the header card itself stays neutral. */
+.bl-vin-header {
+  position: relative;
+  background: linear-gradient(180deg, var(--card) 0%, var(--card-2) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-4);
+  display: flex; flex-direction: column; gap: var(--sp-3);
+}
+
+.bl-vin-eyebrow-row { display: flex; align-items: baseline; gap: var(--sp-3); flex-wrap: wrap; }
+.bl-vin-eyebrow { color: var(--muted); font-size: var(--fs-xs); letter-spacing: 1px; text-transform: uppercase; font-weight: var(--fw-heavy); }
+.bl-vin-seen    { margin-left: auto; color: var(--text-soft); font-size: var(--fs-sm); }
+.bl-vin-seen b  { color: var(--text); font-weight: var(--fw-bold); }
+
+.bl-vin-vin {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--fs-xl); font-weight: var(--fw-heavy);
+  color: var(--text); letter-spacing: 1px; word-break: break-all;
+}
+.bl-vin-vehicle { color: var(--text-soft); font-size: var(--fs-md); line-height: 1.35; }
+.bl-vin-vehicle b { color: var(--text); font-weight: var(--fw-bold); }
+.bl-vin-vehicle .specs { color: var(--muted); font-size: var(--fs-sm); display: block; margin-top: 2px; }
+
+/* Pill row lives directly on the header (bigger than .bl-chip, which is a
+   list-inline status chip). Utility flags share the row visually. */
+.bl-vin-pill-row { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+.bl-vin-status-pill {
+  display: inline-flex; align-items: center;
+  padding: var(--sp-1) var(--sp-3); border-radius: var(--r-full);
+  font-size: var(--fs-xs); letter-spacing: 1px; text-transform: uppercase; font-weight: var(--fw-heavy);
+  background: var(--st-clean); color: var(--text-on-accent);
+}
+.bl-vin-status-pill--dirty   { background: var(--st-dirty); color: var(--text-on-warn); }
+.bl-vin-status-pill--service { background: var(--st-pm);    color: var(--text-on-status); }
+.bl-vin-status-pill--shut    { background: var(--st-shut);  color: var(--text-on-status); }
+
+.bl-vin-flag {
+  display: inline-flex; align-items: center;
+  padding: var(--sp-1) var(--sp-3); border-radius: var(--r-full);
+  background: var(--card); border: 1px solid var(--border);
+  font-size: var(--fs-xs); letter-spacing: 1px; text-transform: uppercase; font-weight: var(--fw-heavy);
+  color: var(--text-soft);
+}
+.bl-vin-flag--danger { border-color: var(--danger); color: var(--danger); }
+.bl-vin-flag--warn   { border-color: var(--warn);   color: var(--warn); }
+.bl-vin-flag--info   { border-color: var(--info);   color: var(--info); }
+
+/* Condition chips (LOW TIRE / REGULAR / FUEL / …). Yellow soft by default. */
+.bl-vin-cond-row { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.bl-vin-cond-chip {
+  display: inline-flex; padding: var(--sp-0) var(--sp-3); border-radius: var(--r-full);
+  background: var(--warn-soft); color: var(--warn);
+  font-size: var(--fs-xs); font-weight: var(--fw-bold); letter-spacing: .5px; text-transform: uppercase;
+}
+
+/* Meter grid: mileage / fuel gauge / anything numeric at a glance. */
+.bl-vin-meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--sp-3); }
+.bl-vin-meter { background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-1); }
+.bl-vin-meter .label { color: var(--muted); font-size: var(--fs-xs); font-weight: var(--fw-heavy); text-transform: uppercase; letter-spacing: 1px; }
+.bl-vin-meter .val   { color: var(--text); font-size: var(--fs-xl); font-weight: var(--fw-black); font-variant-numeric: tabular-nums; }
+/* .val--text is the "Logged" meter — normal-weight text-ish size instead of a big number.
+   .val--muted is the "—" placeholder used when a numeric meter has no value. */
+.bl-vin-meter .val--text  { font-size: var(--fs-md); font-weight: var(--fw-bold); letter-spacing: 0; }
+.bl-vin-meter .val--muted { color: var(--muted); }
+.bl-vin-meter .val .unit { color: var(--muted); font-size: var(--fs-sm); font-weight: var(--fw-bold); margin-left: var(--sp-1); }
+.bl-vin-meter .sub   { color: var(--muted); font-size: var(--fs-xs); }
+
+/* Horizontal fuel gauge. `.is-mid` / `.is-low` recolor the fill; the ticks
+   are evenly spaced dividers that read as E · 1/4 · 1/2 · 3/4 · F. */
+.bl-vin-fuel { display: flex; flex-direction: column; gap: var(--sp-1); }
+.bl-vin-fuel-head { display: flex; justify-content: space-between; align-items: baseline; }
+.bl-vin-fuel-label { color: var(--muted); font-size: var(--fs-xs); letter-spacing: 1px; text-transform: uppercase; font-weight: var(--fw-heavy); }
+.bl-vin-fuel-value { color: var(--text); font-weight: var(--fw-black); font-size: var(--fs-md); }
+.bl-vin-fuel-gauge {
+  position: relative; height: 10px; border-radius: var(--r-sm);
+  background: var(--bg); border: 1px solid var(--border); overflow: hidden;
+}
+/* Discrete width steps track the FUEL_LEVELS catalog (EMPTY / ¼ / ½ / ¾ / FULL).
+   Used instead of `style="width:..%"` because the app's CSP blocks inline styles. */
+.bl-vin-fuel-fill { height: 100%; width: 0; background: var(--accent); transition: width .2s ease-out; }
+.bl-vin-fuel-fill--25  { width: 25%; }
+.bl-vin-fuel-fill--50  { width: 50%; }
+.bl-vin-fuel-fill--75  { width: 75%; }
+.bl-vin-fuel-fill--100 { width: 100%; }
+.bl-vin-fuel-gauge.is-mid .bl-vin-fuel-fill { background: var(--warn); }
+.bl-vin-fuel-gauge.is-low .bl-vin-fuel-fill { background: var(--danger); }
+.bl-vin-fuel-ticks { position: absolute; inset: 0; display: flex; justify-content: space-evenly; pointer-events: none; }
+.bl-vin-fuel-ticks span { width: 1px; height: 100%; background: var(--border); opacity: .8; }
+.bl-vin-fuel-scale { display: flex; justify-content: space-between; color: var(--muted); font-size: var(--fs-2xs); font-weight: var(--fw-bold); letter-spacing: .5px; }
+
+/* Section label between sub-blocks of the detail body. */
+.bl-vin-section-label { color: var(--muted); font-size: var(--fs-xs); letter-spacing: 1px; text-transform: uppercase; font-weight: var(--fw-heavy); margin: var(--sp-4) 0 var(--sp-1); }
+
+/* Fact grid — dense definition list of the record's fields. */
+.bl-vin-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--sp-3) var(--sp-4); }
+.bl-vin-fact  { display: flex; flex-direction: column; gap: var(--sp-0); min-width: 0; }
+.bl-vin-fact  .k { color: var(--muted); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .5px; font-weight: var(--fw-heavy); }
+.bl-vin-fact  .v { color: var(--text); word-break: break-word; }
+.bl-vin-fact--wide { grid-column: 1 / -1; }
+
+/* Long-form notes block. */
+.bl-vin-notes { background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-3); color: var(--text); white-space: pre-wrap; word-break: break-word; font-size: var(--fs-sm); }
+
+/* Map thumbnail — Leaflet mounts inside .bl-vin-map. */
+.bl-vin-map { height: 220px; border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--border); background: var(--card-2); }
+.bl-vin-map-empty { display: grid; place-items: center; height: 88px; border-radius: var(--r-md); border: 1px dashed var(--border); color: var(--muted); font-size: var(--fs-sm); }
+
+/* Vehicle-history timeline (rendered inside #blVinHistoryBody by BL_RECORDS.openVinHistory).
+   Each row is a <details> — clicking the <summary> toggles an inline
+   expanded panel that shows the record's per-event fields (mileage, fuel,
+   conditions, flags, notes, coordinates). VIN + vehicle + latest status
+   already live in the header and don't repeat here. An "Open full record"
+   button inside the expanded panel still drops into the single-record
+   detail modal for edit / delete / prev / next. */
+.bl-vin-timeline { display: flex; flex-direction: column; }
+.bl-vin-tl-row {
+  border-top: 1px solid var(--divider);
+  color: var(--text);
+}
+.bl-vin-tl-row:first-child { border-top: 0; }
+
+.bl-vin-tl-row > summary {
+  display: grid; grid-template-columns: 96px 12px 1fr 20px; gap: var(--sp-3);
+  align-items: flex-start;
+  padding: var(--sp-3);
+  cursor: pointer;
+  list-style: none; /* strip the native Firefox marker */
+}
+.bl-vin-tl-row > summary::-webkit-details-marker { display: none; } /* strip the WebKit marker */
+.bl-vin-tl-row > summary:hover { background: var(--hover); }
+.bl-vin-tl-row > summary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--r-sm); }
+
+.bl-vin-tl-time { display: flex; flex-direction: column; gap: var(--sp-0); min-width: 0; }
+.bl-vin-tl-ago  { color: var(--text); font-weight: var(--fw-bold); font-size: var(--fs-sm); }
+.bl-vin-tl-full { color: var(--muted); font-size: var(--fs-xs); }
+
+.bl-vin-tl-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--st-clean);
+  margin-top: 6px;   /* baseline-align with the status pill text */
+  box-shadow: 0 0 0 2px var(--card);
+}
+.bl-vin-tl-dot--dirty   { background: var(--st-dirty); }
+.bl-vin-tl-dot--service { background: var(--st-pm); }
+.bl-vin-tl-dot--shut    { background: var(--st-shut); }
+
+.bl-vin-tl-body   { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
+.bl-vin-tl-status { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.bl-vin-tl-dest   { color: var(--text-soft); font-size: var(--fs-sm); }
+.bl-vin-tl-dest b { color: var(--text); font-weight: var(--fw-bold); }
+.bl-vin-tl-meta   { color: var(--muted); font-size: var(--fs-xs); }
+
+/* Chevron: hides its inner "▾" text and shows a caret glyph via ::before that
+   swaps direction on `[open]`. Content swap (rather than CSS rotation) sidesteps
+   a rendering quirk we hit where transforms on summary-descendant spans
+   silently resolved to identity in the test browser. */
+.bl-vin-tl-chev {
+  display: inline-block;
+  align-self: center; justify-self: center;
+  color: var(--muted); font-size: var(--fs-md); line-height: 1;
+  font-size: 0; /* hide the literal "▾" text node so the fallback only shows if CSS fails */
+}
+.bl-vin-tl-chev::before {
+  content: "▾";
+  font-size: var(--fs-md);
+  transition: color .15s ease-out;
+}
+.bl-vin-tl-row[open] > summary .bl-vin-tl-chev::before { content: "▴"; color: var(--text-soft); }
+
+/* Expanded body — sits below the summary in the 3rd grid column area
+   visually (offset from the timeline gutter so it aligns with the summary
+   body content, not the time column). */
+.bl-vin-tl-expanded {
+  display: flex; flex-direction: column; gap: var(--sp-3);
+  padding: 0 var(--sp-3) var(--sp-4) calc(96px + 12px + var(--sp-3) * 2); /* time col + dot col + two gaps */
+  color: var(--text);
+}
+.bl-vin-tl-fields {
+  display: grid; grid-template-columns: auto 1fr; gap: var(--sp-1) var(--sp-4);
+  align-items: baseline;
+  font-size: var(--fs-sm);
+}
+.bl-vin-tl-fields dt { color: var(--muted); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .5px; font-weight: var(--fw-heavy); }
+.bl-vin-tl-fields dd { color: var(--text); word-break: break-word; }
+.bl-vin-tl-flags {
+  display: flex; flex-wrap: wrap; gap: var(--sp-2);
+}
+.bl-vin-tl-notes-block {
+  background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: var(--sp-3);
+  color: var(--text); white-space: pre-wrap; word-break: break-word; font-size: var(--fs-sm);
+}
+.bl-vin-tl-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+
+@media (max-width: 640px) {
+  /* On phones the summary shrinks: give the expanded body a smaller indent
+     so it doesn't collapse to almost nothing. */
+  .bl-vin-tl-expanded { padding-left: var(--sp-3); }
+}
+
+/* Body damage + tire panels — ported (read-only) from the driver app's
+   record detail. Managers see the damage log and tire condition without
+   needing the interactive silhouette. Both panels are containers that sit
+   between the fact grid and notes in the record detail modal. */
+.bl-vin-damage,
+.bl-vin-tires {
+  background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: var(--sp-3);
+}
+
+/* Two-column layout inside the damage panel: log on the left, silhouette
+   on the right. Stacks below ~640px so mobile puts the diagram under the
+   list rather than crushing both columns. */
+.bl-vin-damage-layout {
+  display: grid;
+  grid-template-columns: 1fr 220px;
+  gap: var(--sp-4);
+  align-items: start;
+}
+.bl-vin-damage-svg-wrap {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: var(--sp-2);
+  display: flex; justify-content: center; align-items: flex-start;
+}
+.bl-vin-damage-svg { width: 100%; height: auto; max-width: 200px; }
+.bl-vin-damage-svg .dp        { fill: transparent; stroke: var(--text-soft); stroke-width: 1; }
+.bl-vin-damage-svg .dp-thin   { stroke: var(--muted); stroke-width: 0.6; }
+.bl-vin-damage-svg .damage-dir {
+  fill: var(--muted); font-size: 10px; letter-spacing: 1px; font-weight: var(--fw-heavy);
+}
+.bl-vin-damage-svg .has-damage .dp,
+.bl-vin-damage-svg .has-damage.dp { fill: var(--muted); fill-opacity: 0.28; }
+
+/* JS-inserted damage marks (halo + numbered dot). Colors mirror the log
+   swatches so a mark on the diagram matches its row in the list. */
+.bl-vin-damage-svg .bl-dmg-halo         { opacity: 0.25; }
+.bl-vin-damage-svg .bl-dmg-halo--dent    { fill: var(--dmg-dent); }
+.bl-vin-damage-svg .bl-dmg-halo--scratch { fill: var(--dmg-scratch); }
+.bl-vin-damage-svg .bl-dmg-halo--chip    { fill: var(--dmg-chip); }
+.bl-vin-damage-svg .bl-dmg-halo--crack   { fill: var(--dmg-crack); }
+.bl-vin-damage-svg .bl-dmg-halo--missing { fill: var(--dmg-missing); }
+.bl-vin-damage-svg .bl-dmg-dot          { stroke: var(--card); stroke-width: 1; }
+.bl-vin-damage-svg .bl-dmg-dot--dent    { fill: var(--dmg-dent); }
+.bl-vin-damage-svg .bl-dmg-dot--scratch { fill: var(--dmg-scratch); }
+.bl-vin-damage-svg .bl-dmg-dot--chip    { fill: var(--dmg-chip); }
+.bl-vin-damage-svg .bl-dmg-dot--crack   { fill: var(--dmg-crack); }
+.bl-vin-damage-svg .bl-dmg-dot--missing { fill: var(--dmg-missing); }
+.bl-vin-damage-svg .bl-dmg-num {
+  fill: var(--text-on-status);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700; font-size: 7px;
+}
+
+@media (max-width: 640px) {
+  .bl-vin-damage-layout { grid-template-columns: 1fr; }
+  .bl-vin-damage-svg { max-width: 240px; }
+}
+
+.bl-vin-damage-list { display: flex; flex-direction: column; }
+.bl-vin-damage-row {
+  display: grid; grid-template-columns: 28px 1fr; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--divider);
+}
+.bl-vin-damage-row:first-child { border-top: 0; padding-top: 0; }
+.bl-vin-damage-row:last-child { padding-bottom: 0; }
+.bl-vin-damage-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  color: var(--text-on-status);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: var(--fw-black); font-size: var(--fs-xs);
+}
+.bl-vin-damage-num--dent    { background: var(--dmg-dent); }
+.bl-vin-damage-num--scratch { background: var(--dmg-scratch); }
+.bl-vin-damage-num--chip    { background: var(--dmg-chip); }
+.bl-vin-damage-num--crack   { background: var(--dmg-crack); }
+.bl-vin-damage-num--missing { background: var(--dmg-missing); }
+.bl-vin-damage-name { min-width: 0; word-break: break-word; }
+.bl-vin-damage-type { color: var(--text); font-weight: var(--fw-bold); }
+.bl-vin-damage-loc  { color: var(--text-soft); }
+
+.bl-vin-damage-claim {
+  margin: var(--sp-3) 0 0; padding-top: var(--sp-3);
+  border-top: 1px solid var(--divider);
+  display: grid; grid-template-columns: auto 1fr; gap: var(--sp-2) var(--sp-4);
+  align-items: baseline;
+}
+.bl-vin-damage-claim dt {
+  color: var(--muted); font-size: var(--fs-xs);
+  text-transform: uppercase; letter-spacing: .5px; font-weight: var(--fw-heavy);
+}
+.bl-vin-damage-claim dd { color: var(--text); word-break: break-word; }
+
+/* Tire strip: 2×2 on tablet, up to 4 across on wider viewports. */
+.bl-vin-tires-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--sp-2);
+}
+.bl-vin-tire {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: var(--sp-2) var(--sp-3);
+  display: flex; flex-direction: column; gap: var(--sp-1);
+}
+.bl-vin-tire-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.bl-vin-tire-pos {
+  color: var(--text); font-weight: var(--fw-black); font-size: var(--fs-md);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.bl-vin-tire-pos-label { color: var(--muted); font-size: var(--fs-xs); }
+.bl-vin-tire-cond {
+  display: inline-flex; padding: var(--sp-0) var(--sp-2); border-radius: var(--r-full);
+  font-size: var(--fs-xs); font-weight: var(--fw-bold);
+  text-transform: uppercase; letter-spacing: .5px;
+  background: var(--card-2); color: var(--text-soft);
+}
+.bl-vin-tire-cond--OK      { background: var(--accent-soft); color: var(--accent); }
+.bl-vin-tire-cond--worn    { background: var(--warn-soft);   color: var(--warn); }
+.bl-vin-tire-cond--low     { background: var(--warn-soft);   color: var(--warn); }
+.bl-vin-tire-cond--flat    { background: var(--danger-soft); color: var(--danger); }
+.bl-vin-tire-cond--replace { background: var(--danger-soft); color: var(--danger); }
+.bl-vin-tire-psi   { color: var(--text-soft); font-size: var(--fs-sm); }
+.bl-vin-tire-psi b { color: var(--text); font-weight: var(--fw-heavy); }
 
 /* ---- 9. Toast / inline msg ---------------------------------------------- */
 .bl-toast {
@@ -574,6 +980,18 @@ body.bl-authed .bl-app {
   }
   .bl-nav-item.is-active { border-left: 0; border-bottom-color: var(--accent); }
   .bl-grid--2, .bl-grid--even { grid-template-columns: 1fr; }
+  /* Tablet width: the "MANAGER CONSOLE" subtitle steals ~130px from the
+     topbar and squeezes the search into a stub. Drop the subtitle here and
+     let search grow into the leftover room. */
+  .bl-brand span { display: none; }
+  .bl-crumbs { flex: 0 1 auto; }
+  .bl-topbar-search { flex: 1 1 200px; max-width: 420px; }
+  /* At tablet widths the input itself is narrow — let the dropdown pop
+     wider than the input so all four result columns fit. Right-anchor so
+     it doesn't overflow the viewport when the input sits near the edge. */
+  .bl-topbar-search .bl-search-dropdown {
+    left: auto; right: 0; min-width: 360px; max-width: calc(100vw - var(--sp-5) * 2);
+  }
 }
 @media (max-width: 560px) {
   .bl-main { padding: var(--sp-4); }
@@ -581,6 +999,10 @@ body.bl-authed .bl-app {
   .bl-crumbs { display: none; }
   .bl-brand span { display: none; }       /* drop "MANAGER CONSOLE" subtitle */
   .bl-nav-item .label-text { display: none; }   /* icons-only tab bar on phones */
+  /* Narrow-phone: shrink search to a small icon-only entry point; dropdown
+     still opens flush to the topbar. */
+  .bl-topbar-search { flex: 0 1 200px; }
+  .bl-topbar-search .bl-search input { min-width: 0; }
 }
 
 /* honor reduced motion */

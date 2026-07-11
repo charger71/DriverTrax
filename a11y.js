@@ -76,6 +76,11 @@
       document.getElementById("alertModalDismiss")?.click();
       return;
     }
+    // Drop-off "Where is this?" prompt (drop-offs.js).
+    if (document.getElementById("dropOffLocationModal")?.classList.contains("show")) {
+      document.getElementById("dropOffLocationSkip")?.click();
+      return;
+    }
   });
 
   // Tag the four overlay roots so AT announces them as dialogs.

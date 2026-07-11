@@ -408,7 +408,9 @@ body.bl-authed .bl-app {
 /* Focus lives on the wrapper (`.bl-search:focus-within`) so the icon + input
    read as one control. That's why the inner input strips its own ring. */
 .bl-search { display: inline-flex; align-items: center; gap: var(--sp-2); background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 0 var(--sp-3); min-height: var(--touch); color: var(--muted); }
-.bl-search input { background: none; border: 0; color: var(--text); font: inherit; min-height: auto; padding: 0; min-width: 180px; }
+/* Input fills the wrapper so the native search-cancel button lands flush
+   against the wrapper's right padding instead of floating mid-field. */
+.bl-search input { flex: 1 1 0; min-width: 0; background: none; border: 0; color: var(--text); font: inherit; min-height: auto; padding: 0; }
 .bl-search input:focus { outline: none; box-shadow: none; }
 .bl-search:focus-within { border-color: var(--accent); box-shadow: var(--focus-ring); }
 

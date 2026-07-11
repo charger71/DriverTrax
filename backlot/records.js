@@ -160,7 +160,7 @@
       const sub = [vd.year, vd.make, vd.model].filter(Boolean).join(" ");
       const dest = r.destination === "OTHER" ? (r.destination_other || "Other") : (r.destination || "—");
       return `<tr>
-        <td data-col="serial_id"><button class="bl-rowbtn" data-open="${r.id}"><span class="bl-rec-vin">${esc(r.serial_id || "—")}${sub ? `<small>${esc(sub)}</small>` : ""}</span></button></td>
+        <td data-col="serial_id"><button class="bl-rowbtn" data-vin-history="${esc(r.serial_id || "")}"><span class="bl-rec-vin">${esc(r.serial_id || "—")}${sub ? `<small>${esc(sub)}</small>` : ""}</span></button></td>
         <td data-col="status">${esc(label(r.status) || r.status || "—")}</td>
         <td data-col="destination">${esc(dest)}</td>
         <td data-col="driver">${esc(driverName(r.user_id))}</td>
@@ -775,16 +775,18 @@
     if (next) next.disabled = !(currentIdx >= 0 && currentIdx < total - 1);
   }
 
-  // ---------- vehicle-history modal ----------
+  // ---------- vehicle-history full page (#section-vin) ----------
   const VIN_HISTORY_LIMIT = 100;
 
   async function openVinHistory(serial) {
     if (!serial) return;
-    // Show the modal immediately with a "loading" body so the click feels
-    // instant even before Supabase responds.
-    $("blVinHistoryTitle").textContent = serial;
-    $("blVinHistoryBody").innerHTML = `<div class="bl-empty">Loading history…</div>`;
-    $("blVinHistory").classList.add("is-open");
+    // Swap to the VIN page immediately with a "loading" body so the click
+    // feels instant even before Supabase responds. BL_NAV.show handles the
+    // section switch + records the previous section for the Back button.
+    $("blVinPageTitle").textContent = serial;
+    $("blVinPageSub").textContent = "Loading history…";
+    $("blVinBody").innerHTML = `<div class="bl-empty">Loading history…</div>`;
+    if (window.BL_NAV) BL_NAV.show("vin");
 
     const { data, error } = await sb.from("records")
       .select(REC_COLS)
@@ -792,12 +794,12 @@
       .order("ts", { ascending: false })
       .limit(VIN_HISTORY_LIMIT);
     if (error) {
-      $("blVinHistoryBody").innerHTML = `<div class="bl-empty">Load failed: ${esc(error.message)}</div>`;
+      $("blVinBody").innerHTML = `<div class="bl-empty">Load failed: ${esc(error.message)}</div>`;
       return;
     }
     const rows = data || [];
     if (!rows.length) {
-      $("blVinHistoryBody").innerHTML = `<div class="bl-empty">No records for <b>${esc(serial)}</b>.</div>`;
+      $("blVinBody").innerHTML = `<div class="bl-empty">No records for <b>${esc(serial)}</b>.</div>`;
       return;
     }
     // Backfill any driver names we don't already have cached so the timeline
@@ -826,9 +828,32 @@
       ? `<div class="bl-vin-vehicle"><b>${nameLine}</b>${trimLine}${specs ? `<span class="specs">${specs}</span>` : ""}</div>`
       : "";
 
-    // Summary meters at the top of the history: N records / first seen / latest mileage.
+    // Summary meters at the top of the history: N records / first seen /
+    // latest mileage / latest fuel. "Latest" for mileage + fuel means the
+    // most recent record that actually recorded that field — not necessarily
+    // the newest overall record — so a partial newest entry doesn't hide
+    // the last known state.
     const firstSeen = oldest.ts ? new Date(oldest.ts).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: fmt.TZ }) : "—";
     const latestMileage = rows.find((r) => r.mileage != null)?.mileage;
+    const latestFuel    = fuelInfo(rows.find((r) => r.fuel_level)?.fuel_level);
+    const fuelMeterHtml = latestFuel
+      ? `<div class="bl-vin-meter">
+           <div class="bl-vin-fuel">
+             <div class="bl-vin-fuel-head">
+               <span class="bl-vin-fuel-label">Latest fuel</span>
+               <span class="bl-vin-fuel-value">${esc(latestFuel.label)}</span>
+             </div>
+             <div class="bl-vin-fuel-gauge ${latestFuel.kind}">
+               <div class="bl-vin-fuel-fill bl-vin-fuel-fill--${latestFuel.pct}"></div>
+               <div class="bl-vin-fuel-ticks"><span></span><span></span><span></span><span></span></div>
+             </div>
+             <div class="bl-vin-fuel-scale"><span>E</span><span>¼</span><span>½</span><span>¾</span><span>F</span></div>
+           </div>
+         </div>`
+      : `<div class="bl-vin-meter">
+           <span class="label">Latest fuel</span>
+           <span class="val val--muted">—</span>
+         </div>`;
     const metersHtml = `
       <div class="bl-vin-meters">
         <div class="bl-vin-meter">
@@ -845,6 +870,7 @@
             ? `<span class="val">${esc(latestMileage.toLocaleString())}<span class="unit">mi</span></span>`
             : `<span class="val val--muted">—</span>`}
         </div>
+        ${fuelMeterHtml}
       </div>`;
 
     // Aggregate damage + tires across every record so the header shows
@@ -911,8 +937,13 @@
         </details>`;
     }).join("");
 
-    $("blVinHistoryTitle").textContent = serial;
-    $("blVinHistoryBody").innerHTML = `
+    // Page title (VIN) + subtitle (vehicle name) go into the section header
+    // so the header stays populated even after the body scrolls.
+    $("blVinPageTitle").textContent = serial;
+    $("blVinPageSub").textContent = nameLine
+      ? [vd.year, vd.make, vd.model].filter(Boolean).join(" ") + (vd.trim ? " · " + vd.trim : "")
+      : "—";
+    $("blVinBody").innerHTML = `
       <div class="bl-vin-header">
         <div class="bl-vin-eyebrow-row">
           <span class="bl-vin-eyebrow">Vehicle history</span>
@@ -930,10 +961,8 @@
       <div class="bl-vin-section-label">Timeline · ${rows.length}${rows.length >= VIN_HISTORY_LIMIT ? "+" : ""} event${rows.length === 1 ? "" : "s"}</div>
       <div class="bl-vin-timeline">${timelineHtml}</div>`;
 
-    mountDamageSvg($("blVinHistoryBody"), aggRec.damage_marks);
+    mountDamageSvg($("blVinBody"), aggRec.damage_marks);
   }
-
-  function closeVinHistory() { $("blVinHistory").classList.remove("is-open"); }
 
   function onVinHistoryClick(e) {
     // Row summary clicks toggle the <details> element natively — nothing to
@@ -1000,8 +1029,13 @@
 
   // ---------- events ----------
   function onBodyClick(e) {
-    const openBtn = e.target.closest("[data-open]");
-    if (openBtn) return openDetail(openBtn.dataset.open);
+    // Row's VIN column → navigate to the vehicle-history page. Same target
+    // as the global topbar search, so both entry points feel identical.
+    const vinBtn = e.target.closest("[data-vin-history]");
+    if (vinBtn) return openVinHistory(vinBtn.dataset.vinHistory);
+    // Edit-column icon → drop straight into the edit form for that record;
+    // the record-detail modal is still reachable via the VIN page timeline
+    // ("Open full record"), but power-users get one-click edit here.
     const editBtn = e.target.closest("[data-edit]");
     if (editBtn) {
       const r = findRec(editBtn.dataset.edit);
@@ -1055,23 +1089,17 @@
     $("blRecDetailPrev")?.addEventListener("click", () => stepDetail(-1));
     $("blRecDetailNext")?.addEventListener("click", () => stepDetail(1));
 
-    $("blVinHistoryClose")?.addEventListener("click", closeVinHistory);
-    $("blVinHistory")?.addEventListener("click", (e) => { if (e.target.id === "blVinHistory") closeVinHistory(); });
-    $("blVinHistoryBody")?.addEventListener("click", onVinHistoryClick);
+    // VIN page (not a modal): Back button pops the previous section,
+    // timeline clicks + open-full-record drill into the record modal.
+    $("blVinBack")?.addEventListener("click", () => { if (window.BL_NAV) BL_NAV.back(); });
+    $("blVinBody")?.addEventListener("click", onVinHistoryClick);
 
-    // Modal keyboard: Escape closes the topmost open modal; arrow keys step
-    // through the current records page only when the record-detail modal
-    // owns the foreground.
+    // Modal keyboard: Escape closes the record detail modal; arrow keys
+    // step through the current records page while the modal is open.
     document.addEventListener("keydown", (e) => {
       const detailOpen  = $("blRecDetail")?.classList.contains("is-open");
-      const historyOpen = $("blVinHistory")?.classList.contains("is-open");
-      if (!detailOpen && !historyOpen) return;
-      if (e.key === "Escape") {
-        if (detailOpen)      closeDetail();
-        else if (historyOpen) closeVinHistory();
-        return;
-      }
       if (!detailOpen) return;
+      if (e.key === "Escape") { closeDetail(); return; }
       if (e.key === "ArrowLeft")  { e.preventDefault(); stepDetail(-1); }
       if (e.key === "ArrowRight") { e.preventDefault(); stepDetail(1); }
     });

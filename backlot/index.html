@@ -376,6 +376,24 @@
           </div>
         </div>
       </section>
+
+      <!-- ===== VIN detail page =====
+           Full-page (not modal). Shown programmatically via BL_NAV.show("vin")
+           when the user clicks a search result or a row in Records — no nav
+           tab, no direct URL yet. Back button uses records.js's back-nav
+           state to return to whichever section the user came from. -->
+      <section class="bl-section" id="section-vin">
+        <div class="bl-page-head">
+          <button type="button" class="bl-btn bl-btn--ghost bl-btn--sm" id="blVinBack" aria-label="Back">
+            <svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-chevron-left"/></svg>Back
+          </button>
+          <div>
+            <h1 id="blVinPageTitle">Vehicle history</h1>
+            <div class="sub" id="blVinPageSub">—</div>
+          </div>
+        </div>
+        <div id="blVinBody"></div>
+      </section>
     </main>
   </div>
 
@@ -409,20 +427,6 @@
           <button type="submit" class="bl-btn bl-btn--primary" id="blUsersSubmit">Save</button>
         </div>
       </form>
-    </div>
-  </div>
-
-  <!-- ===== VIN history modal =====
-       Placed BEFORE the record-detail modal so that when the user drills from
-       a timeline row into the record-detail modal, the detail (later in DOM)
-       paints on top of the history (both share z-index: 7000). -->
-  <div class="bl-modal" id="blVinHistory" role="dialog" aria-modal="true" aria-label="Vehicle history">
-    <div class="bl-modal-card bl-modal-card--wide">
-      <div class="bl-modal-head">
-        <h3 id="blVinHistoryTitle">Vehicle history</h3>
-        <button class="bl-btn bl-btn--icon bl-btn--ghost" id="blVinHistoryClose" aria-label="Close"><svg class="bl-icon" aria-hidden="true"><use href="#icon-x"/></svg></button>
-      </div>
-      <div class="bl-modal-body" id="blVinHistoryBody"></div>
     </div>
   </div>
 

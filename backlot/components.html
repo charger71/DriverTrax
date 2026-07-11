@@ -580,8 +580,16 @@
 
   <!-- ============ VEHICLE HISTORY ============ -->
   <section class="guide">
-    <h2>Vehicle history modal</h2>
-    <p class="lead">Body of <code>#blVinHistory</code>. Reuses the <code>.bl-vin-header</code> from the record-detail page (VIN + vehicle + latest status + summary meters). If the vehicle has body damage on file anywhere in its history, a <b>Body damage panel</b> renders below the header (marks unioned across all records, deduped by <code>panel_id + damage_type</code>, using the newest x/y for each). If any record logged tire issues, a <b>Tires panel</b> renders below that (latest full snapshot wins). Then the <code>.bl-vin-timeline</code> of every event. Each timeline row is a button — click drills into the single-record detail modal (nested; the record modal sits later in the DOM so it stacks on top).</p>
+    <h2>Vehicle history page</h2>
+    <p class="lead">Full-page section <code>#section-vin</code> — <b>not</b> a modal. Shown programmatically via <code>BL_NAV.show("vin")</code> from either the global topbar search or a Records-table row click. Page head has a <b>Back</b> button that pops the previous section (<code>BL_NAV.back()</code>); no nav-bar tab, so the section is only reachable when you land on it. Body reuses the <code>.bl-vin-header</code> from the record-detail page (VIN + vehicle + latest status + summary meters). If the vehicle has body damage on file anywhere in its history, a <b>Body damage panel</b> renders below the header (marks unioned across all records, deduped by <code>panel_id + damage_type</code>, using the newest x/y for each). If any record logged tire issues, a <b>Tires panel</b> renders below that (latest full snapshot wins). Then the <code>.bl-vin-timeline</code> of every event. Each timeline row is a <code>&lt;details&gt;</code> — click drills into a per-record expanded panel with an <b>Open full record</b> button that opens the single-record detail modal for edit/delete.</p>
+
+    <div class="bl-page-head" style="margin-bottom:var(--sp-4)">
+      <button type="button" class="bl-btn bl-btn--ghost bl-btn--sm"><svg class="bl-icon bl-icon--sm"><use href="#icon-chevron-left"/></svg>Back</button>
+      <div>
+        <h1 style="font-size:var(--fs-xl);font-weight:var(--fw-heavy)">4T1G11AK6RU123456</h1>
+        <div class="sub" style="color:var(--muted);font-size:var(--fs-sm);margin-top:2px">2024 Toyota Camry · SE</div>
+      </div>
+    </div>
 
     <div class="bl-vin-header" style="margin-bottom:var(--sp-4)">
       <div class="bl-vin-eyebrow-row">
@@ -597,6 +605,19 @@
         <div class="bl-vin-meter"><span class="label">Records</span><span class="val">14</span></div>
         <div class="bl-vin-meter"><span class="label">First seen</span><span class="val val--text">Jun 12, 2026</span></div>
         <div class="bl-vin-meter"><span class="label">Latest mileage</span><span class="val">38,412<span class="unit">mi</span></span></div>
+        <div class="bl-vin-meter">
+          <div class="bl-vin-fuel">
+            <div class="bl-vin-fuel-head">
+              <span class="bl-vin-fuel-label">Latest fuel</span>
+              <span class="bl-vin-fuel-value">3/4</span>
+            </div>
+            <div class="bl-vin-fuel-gauge">
+              <div class="bl-vin-fuel-fill bl-vin-fuel-fill--75"></div>
+              <div class="bl-vin-fuel-ticks"><span></span><span></span><span></span><span></span></div>
+            </div>
+            <div class="bl-vin-fuel-scale"><span>E</span><span>¼</span><span>½</span><span>¾</span><span>F</span></div>
+          </div>
+        </div>
       </div>
     </div>
 

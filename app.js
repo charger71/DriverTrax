@@ -23,6 +23,17 @@ const STATUS_LABELS = {
 };
 function statusLabel(s) { return STATUS_LABELS[s] || s || ""; }
 
+// Location label used on every record card. Prefers the GPS-tagged
+// parking section (from the parking_sections trigger or the driver's
+// "Where is this?" fallback) and falls back to the destination dropdown
+// so pre-drop_offs records still render.
+function locationLabel(destination, destinationOther, sectionName) {
+  if (sectionName) return sectionName;
+  if (destination === "OTHER" && destinationOther) return `OTHER: ${destinationOther}`;
+  return destination || "";
+}
+window.locationLabel = locationLabel;
+
 // ============================================================
 // Single source of truth for status / destination / condition
 // catalogs. Referenced by app.js (entry form), vehicle-notes.js
@@ -263,7 +274,7 @@ async function fetchFleetRecords() {
 
       const { data, error } = await DT_AUTH.client
         .from("records")
-        .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,shift_num,notes,lat,lng,gps_error,tires,vin_data,ts,mileage,fuel_level,photo_url,photo_urls")
+        .select("id,user_id,serial_id,status,status_other,destination,destination_other,section_id,section_name,no_tag,shuttle,transport,shift_num,notes,lat,lng,gps_error,tires,vin_data,ts,mileage,fuel_level,photo_url,photo_urls")
         .gte("ts", sinceISO)
         .lte("ts", untilISO)
         .order("ts", { ascending: false })
@@ -283,6 +294,8 @@ async function fetchFleetRecords() {
         statusOther: row.status_other || "",
         destination: row.destination || "",
         destinationOther: row.destination_other || "",
+        sectionId: row.section_id || null,
+        sectionName: row.section_name || "",
         noTag: !!row.no_tag,
         shuttle: !!row.shuttle,
         transport: !!row.transport,
@@ -820,6 +833,24 @@ function saveRecord() {
     }
     if (gpsError) { showToast("Saved - no GPS location", "warn"); }
     else { showToast("Saved with GPS", "success"); haptic("success"); }
+
+    // Parking-section geotag: only fire for real lot drop-offs (BACKLOT /
+    // QTA / GARAGE). CHECK_OUTs, transports, and off-site destinations
+    // aren't drop-offs into a section, so we skip them.
+    const DROPOFF_DESTS = new Set(["BACKLOT", "QTA", "GARAGE"]);
+    if (
+      window.DT_DROPOFFS &&
+      !gpsError &&
+      typeof lat === "number" &&
+      typeof lng === "number" &&
+      DROPOFF_DESTS.has(recordData.destination)
+    ) {
+      DT_DROPOFFS.record({
+        serial_id: recordData.serialId,
+        lat, lng,
+        record_id: recordData.id
+      });
+    }
 
     // VIN decode runs AFTER record is saved so the lookup finds it
     // Decode whenever the serial looks like a real VIN. Bad Tag entries
@@ -2251,7 +2282,7 @@ function recordCard(r, onDelete, onClickAttr) {
   }
   const safeSerial = esc(r.serialId || "");
   const statusDisplay = r.status === "OTHER" && r.statusOther ? `OTHER: ${r.statusOther}` : statusLabel(r.status);
-  const destDisplay = r.destination === "OTHER" && r.destinationOther ? `OTHER: ${r.destinationOther}` : (r.destination || "");
+  const destDisplay = locationLabel(r.destination, r.destinationOther, r.sectionName);
   const safeStatus = esc(statusDisplay);
   const safeDest = destDisplay ? esc(destDisplay) : "";
   const safeNotes = r.notes ? esc(r.notes) : "";
@@ -2434,7 +2465,7 @@ async function renderFuzzyResults(term) {
   const upTerm = safe.toUpperCase();
 
   let recsQ = sb.from("records")
-    .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,tires,gps_error,shift_num,mileage,fuel_level,photo_url,photo_urls")
+    .select("id,user_id,serial_id,status,status_other,destination,destination_other,section_id,section_name,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,tires,gps_error,shift_num,mileage,fuel_level,photo_url,photo_urls")
     .or(`serial_id.ilike.%${upTerm}%,notes.ilike.%${safe}%,vin_data->>make.ilike.%${safe}%,vin_data->>model.ilike.%${safe}%`)
     .order("ts", { ascending: false })
     .limit(200);
@@ -2448,7 +2479,7 @@ async function renderFuzzyResults(term) {
   const [recRes, vehRes] = await Promise.all([
     recsQ,
     sb.from("vehicles")
-      .select("serial_id,current_status,current_status_other,current_destination,current_destination_other,last_lat,last_lng,last_seen_at,vin_data,entered_inventory_at")
+      .select("serial_id,current_status,current_status_other,current_destination,current_destination_other,section_id,section_name,last_lat,last_lng,last_seen_at,vin_data,entered_inventory_at")
       .or(`serial_id.ilike.%${upTerm}%,vin_data->>make.ilike.%${safe}%,vin_data->>model.ilike.%${safe}%,vin_data->>year.ilike.%${safe}%`)
       .order("last_seen_at", { ascending: false, nullsFirst: false })
       .limit(100)
@@ -2476,6 +2507,8 @@ async function renderFuzzyResults(term) {
     statusOther: row.status_other || "",
     destination: row.destination || "",
     destinationOther: row.destination_other || "",
+    sectionId: row.section_id || null,
+    sectionName: row.section_name || "",
     noTag: !!row.no_tag,
     shuttle: !!row.shuttle,
     transport: !!row.transport,
@@ -2511,9 +2544,7 @@ async function renderFuzzyResults(term) {
         const statusDisp = v.current_status === "OTHER" && v.current_status_other
           ? `OTHER: ${v.current_status_other}`
           : statusLabel(v.current_status);
-        const destDisp = v.current_destination === "OTHER" && v.current_destination_other
-          ? `OTHER: ${v.current_destination_other}`
-          : (v.current_destination || "");
+        const destDisp = locationLabel(v.current_destination, v.current_destination_other, v.section_name);
         const vd = v.vin_data || {};
         const vehName = [vd.year, vd.make, vd.model].filter(Boolean).join(" ");
         const pin = (Number.isFinite(v.last_lat) && Number.isFinite(v.last_lng))
@@ -2672,7 +2703,7 @@ function openVinRecordDetail(r, profileCache) {
     </div>
   </div>`;
   const statusDisp = r.status === "OTHER" && r.status_other ? `OTHER: ${r.status_other}` : statusLabel(r.status);
-  const destDisp   = r.destination === "OTHER" && r.destination_other ? `OTHER: ${r.destination_other}` : (r.destination || "");
+  const destDisp   = locationLabel(r.destination, r.destination_other, r.section_name);
   const when = (() => { try { return new Date(r.ts).toLocaleString(); } catch { return ""; } })();
   const vd = r.vin_data || null;
   const vehicle = vd ? [vd.year, vd.make, vd.model].filter(Boolean).join(" ") : "";
@@ -2869,7 +2900,7 @@ function _buildVinTimelineRowHtml(ev) {
   const esc = sanitizeText;
   const r = ev.r;
   const statusDisp = r.status === "OTHER" && r.status_other ? `OTHER: ${r.status_other}` : statusLabel(r.status);
-  const destDisp   = r.destination === "OTHER" && r.destination_other ? `OTHER: ${r.destination_other}` : (r.destination || "");
+  const destDisp   = locationLabel(r.destination, r.destination_other, r.section_name);
   const condChips = Array.isArray(r.conditions) && r.conditions.length
     ? `<div class="vin-tl-cond-row">${r.conditions.map(id => {
         const label = DT_OPTIONS.CONDITIONS.find(c => c.id === id)?.label || id;
@@ -2952,7 +2983,7 @@ async function renderVinTimeline(vin, opts) {
   const sb = DT_AUTH.client;
 
   const { data: recordsData } = await sb.from("records")
-    .select("id,user_id,serial_id,status,status_other,destination,destination_other,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,mileage,fuel_level,photo_url,photo_urls,conditions,damage_marks,tires,tire_details,claim_number,claim_notes")
+    .select("id,user_id,serial_id,status,status_other,destination,destination_other,section_id,section_name,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,mileage,fuel_level,photo_url,photo_urls,conditions,damage_marks,tires,tire_details,claim_number,claim_notes")
     .eq("serial_id", vin)
     .order("ts", { ascending: false });
 
@@ -3251,10 +3282,10 @@ function openDetail(id, onDelete) {
     || new Date(r.timestamp).toLocaleString("en-US", { weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit", timeZone:"America/New_York" });
 
   const detailStatusLabel = r.status === "OTHER" && r.statusOther ? `OTHER: ${r.statusOther}` : statusLabel(r.status);
-  const detailDestLabel = r.destination === "OTHER" && r.destinationOther ? `OTHER: ${r.destinationOther}` : (r.destination || "");
+  const detailDestLabel = locationLabel(r.destination, r.destinationOther, r.sectionName);
   document.getElementById("detailBadges").innerHTML = `
     <span class="record-status ${statusClass(r.status)}">${sanitizeText(detailStatusLabel)}</span>
-    ${r.destination ? `<span class="badge-dest">${sanitizeText(detailDestLabel)}</span>` : ""}
+    ${detailDestLabel ? `<span class="badge-dest">${sanitizeText(detailDestLabel)}</span>` : ""}
     ${r.shuttle ? '<span class="badge-shuttle">SHUTTLE</span>' : ""}
     ${r.transport ? '<span class="badge-transport">TRANSPORT</span>' : ""}
     ${r.noTag ? '<span class="badge-notag">BAD TAG</span>' : ""}
@@ -3286,7 +3317,7 @@ function openDetail(id, onDelete) {
 
   // Destination row
   const destRow = document.getElementById("detailDestRow");
-  if (r.destination) {
+  if (detailDestLabel) {
     document.getElementById("detailDest").textContent = detailDestLabel;
     destRow.style.display = "flex";
   } else { destRow.style.display = "none"; }
@@ -3906,9 +3937,7 @@ function renderVinDetailList(items) {
     const statusPill = r.status
       ? `<span class="record-status ${statusClass(r.status)}">${esc(statusDisp)}</span>`
       : "";
-    const destDisp = r.destination === "OTHER" && r.destinationOther
-      ? `OTHER: ${r.destinationOther}`
-      : (r.destination || "");
+    const destDisp = locationLabel(r.destination, r.destinationOther, r.sectionName);
     const pin = (Number.isFinite(r.lat) && Number.isFinite(r.lng))
       ? `<a class="vin-tl-gps" href="https://www.google.com/maps?q=${r.lat},${r.lng}" target="_blank" rel="noopener" onclick="event.stopPropagation()" aria-label="Open last location in Maps"><svg class="ico-pin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12 22s-7-7.58-7-13a7 7 0 0 1 14 0c0 5.42-7 13-7 13zM12 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg></a>`
       : "";
@@ -4229,6 +4258,45 @@ function renderQuote() {
   }
 }
 
+// "By Section" tile — bars showing fleet-wide drop-offs grouped by parking
+// section over the last 7 days. Runs the spec's coalesce(section, entered
+// name, "Unspecified") join and buckets counts by label. Manager/CXR/admin
+// only; caller gates on role before firing.
+async function renderDashSection() {
+  const el = document.getElementById("dashSection");
+  if (!el || !window.DT_AUTH) return;
+  const sb = DT_AUTH.client;
+  const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+  const { data, error } = await sb
+    .from("drop_offs")
+    .select("id,section_id,location_name,parking_sections(name)")
+    .gte("created_at", since);
+  if (error) {
+    console.warn("[renderDashSection]", error);
+    el.innerHTML = '<p class="dash-empty-inline">Couldn\'t load section counts.</p>';
+    return;
+  }
+  const rows = data || [];
+  if (!rows.length) {
+    el.innerHTML = '<p class="dash-empty-inline">No drop-offs in the last 7 days.</p>';
+    return;
+  }
+  const counts = {};
+  rows.forEach(r => {
+    const label = r.parking_sections?.name || r.location_name || "Unspecified";
+    counts[label] = (counts[label] || 0) + 1;
+  });
+  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const max = Math.max(...entries.map(([, n]) => n), 1);
+  el.innerHTML = entries.map(([label, n]) => `
+    <div class="bar-row">
+      <div class="bar-key">${sanitizeText(label)}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round(n / max * 100)}%"></div></div>
+      <div class="bar-val">${n}</div>
+    </div>
+  `).join("");
+}
+
 function renderDashboard() {
   renderQuote();
   renderShiftMapControls();
@@ -4280,6 +4348,13 @@ function renderDashboard() {
         <div class="bar-val">${sc[s]}</div>
       </div>
     `).join("") || '<p class="dash-empty-inline">No data yet.</p>';
+
+  // Manager-only "By Section" tile (from parking_sections + drop_offs).
+  // The CSS gate hides the container for drivers, but avoid firing the
+  // query for them either.
+  if (DT_AUTH?.isManager?.() || DT_AUTH?.isCxr?.() || DT_AUTH?.isAdmin?.()) {
+    renderDashSection();
+  }
 
   // Last 7 days - use EST dates to match shift grouping
   const days = [];
@@ -5645,8 +5720,7 @@ async function renderEntryCurrentState(vin) {
   const lastSeenAt     = v?.last_seen_at ?? r?.ts ?? null;
   const statusDisp = curStatus === "OTHER" && curStatusOther
     ? `OTHER: ${curStatusOther}` : statusLabel(curStatus);
-  const destDisp = curDest === "OTHER" && curDestOther
-    ? `OTHER: ${curDestOther}` : (curDest || "");
+  const destDisp = locationLabel(curDest, curDestOther, v?.section_name ?? r?.section_name);
   const parts = [];
   if (statusDisp)        parts.push(`<span class="ecs-val">${esc(statusDisp)}</span>`);
   if (destDisp)          parts.push(`<span class="ecs-val">${esc(destDisp)}</span>`);

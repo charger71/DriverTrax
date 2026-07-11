@@ -114,6 +114,8 @@
       tire_details: rec.tire_details && typeof rec.tire_details === "object" ? rec.tire_details : {},
       claim_number: rec.claim_number || null,
       claim_notes: rec.claim_notes || null,
+      section_id: rec.sectionId || null,
+      section_name: rec.sectionName || null,
       ts: new Date(rec.timestamp || Date.now()).toISOString()
     };
   }
@@ -144,6 +146,8 @@
       tire_details: row.tire_details && typeof row.tire_details === "object" ? row.tire_details : {},
       claim_number: row.claim_number || "",
       claim_notes: row.claim_notes || "",
+      sectionId: row.section_id || null,
+      sectionName: row.section_name || "",
       timestamp: row.ts ? new Date(row.ts).getTime() : Date.now()
     };
   }

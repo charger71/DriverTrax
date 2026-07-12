@@ -1420,6 +1420,28 @@
   </div>
 </div>
 
+<!-- Drop-off GPS/dropdown conflict modal — opened by drop-offs.js when the
+     driver picked a destination that disagrees with the parking-section
+     polygon their GPS lands in. Blocks Save until they confirm or fix. -->
+<div class="users-modal" id="dropOffConflictModal" aria-hidden="true"
+     role="dialog" aria-modal="true" aria-label="Section mismatch">
+  <div class="users-modal-card">
+    <div class="users-modal-header">
+      <span>Section mismatch</span>
+      <button type="button" class="btn btn-destructive btn-icon users-modal-close"
+              id="dropOffConflictClose" aria-label="Close">&times;</button>
+    </div>
+    <p class="dropoff-conflict-body">
+      You picked <b id="dropOffConflictPicked"></b>, but GPS says you're in
+      <b id="dropOffConflictDetected"></b>. Save anyway?
+    </p>
+    <div class="users-modal-actions">
+      <button type="button" class="btn btn-secondary" id="dropOffConflictCancel">Fix destination</button>
+      <button type="button" class="btn btn-primary btn--block" id="dropOffConflictSave">Save anyway</button>
+    </div>
+  </div>
+</div>
+
 <!-- Drop-off "Where is this?" modal — opened by drop-offs.js when the PostGIS
      tag_drop_off_section trigger couldn't match the point to any parking
      section polygon. Driver types a location name; we update the drop_offs

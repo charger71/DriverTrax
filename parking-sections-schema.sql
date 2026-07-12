@@ -7,7 +7,7 @@
 --
 -- Two tables:
 --   parking_sections — polygons authored by managers in a Leaflet
---                      tool (Backlot, PTA, Garage, …).
+--                      tool (Backlot, QTA, Garage, …).
 --   drop_offs        — one row per drop-off; a BEFORE INSERT trigger
 --                      auto-tags section_id from the point.
 --
@@ -26,7 +26,7 @@ create extension if not exists postgis;
 create table if not exists public.parking_sections (
   id         uuid primary key default gen_random_uuid(),
   fleet_id   uuid,
-  name       text not null,                         -- "Backlot", "PTA", "Garage"
+  name       text not null,                         -- "Backlot", "QTA", "Garage"
   status     text not null default 'open',          -- open | full | restricted
   boundary   geography(Polygon, 4326) not null,
   created_at timestamptz not null default now()
@@ -34,6 +34,21 @@ create table if not exists public.parking_sections (
 
 create index if not exists parking_sections_boundary_idx
   on public.parking_sections using gist (boundary);
+
+-- View that exposes each polygon as GeoJSON so the driver app can render
+-- boundaries on the shift map and run client-side point-in-polygon checks
+-- (for the GPS/dropdown conflict prompt). Views inherit RLS from the base
+-- table, so no extra policies needed.
+create or replace view public.parking_sections_geo as
+  select id, name, status,
+         ST_AsGeoJSON(boundary::geometry)::jsonb as geojson
+    from public.parking_sections;
+
+-- Newly created views don't inherit the base table's PostgREST grants,
+-- so `sb.from("parking_sections_geo").select(...)` would 404 without
+-- this. Nudge PostgREST to notice the view immediately.
+grant select on public.parking_sections_geo to authenticated, anon;
+notify pgrst, 'reload schema';
 
 alter table public.parking_sections enable row level security;
 
@@ -282,3 +297,98 @@ create trigger trg_records_sync_vehicle
   after insert or update on public.records
   for each row
   execute function public.fn_records_sync_vehicle();
+
+-- ============================================================
+-- Retag helper (for polygons added AFTER a drop-off happened)
+--
+-- The tag_drop_off_section trigger fires BEFORE INSERT only, so a
+-- drop-off from before its section polygon existed stays orphaned
+-- (section_id null, location_name maybe set, section_name missing on
+-- records). Managers can call this any time to sweep through:
+--
+--   select public.retag_drop_offs();
+--
+-- It only writes to rows it actually improves — never clobbers a
+-- section_id that's already set. Returns the number of drop-offs
+-- newly tagged so you can see the impact.
+-- ============================================================
+create or replace function public.retag_drop_offs()
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  n integer;
+begin
+  -- Step 1: tag drop_offs whose point sits in a polygon but weren't
+  -- tagged before (polygon didn't exist yet, or driver skipped the
+  -- prompt without a match).
+  update public.drop_offs d
+     set section_id = ps.id
+    from public.parking_sections ps
+   where d.section_id is null
+     and d.location is not null
+     and ST_Contains(ps.boundary::geometry, d.location::geometry);
+
+  -- Step 2: propagate section_id / section_name to the linked records
+  -- row wherever it's stale. Prefers polygon name; falls back to the
+  -- driver's typed location_name when no polygon matched.
+  with dp as (
+    select d.record_id,
+           d.section_id,
+           coalesce(ps.name, d.location_name) as section_name
+      from public.drop_offs d
+      left join public.parking_sections ps on ps.id = d.section_id
+     where d.record_id is not null
+  )
+  update public.records r
+     set section_id   = dp.section_id,
+         section_name = dp.section_name
+    from dp
+   where r.id = dp.record_id
+     and (r.section_id  is distinct from dp.section_id
+       or r.section_name is distinct from dp.section_name);
+
+  get diagnostics n = row_count;
+  return n;
+end;
+$$;
+
+grant execute on function public.retag_drop_offs() to authenticated;
+
+-- ============================================================
+-- Backfill: pre-existing records that have GPS but predate this
+-- feature. Two-step so you can eyeball what would change first.
+--
+-- STEP 1 (preview) — run this to see which records the ST_Contains
+-- would tag. It reads-only; nothing is written.
+--
+--   select r.id, r.serial_id, r.destination, ps.name as detected_section,
+--          r.ts, r.lat, r.lng
+--     from public.records r
+--     join public.parking_sections ps
+--       on ST_Contains(
+--            ps.boundary::geometry,
+--            ST_SetSRID(ST_MakePoint(r.lng, r.lat), 4326)::geometry
+--          )
+--    where r.section_name is null
+--      and r.lat is not null and r.lng is not null
+--    order by r.ts desc;
+--
+-- STEP 2 (apply) — when you're happy with the preview:
+--
+--   update public.records r
+--      set section_id   = ps.id,
+--          section_name = ps.name
+--     from public.parking_sections ps
+--    where r.section_name is null
+--      and r.lat is not null and r.lng is not null
+--      and ST_Contains(
+--            ps.boundary::geometry,
+--            ST_SetSRID(ST_MakePoint(r.lng, r.lat), 4326)::geometry
+--          );
+--
+-- The vehicles trigger fires on records UPDATE, so vehicles.section_*
+-- catches up automatically.
+-- ============================================================

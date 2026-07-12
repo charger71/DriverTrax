@@ -48,6 +48,7 @@
     <symbol id="icon-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></symbol>
     <symbol id="icon-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></symbol>
     <symbol id="icon-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></symbol>
+    <symbol id="icon-map-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></symbol>
   </svg>
 
   <!-- boot splash until auth resolves -->
@@ -98,6 +99,12 @@
       <button class="bl-nav-item" data-section="reports" aria-label="Reports">
         <svg class="bl-icon" aria-hidden="true"><use href="#icon-bar-chart"/></svg><span class="label-text">Reports</span>
       </button>
+      <!-- Admin-only: in-app section manager (rename / delete / merge).
+           The standalone Leaflet polygon designer is linked from inside. -->
+      <button class="bl-nav-item bl-admin-only" data-section="parking-sections"
+              aria-label="Parking sections">
+        <svg class="bl-icon" aria-hidden="true"><use href="#icon-map-pin"/></svg><span class="label-text">Parking sections</span>
+      </button>
     </aside>
 
     <!-- ===== main ===== -->
@@ -143,6 +150,13 @@
             </div>
           </div>
         </div>
+
+        <div class="bl-card">
+          <div class="bl-card-head">Drop-offs by section <span class="right">today</span></div>
+          <div class="bl-card-body">
+            <div class="bl-section-bars" id="blDashBySection"><div class="bl-empty">Loading…</div></div>
+          </div>
+        </div>
       </section>
 
       <section class="bl-section" id="section-records">
@@ -170,6 +184,9 @@
               </label>
               <label class="bl-field"><span class="bl-field-label">Driver</span>
                 <select id="blRecDriver"><option value="">All drivers</option></select>
+              </label>
+              <label class="bl-field"><span class="bl-field-label">Section</span>
+                <select id="blRecSection"><option value="">All sections</option></select>
               </label>
               <label class="bl-field"><span class="bl-field-label">From</span><input type="date" id="blRecFrom"></label>
               <label class="bl-field"><span class="bl-field-label">To</span><input type="date" id="blRecTo"></label>
@@ -262,6 +279,64 @@
           </div>
           <div id="blUsersList" class="bl-users-list"><div class="bl-empty">Loading…</div></div>
           <div class="bl-pager" id="blUsersPager" hidden></div>
+        </div>
+      </section>
+
+      <section class="bl-section" id="section-parking-sections">
+        <div class="bl-page-head">
+          <div><h1>Parking sections</h1><div class="sub">Rename, merge, or delete lot polygons</div></div>
+          <div class="actions">
+            <a class="bl-btn bl-btn--secondary bl-btn--sm" href="parking-sections-map.html" target="_blank" rel="noopener">
+              <svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-map-pin"/></svg>Add polygon
+            </a>
+            <button class="bl-btn bl-btn--secondary bl-btn--sm" id="blPsRetag" title="Re-run GPS matching on every drop-off">Retag drop-offs</button>
+            <button class="bl-btn bl-btn--secondary bl-btn--sm" id="blPsRefresh">Refresh</button>
+          </div>
+        </div>
+        <div class="bl-card">
+          <div class="bl-card-body">
+            <div class="sub" id="blPsHint">
+              New polygons are drawn in the standalone Leaflet tool (Add polygon, above). Use this table to rename, change status, or merge duplicates.
+            </div>
+            <div class="bl-table-wrap">
+              <table class="bl-table" id="blPsTable">
+                <thead><tr>
+                  <th>Name</th>
+                  <th>Status</th>
+                  <th class="bl-num">Drop-offs</th>
+                  <th class="bl-num">Records</th>
+                  <th>Actions</th>
+                </tr></thead>
+                <tbody id="blPsBody"><tr><td colspan="5"><div class="bl-empty">Loading…</div></td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Delete modal — offers to move rows to another section first. -->
+        <div class="bl-modal" id="blPsDeleteModal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Delete section">
+          <div class="bl-modal-card">
+            <div class="bl-modal-head">
+              <span>Delete <b id="blPsDeleteName"></b>?</span>
+              <button type="button" class="bl-btn bl-btn--icon bl-btn--ghost" id="blPsDeleteClose" aria-label="Close">
+                <svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-x"/></svg>
+              </button>
+            </div>
+            <div class="bl-modal-body">
+              <p id="blPsDeleteSummary" class="sub"></p>
+              <label class="bl-field" id="blPsDeleteMoveRow">
+                <span class="bl-field-label">Move rows to</span>
+                <select id="blPsDeleteMove">
+                  <option value="">— leave orphaned (section will show as blank) —</option>
+                </select>
+              </label>
+              <div class="bl-modal-msg" id="blPsDeleteMsg"></div>
+            </div>
+            <div class="bl-modal-actions">
+              <button type="button" class="bl-btn bl-btn--secondary" id="blPsDeleteCancel">Cancel</button>
+              <button type="button" class="bl-btn bl-btn--danger" id="blPsDeleteConfirm">Delete section</button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -479,6 +554,9 @@
 
         <label class="bl-field"><span class="bl-field-label">Destination</span><select name="destination" id="blRecFormDest"></select></label>
         <label class="bl-field is-hidden" id="blRecFormDestOtherRow"><span class="bl-field-label">Destination detail</span><input name="destination_other" maxlength="40" autocomplete="off"></label>
+        <!-- GPS-tagged parking section — auto-filled by the driver app's
+             drop_offs trigger. Read-only; here for context only. -->
+        <label class="bl-field is-hidden" id="blRecFormSectionRow"><span class="bl-field-label">Section (GPS)</span><input name="section_name" readonly tabindex="-1" autocomplete="off"></label>
 
         <div class="bl-field-row">
           <label class="bl-field"><span class="bl-field-label">Fuel</span><select name="fuel_level" id="blRecFormFuel"></select></label>
@@ -675,6 +753,7 @@
   <script src="dashboard.js"></script>
   <script src="roster.js"></script>
   <script src="users.js"></script>
+  <script src="parking-sections.js"></script>
   <script src="comms.js"></script>
   <script src="reports.js"></script>
   <script src="records.js"></script>

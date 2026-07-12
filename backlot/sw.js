@@ -5,7 +5,7 @@
 // Backlot shell. BUMP CACHE_VERSION on ANY change to a precached
 // asset below, or installed PWAs keep serving the stale file.
 // ============================================================
-const CACHE_VERSION = "backlot-v4.0-vin-page";
+const CACHE_VERSION = "backlot-v4.3-section-manager";
 
 // Same-origin shell only. CDN libs (supabase-js, leaflet) are runtime-cached.
 const SHELL = [
@@ -18,9 +18,11 @@ const SHELL = [
   "./vin.js",
   "./auth.js",
   "./nav.js",
+  "./parking-sections-map.html",
   "./dashboard.js",
   "./roster.js",
   "./users.js",
+  "./parking-sections.js",
   "./comms.js",
   "./reports.js",
   "./records.js",

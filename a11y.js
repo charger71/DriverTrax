@@ -81,6 +81,11 @@
       document.getElementById("dropOffLocationSkip")?.click();
       return;
     }
+    // Drop-off GPS/dropdown conflict prompt (drop-offs.js). Escape = cancel.
+    if (document.getElementById("dropOffConflictModal")?.classList.contains("show")) {
+      document.getElementById("dropOffConflictCancel")?.click();
+      return;
+    }
   });
 
   // Tag the four overlay roots so AT announces them as dialogs.

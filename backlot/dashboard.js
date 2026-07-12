@@ -37,7 +37,8 @@
 
   const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
 
-  let map = null, pinLayer = null;
+  let map = null, pinLayer = null, sectionLayer = null;
+  let sectionsRendered = false;
   let realtimeChan = null, pollTimer = null, started = false;
 
   function initMap() {
@@ -47,7 +48,36 @@
     L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
       maxZoom: 20, attribution: "© OpenStreetMap, © CARTO",
     }).addTo(map);
+    // Sections go under the vehicle pins so a dense cluster of markers
+    // stays readable on top of the boundary fills.
+    sectionLayer = L.layerGroup().addTo(map);
     pinLayer = L.layerGroup().addTo(map);
+  }
+
+  // GeoJSON Polygon -> Leaflet-order [lat, lng] rings.
+  function geoToRings(geo) {
+    if (!geo || geo.type !== "Polygon" || !Array.isArray(geo.coordinates)) return [];
+    return geo.coordinates.map(ring => ring.map(([lng, lat]) => [lat, lng]));
+  }
+
+  // Fetch polygons once per session and drop them onto sectionLayer. Same
+  // status-color scheme as the driver-app shift map.
+  async function ensureSectionOverlay() {
+    if (sectionsRendered || !map) return;
+    sectionsRendered = true;
+    const { data, error } = await sb.from("parking_sections_geo").select("id,name,status,geojson");
+    if (error) { console.warn("[Backlot] parking_sections_geo", error); return; }
+    const statusColor = { open: "#00a651", full: "#e85550", restricted: "#f0b04a" };
+    (data || []).forEach(s => {
+      const rings = geoToRings(s.geojson);
+      if (!rings.length) return;
+      const color = statusColor[s.status] || "#4d9bff";
+      const poly = L.polygon(rings, {
+        color, fillColor: color, fillOpacity: 0.10, weight: 1.5, interactive: false
+      });
+      poly.bindTooltip(s.name, { permanent: false, direction: "center", className: "bl-section-label" });
+      sectionLayer.addLayer(poly);
+    });
   }
 
   async function loadAll() {
@@ -70,6 +100,7 @@
     renderKpis(vehicles, records, fc, detailJobs);
     renderThroughput(records);
     await renderMap(vehicles);
+    renderBySection();
 
     const sub = $("blDashSub");
     if (sub) sub.textContent = `SDF Enterprise · ${vehicles.length} in inventory · updated ${fmt.time(new Date())}`;
@@ -108,9 +139,48 @@
     set("blLegendOther", cat.other);
   }
 
+  // "By Section" tile: today's drop_offs bucketed by polygon name, with
+  // typed-name fallback (from "Where is this?") and "Unspecified" for
+  // rows that never matched or got named. Same shape as the driver-app
+  // tile so managers see the same data on both surfaces.
+  async function renderBySection() {
+    const el = $("blDashBySection");
+    if (!el) return;
+    const since = startOfToday().toISOString();
+    const { data, error } = await sb
+      .from("drop_offs")
+      .select("id,section_id,location_name,parking_sections(name)")
+      .gte("created_at", since);
+    if (error) {
+      console.warn("[Backlot] drop_offs by section", error);
+      el.innerHTML = `<div class="bl-empty">Couldn't load section counts.</div>`;
+      return;
+    }
+    const rows = data || [];
+    if (!rows.length) {
+      el.innerHTML = `<div class="bl-empty">No drop-offs yet today.</div>`;
+      return;
+    }
+    const counts = {};
+    rows.forEach(r => {
+      const key = r.parking_sections?.name || r.location_name || "Unspecified";
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    const max = Math.max(...entries.map(([, n]) => n), 1);
+    el.innerHTML = entries.map(([label, n]) => `
+      <div class="bar-row">
+        <div class="bar-key">${esc(label)}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.round(n / max * 100)}%"></div></div>
+        <div class="bar-val">${n}</div>
+      </div>
+    `).join("");
+  }
+
   async function renderMap(vehicles) {
     initMap();
     if (!map) return;
+    ensureSectionOverlay();
     const pinned = vehicles.filter((v) => v.last_lat != null && v.last_lng != null);
 
     // Resolve driver names for popups in one round trip.

@@ -224,6 +224,12 @@ body.bl-authed .bl-app {
 .bl-nav-item .ico { width: 18px; text-align: center; opacity: .9; }
 .bl-nav-item:hover { background: var(--hover); color: var(--text); }
 .bl-nav-item.is-active { background: var(--hover); color: var(--text); border-left-color: var(--accent); font-weight: var(--fw-bold); }
+/* Nav items rendered as anchors (open in new tab) drop their default
+   underline and inherit the link color from .bl-nav-item. */
+a.bl-nav-item, a.bl-nav-item:visited { text-decoration: none; }
+/* Admin-only nav items — auth.js stamps body.bl-is-admin on load. */
+.bl-admin-only { display: none; }
+body.bl-is-admin .bl-admin-only { display: flex; }
 .bl-nav-badge { margin-left: auto; background: var(--danger); color: var(--text-on-status); font-size: var(--fs-xs); font-weight: var(--fw-heavy); padding: var(--sp-0) var(--sp-1); border-radius: var(--r-full); text-transform: uppercase; letter-spacing: .5px; }
 
 /* main + sections */
@@ -318,6 +324,37 @@ body.bl-authed .bl-app {
 .bl-lot-pin--dirty   { background: var(--st-dirty); }
 .bl-lot-pin--service { background: var(--st-pm); }
 .bl-lot-pin--other   { background: var(--st-shut); }
+/* Parking-section polygon label on the live lot map. */
+.leaflet-tooltip.bl-section-label {
+  background: var(--card); color: var(--text);
+  border: 1px solid var(--border); box-shadow: var(--sh-sm);
+  font-size: var(--fs-xs); font-weight: var(--fw-bold);
+  padding: 2px 6px;
+}
+.leaflet-tooltip.bl-section-label::before { display: none; }
+
+/* "By Section" tile — same shape as the driver-app bar rows. */
+.bl-section-bars { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2) 0; }
+.bl-section-bars .bar-row { display: grid; grid-template-columns: 140px 1fr 44px; align-items: center; gap: var(--sp-3); }
+.bl-section-bars .bar-key { color: var(--text-soft); font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bl-section-bars .bar-track { background: var(--hover); height: 8px; border-radius: var(--r-sm); overflow: hidden; }
+.bl-section-bars .bar-fill { background: var(--accent); height: 100%; border-radius: var(--r-sm); }
+.bl-section-bars .bar-val { color: var(--text); font-weight: var(--fw-bold); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Parking-sections admin (section-manager) — pill variants, name-cell
+   input, modal message. Matches Records / Users table patterns. */
+.bl-pill.bl-pill--ok     { background: var(--accent-soft, rgba(0,166,81,0.15)); color: var(--accent); border-color: transparent; cursor: pointer; }
+.bl-pill.bl-pill--warn   { background: var(--warn-soft);   color: var(--warn);   border-color: transparent; cursor: pointer; }
+.bl-pill.bl-pill--danger { background: var(--danger-soft); color: var(--danger); border-color: transparent; cursor: pointer; }
+.bl-pill.bl-pill--ok:hover, .bl-pill.bl-pill--warn:hover, .bl-pill.bl-pill--danger:hover { filter: brightness(1.15); }
+.bl-ps-name { background: none; border: 0; color: var(--text); font: inherit; text-align: left; padding: 0; cursor: text; }
+.bl-ps-name:hover { color: var(--accent); }
+.bl-ps-name-input {
+  width: 100%; max-width: 260px;
+  background: var(--bg); border: 1px solid var(--accent); border-radius: var(--r-sm);
+  padding: var(--sp-1) var(--sp-2); color: var(--text); font: inherit;
+}
+.bl-modal-msg { min-height: 18px; font-size: var(--fs-sm); color: var(--danger); }
 .bl-map-legend { display: flex; flex-wrap: wrap; gap: var(--sp-4); padding: 0 var(--sp-4) var(--sp-4); }
 .bl-map-legend span { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--text-soft); font-size: var(--fs-sm); }
 .bl-map-legend b { color: var(--text); }

@@ -11,6 +11,7 @@
   const SECTION_LABELS = {
     dashboard: "Dashboard", records: "Records", roster: "Roster", users: "Users",
     comms: "Comms", reports: "Reports", vin: "Vehicle history",
+    "parking-sections": "Parking sections",
   };
   // Sections shown programmatically (not from the sidebar tab bar). These
   // don't take a highlighted nav item, and the crumb shows their label.
@@ -53,6 +54,10 @@
     nav.addEventListener("click", (e) => {
       const btn = e.target.closest(".bl-nav-item");
       if (!btn || !nav.contains(btn)) return;
+      // Some nav items are <a target="_blank"> links to standalone pages
+      // (e.g. parking sections tool). Those have no data-section — let the
+      // browser follow the link and don't blank the current section.
+      if (!btn.dataset.section) return;
       showSection(btn.dataset.section);
     });
   }

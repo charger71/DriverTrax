@@ -87,6 +87,9 @@
     currentVinData = null;
     $("blRecFormVinInfo").classList.add("is-hidden");
     $("blRecFormVinInfo").innerHTML = "";
+    // Section row is hidden by default; edit-mode reveals it if the record
+    // has a section stamp. Reset here so create-mode always starts hidden.
+    $("blRecFormSectionRow")?.classList.add("is-hidden");
 
     if (m === "edit" && record) {
       $("blRecFormTitle").textContent = "Edit record";
@@ -97,6 +100,18 @@
       f.elements.status_other.value = record.status_other || "";
       f.elements.destination.value = record.destination || "";
       f.elements.destination_other.value = record.destination_other || "";
+      // Read-only section (GPS-tagged). Hide the row when nothing to show.
+      const sectionRow = $("blRecFormSectionRow");
+      const sectionInput = f.elements.section_name;
+      if (sectionRow && sectionInput) {
+        if (record.section_name) {
+          sectionInput.value = record.section_name;
+          sectionRow.classList.remove("is-hidden");
+        } else {
+          sectionInput.value = "";
+          sectionRow.classList.add("is-hidden");
+        }
+      }
       f.elements.fuel_level.value = record.fuel_level || "";
       f.elements.mileage.value = (record.mileage != null ? record.mileage : "");
       f.elements.notes.value = record.notes || "";

@@ -27,7 +27,17 @@
   const label = (s) => (window.BL_STATUS_LABEL ? BL_STATUS_LABEL(s) : s) || "";
   const condLabel = (id) => (window.BL_CONDITION_LABEL ? BL_CONDITION_LABEL(id) : id);
 
-  const REC_COLS = "id,user_id,serial_id,status,status_other,destination,destination_other,conditions,no_tag,shuttle,transport,notes,lat,lng,mileage,fuel_level,tires,tire_details,damage_marks,claim_number,claim_notes,vin_data,ts,photo_urls,photo_url";
+  const REC_COLS = "id,user_id,serial_id,status,status_other,destination,destination_other,section_id,section_name,conditions,no_tag,shuttle,transport,notes,lat,lng,mileage,fuel_level,tires,tire_details,damage_marks,claim_number,claim_notes,vin_data,ts,photo_urls,photo_url";
+
+  // Location label used in the table + detail + timeline. Prefers the
+  // GPS-tagged parking section (from parking_sections auto-tag or the
+  // driver's "Where is this?" fallback) and falls back to the destination
+  // dropdown so pre-parking-sections records still render.
+  function locationOf(r, fallbackDash) {
+    if (r.section_name) return r.section_name;
+    if (r.destination === "OTHER") return r.destination_other || "Other";
+    return r.destination || (fallbackDash ? "—" : "");
+  }
   const CSV_CAP = 5000; // hard cap on CSV export size
   const CSV_BATCH = 1000;
 
@@ -78,27 +88,42 @@
   // ---------- filter state ----------
   function readFilters() {
     return {
-      search: ($("blRecSearch")?.value || "").trim(),
-      status: $("blRecStatus")?.value || "",
-      driver: $("blRecDriver")?.value || "",
-      from:   $("blRecFrom")?.value || "",
-      to:     $("blRecTo")?.value || "",
+      search:  ($("blRecSearch")?.value || "").trim(),
+      status:  $("blRecStatus")?.value || "",
+      driver:  $("blRecDriver")?.value || "",
+      section: $("blRecSection")?.value || "",
+      from:    $("blRecFrom")?.value || "",
+      to:      $("blRecTo")?.value || "",
     };
   }
   function writeFilters(f) {
-    if ($("blRecSearch")) $("blRecSearch").value = f.search || "";
-    if ($("blRecStatus")) $("blRecStatus").value = f.status || "";
-    if ($("blRecDriver")) $("blRecDriver").value = f.driver || "";
-    if ($("blRecFrom"))   $("blRecFrom").value   = f.from   || "";
-    if ($("blRecTo"))     $("blRecTo").value     = f.to     || "";
+    if ($("blRecSearch"))  $("blRecSearch").value  = f.search  || "";
+    if ($("blRecStatus"))  $("blRecStatus").value  = f.status  || "";
+    if ($("blRecDriver"))  $("blRecDriver").value  = f.driver  || "";
+    if ($("blRecSection")) $("blRecSection").value = f.section || "";
+    if ($("blRecFrom"))    $("blRecFrom").value    = f.from    || "";
+    if ($("blRecTo"))      $("blRecTo").value      = f.to      || "";
   }
   function applyFiltersToQuery(q, f) {
-    if (f.status) q = q.eq("status", f.status);
-    if (f.driver) q = q.eq("user_id", f.driver);
-    if (f.from)   q = q.gte("ts", new Date(f.from + "T00:00:00").toISOString());
-    if (f.to)     q = q.lte("ts", new Date(f.to + "T23:59:59.999").toISOString());
-    if (f.search) q = q.ilike("serial_id", `%${f.search}%`);
+    if (f.status)  q = q.eq("status", f.status);
+    if (f.driver)  q = q.eq("user_id", f.driver);
+    if (f.section) q = q.eq("section_id", f.section);
+    if (f.from)    q = q.gte("ts", new Date(f.from + "T00:00:00").toISOString());
+    if (f.to)      q = q.lte("ts", new Date(f.to + "T23:59:59.999").toISOString());
+    if (f.search)  q = q.ilike("serial_id", `%${f.search}%`);
     return q;
+  }
+
+  // Populate the Section filter dropdown from parking_sections.
+  async function populateSectionFilter() {
+    const sel = $("blRecSection");
+    if (!sel || sel.dataset.filled) return;
+    const { data, error } = await sb.from("parking_sections").select("id,name").order("name");
+    if (error) { console.warn("[Backlot] parking_sections", error); return; }
+    sel.insertAdjacentHTML("beforeend",
+      (data || []).map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("")
+    );
+    sel.dataset.filled = "1";
   }
 
   // ---------- server-side load ----------
@@ -158,7 +183,7 @@
     body.innerHTML = rows.map((r) => {
       const vd = r.vin_data || {};
       const sub = [vd.year, vd.make, vd.model].filter(Boolean).join(" ");
-      const dest = r.destination === "OTHER" ? (r.destination_other || "Other") : (r.destination || "—");
+      const dest = locationOf(r, true);
       return `<tr>
         <td data-col="serial_id"><button class="bl-rowbtn" data-vin-history="${esc(r.serial_id || "")}"><span class="bl-rec-vin">${esc(r.serial_id || "—")}${sub ? `<small>${esc(sub)}</small>` : ""}</span></button></td>
         <td data-col="status">${esc(label(r.status) || r.status || "—")}</td>
@@ -206,15 +231,16 @@
       }
       if (!rows.length) { BL_TOAST.warn("No records to export."); return; }
       const cap = rows.length >= CSV_CAP;
-      const header = ["Serial","Year","Make","Model","Status","Destination","Driver","Logged","Fuel","Mileage","Notes"];
+      const header = ["Serial","Year","Make","Model","Status","Destination","Section","Driver","Logged","Fuel","Mileage","Notes"];
       const lines = [header.map(csvCell).join(",")];
       rows.forEach((r) => {
         const vd = r.vin_data || {};
         const dest = r.destination === "OTHER" ? (r.destination_other || "Other") : (r.destination || "");
+        const section = r.section_name || "";
         const stat = r.status === "OTHER" ? (r.status_other || "OTHER") : (label(r.status) || r.status || "");
         lines.push([
           r.serial_id || "", vd.year || "", vd.make || "", vd.model || "",
-          stat, dest, driverName(r.user_id), r.ts || "",
+          stat, dest, section, driverName(r.user_id), r.ts || "",
           r.fuel_level || "", r.mileage != null ? r.mileage : "",
           (r.notes || "").replace(/\r?\n/g, " "),
         ].map(csvCell).join(","));
@@ -691,6 +717,7 @@
     const push = (k, v) => { if (v != null && v !== "") facts.push([k, v]); };
     push("Driver",       driverName(r.user_id));
     push("Destination",  r.destination === "OTHER" ? (r.destination_other || "Other") : r.destination);
+    if (r.section_name) push("Section (GPS)", r.section_name);
     if (r.status === "OTHER") push("Status detail", r.status_other);
     if (r.lat != null && r.lng != null) push("Coordinates", `${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}`);
     const factsHtml = facts.length
@@ -909,7 +936,7 @@
       const dotMod = rcat === "clean" ? "" : ` bl-vin-tl-dot--${rcat}`;
       const ago = r.ts ? fmt.timeAgo(r.ts) : "";
       const full = r.ts ? new Date(r.ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: fmt.TZ }) : "";
-      const dest = r.destination === "OTHER" ? (r.destination_other || "Other") : r.destination;
+      const dest = locationOf(r, false);
       // Compact meta line kept on the collapsed summary — enough context to
       // scan the timeline without expanding every row.
       const metaBits = [];
@@ -1051,6 +1078,7 @@
     if (started) return;
     started = true;
     populateStatusFilter();
+    populateSectionFilter();
     renderPresetChips();
     renderColsMenu();
     applyColState();
@@ -1073,7 +1101,7 @@
     $("blRecBody")?.addEventListener("click", onBodyClick);
     $("blRecRefresh")?.addEventListener("click", reload);
     $("blRecSearch")?.addEventListener("input", debounce(reload, 300));
-    ["blRecStatus", "blRecDriver", "blRecFrom", "blRecTo"].forEach((id) => $(id)?.addEventListener("change", reload));
+    ["blRecStatus", "blRecDriver", "blRecSection", "blRecFrom", "blRecTo"].forEach((id) => $(id)?.addEventListener("change", reload));
     $("blRecNew")?.addEventListener("click", () => { if (window.BL_RECORD_FORM) BL_RECORD_FORM.open("create"); else BL_TOAST.warn("Editor not loaded yet."); });
     $("blRecExport")?.addEventListener("click", exportCsv);
     $("blRecPresetSave")?.addEventListener("click", savePresetPrompt);

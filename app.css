@@ -1861,6 +1861,12 @@
     margin: 0 0 var(--space-3); font-size: var(--font-sm);
     line-height: 1.4; color: var(--text-soft);
   }
+  /* Body of the #dropOffConflictModal (mismatch prompt). */
+  .dropoff-conflict-body {
+    margin: 0 0 var(--space-3); font-size: var(--font-base);
+    line-height: 1.4; color: var(--text);
+  }
+  .dropoff-conflict-body b { color: var(--accent); }
   .users-modal-msg { min-height: 18px; font-size: 12px; text-align: center; color: var(--text-soft); }
   .users-modal-msg.err { color: var(--danger); }
   .users-modal-msg.ok  { color: var(--accent); }
@@ -3098,6 +3104,16 @@
     color: var(--muted);
     font-weight: var(--weight-normal);
   }
+
+  /* Parking-section polygon labels on the shift map. Leaflet's default
+     tooltip is a white pill; ours picks up the app palette. */
+  .leaflet-tooltip.map-section-label {
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+    font-size: var(--font-xs); font-weight: var(--weight-bold);
+    padding: 2px 6px;
+  }
+  .leaflet-tooltip.map-section-label::before { display: none; }
 
   .map-legend { background: var(--card); border-top: 1px solid var(--border); }
   .map-legend-row {

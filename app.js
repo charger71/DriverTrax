@@ -834,21 +834,24 @@ function saveRecord() {
     if (gpsError) { showToast("Saved - no GPS location", "warn"); }
     else { showToast("Saved with GPS", "success"); haptic("success"); }
 
-    // Parking-section geotag: only fire for real lot drop-offs (BACKLOT /
-    // QTA / GARAGE). CHECK_OUTs, transports, and off-site destinations
-    // aren't drop-offs into a section, so we skip them.
-    const DROPOFF_DESTS = new Set(["BACKLOT", "QTA", "GARAGE"]);
+    // Parking-section geotag: fire for any save with GPS so the section
+    // name shows up on the card even when the driver leaves destination
+    // blank ("let GPS figure it out"). The prompt "Where is this?" only
+    // opens for genuine drop-off contexts — blank destination, or one of
+    // the lot codes — so a CHECK_OUT at an off-lot rental spot doesn't
+    // pester the driver just because it's outside every polygon.
+    const LOT_DESTS = new Set(["BACKLOT", "QTA", "GARAGE"]);
     if (
       window.DT_DROPOFFS &&
       !gpsError &&
       typeof lat === "number" &&
-      typeof lng === "number" &&
-      DROPOFF_DESTS.has(recordData.destination)
+      typeof lng === "number"
     ) {
       DT_DROPOFFS.record({
         serial_id: recordData.serialId,
         lat, lng,
-        record_id: recordData.id
+        record_id: recordData.id,
+        promptIfUntagged: !recordData.destination || LOT_DESTS.has(recordData.destination)
       });
     }
 
@@ -891,7 +894,26 @@ function saveRecord() {
     }
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
-        pos => { gpsEl.className = "gps-status got"; gpsEl.textContent = "Location acquired"; doSave(pos.coords.latitude, pos.coords.longitude, false); },
+        async pos => {
+          gpsEl.className = "gps-status got";
+          gpsEl.textContent = "Location acquired";
+          const lat = pos.coords.latitude, lng = pos.coords.longitude;
+          // GPS/dropdown mismatch check: if the driver picked BACKLOT/QTA/GARAGE
+          // but GPS lands in a different polygon, prompt before saving.
+          if (window.DT_DROPOFFS?.checkConflictAndConfirm) {
+            const proceed = await DT_DROPOFFS.checkConflictAndConfirm(recordData.destination, lat, lng);
+            if (!proceed) {
+              // Driver picked "Fix destination" — restore the Save button and bail.
+              // They'll fix the dropdown and hit Save again.
+              saveBtn.disabled = false;
+              saveBtn.innerHTML = "Save";
+              gpsEl.className = "gps-status";
+              gpsEl.textContent = "";
+              return;
+            }
+          }
+          doSave(lat, lng, false);
+        },
         err => { gpsEl.className = "gps-status err"; gpsEl.textContent = "Location unavailable - saving anyway"; saveBtn.innerHTML = "Saving..."; setTimeout(() => doSave(null, null, true), 800); },
         { timeout: 8000, maximumAge: 30000, enableHighAccuracy: true }
       );
@@ -4087,6 +4109,8 @@ function renderRecordsMap() {
 let activeShiftMapIndex = null;
 let leafletMap = null;
 let leafletMarkers = [];
+let leafletSectionLayer = null;
+let leafletSectionsRendered = false;
 
 function initLeafletMap() {
   if (leafletMap) return;
@@ -4096,6 +4120,29 @@ function initLeafletMap() {
 function clearLeafletMarkers() {
   leafletMarkers.forEach(m => leafletMap.removeLayer(m));
   leafletMarkers = [];
+}
+
+// Draw each parking_sections polygon on the shift map so drivers can see
+// their pins in context. Loaded once per session; the DT_DROPOFFS cache
+// handles the fetch. Skipped if the sections view isn't reachable.
+async function ensureShiftMapSections() {
+  if (leafletSectionsRendered || !leafletMap || !window.L || !window.DT_DROPOFFS) return;
+  leafletSectionsRendered = true;
+  let sections = [];
+  try { sections = await DT_DROPOFFS.getSections(); }
+  catch (e) { console.warn("[shift map] sections load", e); return; }
+  if (!sections.length) return;
+  const statusColor = { open: "#00a651", full: "#e85550", restricted: "#f0b04a" };
+  leafletSectionLayer = L.layerGroup().addTo(leafletMap);
+  sections.forEach(s => {
+    if (!s.rings.length) return;
+    const color = statusColor[s.status] || "#4d9bff";
+    const poly = L.polygon(s.rings, {
+      color, fillColor: color, fillOpacity: 0.10, weight: 1.5, interactive: false
+    });
+    poly.bindTooltip(s.name, { permanent: false, direction: "center", className: "map-section-label" });
+    leafletSectionLayer.addLayer(poly);
+  });
 }
 
 function renderShiftMap(shiftIndex) {
@@ -4143,6 +4190,7 @@ function renderShiftMap(shiftIndex) {
   // Init map if needed
   initLeafletMap();
   clearLeafletMarkers();
+  ensureShiftMapSections();
 
   // Force Leaflet to recalculate size after display change
   setTimeout(() => leafletMap.invalidateSize(), 50);

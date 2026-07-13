@@ -68,10 +68,13 @@
     const { data, error } = await sb.from("parking_sections_geo").select("id,name,status,geojson");
     if (error) { console.warn("[Backlot] parking_sections_geo", error); return; }
     const statusColor = { open: "#00a651", full: "#e85550", restricted: "#f0b04a" };
+    // Leaflet needs a real color string, so resolve the token once for the
+    // unknown-status fallback instead of hardcoding a near-match.
+    const infoToken = getComputedStyle(document.documentElement).getPropertyValue("--info").trim() || "#4a9eff";
     (data || []).forEach(s => {
       const rings = geoToRings(s.geojson);
       if (!rings.length) return;
-      const color = statusColor[s.status] || "#4d9bff";
+      const color = statusColor[s.status] || infoToken;
       const poly = L.polygon(rings, {
         color, fillColor: color, fillOpacity: 0.10, weight: 1.5, interactive: false
       });
@@ -171,10 +174,12 @@
     el.innerHTML = entries.map(([label, n]) => `
       <div class="bar-row">
         <div class="bar-key">${esc(label)}</div>
-        <div class="bar-track"><div class="bar-fill" style="width:${Math.round(n / max * 100)}%"></div></div>
+        <div class="bar-track"><div class="bar-fill" data-pct="${Math.round(n / max * 100)}"></div></div>
         <div class="bar-val">${n}</div>
       </div>
     `).join("");
+    // CSP blocks inline style="…"; set widths via DOM API after render.
+    el.querySelectorAll(".bar-fill").forEach((bar) => { bar.style.width = bar.dataset.pct + "%"; });
   }
 
   async function renderMap(vehicles) {
@@ -245,8 +250,10 @@
     el.innerHTML = buckets.map((b) => {
       const pct = Math.round((b.n / max) * 100);
       const peak = b.n === peakN && b.n > 0 ? " is-peak" : "";
-      return `<div class="col"><div class="bar-track"><div class="bar${peak}" style="height:${pct}%" title="${b.n} car${b.n === 1 ? "" : "s"}"></div></div><div class="hr">${fmtHour(b.h)}</div></div>`;
+      return `<div class="col"><div class="bar-track"><div class="bar${peak}" data-pct="${pct}" title="${b.n} car${b.n === 1 ? "" : "s"}"></div></div><div class="hr">${fmtHour(b.h)}</div></div>`;
     }).join("");
+    // CSP blocks inline style="…"; set heights via DOM API after render.
+    el.querySelectorAll(".bar").forEach((bar) => { bar.style.height = bar.dataset.pct + "%"; });
 
     if (foot) {
       const peakBucket = buckets.find((b) => b.n === peakN);

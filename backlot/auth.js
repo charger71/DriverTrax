@@ -56,8 +56,8 @@
       <div class="bl-gate-card">
         <div class="bl-gate-brand">
           <svg class="bl-gate-logo" aria-hidden="true"><use href="#icon-wheel"/></svg>
-          <span class="bl-gate-wordmark">BACKLOT</span>
-          <span>MANAGER CONSOLE</span>
+          <span class="bl-gate-wordmark">Backlot</span>
+          <span>Manager console</span>
         </div>
 
         <form class="bl-gate-form" id="bl-form-signin">

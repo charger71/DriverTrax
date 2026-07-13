@@ -1,0 +1,72 @@
+/* ==========================================================================
+   Backlot — parking-sections map tool
+
+   Standalone admin page (opened in a new tab from the main app). Uses the
+   shared Backlot tokens + components via styles.css and adds only the
+   tool-specific layout below with the .bl-mt- ("map tool") prefix so it
+   never collides with the shell.
+   ========================================================================== */
+
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: inherit; }
+
+.bl-mt-app { display: flex; flex-direction: column; height: 100%; }
+
+.bl-mt-header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: var(--sp-3) var(--sp-5);
+  border-bottom: 2px solid var(--accent);
+  background: var(--surface);
+}
+.bl-mt-header h1 {
+  font-size: var(--fs-lg); margin: 0;
+  font-weight: var(--fw-black); text-transform: uppercase; letter-spacing: 2px;
+  color: var(--accent);
+}
+.bl-mt-header h1 span { color: var(--muted); margin: 0 var(--sp-2); }
+.bl-mt-meta { color: var(--text-soft); font-size: var(--fs-xs); }
+
+.bl-mt-main { flex: 1; display: flex; min-height: 0; }
+.bl-mt-map { flex: 1; min-width: 0; background: var(--bg); }
+
+.bl-mt-panel {
+  width: 320px; flex-shrink: 0; overflow-y: auto;
+  border-left: 1px solid var(--border); background: var(--surface);
+  display: flex; flex-direction: column;
+}
+
+.bl-mt-list { border-bottom: 1px solid var(--border); }
+.bl-mt-item {
+  padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--divider);
+  cursor: pointer; transition: background 0.12s;
+}
+.bl-mt-item:hover { background: var(--hover); }
+.bl-mt-item.is-active { background: var(--accent-soft); border-left: 3px solid var(--accent); padding-left: calc(var(--sp-4) - 3px); }
+.bl-mt-item-name { font-weight: var(--fw-bold); font-size: var(--fs-sm); color: var(--text); }
+.bl-mt-item-stats { font-size: var(--fs-xs); color: var(--text-soft); margin-top: var(--sp-1); }
+.bl-mt-item-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: var(--sp-2); vertical-align: baseline; background: var(--muted); }
+
+/* Status dots for list items — set via runtime .style.background since these
+   values come from JS and Leaflet needs the same string on the polygon. */
+.bl-mt-status--open       { background: #00a651; }
+.bl-mt-status--full       { background: #e85550; }
+.bl-mt-status--restricted { background: #f0b04a; }
+
+.bl-mt-box {
+  padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border);
+}
+.bl-mt-box:last-child { border-bottom: 0; }
+.bl-mt-box-title { color: var(--text); font-weight: var(--fw-bold); font-size: var(--fs-sm); margin-bottom: var(--sp-2); }
+.bl-mt-box-hint  { color: var(--text-soft); font-size: var(--fs-xs); line-height: 1.5; margin: 0 0 var(--sp-3); }
+
+.bl-mt-code {
+  margin: 0 0 var(--sp-2); white-space: pre-wrap; word-break: break-all;
+  max-height: 220px; overflow-y: auto;
+  background: var(--card-2); color: var(--text-soft);
+  padding: var(--sp-3); border-radius: var(--r-sm);
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  font-size: var(--fs-xs); line-height: 1.5;
+  border: 1px solid var(--border);
+}
+
+/* Segmented format switcher — matches the .bl-seg spirit but scoped to the tool. */
+.bl-mt-seg { display: flex; gap: var(--sp-1); margin-bottom: var(--sp-2); }

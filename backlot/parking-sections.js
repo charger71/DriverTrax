@@ -232,6 +232,9 @@
     $("blPsDeleteModal")?.addEventListener("click", (e) => {
       if (e.target === $("blPsDeleteModal")) closeDelete();
     });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && $("blPsDeleteModal")?.classList.contains("is-open")) closeDelete();
+    });
   }
 
   // Lazy-load when the section is first shown.

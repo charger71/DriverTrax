@@ -54,13 +54,13 @@
   <!-- boot splash until auth resolves -->
   <div class="bl-splash" id="blSplash" role="status" aria-label="Loading Backlot">
     <svg class="bl-splash-logo" aria-hidden="true"><use href="#icon-wheel"/></svg>
-    <div class="bl-splash-brand">BACKLOT</div>
+    <div class="bl-splash-brand">Backlot</div>
   </div>
 
   <div class="bl-app">
     <!-- ===== top bar ===== -->
     <header class="bl-topbar">
-      <div class="bl-brand"><svg class="bl-brand-logo" aria-hidden="true"><use href="#icon-wheel"/></svg>BACKLOT <span>MANAGER CONSOLE</span></div>
+      <div class="bl-brand"><svg class="bl-brand-logo" aria-hidden="true"><use href="#icon-wheel"/></svg>Backlot <span>Manager console</span></div>
       <div class="bl-crumbs">SDF · Louisville · <b id="blCrumb">Dashboard</b></div>
       <div class="bl-topbar-search">
         <label class="bl-search" aria-label="Find record">
@@ -135,10 +135,10 @@
               <div id="blLotMap" role="img" aria-label="Map of vehicles on the lot"></div>
             </div>
             <div class="bl-map-legend">
-              <span><i class="bl-swatch" style="background:var(--st-clean)"></i> Ready <b id="blLegendReady">0</b></span>
-              <span><i class="bl-swatch" style="background:var(--st-dirty)"></i> Dirty <b id="blLegendDirty">0</b></span>
-              <span><i class="bl-swatch" style="background:var(--st-pm)"></i> Service <b id="blLegendService">0</b></span>
-              <span><i class="bl-swatch" style="background:var(--st-shut)"></i> Other <b id="blLegendOther">0</b></span>
+              <span><i class="bl-swatch bl-swatch--clean"></i> Ready <b id="blLegendReady">0</b></span>
+              <span><i class="bl-swatch bl-swatch--dirty"></i> Dirty <b id="blLegendDirty">0</b></span>
+              <span><i class="bl-swatch bl-swatch--service"></i> Service <b id="blLegendService">0</b></span>
+              <span><i class="bl-swatch bl-swatch--other"></i> Other <b id="blLegendOther">0</b></span>
             </div>
           </div>
 
@@ -351,7 +351,7 @@
                 <label class="bl-field"><span class="bl-field-label">New announcement</span>
                   <textarea name="body" maxlength="1000" placeholder="Type an announcement — the team sees it in DriverTrax…"></textarea>
                 </label>
-                <div class="bl-row" style="justify-content:flex-end; margin-top:var(--sp-3)">
+                <div class="bl-row bl-row--end-gapped">
                   <button type="submit" class="bl-btn bl-btn--primary"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-megaphone"/></svg>Send broadcast</button>
                 </div>
               </form>
@@ -395,7 +395,7 @@
                   </select>
                 </label>
                 <label class="bl-field"><span class="bl-field-label">Note (optional)</span><input name="note" maxlength="200" placeholder="Anything the team should know"></label>
-                <div class="bl-row" style="justify-content:flex-end">
+                <div class="bl-row bl-row--end">
                   <button type="submit" class="bl-btn bl-btn--primary"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-plus"/></svg>Post request</button>
                 </div>
               </form>

@@ -185,6 +185,38 @@
       <label class="bl-field"><span class="bl-field-label">Note</span><textarea placeholder="Optional note…"></textarea></label>
       <div class="bl-msg bl-msg--ok">Saved.</div>
     </div>
+
+    <h2 style="margin-top:var(--sp-6)">Field row</h2>
+    <p class="lead">Two (or more) fields side-by-side. Wraps to a stack below tablet. Use <code>.bl-field-row</code> as a flex container of <code>.bl-field</code> children.</p>
+    <div class="demo" style="flex-direction:column;align-items:stretch;max-width:520px">
+      <div class="bl-field-row">
+        <label class="bl-field"><span class="bl-field-label">Date</span><input type="date"></label>
+        <label class="bl-field"><span class="bl-field-label">Needed</span><input type="number" min="1" max="20" value="1"></label>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LAYOUT: GRIDS + ROWS ============ -->
+  <section class="guide">
+    <h2>Grid layouts</h2>
+    <p class="lead">Card grids collapse to a single column below tablet. Use <code>.bl-grid.bl-grid--2</code> for a 2-column card layout (wider left / right cards) or <code>.bl-grid.bl-grid--even</code> for equal columns.</p>
+    <div class="bl-grid bl-grid--2" style="margin-top:var(--sp-3)">
+      <div class="bl-card"><div class="bl-card-head">Left card</div><div class="bl-card-body">.bl-grid--2 primary column.</div></div>
+      <div class="bl-card"><div class="bl-card-head">Right card</div><div class="bl-card-body">.bl-grid--2 secondary column.</div></div>
+    </div>
+    <div class="bl-grid bl-grid--even" style="margin-top:var(--sp-3)">
+      <div class="bl-card"><div class="bl-card-head">Even A</div><div class="bl-card-body">.bl-grid--even column.</div></div>
+      <div class="bl-card"><div class="bl-card-head">Even B</div><div class="bl-card-body">.bl-grid--even column.</div></div>
+    </div>
+
+    <h2 style="margin-top:var(--sp-6)">Row utilities</h2>
+    <p class="lead"><code>.bl-row</code> is a flex container with an 8px gap. Add <code>--end</code> to right-align (e.g. form footers) or <code>--end-gapped</code> for right-aligned with a 12px top margin. Use these instead of <code>style="justify-content:flex-end"</code> — the CSP blocks inline styles.</p>
+    <div class="demo" style="flex-direction:column;align-items:stretch;max-width:520px">
+      <div class="bl-row bl-row--end" style="background:var(--card-2);padding:var(--sp-3);border-radius:var(--r-md)">
+        <button class="bl-btn bl-btn--ghost">Cancel</button>
+        <button class="bl-btn bl-btn--primary">Save</button>
+      </div>
+    </div>
   </section>
 
   <!-- ============ CARDS + KPIs ============ -->
@@ -201,6 +233,18 @@
     <div class="bl-card" style="max-width:520px">
       <div class="bl-card-head">Active alerts <span class="right">Last 4 hours</span></div>
       <div class="bl-card-body">Card body content. Use <code>.bl-card-head</code> + <code>.bl-card-body</code>.</div>
+    </div>
+  </section>
+
+  <!-- ============ MAP LEGEND SWATCHES ============ -->
+  <section class="guide">
+    <h2>Map legend swatches</h2>
+    <p class="lead">Small colored dots used in the lot-map legend. Use the modifier for the status color instead of <code>style="background:var(--st-clean)"</code> — the CSP blocks inline styles.</p>
+    <div class="bl-map-legend" style="padding:0">
+      <span><i class="bl-swatch bl-swatch--clean"></i> Ready <b>62</b></span>
+      <span><i class="bl-swatch bl-swatch--dirty"></i> Dirty <b>18</b></span>
+      <span><i class="bl-swatch bl-swatch--service"></i> Service <b>9</b></span>
+      <span><i class="bl-swatch bl-swatch--other"></i> Other <b>3</b></span>
     </div>
   </section>
 
@@ -424,6 +468,7 @@
       </div>
     </div>
     <p class="lead" style="margin-top:var(--sp-3)">Two footer patterns: <b>Cancel + Save</b> right-aligned (default <code>.bl-modal-actions</code>) for edit forms, and <b>Delete + Edit</b> centered for detail overlays (add <code>.bl-modal-actions--center</code>). The centered pattern pairs <code>--destructive</code> with <code>--primary</code> so Delete reads as destructive but subordinate. Note: the app's CSP blocks inline <code>style="..."</code>, so use the modifier class — not <code>style="justify-content:center"</code>.</p>
+    <p class="lead" style="margin-top:var(--sp-2)">Add <code>.bl-modal-card--wide</code> for detail overlays that render tables, timelines, or side-by-side facts (see <code>#blRecDetail</code>). It widens the card past the default read-column width.</p>
   </section>
 
   <!-- ============ GLOBAL SEARCH ============ -->

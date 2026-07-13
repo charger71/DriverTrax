@@ -115,7 +115,7 @@ a { color: var(--accent); text-decoration: none; }
   background: var(--bg);
 }
 .bl-splash-logo { width: 96px; height: 96px; color: var(--accent); animation: bl-spin 1.4s ease-in-out infinite; transform-origin: 50% 50%; }
-.bl-splash-brand { font-weight: var(--fw-black); letter-spacing: 3px; color: var(--accent); font-size: var(--fs-xl); }
+.bl-splash-brand { font-weight: var(--fw-black); text-transform: uppercase; letter-spacing: 3px; color: var(--accent); font-size: var(--fs-xl); }
 .bl-spinner {
   width: 30px; height: 30px; border-radius: 50%;
   border: 3px solid var(--border); border-top-color: var(--accent);
@@ -141,7 +141,7 @@ body.bl-authed .bl-app {
   background: var(--surface);
   border-bottom: 2px solid var(--accent);
 }
-.bl-brand { display: inline-flex; align-items: center; gap: var(--sp-2); font-weight: var(--fw-black); letter-spacing: 2px; color: var(--accent); font-size: var(--fs-lg); white-space: nowrap; flex: 0 0 auto; }
+.bl-brand { display: inline-flex; align-items: center; gap: var(--sp-2); font-weight: var(--fw-black); text-transform: uppercase; letter-spacing: 2px; color: var(--accent); font-size: var(--fs-lg); white-space: nowrap; flex: 0 0 auto; }
 .bl-brand-logo { width: 24px; height: 24px; color: var(--accent); flex: 0 0 auto; }
 
 /* ---- icons (single-color SVG, inherit currentColor) ---------------- */
@@ -151,7 +151,7 @@ body.bl-authed .bl-app {
 .bl-icon--lg { width: 28px; height: 28px; }
 .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
 .bl-crumbs { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bl-brand span { color: var(--muted); font-weight: var(--fw-bold); letter-spacing: 1px; font-size: var(--fs-xs); margin-left: var(--sp-2); }
+.bl-brand span { color: var(--muted); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: 1px; font-size: var(--fs-xs); margin-left: var(--sp-2); }
 .bl-crumbs { color: var(--text-soft); font-size: var(--fs-sm); }
 .bl-crumbs b { color: var(--text); }
 .bl-topbar-right { margin-left: auto; display: flex; align-items: center; gap: var(--sp-3); }
@@ -288,7 +288,10 @@ body.bl-is-admin .bl-admin-only { display: flex; }
 .bl-input::placeholder { color: var(--muted); }
 
 /* ---- 6. Cards / KPIs ---------------------------------------------------- */
-.bl-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+/* Bottom margin gives standalone cards breathing room between blocks in a
+   section. Grid children have this reset since .bl-grid's `gap` handles
+   internal spacing. */
+.bl-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; margin-bottom: var(--sp-5); }
 .bl-card-head {
   display: flex; align-items: center; gap: var(--sp-3);
   padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--divider);
@@ -302,9 +305,10 @@ body.bl-is-admin .bl-admin-only { display: flex; }
 .bl-kpi .label { color: var(--muted); font-size: var(--fs-xs); font-weight: var(--fw-heavy); text-transform: uppercase; letter-spacing: 1.1px; margin-bottom: var(--sp-2); }
 .bl-kpi .val { font-size: var(--fs-2xl); font-weight: var(--fw-black); letter-spacing: .4px; }
 .bl-kpi .delta { font-size: var(--fs-xs); margin-top: var(--sp-1); color: var(--text-soft); }
-.bl-grid { display: grid; gap: var(--sp-4); }
+.bl-grid { display: grid; gap: var(--sp-4); margin-bottom: var(--sp-5); }
 .bl-grid--2 { grid-template-columns: 2fr 1fr; }
 .bl-grid--even { grid-template-columns: 1fr 1fr; }
+.bl-grid > .bl-card { margin-bottom: 0; }
 
 .bl-empty { color: var(--muted); font-size: var(--fs-sm); text-align: center; padding: var(--sp-5); }
 
@@ -358,7 +362,11 @@ body.bl-is-admin .bl-admin-only { display: flex; }
 .bl-map-legend { display: flex; flex-wrap: wrap; gap: var(--sp-4); padding: 0 var(--sp-4) var(--sp-4); }
 .bl-map-legend span { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--text-soft); font-size: var(--fs-sm); }
 .bl-map-legend b { color: var(--text); }
-.bl-swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
+.bl-swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: 0 0 auto; background: var(--muted); }
+.bl-swatch--clean   { background: var(--st-clean); }
+.bl-swatch--dirty   { background: var(--st-dirty); }
+.bl-swatch--service { background: var(--st-pm); }
+.bl-swatch--other   { background: var(--st-shut); }
 
 .bl-chart { display: flex; align-items: flex-end; gap: var(--sp-2); height: 150px; padding-top: var(--sp-2); }
 .bl-chart .col { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); min-width: 0; }
@@ -977,8 +985,8 @@ body.bl-is-admin .bl-admin-only { display: flex; }
 }
 .bl-gate-brand { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); margin-bottom: var(--sp-5); }
 .bl-gate-logo { width: 52px; height: 52px; color: var(--accent); margin-bottom: var(--sp-2); }
-.bl-gate-wordmark { font-weight: var(--fw-black); letter-spacing: 2px; color: var(--accent); font-size: var(--fs-xl); }
-.bl-gate-brand span:not(.bl-gate-wordmark) { color: var(--muted); font-size: var(--fs-xs); letter-spacing: 1.5px; font-weight: var(--fw-bold); }
+.bl-gate-wordmark { font-weight: var(--fw-black); text-transform: uppercase; letter-spacing: 2px; color: var(--accent); font-size: var(--fs-xl); }
+.bl-gate-brand span:not(.bl-gate-wordmark) { color: var(--muted); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 1.5px; font-weight: var(--fw-bold); }
 .bl-gate-form { display: flex; flex-direction: column; gap: var(--sp-3); }
 .bl-gate-sub { color: var(--text-soft); font-size: var(--fs-sm); }
 .bl-gate-msg { text-align: center; font-size: var(--fs-sm); min-height: 18px; margin-top: var(--sp-3); }
@@ -992,6 +1000,8 @@ body.bl-is-admin .bl-admin-only { display: flex; }
 /* ---- 11. Utilities ------------------------------------------------------ */
 .is-hidden { display: none !important; }
 .bl-row { display: flex; align-items: center; gap: var(--sp-2); }
+.bl-row--end        { justify-content: flex-end; }
+.bl-row--end-gapped { justify-content: flex-end; margin-top: var(--sp-3); }
 .bl-spacer { flex: 1; }
 .u-accent { color: var(--accent); }
 .u-warn { color: var(--warn); }

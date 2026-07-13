@@ -130,7 +130,13 @@
 
         <div class="bl-grid bl-grid--2">
           <div class="bl-card">
-            <div class="bl-card-head">Live lot map <span class="right" id="blMapMeta">—</span></div>
+            <div class="bl-card-head">
+              Live lot map
+              <select id="blMapSectionSelect" class="bl-map-section-picker" aria-label="Filter by parking section">
+                <option value="">All sections</option>
+              </select>
+              <span class="right" id="blMapMeta">—</span>
+            </div>
             <div class="bl-lot-map-wrap">
               <div id="blLotMap" role="img" aria-label="Map of vehicles on the lot"></div>
             </div>

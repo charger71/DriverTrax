@@ -41,6 +41,14 @@
   let sectionsRendered = false;
   let realtimeChan = null, pollTimer = null, started = false;
 
+  // Section-filter state: latest raw fetch is cached so re-rendering with a
+  // different selection doesn't require a new round trip. sections[] mirrors
+  // parking_sections_geo with its Leaflet polygon so click/style updates can
+  // reach the layer without re-querying the LayerGroup.
+  let selectedSectionId = null;
+  let sections = [];                                             // { id, name, status, rings, poly }
+  let latest = { vehicles: [], records: [], fc: null, detailJobs: [] };
+
   function initMap() {
     if (map || !window.L || !$("blLotMap")) return;
     map = L.map("blLotMap", { zoomControl: true, scrollWheelZoom: false, attributionControl: true })
@@ -60,8 +68,36 @@
     return geo.coordinates.map(ring => ring.map(([lng, lat]) => [lat, lng]));
   }
 
+  // Ray-casting point-in-ring; rings are in Leaflet [lat, lng] order.
+  function pointInRing(lat, lng, ring) {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [latI, lngI] = ring[i];
+      const [latJ, lngJ] = ring[j];
+      const intersect = ((lngI > lng) !== (lngJ > lng)) &&
+        (lat < (latJ - latI) * (lng - lngI) / (lngJ - lngI) + latI);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+  // Outer ring includes, subsequent rings (holes) exclude.
+  function pointInPolygon(latlng, rings) {
+    if (!rings.length) return false;
+    const [lat, lng] = latlng;
+    if (!pointInRing(lat, lng, rings[0])) return false;
+    for (let i = 1; i < rings.length; i++) {
+      if (pointInRing(lat, lng, rings[i])) return false;
+    }
+    return true;
+  }
+  function selectedSection() {
+    return sections.find(s => s.id === selectedSectionId) || null;
+  }
+
   // Fetch polygons once per session and drop them onto sectionLayer. Same
-  // status-color scheme as the driver-app shift map.
+  // status-color scheme as the driver-app shift map. Polygons are interactive
+  // so clicking one toggles the section filter; pins live in a higher pane so
+  // they still receive their own clicks first.
   async function ensureSectionOverlay() {
     if (sectionsRendered || !map) return;
     sectionsRendered = true;
@@ -71,23 +107,77 @@
     // Leaflet needs a real color string, so resolve the token once for the
     // unknown-status fallback instead of hardcoding a near-match.
     const infoToken = getComputedStyle(document.documentElement).getPropertyValue("--info").trim() || "#4a9eff";
+    sections = [];
     (data || []).forEach(s => {
       const rings = geoToRings(s.geojson);
       if (!rings.length) return;
       const color = statusColor[s.status] || infoToken;
       const poly = L.polygon(rings, {
-        color, fillColor: color, fillOpacity: 0.10, weight: 1.5, interactive: false
+        color, fillColor: color, fillOpacity: 0.10, weight: 1.5, className: "bl-section-poly"
       });
       poly.bindTooltip(s.name, { permanent: false, direction: "center", className: "bl-section-label" });
+      poly.on("click", () => selectSection(s.id));
       sectionLayer.addLayer(poly);
+      sections.push({ id: s.id, name: s.name, status: s.status, rings, poly, baseColor: color });
     });
+    populateSectionSelect();
+    applySelectionStyling();
+  }
+
+  // Fill the header <select> with "All sections" + a name-sorted list of
+  // every section polygon we loaded, then reflect the current selection.
+  function populateSectionSelect() {
+    const sel = $("blMapSectionSelect");
+    if (!sel) return;
+    const opts = [`<option value="">All sections</option>`];
+    sections
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .forEach(s => { opts.push(`<option value="${esc(s.id)}">${esc(s.name)}</option>`); });
+    sel.innerHTML = opts.join("");
+    syncSectionSelect();
+  }
+  function syncSectionSelect() {
+    const sel = $("blMapSectionSelect");
+    if (sel) sel.value = selectedSectionId || "";
+  }
+
+  // Repaint the polygon layer to reflect selection: the chosen section pops
+  // (thicker outline, denser fill) and the rest fade back so it's obvious
+  // what the KPIs are scoped to.
+  function applySelectionStyling() {
+    sections.forEach(s => {
+      if (!s.poly) return;
+      if (!selectedSectionId) {
+        s.poly.setStyle({ weight: 1.5, fillOpacity: 0.10 });
+      } else if (s.id === selectedSectionId) {
+        s.poly.setStyle({ weight: 3, fillOpacity: 0.30 });
+        s.poly.bringToFront();
+      } else {
+        s.poly.setStyle({ weight: 1, fillOpacity: 0.04 });
+      }
+    });
+  }
+
+  function selectSection(id) {
+    if (selectedSectionId === id) { clearSection(); return; }
+    selectedSectionId = id;
+    applySelectionStyling();
+    syncSectionSelect();
+    applyRender();
+  }
+  function clearSection() {
+    selectedSectionId = null;
+    applySelectionStyling();
+    syncSectionSelect();
+    applyRender();
   }
 
   async function loadAll() {
     const since = startOfToday().toISOString();
     const [vehRes, recRes, fcRes, djRes] = await Promise.all([
       sb.from("vehicles").select("serial_id,current_status,last_lat,last_lng,last_seen_at,last_user_id"),
-      sb.from("records").select("user_id,ts,status").gte("ts", since),
+      sb.from("records").select("user_id,ts,status,section_id").gte("ts", since),
       sb.from("fleet_counts").select("returns_count,rentals_count,updated_at").eq("id", "global").maybeSingle(),
       sb.from("detail_jobs").select("detailer_id,started_at").gte("started_at", since),
     ]);
@@ -95,18 +185,46 @@
     if (recRes.error) console.warn("[Backlot] records", recRes.error);
     if (djRes.error)  console.warn("[Backlot] detail_jobs", djRes.error);
 
-    const vehicles   = vehRes.data || [];
-    const records    = recRes.data || [];
-    const fc         = fcRes.data || null;
-    const detailJobs = djRes.data || [];
+    latest = {
+      vehicles:   vehRes.data || [],
+      records:    recRes.data || [],
+      fc:         fcRes.data  || null,
+      detailJobs: djRes.data  || [],
+    };
+    // We might have polygons that used to reference records/vehicles but
+    // aren't in this fetch's data anymore. Selection survives fine — it's
+    // just polygon id — but if the section itself vanished we drop it.
+    if (selectedSectionId && sections.length && !sections.some(s => s.id === selectedSectionId)) {
+      selectedSectionId = null;
+    }
+    await applyRender();
+  }
 
-    renderKpis(vehicles, records, fc, detailJobs);
-    renderThroughput(records);
-    await renderMap(vehicles);
+  // Reads `latest` + `selectedSectionId` and paints the whole dashboard.
+  // Split from loadAll so clicking a section can repaint without refetching.
+  async function applyRender() {
+    const sel = selectedSection();
+    const vehiclesAll = latest.vehicles;
+    const recordsAll  = latest.records;
+
+    const vehiclesFiltered = sel
+      ? vehiclesAll.filter(v => v.last_lat != null && v.last_lng != null && pointInPolygon([v.last_lat, v.last_lng], sel.rings))
+      : vehiclesAll;
+    const recordsFiltered = sel
+      ? recordsAll.filter(r => r.section_id === sel.id)
+      : recordsAll;
+
+    renderKpis(vehiclesFiltered, recordsFiltered, latest.fc, latest.detailJobs);
+    renderThroughput(recordsFiltered);
+    await renderMap(vehiclesFiltered);
     renderBySection();
 
     const sub = $("blDashSub");
-    if (sub) sub.textContent = `SDF Enterprise · ${vehicles.length} in inventory · updated ${fmt.time(new Date())}`;
+    if (sub) {
+      const totalInv = vehiclesAll.length;
+      const filteredNote = sel ? ` · ${vehiclesFiltered.length} in ${esc(sel.name)}` : "";
+      sub.textContent = `SDF Enterprise · ${totalInv} in inventory${filteredNote} · updated ${fmt.time(new Date())}`;
+    }
   }
 
   function renderKpis(vehicles, records, fc, detailJobs) {
@@ -146,6 +264,10 @@
   // typed-name fallback (from "Where is this?") and "Unspecified" for
   // rows that never matched or got named. Same shape as the driver-app
   // tile so managers see the same data on both surfaces.
+  //
+  // Rows for known sections carry data-section-id, so clicking one drives
+  // the same selection filter as clicking a polygon on the map. Rows with
+  // no polygon id (typed fallback, "Unspecified") are read-only.
   async function renderBySection() {
     const el = $("blDashBySection");
     if (!el) return;
@@ -164,20 +286,36 @@
       el.innerHTML = `<div class="bl-empty">No drop-offs yet today.</div>`;
       return;
     }
-    const counts = {};
+    // Aggregate by section_id when we have one so the row can link back to
+    // the polygon; fall back to the name string for unmatched drops.
+    const buckets = new Map(); // key -> { sectionId, name, count }
     rows.forEach(r => {
-      const key = r.parking_sections?.name || r.location_name || "Unspecified";
-      counts[key] = (counts[key] || 0) + 1;
+      const name = r.parking_sections?.name || r.location_name || "Unspecified";
+      const key = r.section_id || `name:${name}`;
+      const existing = buckets.get(key);
+      if (existing) existing.count++;
+      else buckets.set(key, { sectionId: r.section_id || null, name, count: 1 });
     });
-    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-    const max = Math.max(...entries.map(([, n]) => n), 1);
-    el.innerHTML = entries.map(([label, n]) => `
-      <div class="bar-row">
-        <div class="bar-key">${esc(label)}</div>
-        <div class="bar-track"><div class="bar-fill" data-pct="${Math.round(n / max * 100)}"></div></div>
-        <div class="bar-val">${n}</div>
+    const entries = Array.from(buckets.values()).sort((a, b) => b.count - a.count);
+    const max = Math.max(...entries.map(e => e.count), 1);
+    el.innerHTML = entries.map(e => {
+      const isSelected = e.sectionId && e.sectionId === selectedSectionId;
+      const isDim = selectedSectionId && !isSelected;
+      const cls = [
+        "bar-row",
+        e.sectionId ? "is-clickable" : "",
+        isSelected ? "is-selected" : "",
+        isDim ? "is-dim" : "",
+      ].filter(Boolean).join(" ");
+      const sidAttr = e.sectionId ? ` data-section-id="${esc(e.sectionId)}"` : "";
+      return `
+      <div class="${cls}"${sidAttr}>
+        <div class="bar-key">${esc(e.name)}</div>
+        <div class="bar-track"><div class="bar-fill" data-pct="${Math.round(e.count / max * 100)}"></div></div>
+        <div class="bar-val">${e.count}</div>
       </div>
-    `).join("");
+    `;
+    }).join("");
     // CSP blocks inline style="…"; set widths via DOM API after render.
     el.querySelectorAll(".bar-fill").forEach((bar) => { bar.style.width = bar.dataset.pct + "%"; });
   }
@@ -209,10 +347,21 @@
     });
 
     const meta = $("blMapMeta");
-    if (meta) meta.textContent = pinned.length ? `${pinned.length} located` : "no GPS pins yet";
+    if (meta) {
+      const scope = selectedSectionId ? " in section" : "";
+      meta.textContent = pinned.length ? `${pinned.length} located${scope}` : (selectedSectionId ? "no GPS pins in this section yet" : "no GPS pins yet");
+    }
 
-    if (bounds.length > 1) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 18 });
-    else if (bounds.length === 1) map.setView(bounds[0], 17);
+    // Framing: when a section is selected, frame the polygon (even if empty)
+    // so the user sees the section boundary; otherwise fit to the pins.
+    const sel = selectedSection();
+    if (sel && sel.poly) {
+      map.fitBounds(sel.poly.getBounds(), { padding: [30, 30], maxZoom: 19 });
+    } else if (bounds.length > 1) {
+      map.fitBounds(bounds, { padding: [30, 30], maxZoom: 18 });
+    } else if (bounds.length === 1) {
+      map.setView(bounds[0], 17);
+    }
     setTimeout(() => map.invalidateSize(), 60);
   }
 
@@ -265,6 +414,17 @@
     if (started) return;
     started = true;
     $("blDashRefresh")?.addEventListener("click", loadAll);
+    // Section picker in the map card head — value "" means "clear filter".
+    $("blMapSectionSelect")?.addEventListener("change", (e) => {
+      const v = e.target.value;
+      if (v) selectSection(v); else clearSection();
+    });
+    // Delegated click on the "By Section" tile — rows carrying a
+    // data-section-id drive the same selection filter as the polygons.
+    $("blDashBySection")?.addEventListener("click", (e) => {
+      const row = e.target.closest("[data-section-id]");
+      if (row) selectSection(row.dataset.sectionId);
+    });
     loadAll();
     if (pollTimer) clearInterval(pollTimer);
     pollTimer = setInterval(loadAll, 30000);

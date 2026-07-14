@@ -63,7 +63,14 @@ const DT_OPTIONS = {
     { id: "QUICK_FLIP",   label: "Quick Flip"   },
     { id: "PRIORITY",     label: "Priority"     }
   ],
-  FUEL_LEVELS: ["EMPTY","1/4","1/2","3/4","FULL"]
+  FUEL_LEVELS: ["EMPTY","1/4","1/2","3/4","FULL"],
+  // End-of-shift tally categories used by the counter panels (Garage, Backlot,
+  // Key Up). Garage/Backlot are editable per-device; Key Up is fixed.
+  COUNTER_DEFAULTS: {
+    garage:   ["Clean", "Dirty", "PM", "MK", "MR", "OM", "Other"],
+    bcounter: ["Clean", "Dirty", "PM", "MK", "MR", "OM", "Other"],
+    keyup:    ["Clean", "Dirty", "Rail", "Other"]
+  }
 };
 window.DT_OPTIONS = DT_OPTIONS;
 
@@ -991,568 +998,506 @@ function showTab(name) {
   document.dispatchEvent(new CustomEvent("dt-tab-shown", { detail: name }));
 }
 
-function bumpKeyUp(id, delta) {
-  const el = document.getElementById(id);
-  const cur = parseInt(el.value, 10);
-  const next = Math.max(0, (Number.isFinite(cur) ? cur : 0) + delta);
-  el.value = next === 0 && delta < 0 && !Number.isFinite(cur) ? "" : next;
-  saveKeyUp();
-  haptic("tap");
-}
-
 // ============================
-// GARAGE COUNTER
+// SHIFT-CLOSE COUNTERS (Garage / Backlot / Key Up)
+// ----------------------------
+// Single factory shared by three panels. Data lives in localStorage under the
+// panel's storageKey as { categories:[string], counts:{cat->number}, notes }.
+// History under historyKey as [{ id, timestamp, trigger, categories, counts,
+// notes, total }, ...] (newest first, capped at HISTORY_MAX).
+// Uses shared helpers per CLAUDE.md: DT_ESC / DT_TOAST / DT_FORMAT.
 // ============================
-const GARAGE_KEY = "drivertrax_garage";
-const GARAGE_DEFAULT_CATS = ["Clean", "Dirty", "PM", "MK", "MR", "OM", "Other"];
-
-function loadGarageData() {
-  let data = {};
-  try { data = JSON.parse(localStorage.getItem(GARAGE_KEY) || "{}"); } catch(e) {}
-  if (!Array.isArray(data.categories) || data.categories.length === 0) {
-    data.categories = GARAGE_DEFAULT_CATS.slice();
-  }
-  if (!data.counts || typeof data.counts !== "object") data.counts = {};
-  if (typeof data.notes !== "string") data.notes = "";
-  return data;
-}
-
-function saveGarageData(data) {
-  localStorage.setItem(GARAGE_KEY, JSON.stringify(data));
-}
-
-function loadGarage() {
-  const data = loadGarageData();
-  const grid = document.getElementById("garageGrid");
-  grid.innerHTML = "";
-  data.categories.forEach((cat, i) => {
-    const count = data.counts[cat] || 0;
-    const tile = document.createElement("div");
-    tile.className = "keyup-tile";
-    tile.innerHTML = `
-      <div class="keyup-label">${escapeHtml(cat)}</div>
-      <div class="tally-controls">
-        <button type="button" class="tally-btn" data-action="dec" data-cat="${escapeAttr(cat)}">&minus;</button>
-        <input type="number" inputmode="numeric" min="0" value="${count || ""}" placeholder="0" data-cat="${escapeAttr(cat)}">
-        <button type="button" class="tally-btn" data-action="inc" data-cat="${escapeAttr(cat)}">+</button>
-      </div>`;
-    grid.appendChild(tile);
-  });
-  grid.querySelectorAll("button[data-action]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const cat = btn.dataset.cat;
-      const delta = btn.dataset.action === "inc" ? 1 : -1;
-      bumpGarage(cat, delta);
-    });
-  });
-  grid.querySelectorAll("input[type='number']").forEach(inp => {
-    inp.addEventListener("input", () => {
-      const cat = inp.dataset.cat;
-      const v = parseInt(inp.value, 10);
-      const d = loadGarageData();
-      d.counts[cat] = Number.isFinite(v) && v >= 0 ? v : 0;
-      saveGarageData(d);
-      updateGarageTotal();
-    });
-  });
-  document.getElementById("garageNotes").value = data.notes;
-  updateGarageTotal();
-  renderGarageHistory();
-}
-
-function bumpGarage(cat, delta) {
-  const d = loadGarageData();
-  const cur = d.counts[cat] || 0;
-  d.counts[cat] = Math.max(0, cur + delta);
-  saveGarageData(d);
-  const inp = document.querySelector(`#garageGrid input[data-cat="${escapeAttr(cat)}"]`);
-  if (inp) inp.value = d.counts[cat] || "";
-  updateGarageTotal();
-  haptic("tap");
-}
-
-function updateGarageTotal() {
-  const d = loadGarageData();
-  const total = d.categories.reduce((sum, c) => sum + (d.counts[c] || 0), 0);
-  document.getElementById("garageTotal").textContent = total;
-}
-
-function saveGarage() {
-  const d = loadGarageData();
-  d.notes = (document.getElementById("garageNotes").value || "").slice(0, 1000);
-  saveGarageData(d);
-}
-
-function resetGarage() {
-  if (!confirm("Reset all Garage counts and notes? (Current totals will be saved to History first.)")) return;
-  archiveGarage("reset");
-  const d = loadGarageData();
-  d.counts = {};
-  d.notes = "";
-  saveGarageData(d);
-  loadGarage();
-  showToast("Garage reset (archived to History)", "success");
-}
-
-// ----- HISTORY (shared helpers) -----
 const HISTORY_MAX = 200;
 
-function loadHistory(key) {
+function _counterLoadHistory(key) {
   try {
     const arr = JSON.parse(localStorage.getItem(key) || "[]");
     return Array.isArray(arr) ? arr : [];
   } catch(e) { return []; }
 }
-function saveHistory(key, arr) {
+function _counterSaveHistory(key, arr) {
   if (arr.length > HISTORY_MAX) arr = arr.slice(0, HISTORY_MAX);
   localStorage.setItem(key, JSON.stringify(arr));
 }
-function deleteHistoryEntry(key, id, rerender) {
-  if (!confirm("Delete this archived entry?")) return;
-  const arr = loadHistory(key).filter(e => e.id !== id);
-  saveHistory(key, arr);
-  rerender();
-  showToast("Entry deleted", "success");
-}
-function formatHistoryDate(ts) {
-  return new Date(ts).toLocaleString(undefined, {
-    weekday: "short", month: "short", day: "numeric",
-    hour: "numeric", minute: "2-digit"
-  });
+function _counterFormatTs(ts) {
+  const d = new Date(ts);
+  return `${DT_FORMAT.date(d)}, ${DT_FORMAT.time(d)}`;
 }
 
-// ----- GARAGE HISTORY -----
-const GARAGE_HISTORY_KEY = "drivertrax_garage_history";
+// Long-press repeater for +/- buttons. Pointer path: fires `onPress()`
+// immediately on pointerdown, then every ~80ms after a HOLD_MS hold. The
+// follow-up synthetic click is suppressed. Keyboard path: Enter/Space on a
+// real <button> fires a click with no preceding pointerdown, so we fall
+// through to a single bump there. suppressClickUntil expires quickly so a
+// later keyboard click isn't wrongly ignored.
+function _attachLongPress(grid, onPress) {
+  const HOLD_MS = 400;
+  const REPEAT_MS = 80;
+  const CLICK_SUPPRESS_MS = 400;
+  let holdTimer = null;
+  let repeatTimer = null;
+  let currentBtn = null;
+  let suppressClickUntil = 0;
 
-function archiveGarage(trigger) {
-  const d = loadGarageData();
-  const total = d.categories.reduce((sum, c) => sum + (d.counts[c] || 0), 0);
-  if (total === 0 && !d.notes.trim()) return; // nothing to save
-  const entry = {
-    id: Date.now().toString(),
-    timestamp: Date.now(),
-    trigger: trigger || "manual",
-    categories: d.categories.slice(),
-    counts: { ...d.counts },
-    notes: d.notes,
-    total
+  const clear = () => {
+    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+    if (repeatTimer) { clearInterval(repeatTimer); repeatTimer = null; }
+    currentBtn = null;
   };
-  const hist = loadHistory(GARAGE_HISTORY_KEY);
-  hist.unshift(entry);
-  saveHistory(GARAGE_HISTORY_KEY, hist);
-}
 
-function renderGarageHistory() {
-  const container = document.getElementById("garageHistory");
-  if (!container) return;
-  const hist = loadHistory(GARAGE_HISTORY_KEY);
-  if (hist.length === 0) {
-    container.innerHTML = '<p class="u-empty-sm">No archived entries yet. Share or Reset to save a snapshot here.</p>';
-    return;
-  }
-  container.innerHTML = hist.map(e => {
-    const rows = e.categories.map(c => `<div class="history-line"><span>${escapeHtml(c)}</span><b>${e.counts[c] || 0}</b></div>`).join("");
-    const notes = e.notes && e.notes.trim()
-      ? `<div class="history-notes">${escapeHtml(e.notes)}</div>` : "";
-    return `
-      <div class="history-entry">
-        <div class="history-head">
-          <div>
-            <div class="history-date">${escapeHtml(formatHistoryDate(e.timestamp))}</div>
-            <div class="history-trigger">${escapeHtml(e.trigger)}</div>
-          </div>
-          <div class="history-total">${e.total}</div>
-        </div>
-        <div class="history-body">${rows}</div>
-        ${notes}
-        <button class="history-del" onclick="deleteHistoryEntry('${GARAGE_HISTORY_KEY}','${e.id}',renderGarageHistory)">Delete</button>
-      </div>`;
-  }).join("");
-}
-
-function editGarageCategories() {
-  const d = loadGarageData();
-  const input = prompt(
-    "Edit categories (comma-separated). Counts for removed categories will be deleted.",
-    d.categories.join(", ")
-  );
-  if (input === null) return;
-  const cats = input.split(",").map(s => s.trim()).filter(Boolean);
-  if (cats.length === 0) {
-    alert("Need at least one category.");
-    return;
-  }
-  const newCounts = {};
-  cats.forEach(c => { if (d.counts[c] != null) newCounts[c] = d.counts[c]; });
-  d.categories = cats;
-  d.counts = newCounts;
-  saveGarageData(d);
-  loadGarage();
-}
-
-function buildGarageMessage() {
-  const d = loadGarageData();
-  const total = d.categories.reduce((sum, c) => sum + (d.counts[c] || 0), 0);
-  const dateStr = new Date().toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-  const lines = [`Garage Count — ${dateStr}`];
-  d.categories.forEach(c => lines.push(`${c}: ${d.counts[c] || 0}`));
-  lines.push(`Total: ${total}`);
-  if (d.notes.trim()) lines.push("", `Notes: ${d.notes.trim()}`);
-  return lines.join("\n");
-}
-
-async function shareGarage() {
-  const text = buildGarageMessage();
-  archiveGarage("share");
-  renderGarageHistory();
-  if (navigator.share) {
-    try { await navigator.share({ title: "Garage Count", text }); return; }
-    catch (e) { if (e && e.name === "AbortError") return; }
-  }
-  const sms = "sms:?&body=" + encodeURIComponent(text);
-  try { await navigator.clipboard.writeText(text); showToast("Copied — opening Messages", "success"); }
-  catch(e) { showToast("Opening Messages", "success"); }
-  window.location.href = sms;
-}
-
-// ============================
-// BACKLOT COUNTER (mirror of Garage with its own storage)
-// ============================
-const BCOUNTER_KEY = "drivertrax_bcounter";
-const BCOUNTER_HISTORY_KEY = "drivertrax_bcounter_history";
-const BCOUNTER_DEFAULT_CATS = ["Clean", "Dirty", "PM", "MK", "MR", "OM", "Other"];
-
-function loadBcounterData() {
-  let data = {};
-  try { data = JSON.parse(localStorage.getItem(BCOUNTER_KEY) || "{}"); } catch(e) {}
-  if (!Array.isArray(data.categories) || data.categories.length === 0) {
-    data.categories = BCOUNTER_DEFAULT_CATS.slice();
-  }
-  if (!data.counts || typeof data.counts !== "object") data.counts = {};
-  if (typeof data.notes !== "string") data.notes = "";
-  return data;
-}
-
-function saveBcounterData(data) {
-  localStorage.setItem(BCOUNTER_KEY, JSON.stringify(data));
-}
-
-function loadBcounter() {
-  const data = loadBcounterData();
-  const grid = document.getElementById("bcounterGrid");
-  grid.innerHTML = "";
-  data.categories.forEach(cat => {
-    const count = data.counts[cat] || 0;
-    const tile = document.createElement("div");
-    tile.className = "keyup-tile";
-    tile.innerHTML = `
-      <div class="keyup-label">${escapeHtml(cat)}</div>
-      <div class="tally-controls">
-        <button type="button" class="tally-btn" data-action="dec" data-cat="${escapeAttr(cat)}">&minus;</button>
-        <input type="number" inputmode="numeric" min="0" value="${count || ""}" placeholder="0" data-cat="${escapeAttr(cat)}">
-        <button type="button" class="tally-btn" data-action="inc" data-cat="${escapeAttr(cat)}">+</button>
-      </div>`;
-    grid.appendChild(tile);
+  grid.addEventListener("pointerdown", (e) => {
+    const btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+    currentBtn = btn;
+    onPress(btn);
+    suppressClickUntil = performance.now() + CLICK_SUPPRESS_MS;
+    holdTimer = setTimeout(() => {
+      repeatTimer = setInterval(() => {
+        if (currentBtn) {
+          onPress(currentBtn);
+          // Extend the suppression window while the user keeps holding.
+          suppressClickUntil = performance.now() + CLICK_SUPPRESS_MS;
+        }
+      }, REPEAT_MS);
+    }, HOLD_MS);
   });
-  grid.querySelectorAll("button[data-action]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const cat = btn.dataset.cat;
-      const delta = btn.dataset.action === "inc" ? 1 : -1;
-      bumpBcounter(cat, delta);
+  ["pointerup", "pointerleave", "pointercancel"].forEach(evt => {
+    grid.addEventListener(evt, clear);
+  });
+
+  grid.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+    // Synthetic click after a pointer gesture — already handled by pointerdown.
+    if (performance.now() < suppressClickUntil) return;
+    onPress(btn);
+  });
+}
+
+// Normalize legacy Key Up rows { clean, dirty, rail, other } -> new shape.
+function _normalizeCounterEntry(e) {
+  if (Array.isArray(e.categories) && e.counts) return e;
+  const cats = DT_OPTIONS.COUNTER_DEFAULTS.keyup;
+  const counts = {};
+  cats.forEach(c => { counts[c] = e[c.toLowerCase()] || 0; });
+  return { ...e, categories: cats.slice(), counts };
+}
+
+function createCounter(cfg) {
+  const {
+    storageKey, historyKey,
+    gridId, notesId, totalId, historyId,
+    shareTitle, defaultCats,
+    editable = true,
+    editorTitle = "Edit Categories"
+  } = cfg;
+
+  function loadData() {
+    let data = {};
+    try { data = JSON.parse(localStorage.getItem(storageKey) || "{}"); } catch(e) {}
+    // Migrate legacy Key Up shape { clean, dirty, rail, other, notes }.
+    if (!Array.isArray(data.categories) && (data.clean != null || data.dirty != null || data.rail != null || data.other != null)) {
+      data = _normalizeCounterEntry(data);
+    }
+    if (!Array.isArray(data.categories) || data.categories.length === 0) {
+      data.categories = defaultCats.slice();
+    }
+    if (!data.counts || typeof data.counts !== "object") data.counts = {};
+    if (typeof data.notes !== "string") data.notes = "";
+    return data;
+  }
+
+  function saveData(data) {
+    localStorage.setItem(storageKey, JSON.stringify(data));
+  }
+
+  function totalOf(d) {
+    return d.categories.reduce((sum, c) => sum + (d.counts[c] || 0), 0);
+  }
+
+  function updateTotal() {
+    const el = document.getElementById(totalId);
+    if (el) el.textContent = totalOf(loadData());
+  }
+
+  function bump(cat, delta) {
+    const d = loadData();
+    const cur = d.counts[cat] || 0;
+    d.counts[cat] = Math.max(0, cur + delta);
+    saveData(d);
+    const inp = document.querySelector(`#${gridId} input[data-cat="${DT_ESC(cat)}"]`);
+    if (inp) inp.value = d.counts[cat] || "";
+    updateTotal();
+    haptic("tap");
+  }
+
+  function load() {
+    const data = loadData();
+    const grid = document.getElementById(gridId);
+    if (!grid) return;
+    grid.innerHTML = "";
+    data.categories.forEach(cat => {
+      const count = data.counts[cat] || 0;
+      const tile = document.createElement("div");
+      tile.className = "keyup-tile";
+      tile.innerHTML = `
+        <div class="keyup-label">${DT_ESC(cat)}</div>
+        <div class="tally-controls">
+          <button type="button" class="tally-btn" data-action="dec" data-cat="${DT_ESC(cat)}" aria-label="Decrease ${DT_ESC(cat)}">&minus;</button>
+          <input type="number" inputmode="numeric" min="0" value="${count || ""}" placeholder="0" data-cat="${DT_ESC(cat)}" aria-label="${DT_ESC(cat)} count">
+          <button type="button" class="tally-btn" data-action="inc" data-cat="${DT_ESC(cat)}" aria-label="Increase ${DT_ESC(cat)}">+</button>
+        </div>`;
+      grid.appendChild(tile);
     });
-  });
-  grid.querySelectorAll("input[type='number']").forEach(inp => {
-    inp.addEventListener("input", () => {
-      const cat = inp.dataset.cat;
-      const v = parseInt(inp.value, 10);
-      const d = loadBcounterData();
-      d.counts[cat] = Number.isFinite(v) && v >= 0 ? v : 0;
-      saveBcounterData(d);
-      updateBcounterTotal();
+    _attachLongPress(grid, (btn) => {
+      bump(btn.dataset.cat, btn.dataset.action === "inc" ? 1 : -1);
     });
-  });
-  document.getElementById("bcounterNotes").value = data.notes;
-  updateBcounterTotal();
-  renderBcounterHistory();
-}
-
-function bumpBcounter(cat, delta) {
-  const d = loadBcounterData();
-  const cur = d.counts[cat] || 0;
-  d.counts[cat] = Math.max(0, cur + delta);
-  saveBcounterData(d);
-  const inp = document.querySelector(`#bcounterGrid input[data-cat="${escapeAttr(cat)}"]`);
-  if (inp) inp.value = d.counts[cat] || "";
-  updateBcounterTotal();
-  haptic("tap");
-}
-
-function updateBcounterTotal() {
-  const d = loadBcounterData();
-  const total = d.categories.reduce((sum, c) => sum + (d.counts[c] || 0), 0);
-  document.getElementById("bcounterTotal").textContent = total;
-}
-
-function saveBcounter() {
-  const d = loadBcounterData();
-  d.notes = (document.getElementById("bcounterNotes").value || "").slice(0, 1000);
-  saveBcounterData(d);
-}
-
-function resetBcounter() {
-  if (!confirm("Reset all Backlot counts and notes? (Current totals will be saved to History first.)")) return;
-  archiveBcounter("reset");
-  const d = loadBcounterData();
-  d.counts = {};
-  d.notes = "";
-  saveBcounterData(d);
-  loadBcounter();
-  showToast("Backlot reset (archived to History)", "success");
-}
-
-function archiveBcounter(trigger) {
-  const d = loadBcounterData();
-  const total = d.categories.reduce((sum, c) => sum + (d.counts[c] || 0), 0);
-  if (total === 0 && !d.notes.trim()) return;
-  const entry = {
-    id: Date.now().toString(),
-    timestamp: Date.now(),
-    trigger: trigger || "manual",
-    categories: d.categories.slice(),
-    counts: { ...d.counts },
-    notes: d.notes,
-    total
-  };
-  const hist = loadHistory(BCOUNTER_HISTORY_KEY);
-  hist.unshift(entry);
-  saveHistory(BCOUNTER_HISTORY_KEY, hist);
-}
-
-function renderBcounterHistory() {
-  const container = document.getElementById("bcounterHistory");
-  if (!container) return;
-  const hist = loadHistory(BCOUNTER_HISTORY_KEY);
-  if (hist.length === 0) {
-    container.innerHTML = '<p class="u-empty-sm">No archived entries yet. Share or Reset to save a snapshot here.</p>';
-    return;
+    grid.querySelectorAll("input[type='number']").forEach(inp => {
+      inp.addEventListener("input", () => {
+        const cat = inp.dataset.cat;
+        const v = parseInt(inp.value, 10);
+        const d = loadData();
+        d.counts[cat] = Number.isFinite(v) && v >= 0 ? v : 0;
+        saveData(d);
+        updateTotal();
+      });
+    });
+    const notesEl = document.getElementById(notesId);
+    if (notesEl) notesEl.value = data.notes;
+    updateTotal();
+    renderHistory();
   }
-  container.innerHTML = hist.map(e => {
-    const rows = e.categories.map(c => `<div class="history-line"><span>${escapeHtml(c)}</span><b>${e.counts[c] || 0}</b></div>`).join("");
-    const notes = e.notes && e.notes.trim()
-      ? `<div class="history-notes">${escapeHtml(e.notes)}</div>` : "";
-    return `
-      <div class="history-entry">
-        <div class="history-head">
-          <div>
-            <div class="history-date">${escapeHtml(formatHistoryDate(e.timestamp))}</div>
-            <div class="history-trigger">${escapeHtml(e.trigger)}</div>
-          </div>
-          <div class="history-total">${e.total}</div>
-        </div>
-        <div class="history-body">${rows}</div>
-        ${notes}
-        <button class="history-del" onclick="deleteHistoryEntry('${BCOUNTER_HISTORY_KEY}','${e.id}',renderBcounterHistory)">Delete</button>
-      </div>`;
-  }).join("");
-}
 
-function editBcounterCategories() {
-  const d = loadBcounterData();
-  const input = prompt(
-    "Edit categories (comma-separated). Counts for removed categories will be deleted.",
-    d.categories.join(", ")
-  );
-  if (input === null) return;
-  const cats = input.split(",").map(s => s.trim()).filter(Boolean);
-  if (cats.length === 0) {
-    alert("Need at least one category.");
-    return;
+  function saveNotes() {
+    const notesEl = document.getElementById(notesId);
+    if (!notesEl) return;
+    const d = loadData();
+    d.notes = (notesEl.value || "").slice(0, 1000);
+    saveData(d);
   }
-  const newCounts = {};
-  cats.forEach(c => { if (d.counts[c] != null) newCounts[c] = d.counts[c]; });
-  d.categories = cats;
-  d.counts = newCounts;
-  saveBcounterData(d);
-  loadBcounter();
-}
 
-function buildBcounterMessage() {
-  const d = loadBcounterData();
-  const total = d.categories.reduce((sum, c) => sum + (d.counts[c] || 0), 0);
-  const dateStr = new Date().toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-  const lines = [`Backlot Count — ${dateStr}`];
-  d.categories.forEach(c => lines.push(`${c}: ${d.counts[c] || 0}`));
-  lines.push(`Total: ${total}`);
-  if (d.notes.trim()) lines.push("", `Notes: ${d.notes.trim()}`);
-  return lines.join("\n");
-}
-
-async function shareBcounter() {
-  const text = buildBcounterMessage();
-  archiveBcounter("share");
-  renderBcounterHistory();
-  if (navigator.share) {
-    try { await navigator.share({ title: "Backlot Count", text }); return; }
-    catch (e) { if (e && e.name === "AbortError") return; }
+  function archive(trigger) {
+    const d = loadData();
+    const total = totalOf(d);
+    if (total === 0 && !d.notes.trim()) return;
+    const entry = {
+      id: Date.now().toString(),
+      timestamp: Date.now(),
+      trigger: trigger || "manual",
+      categories: d.categories.slice(),
+      counts: { ...d.counts },
+      notes: d.notes,
+      total
+    };
+    const hist = _counterLoadHistory(historyKey);
+    hist.unshift(entry);
+    _counterSaveHistory(historyKey, hist);
   }
-  const sms = "sms:?&body=" + encodeURIComponent(text);
-  try { await navigator.clipboard.writeText(text); showToast("Copied — opening Messages", "success"); }
-  catch(e) { showToast("Opening Messages", "success"); }
-  window.location.href = sms;
-}
 
-function escapeAttr(s) { return escapeHtml(s); }
-
-// ============================
-// KEY UP (closing shift count)
-// ============================
-const KEYUP_KEY = "drivertrax_keyup";
-
-function loadKeyUp() {
-  let data = {};
-  try { data = JSON.parse(localStorage.getItem(KEYUP_KEY) || "{}"); } catch(e) {}
-  document.getElementById("keyupClean").value = data.clean ?? "";
-  document.getElementById("keyupDirty").value = data.dirty ?? "";
-  document.getElementById("keyupRail").value = data.rail ?? "";
-  document.getElementById("keyupOther").value = data.other ?? "";
-  document.getElementById("keyupNotes").value = data.notes ?? "";
-  updateKeyUpTotal();
-  renderKeyUpHistory();
-}
-
-function readKeyUp() {
-  const n = id => {
-    const v = parseInt(document.getElementById(id).value, 10);
-    return Number.isFinite(v) && v >= 0 ? v : 0;
-  };
-  return {
-    clean: n("keyupClean"),
-    dirty: n("keyupDirty"),
-    rail:  n("keyupRail"),
-    other: n("keyupOther"),
-    notes: (document.getElementById("keyupNotes").value || "").slice(0, 1000),
-  };
-}
-
-function updateKeyUpTotal() {
-  const d = readKeyUp();
-  document.getElementById("keyupTotal").textContent = d.clean + d.dirty + d.rail + d.other;
-}
-
-function saveKeyUp() {
-  const d = readKeyUp();
-  localStorage.setItem(KEYUP_KEY, JSON.stringify(d));
-  updateKeyUpTotal();
-}
-
-function resetKeyUp() {
-  if (!confirm("Reset all Key Up counts and notes? (Current totals will be saved to History first.)")) return;
-  archiveKeyUp("reset");
-  ["keyupClean","keyupDirty","keyupRail","keyupOther","keyupNotes"].forEach(id => {
-    document.getElementById(id).value = "";
-  });
-  localStorage.removeItem(KEYUP_KEY);
-  updateKeyUpTotal();
-  renderKeyUpHistory();
-  showToast("Key Up reset (archived to History)", "success");
-}
-
-// ----- KEY UP HISTORY -----
-const KEYUP_HISTORY_KEY = "drivertrax_keyup_history";
-const KEYUP_FIELDS = [
-  { key: "clean", label: "Clean" },
-  { key: "dirty", label: "Dirty" },
-  { key: "rail",  label: "Rail"  },
-  { key: "other", label: "Other" },
-];
-
-function archiveKeyUp(trigger) {
-  const d = readKeyUp();
-  const total = d.clean + d.dirty + d.rail + d.other;
-  if (total === 0 && !d.notes.trim()) return;
-  const entry = {
-    id: Date.now().toString(),
-    timestamp: Date.now(),
-    trigger: trigger || "manual",
-    clean: d.clean, dirty: d.dirty, rail: d.rail, other: d.other,
-    notes: d.notes,
-    total
-  };
-  const hist = loadHistory(KEYUP_HISTORY_KEY);
-  hist.unshift(entry);
-  saveHistory(KEYUP_HISTORY_KEY, hist);
-}
-
-function renderKeyUpHistory() {
-  const container = document.getElementById("keyupHistory");
-  if (!container) return;
-  const hist = loadHistory(KEYUP_HISTORY_KEY);
-  if (hist.length === 0) {
-    container.innerHTML = '<p class="u-empty-sm">No archived entries yet. Share or Reset to save a snapshot here.</p>';
-    return;
+  function reset() {
+    if (!confirm(`Reset all ${shareTitle} counts and notes? (Current totals will be saved to History first.)`)) return;
+    archive("reset");
+    const d = loadData();
+    d.counts = {};
+    d.notes = "";
+    saveData(d);
+    load();
+    DT_TOAST.show(`${shareTitle} reset (archived to History)`, "success");
   }
-  container.innerHTML = hist.map(e => {
-    const rows = KEYUP_FIELDS.map(f =>
-      `<div class="history-line"><span>${f.label}</span><b>${e[f.key] || 0}</b></div>`
-    ).join("");
-    const notes = e.notes && e.notes.trim()
-      ? `<div class="history-notes">${escapeHtml(e.notes)}</div>` : "";
-    return `
-      <div class="history-entry">
-        <div class="history-head">
-          <div>
-            <div class="history-date">${escapeHtml(formatHistoryDate(e.timestamp))}</div>
-            <div class="history-trigger">${escapeHtml(e.trigger)}</div>
-          </div>
-          <div class="history-total">${e.total}</div>
-        </div>
-        <div class="history-body">${rows}</div>
-        ${notes}
-        <button class="history-del" onclick="deleteHistoryEntry('${KEYUP_HISTORY_KEY}','${e.id}',renderKeyUpHistory)">Delete</button>
-      </div>`;
-  }).join("");
-}
 
-function buildKeyUpMessage() {
-  const d = readKeyUp();
-  const total = d.clean + d.dirty + d.rail + d.other;
-  const dateStr = new Date().toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-  const lines = [
-    `Key Up — ${dateStr}`,
-    `Clean: ${d.clean}`,
-    `Dirty: ${d.dirty}`,
-    `Rail: ${d.rail}`,
-    `Other: ${d.other}`,
-    `Total: ${total}`,
-  ];
-  if (d.notes.trim()) {
-    lines.push("", `Notes: ${d.notes.trim()}`);
-  }
-  return lines.join("\n");
-}
-
-async function shareKeyUp() {
-  const text = buildKeyUpMessage();
-  archiveKeyUp("share");
-  renderKeyUpHistory();
-  if (navigator.share) {
-    try {
-      await navigator.share({ title: "Key Up", text });
+  function renderHistory() {
+    const container = document.getElementById(historyId);
+    if (!container) return;
+    const hist = _counterLoadHistory(historyKey);
+    if (hist.length === 0) {
+      container.innerHTML = '<p class="u-empty-sm">No archived entries yet. Share or Reset to save a snapshot here.</p>';
       return;
+    }
+    container.innerHTML = hist.map(raw => {
+      const e = _normalizeCounterEntry(raw);
+      const rows = e.categories.map(c =>
+        `<div class="history-line"><span>${DT_ESC(c)}</span><b>${e.counts[c] || 0}</b></div>`
+      ).join("");
+      const notes = e.notes && e.notes.trim()
+        ? `<div class="history-notes">${DT_ESC(e.notes)}</div>` : "";
+      return `
+        <div class="history-entry">
+          <div class="history-head">
+            <div>
+              <div class="history-date">${DT_ESC(_counterFormatTs(e.timestamp))}</div>
+              <div class="history-trigger">${DT_ESC(e.trigger)}</div>
+            </div>
+            <div class="history-total">${e.total}</div>
+          </div>
+          <div class="history-body">${rows}</div>
+          ${notes}
+          <button class="history-del" data-history-del="${DT_ESC(e.id)}">Delete</button>
+        </div>`;
+    }).join("");
+  }
+
+  function buildMessage() {
+    const d = loadData();
+    const total = totalOf(d);
+    const lines = [`${shareTitle} — ${DT_FORMAT.date(new Date())}`];
+    d.categories.forEach(c => lines.push(`${c}: ${d.counts[c] || 0}`));
+    lines.push(`Total: ${total}`);
+    if (d.notes.trim()) lines.push("", `Notes: ${d.notes.trim()}`);
+    return lines.join("\n");
+  }
+
+  // Persist the current snapshot to Supabase for the Backlot calendar.
+  // Fire-and-forget; a network hiccup must not block the share flow.
+  async function persistSnapshot() {
+    if (!window.DT_AUTH?.client) return;
+    const user = DT_AUTH.getUser?.();
+    if (!user) return;
+    const d = loadData();
+    const total = totalOf(d);
+    if (total === 0 && !d.notes.trim()) return;
+    const section = cfg.section;
+    const categories = d.categories.map(c => ({ name: c, count: d.counts[c] || 0 }));
+    try {
+      const { error } = await DT_AUTH.client.from("counter_snapshots").insert({
+        section,
+        categories,
+        total,
+        notes: d.notes.trim() || null,
+        created_by: user.id
+      });
+      if (error) console.warn(`[counters] persist ${section} failed`, error);
     } catch (e) {
-      if (e && e.name === "AbortError") return;
+      console.warn(`[counters] persist ${section} threw`, e);
     }
   }
-  // Fallback: SMS link, then clipboard
-  const sms = "sms:?&body=" + encodeURIComponent(text);
-  try {
-    await navigator.clipboard.writeText(text);
-    showToast("Copied — opening Messages", "success");
-  } catch(e) {
-    showToast("Opening Messages", "success");
+
+  async function share() {
+    const text = buildMessage();
+    archive("share");
+    persistSnapshot();
+    renderHistory();
+    if (navigator.share) {
+      try { await navigator.share({ title: shareTitle, text }); return; }
+      catch (e) { if (e && e.name === "AbortError") return; }
+    }
+    const sms = "sms:?&body=" + encodeURIComponent(text);
+    try { await navigator.clipboard.writeText(text); DT_TOAST.show("Copied — opening Messages", "success"); }
+    catch(e) { DT_TOAST.show("Opening Messages", "success"); }
+    window.location.href = sms;
   }
-  window.location.href = sms;
+
+  function editCategories() {
+    if (!editable) return;
+    const d = loadData();
+    openCategoryEditor({
+      title: editorTitle,
+      cats: d.categories.slice(),
+      onSave: (newCats) => {
+        const cur = loadData();
+        const newCounts = {};
+        newCats.forEach(c => { if (cur.counts[c] != null) newCounts[c] = cur.counts[c]; });
+        cur.categories = newCats;
+        cur.counts = newCounts;
+        saveData(cur);
+        load();
+      }
+    });
+  }
+
+  // History delete: single delegated listener per counter.
+  function bindHistoryDelete() {
+    const container = document.getElementById(historyId);
+    if (!container || container._dtDelBound) return;
+    container._dtDelBound = true;
+    container.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-history-del]");
+      if (!btn) return;
+      const id = btn.getAttribute("data-history-del");
+      if (!confirm("Delete this archived entry?")) return;
+      const arr = _counterLoadHistory(historyKey).filter(x => x.id !== id);
+      _counterSaveHistory(historyKey, arr);
+      renderHistory();
+      DT_TOAST.show("Entry deleted", "success");
+    });
+  }
+  // Bind once when DOM is ready; safe to call on every load() too.
+  const originalLoad = load;
+  function loadWithBind() { originalLoad(); bindHistoryDelete(); }
+
+  return {
+    load: loadWithBind,
+    saveNotes,
+    reset,
+    share,
+    editCategories,
+    renderHistory,
+    buildMessage
+  };
 }
+
+// ---------- Shared category-editor modal ----------
+function openCategoryEditor({ title, cats, onSave }) {
+  const modal = document.getElementById("counterCatModal");
+  if (!modal) return;
+  const titleEl = document.getElementById("counterCatTitle");
+  const listEl = document.getElementById("counterCatList");
+  const msgEl = document.getElementById("counterCatMsg");
+  const addBtn = document.getElementById("counterCatAdd");
+  const saveBtn = document.getElementById("counterCatSave");
+  const cancelBtn = document.getElementById("counterCatCancel");
+  const closeBtn = document.getElementById("counterCatClose");
+
+  titleEl.textContent = title;
+  DT_UI.setMessage(msgEl, "");
+
+  function renderRows(items) {
+    listEl.innerHTML = "";
+    items.forEach((cat, idx) => {
+      const row = document.createElement("div");
+      row.className = "cat-editor-row";
+      row.innerHTML = `
+        <input type="text" maxlength="24" value="${DT_ESC(cat)}" aria-label="Category ${idx + 1}">
+        <button type="button" class="btn btn-ghost btn-icon" data-move="up" aria-label="Move up">&uarr;</button>
+        <button type="button" class="btn btn-ghost btn-icon" data-move="down" aria-label="Move down">&darr;</button>
+        <button type="button" class="btn btn-destructive btn-icon" data-remove aria-label="Remove">&times;</button>`;
+      listEl.appendChild(row);
+    });
+  }
+
+  function readRows() {
+    return Array.from(listEl.querySelectorAll("input")).map(i => i.value.trim()).filter(Boolean);
+  }
+
+  renderRows(cats);
+
+  function onListClick(e) {
+    const row = e.target.closest(".cat-editor-row");
+    if (!row) return;
+    if (e.target.closest("[data-remove]")) {
+      row.remove();
+      return;
+    }
+    const moveBtn = e.target.closest("[data-move]");
+    if (!moveBtn) return;
+    const dir = moveBtn.getAttribute("data-move");
+    const sibling = dir === "up" ? row.previousElementSibling : row.nextElementSibling;
+    if (sibling) {
+      if (dir === "up") listEl.insertBefore(row, sibling);
+      else listEl.insertBefore(sibling, row);
+    }
+  }
+
+  function onAdd() {
+    const items = readRows();
+    items.push("");
+    renderRows(items);
+    const inputs = listEl.querySelectorAll("input");
+    inputs[inputs.length - 1]?.focus();
+  }
+
+  function onSaveClick() {
+    const items = readRows();
+    if (items.length === 0) {
+      DT_UI.setMessage(msgEl, "Need at least one category.", "err");
+      return;
+    }
+    const seen = new Set();
+    for (const c of items) {
+      const k = c.toLowerCase();
+      if (seen.has(k)) {
+        DT_UI.setMessage(msgEl, `Duplicate category: ${c}`, "err");
+        return;
+      }
+      seen.add(k);
+    }
+    close();
+    onSave(items);
+  }
+
+  function close() {
+    modal.classList.remove("show");
+    modal.setAttribute("aria-hidden", "true");
+    listEl.removeEventListener("click", onListClick);
+    addBtn.removeEventListener("click", onAdd);
+    saveBtn.removeEventListener("click", onSaveClick);
+    cancelBtn.removeEventListener("click", close);
+    closeBtn.removeEventListener("click", close);
+  }
+
+  listEl.addEventListener("click", onListClick);
+  addBtn.addEventListener("click", onAdd);
+  saveBtn.addEventListener("click", onSaveClick);
+  cancelBtn.addEventListener("click", close);
+  closeBtn.addEventListener("click", close);
+
+  modal.classList.add("show");
+  modal.setAttribute("aria-hidden", "false");
+  const firstInput = listEl.querySelector("input");
+  if (firstInput) firstInput.focus();
+}
+
+// ---------- Instances ----------
+const DT_COUNTERS = {
+  garage: createCounter({
+    section: "garage",
+    storageKey: "drivertrax_garage",
+    historyKey: "drivertrax_garage_history",
+    gridId: "garageGrid",
+    notesId: "garageNotes",
+    totalId: "garageTotal",
+    historyId: "garageHistory",
+    shareTitle: "Garage Count",
+    defaultCats: DT_OPTIONS.COUNTER_DEFAULTS.garage,
+    editable: true,
+    editorTitle: "Edit Garage Categories"
+  }),
+  bcounter: createCounter({
+    section: "bcounter",
+    storageKey: "drivertrax_bcounter",
+    historyKey: "drivertrax_bcounter_history",
+    gridId: "bcounterGrid",
+    notesId: "bcounterNotes",
+    totalId: "bcounterTotal",
+    historyId: "bcounterHistory",
+    shareTitle: "Backlot Count",
+    defaultCats: DT_OPTIONS.COUNTER_DEFAULTS.bcounter,
+    editable: true,
+    editorTitle: "Edit Backlot Categories"
+  }),
+  keyup: createCounter({
+    section: "keyup",
+    storageKey: "drivertrax_keyup",
+    historyKey: "drivertrax_keyup_history",
+    gridId: "keyupGrid",
+    notesId: "keyupNotes",
+    totalId: "keyupTotal",
+    historyId: "keyupHistory",
+    shareTitle: "Key Up",
+    defaultCats: DT_OPTIONS.COUNTER_DEFAULTS.keyup,
+    editable: true,
+    editorTitle: "Edit Key Up Categories"
+  })
+};
+window.DT_COUNTERS = DT_COUNTERS;
+
+// Global wrappers so existing HTML onclick handlers keep working.
+window.loadGarage    = () => DT_COUNTERS.garage.load();
+window.saveGarage    = () => DT_COUNTERS.garage.saveNotes();
+window.resetGarage   = () => DT_COUNTERS.garage.reset();
+window.shareGarage   = () => DT_COUNTERS.garage.share();
+window.editGarageCategories = () => DT_COUNTERS.garage.editCategories();
+
+window.loadBcounter    = () => DT_COUNTERS.bcounter.load();
+window.saveBcounter    = () => DT_COUNTERS.bcounter.saveNotes();
+window.resetBcounter   = () => DT_COUNTERS.bcounter.reset();
+window.shareBcounter   = () => DT_COUNTERS.bcounter.share();
+window.editBcounterCategories = () => DT_COUNTERS.bcounter.editCategories();
+
+window.loadKeyUp    = () => DT_COUNTERS.keyup.load();
+window.saveKeyUp    = () => DT_COUNTERS.keyup.saveNotes();
+window.resetKeyUp   = () => DT_COUNTERS.keyup.reset();
+window.shareKeyUp   = () => DT_COUNTERS.keyup.share();
+window.editKeyUpCategories = () => DT_COUNTERS.keyup.editCategories();
 
 // ============================
 // TIRE SELECTOR

@@ -5,7 +5,7 @@
 // Backlot shell. BUMP CACHE_VERSION on ANY change to a precached
 // asset below, or installed PWAs keep serving the stale file.
 // ============================================================
-const CACHE_VERSION = "backlot-v4.7-section-picker";
+const CACHE_VERSION = "backlot-v4.9-counters-diagnostics";
 
 // Same-origin shell only. CDN libs (supabase-js, leaflet) are runtime-cached.
 const SHELL = [
@@ -27,6 +27,7 @@ const SHELL = [
   "./parking-sections.js",
   "./comms.js",
   "./reports.js",
+  "./counters.js",
   "./records.js",
   "./record-form.js",
   "./search.js",

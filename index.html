@@ -415,42 +415,9 @@
 <!-- ==================== KEY UP PANEL ==================== -->
 <div class="panel" id="panel-keyup" role="region" aria-label="Key up">
   <div class="dash-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="u-icon-mr-1"><circle cx="8" cy="15" r="4"/><path d="M10.85 12.15L19 4"/><path d="M18 5l2 2"/><path d="M15 8l2 2"/></svg> Key Up (QTA)</div>
-  <p class="dash-section-desc">End-of-shift QTA vehicle count by key type. Tap +/&minus; or type a number.</p>
+  <p class="dash-section-desc">End-of-shift QTA vehicle count by key type. Tap +/&minus; (hold to bump fast) or type a number.</p>
 
-  <div class="keyup-grid">
-    <div class="keyup-tile">
-      <div class="keyup-label">Clean</div>
-      <div class="tally-controls">
-        <button type="button" class="tally-btn" onclick="bumpKeyUp('keyupClean',-1)">&minus;</button>
-        <input type="number" inputmode="numeric" min="0" id="keyupClean" placeholder="0" oninput="saveKeyUp()">
-        <button type="button" class="tally-btn" onclick="bumpKeyUp('keyupClean',1)">+</button>
-      </div>
-    </div>
-    <div class="keyup-tile">
-      <div class="keyup-label">Dirty</div>
-      <div class="tally-controls">
-        <button type="button" class="tally-btn" onclick="bumpKeyUp('keyupDirty',-1)">&minus;</button>
-        <input type="number" inputmode="numeric" min="0" id="keyupDirty" placeholder="0" oninput="saveKeyUp()">
-        <button type="button" class="tally-btn" onclick="bumpKeyUp('keyupDirty',1)">+</button>
-      </div>
-    </div>
-    <div class="keyup-tile">
-      <div class="keyup-label">Rail</div>
-      <div class="tally-controls">
-        <button type="button" class="tally-btn" onclick="bumpKeyUp('keyupRail',-1)">&minus;</button>
-        <input type="number" inputmode="numeric" min="0" id="keyupRail" placeholder="0" oninput="saveKeyUp()">
-        <button type="button" class="tally-btn" onclick="bumpKeyUp('keyupRail',1)">+</button>
-      </div>
-    </div>
-    <div class="keyup-tile">
-      <div class="keyup-label">Other</div>
-      <div class="tally-controls">
-        <button type="button" class="tally-btn" onclick="bumpKeyUp('keyupOther',-1)">&minus;</button>
-        <input type="number" inputmode="numeric" min="0" id="keyupOther" placeholder="0" oninput="saveKeyUp()">
-        <button type="button" class="tally-btn" onclick="bumpKeyUp('keyupOther',1)">+</button>
-      </div>
-    </div>
-  </div>
+  <div class="keyup-grid" id="keyupGrid"></div>
 
   <div class="keyup-total-row">
     <span class="keyup-total-label">TOTAL</span>
@@ -466,6 +433,7 @@
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="u-icon-mr-2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
     SHARE TO MANAGER
   </button>
+  <button class="btn btn-secondary" onclick="editKeyUpCategories()">Edit Categories</button>
   <button class="btn btn-secondary" onclick="resetKeyUp()">Reset Counts</button>
 
   <div class="history-section">
@@ -1485,6 +1453,26 @@
     <div class="users-modal-actions">
       <button type="button" class="btn btn-secondary" id="alertModalDismiss">Dismiss</button>
       <button type="button" class="btn btn-primary" id="alertModalView">View</button>
+    </div>
+  </div>
+</div>
+
+<!-- Shared category editor for the shift-close counters (app.js: openCategoryEditor). -->
+<div class="users-modal" id="counterCatModal" aria-hidden="true"
+     role="dialog" aria-modal="true" aria-label="Edit categories">
+  <div class="users-modal-card">
+    <div class="users-modal-header">
+      <span id="counterCatTitle">Edit Categories</span>
+      <button type="button" class="btn btn-destructive btn-icon users-modal-close"
+              id="counterCatClose" aria-label="Close">&times;</button>
+    </div>
+    <p class="cat-editor-hint">Reorder, rename, or remove categories. Counts for removed categories will be dropped.</p>
+    <div id="counterCatList" class="cat-editor-list"></div>
+    <button type="button" class="btn btn-secondary btn--full btn--dashed" id="counterCatAdd">+ Add category</button>
+    <div class="users-modal-msg" id="counterCatMsg"></div>
+    <div class="users-modal-actions">
+      <button type="button" class="btn btn-secondary" id="counterCatCancel">Cancel</button>
+      <button type="button" class="btn btn-primary btn--block" id="counterCatSave">Save</button>
     </div>
   </div>
 </div>

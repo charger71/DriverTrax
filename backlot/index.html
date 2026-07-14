@@ -49,6 +49,7 @@
     <symbol id="icon-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></symbol>
     <symbol id="icon-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></symbol>
     <symbol id="icon-map-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></symbol>
+    <symbol id="icon-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></symbol>
   </svg>
 
   <!-- boot splash until auth resolves -->
@@ -98,6 +99,9 @@
       </button>
       <button class="bl-nav-item" data-section="reports" aria-label="Reports">
         <svg class="bl-icon" aria-hidden="true"><use href="#icon-bar-chart"/></svg><span class="label-text">Reports</span>
+      </button>
+      <button class="bl-nav-item" data-section="counters" aria-label="Shift-close counters">
+        <svg class="bl-icon" aria-hidden="true"><use href="#icon-calendar"/></svg><span class="label-text">Counters</span>
       </button>
       <!-- Admin-only: in-app section manager (rename / delete / merge).
            The standalone Leaflet polygon designer is linked from inside. -->
@@ -458,6 +462,65 @@
         </div>
       </section>
 
+      <!-- ===== Shift-close counters calendar (counters.js) =====
+           Monthly grid of Garage / Backlot / Key Up counter shares from the
+           driver app. Each day shows section chips; click a day to see the
+           full snapshots for that date. -->
+      <section class="bl-section" id="section-counters">
+        <div class="bl-page-head">
+          <div><h1>Shift-close counters</h1><div class="sub" id="blCounterSub">Loading…</div></div>
+          <div class="actions">
+            <button class="bl-btn bl-btn--secondary bl-btn--sm" id="blCounterRefresh">Refresh</button>
+          </div>
+        </div>
+        <div class="bl-card">
+          <div class="bl-card-body">
+            <div class="bl-counter-toolbar">
+              <div class="bl-counter-nav">
+                <button type="button" class="bl-btn bl-btn--icon bl-btn--ghost" id="blCounterPrev" aria-label="Previous month">
+                  <svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-chevron-left"/></svg>
+                </button>
+                <span class="bl-counter-month" id="blCounterMonth"></span>
+                <button type="button" class="bl-btn bl-btn--icon bl-btn--ghost" id="blCounterNext" aria-label="Next month">
+                  <svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-chevron-right"/></svg>
+                </button>
+                <button type="button" class="bl-btn bl-btn--sm bl-btn--ghost" id="blCounterToday">Today</button>
+              </div>
+              <div class="bl-counter-filters bl-seg" role="group" aria-label="Section filter">
+                <button type="button" class="bl-seg-btn is-active" data-section="all">All</button>
+                <button type="button" class="bl-seg-btn" data-section="garage">Garage</button>
+                <button type="button" class="bl-seg-btn" data-section="bcounter">Backlot</button>
+                <button type="button" class="bl-seg-btn" data-section="keyup">Key Up</button>
+              </div>
+            </div>
+            <div class="bl-counter-weekdays" aria-hidden="true">
+              <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+            </div>
+            <div class="bl-counter-grid" id="blCounterGrid"></div>
+            <div class="bl-counter-legend">
+              <span class="bl-counter-chip bl-counter-chip--garage">Garage</span>
+              <span class="bl-counter-chip bl-counter-chip--bcounter">Backlot</span>
+              <span class="bl-counter-chip bl-counter-chip--keyup">Key Up</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Day detail modal — full snapshots for the tapped date. -->
+        <div class="bl-modal" id="blCounterModal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Day snapshots">
+          <div class="bl-modal-card bl-modal-card--wide">
+            <div class="bl-modal-head">
+              <h3 id="blCounterModalTitle">Day snapshots</h3>
+              <button type="button" class="bl-btn bl-btn--icon bl-btn--ghost" id="blCounterModalClose" aria-label="Close">
+                <svg class="bl-icon" aria-hidden="true"><use href="#icon-x"/></svg>
+              </button>
+            </div>
+            <div class="bl-modal-body">
+              <div id="blCounterModalBody"><div class="bl-empty">Loading…</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- ===== VIN detail page =====
            Full-page (not modal). Shown programmatically via BL_NAV.show("vin")
            when the user clicks a search result or a row in Records — no nav
@@ -762,6 +825,7 @@
   <script src="parking-sections.js"></script>
   <script src="comms.js"></script>
   <script src="reports.js"></script>
+  <script src="counters.js"></script>
   <script src="records.js"></script>
   <script src="record-form.js"></script>
   <script src="search.js"></script>

@@ -1,6 +1,6 @@
 // DriverTrax Service Worker
 // Provides offline support and caches app assets
-const CACHE_VERSION = "drivertrax-v9.14-geotag-every-save";
+const CACHE_VERSION = "drivertrax-v9.16-counter-share-persist";
 const APP_SHELL = [
   "./",
   "./index.html",

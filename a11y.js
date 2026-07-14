@@ -86,6 +86,11 @@
       document.getElementById("dropOffConflictCancel")?.click();
       return;
     }
+    // Counter category editor (app.js: openCategoryEditor). Escape = cancel.
+    if (document.getElementById("counterCatModal")?.classList.contains("show")) {
+      document.getElementById("counterCatCancel")?.click();
+      return;
+    }
   });
 
   // Tag the four overlay roots so AT announces them as dialogs.

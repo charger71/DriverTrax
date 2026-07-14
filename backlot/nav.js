@@ -10,7 +10,7 @@
   const $ = (id) => document.getElementById(id);
   const SECTION_LABELS = {
     dashboard: "Dashboard", records: "Records", roster: "Roster", users: "Users",
-    comms: "Comms", reports: "Reports", vin: "Vehicle history",
+    comms: "Comms", reports: "Reports", counters: "Counters", vin: "Vehicle history",
     "parking-sections": "Parking sections",
   };
   // Sections shown programmatically (not from the sidebar tab bar). These

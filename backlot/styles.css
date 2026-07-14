@@ -1029,6 +1029,110 @@ body.bl-is-admin .bl-admin-only { display: flex; }
 .u-muted { color: var(--muted); }
 
 /* ==========================================================================
+   Counters — shift-close snapshot calendar (counters.js)
+   ========================================================================== */
+.bl-counter-toolbar {
+  display: flex; flex-wrap: wrap; gap: var(--sp-3);
+  align-items: center; justify-content: space-between;
+  margin-bottom: var(--sp-4);
+}
+.bl-counter-nav { display: flex; align-items: center; gap: var(--sp-2); }
+.bl-counter-month {
+  font-size: var(--fs-lg); font-weight: var(--fw-heavy);
+  min-width: 10ch; text-align: center;
+}
+.bl-counter-filters .bl-seg-btn { padding: var(--sp-1) var(--sp-3); }
+
+.bl-counter-weekdays {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  gap: var(--sp-1);
+  color: var(--muted); font-size: var(--fs-xs);
+  text-transform: uppercase; letter-spacing: .8px;
+  font-weight: var(--fw-heavy);
+  padding: 0 var(--sp-1) var(--sp-2);
+}
+.bl-counter-weekdays span { text-align: center; }
+
+.bl-counter-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  gap: var(--sp-1);
+}
+.bl-counter-day {
+  min-height: 88px;
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: var(--sp-2);
+  background: var(--card-2);
+  display: flex; flex-direction: column; gap: var(--sp-1);
+  cursor: pointer; text-align: left;
+  transition: border-color .12s, background .12s;
+  color: var(--text);
+}
+.bl-counter-day:hover { background: var(--hover); }
+.bl-counter-day:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.bl-counter-day.is-outside { background: transparent; opacity: .35; cursor: default; }
+.bl-counter-day.is-outside:hover { background: transparent; }
+.bl-counter-day.is-today {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-soft) inset;
+}
+.bl-counter-day.is-empty { cursor: default; }
+.bl-counter-daynum {
+  font-size: var(--fs-sm); font-weight: var(--fw-heavy);
+  color: var(--text-soft);
+}
+.bl-counter-day.is-today .bl-counter-daynum { color: var(--accent); }
+.bl-counter-chips {
+  display: flex; flex-direction: column; gap: 2px; margin-top: auto;
+}
+.bl-counter-chip {
+  display: inline-flex; align-items: center; gap: var(--sp-1);
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-2xs); font-weight: var(--fw-heavy);
+  letter-spacing: .6px; text-transform: uppercase;
+  white-space: nowrap;
+}
+.bl-counter-chip--garage   { background: var(--accent-soft); color: var(--accent); }
+.bl-counter-chip--bcounter { background: var(--info-soft);   color: var(--info); }
+.bl-counter-chip--keyup    { background: var(--warn-soft);   color: var(--warn); }
+
+.bl-counter-legend {
+  display: flex; gap: var(--sp-2); flex-wrap: wrap;
+  margin-top: var(--sp-4); justify-content: center;
+}
+
+/* Day detail modal contents. */
+.bl-counter-snap {
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: var(--sp-3); background: var(--card-2);
+}
+.bl-counter-snap + .bl-counter-snap { margin-top: var(--sp-3); }
+.bl-counter-snap-head {
+  display: flex; align-items: baseline; gap: var(--sp-3);
+  margin-bottom: var(--sp-2); flex-wrap: wrap;
+}
+.bl-counter-snap-head .who { color: var(--muted); font-size: var(--fs-xs); }
+.bl-counter-snap-head .total {
+  margin-left: auto; font-size: var(--fs-lg);
+  font-weight: var(--fw-black); color: var(--text);
+}
+.bl-counter-snap-cats {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--sp-1) var(--sp-3); margin-bottom: var(--sp-2);
+}
+.bl-counter-snap-cat {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 2px 0; font-size: var(--fs-sm);
+}
+.bl-counter-snap-cat span { color: var(--text-soft); }
+.bl-counter-snap-cat b { color: var(--text); font-weight: var(--fw-bold); }
+.bl-counter-snap-notes {
+  border-top: 1px dashed var(--divider); padding-top: var(--sp-2);
+  color: var(--text-soft); font-size: var(--fs-sm); white-space: pre-wrap;
+}
+.bl-counter-snap-actions { display: flex; justify-content: flex-end; margin-top: var(--sp-2); }
+
+/* ==========================================================================
    Responsive — portrait tablet / narrow: sidebar → top tab bar
    ========================================================================== */
 @media (max-width: 900px) {

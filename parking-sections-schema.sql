@@ -23,25 +23,47 @@
 create extension if not exists postgis;
 
 -- ----- parking_sections --------------------------------------------------
+-- boundary is nullable so managers can add "name-only" locations from the
+-- driver app (BRANCH, ATLANTIC, etc. — anywhere off-lot where a polygon
+-- doesn't apply). Rows without a boundary still appear in the driver's
+-- Location dropdown, but the GPS auto-tag trigger + conflict prompt skip
+-- them.
 create table if not exists public.parking_sections (
   id         uuid primary key default gen_random_uuid(),
   fleet_id   uuid,
   name       text not null,                         -- "Backlot", "QTA", "Garage"
   status     text not null default 'open',          -- open | full | restricted
-  boundary   geography(Polygon, 4326) not null,
+  boundary   geography(Polygon, 4326),
   created_at timestamptz not null default now()
 );
 
+-- Drop the historical NOT NULL if this table was created before boundary
+-- became optional. `alter column drop not null` is a no-op when it's
+-- already nullable, so this stays idempotent.
+alter table public.parking_sections
+  alter column boundary drop not null;
+
 create index if not exists parking_sections_boundary_idx
   on public.parking_sections using gist (boundary);
+
+-- One row per unique name, case-insensitive. The dropdown de-dupes by
+-- name; without this, an ill-timed double-insert (manager taps Save twice)
+-- would produce two "GARAGE" entries with different ids.
+create unique index if not exists parking_sections_name_lower_idx
+  on public.parking_sections (lower(name));
 
 -- View that exposes each polygon as GeoJSON so the driver app can render
 -- boundaries on the shift map and run client-side point-in-polygon checks
 -- (for the GPS/dropdown conflict prompt). Views inherit RLS from the base
 -- table, so no extra policies needed.
+-- Rows with a null boundary come through with geojson = null; the driver
+-- app treats those as "name-only" locations (in the dropdown, not on the
+-- map).
 create or replace view public.parking_sections_geo as
   select id, name, status,
-         ST_AsGeoJSON(boundary::geometry)::jsonb as geojson
+         case when boundary is null then null
+              else ST_AsGeoJSON(boundary::geometry)::jsonb
+         end as geojson
     from public.parking_sections;
 
 -- Newly created views don't inherit the base table's PostgREST grants,
@@ -392,3 +414,19 @@ grant execute on function public.retag_drop_offs() to authenticated;
 -- The vehicles trigger fires on records UPDATE, so vehicles.section_*
 -- catches up automatically.
 -- ============================================================
+
+-- ============================================================
+-- Seed the six historical dropdown codes as name-only rows so
+-- fresh installs (and installs that never had geo data) still
+-- show something in the Location dropdown. Managers can draw
+-- polygons for the lot-facing ones later; the rest stay name-
+-- only. Idempotent via the case-insensitive unique index.
+-- ============================================================
+insert into public.parking_sections (name, status)
+values
+  ('GARAGE',   'open'),
+  ('QTA',      'open'),
+  ('BACKLOT',  'open'),
+  ('ATLANTIC', 'open'),
+  ('BRANCH',   'open')
+on conflict (lower(name)) do nothing;

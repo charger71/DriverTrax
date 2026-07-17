@@ -50,6 +50,10 @@ const DT_OPTIONS = {
   // System-set by the detailer flow. Not selectable from any form,
   // but appears as a filter option in the records view.
   STATUS_DERIVED: ["DETAILING","DETAILED"],
+  // Fallback list only. The real dropdown options come from the
+  // parking_sections table via DT_DROPOFFS.getSections() — see
+  // populateDestinationSelects(). Kept here so any legacy caller that
+  // reads DT_OPTIONS.DESTINATIONS gets a sensible list.
   DESTINATIONS: ["GARAGE","QTA","BACKLOT","ATLANTIC","BRANCH","OTHER"],
   CONDITIONS: [
     { id: "REGULAR",      label: "Regular"      },
@@ -844,10 +848,12 @@ function saveRecord() {
     // Parking-section geotag: fire for any save with GPS so the section
     // name shows up on the card even when the driver leaves destination
     // blank ("let GPS figure it out"). The prompt "Where is this?" only
-    // opens for genuine drop-off contexts — blank destination, or one of
-    // the lot codes — so a CHECK_OUT at an off-lot rental spot doesn't
-    // pester the driver just because it's outside every polygon.
-    const LOT_DESTS = new Set(["BACKLOT", "QTA", "GARAGE"]);
+    // opens for genuine drop-off contexts — blank destination, or a
+    // section that has a polygon on file — so a CHECK_OUT at an off-lot
+    // rental spot doesn't pester the driver just because it's outside
+    // every polygon. DT_DROPOFFS.isLotDestination reads the live
+    // parking_sections cache, so newly-added polygons participate
+    // automatically.
     if (
       window.DT_DROPOFFS &&
       !gpsError &&
@@ -858,7 +864,7 @@ function saveRecord() {
         serial_id: recordData.serialId,
         lat, lng,
         record_id: recordData.id,
-        promptIfUntagged: !recordData.destination || LOT_DESTS.has(recordData.destination)
+        promptIfUntagged: DT_DROPOFFS.isLotDestination(recordData.destination)
       });
     }
 
@@ -1026,19 +1032,39 @@ function _counterFormatTs(ts) {
 
 // Long-press repeater for +/- buttons. Pointer path: fires `onPress()`
 // immediately on pointerdown, then every ~80ms after a HOLD_MS hold. The
-// follow-up synthetic click is suppressed. Keyboard path: Enter/Space on a
-// real <button> fires a click with no preceding pointerdown, so we fall
-// through to a single bump there. suppressClickUntil expires quickly so a
-// later keyboard click isn't wrongly ignored.
+// follow-up synthetic click on the same button is suppressed (per-button, so
+// a gesture on button A never eats the next click on button B). Keyboard
+// path: Enter/Space on a real <button> fires a click with no preceding
+// pointerdown — that clicks through to a single bump.
+//
+// Bound EXACTLY ONCE per grid element via a flag — load() rebuilds the tile
+// innerHTML on every render, but the parent grid persists, and re-attaching
+// listeners each render would stack them and multiply every click.
 function _attachLongPress(grid, onPress) {
+  if (grid._dtLongPressBound) {
+    // Update the closure's onPress ref so cache/state stays fresh across
+    // re-renders (e.g. after Edit Categories rewrites the grid).
+    grid._dtLongPressBound(onPress);
+    return;
+  }
+
   const HOLD_MS = 400;
   const REPEAT_MS = 80;
   const CLICK_SUPPRESS_MS = 400;
   let holdTimer = null;
   let repeatTimer = null;
   let currentBtn = null;
-  let suppressClickUntil = 0;
+  // Suppression is per-button: a pointer gesture on button A must not eat the
+  // next click on button B. Store the button we just handled and the deadline
+  // until which its synthetic follow-up click is expected.
+  let suppressBtn = null;
+  let suppressUntil = 0;
+  let handler = onPress;
 
+  const armSuppress = (btn) => {
+    suppressBtn = btn;
+    suppressUntil = performance.now() + CLICK_SUPPRESS_MS;
+  };
   const clear = () => {
     if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
     if (repeatTimer) { clearInterval(repeatTimer); repeatTimer = null; }
@@ -1049,14 +1075,13 @@ function _attachLongPress(grid, onPress) {
     const btn = e.target.closest("button[data-action]");
     if (!btn) return;
     currentBtn = btn;
-    onPress(btn);
-    suppressClickUntil = performance.now() + CLICK_SUPPRESS_MS;
+    handler(btn);
+    armSuppress(btn);
     holdTimer = setTimeout(() => {
       repeatTimer = setInterval(() => {
         if (currentBtn) {
-          onPress(currentBtn);
-          // Extend the suppression window while the user keeps holding.
-          suppressClickUntil = performance.now() + CLICK_SUPPRESS_MS;
+          handler(currentBtn);
+          armSuppress(currentBtn);
         }
       }, REPEAT_MS);
     }, HOLD_MS);
@@ -1068,10 +1093,15 @@ function _attachLongPress(grid, onPress) {
   grid.addEventListener("click", (e) => {
     const btn = e.target.closest("button[data-action]");
     if (!btn) return;
-    // Synthetic click after a pointer gesture — already handled by pointerdown.
-    if (performance.now() < suppressClickUntil) return;
-    onPress(btn);
+    // Synthetic click from the pointer path we already handled — swallow it.
+    if (btn === suppressBtn && performance.now() < suppressUntil) {
+      suppressBtn = null;
+      return;
+    }
+    handler(btn);
   });
+
+  grid._dtLongPressBound = (newHandler) => { handler = newHandler; };
 }
 
 // Normalize legacy Key Up rows { clean, dirty, rail, other } -> new shape.
@@ -1143,9 +1173,13 @@ function createCounter(cfg) {
       tile.innerHTML = `
         <div class="keyup-label">${DT_ESC(cat)}</div>
         <div class="tally-controls">
-          <button type="button" class="tally-btn" data-action="dec" data-cat="${DT_ESC(cat)}" aria-label="Decrease ${DT_ESC(cat)}">&minus;</button>
+          <button type="button" class="tally-btn" data-action="dec" data-cat="${DT_ESC(cat)}" aria-label="Decrease ${DT_ESC(cat)}">
+            <svg class="tally-btn-icon" viewBox="0 0 24 24" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
           <input type="number" inputmode="numeric" min="0" value="${count || ""}" placeholder="0" data-cat="${DT_ESC(cat)}" aria-label="${DT_ESC(cat)} count">
-          <button type="button" class="tally-btn" data-action="inc" data-cat="${DT_ESC(cat)}" aria-label="Increase ${DT_ESC(cat)}">+</button>
+          <button type="button" class="tally-btn" data-action="inc" data-cat="${DT_ESC(cat)}" aria-label="Increase ${DT_ESC(cat)}">
+            <svg class="tally-btn-icon" viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
         </div>`;
       grid.appendChild(tile);
     });
@@ -1599,6 +1633,85 @@ function gateCxrStatusOption() {
 }
 document.addEventListener("dt-auth-change", gateCxrStatusOption);
 document.addEventListener("DOMContentLoaded", gateCxrStatusOption);
+
+// ============================================================
+// Data-driven Location dropdown
+//
+// Both the entry form's #destination select and the records filter's
+// #fDest select used to be hard-coded (GARAGE/QTA/BACKLOT/ATLANTIC/
+// BRANCH/OTHER). Now they're populated from the parking_sections table
+// via DT_DROPOFFS.getSections(). "OTHER" is always appended at the end
+// as a freeform escape hatch (backed by the existing #destinationOther
+// text input; not a parking_sections row).
+//
+// Called on DOMContentLoaded (initial paint) and on the custom
+// `dt-sections-change` event (fires when a manager adds a location via
+// the Locations panel — see refreshSections in drop-offs.js).
+// ============================================================
+async function populateDestinationSelects() {
+  if (!window.DT_DROPOFFS) return;
+  let sections;
+  try {
+    sections = await DT_DROPOFFS.getSections();
+  } catch (e) {
+    console.warn("[destination] getSections", e);
+    return;
+  }
+
+  // De-dupe by uppercased name so a legacy row and a new admin add can't
+  // both show up. Preserve the DB order (name-ascending from the view).
+  const seen = new Set();
+  const names = [];
+  (sections || []).forEach(s => {
+    const key = String(s.name || "").trim().toUpperCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    names.push(key);
+  });
+
+  const renderInto = (sel, placeholderText) => {
+    if (!sel) return;
+    const prevValue = sel.value;
+    // Rebuild all options except the leading placeholder — that <option
+    // value=""> is what the entry form and filter show when nothing's
+    // picked. Keep whatever placeholder text HTML already has.
+    const placeholder = sel.querySelector('option[value=""]');
+    sel.innerHTML = "";
+    if (placeholder) {
+      sel.appendChild(placeholder);
+    } else if (placeholderText) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = placeholderText;
+      sel.appendChild(opt);
+    }
+    names.forEach(name => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      sel.appendChild(opt);
+    });
+    // Always append OTHER last as a freeform escape hatch — it's not a
+    // parking_sections row, and its handling (#destinationOther text
+    // input) is wired independently in toggleOtherField().
+    if (!seen.has("OTHER")) {
+      const other = document.createElement("option");
+      other.value = "OTHER";
+      other.textContent = "OTHER";
+      sel.appendChild(other);
+    }
+    // Restore prior selection if it still exists after the rebuild.
+    if (prevValue && sel.querySelector(`option[value="${CSS.escape(prevValue)}"]`)) {
+      sel.value = prevValue;
+    }
+  };
+
+  renderInto(document.getElementById("destination"), "-- LOCATION --");
+  renderInto(document.getElementById("fDest"),       "All Locations");
+}
+document.addEventListener("DOMContentLoaded", populateDestinationSelects);
+document.addEventListener("dt-sections-change", populateDestinationSelects);
+window.populateDestinationSelects = populateDestinationSelects;
 
 // Damage set (per-vehicle damage on-file flag) — re-render record surfaces
 // so the DAMAGE badge appears/disappears when marks are added/removed

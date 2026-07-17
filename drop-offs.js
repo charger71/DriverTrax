@@ -26,10 +26,12 @@
   // Cache of parking_sections rows keyed by id. Each entry is
   //   { id, name, status, rings: [[[lat,lng], ...], ...] }
   // rings are already normalized to [lat, lng] (Leaflet order), first ring
-  // is the outer boundary, others are holes. Populated from the
-  // parking_sections_geo view (which exposes ST_AsGeoJSON). Refetched
-  // when the trigger returns an id we haven't seen (a section added since
-  // this tab loaded).
+  // is the outer boundary, others are holes. `rings` is empty [] for
+  // name-only rows (boundary is null in the DB) — those still show in the
+  // driver's Location dropdown but never match the auto-tag / conflict
+  // checks. Populated from the parking_sections_geo view. Refetched when
+  // the trigger returns an id we haven't seen (a section added since this
+  // tab loaded) or when a manager saves a new location.
   let sectionsById = null;
   let sectionsList = null;
   let sectionsPromise = null;
@@ -39,7 +41,8 @@
     sectionsPromise = (async () => {
       const { data, error } = await sb
         .from("parking_sections_geo")
-        .select("id,name,status,geojson");
+        .select("id,name,status,geojson")
+        .order("name", { ascending: true });
       if (error) {
         console.warn("[DT_DROPOFFS] loadSections", error);
         return {};
@@ -59,6 +62,16 @@
     const map = await sectionsPromise;
     sectionsPromise = null;
     return map;
+  }
+
+  // Force-refresh the section cache and fire an event so any UI that
+  // renders from the list (destination dropdowns, manager Locations
+  // panel) can re-render without a page reload.
+  async function refreshSections() {
+    await loadSections(true);
+    try { document.dispatchEvent(new CustomEvent("dt-sections-change")); }
+    catch (_) {}
+    return sectionsList || [];
   }
   async function nameFor(sectionId) {
     if (!sectionId) return "";
@@ -105,6 +118,24 @@
   async function getSections() {
     await loadSections();
     return sectionsList || [];
+  }
+
+  // True when saving a record with this destination should prompt the
+  // driver to name the spot if GPS lands outside every polygon.
+  //   - blank    → true (driver relies on GPS; a miss means "unknown spot")
+  //   - OTHER    → false (driver already typed a freeform label)
+  //   - a section that has a polygon → true (lot-facing drop-off)
+  //   - a section with no polygon    → false (off-lot place, e.g. BRANCH)
+  // Falls back to true if the cache hasn't populated yet — being chatty is
+  // safer than silently swallowing a miss.
+  function isLotDestination(name) {
+    if (!name) return true;
+    if (name === "OTHER") return false;
+    if (!sectionsList) return true;
+    const norm = normalizeName(name);
+    return sectionsList.some(s =>
+      s.rings.length > 0 && normalizeName(s.name) === norm
+    );
   }
 
   // Normalize a display name / dropdown code for comparison.
@@ -408,5 +439,5 @@
     return data;
   }
 
-  window.DT_DROPOFFS = { record, getSections, detectSection, checkConflictAndConfirm };
+  window.DT_DROPOFFS = { record, getSections, refreshSections, detectSection, checkConflictAndConfirm, isLotDestination };
 })();

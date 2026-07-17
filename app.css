@@ -1587,6 +1587,41 @@
     color: var(--text);
   }
 
+  /* LOCATIONS PANEL — manager list of parking_sections rows.
+     Reuses the .users-modal shape for its add-modal (see index.html). */
+  .loc-help {
+    color: var(--text-soft); font-size: var(--font-sm);
+    margin: 0 0 var(--space-3);
+  }
+  .loc-help em { font-style: normal; color: var(--text); font-weight: var(--weight-medium); }
+  .loc-row {
+    display: flex; align-items: center; gap: var(--space-3);
+    padding: var(--space-3) var(--space-4); margin-bottom: var(--space-2);
+    background: var(--panel);
+    border: var(--border-thin) solid var(--divider); border-radius: 8px;
+  }
+  .loc-row-main { flex: 1; min-width: 0; }
+  .loc-row-name {
+    font-size: var(--font-md); font-weight: var(--weight-bold);
+    color: var(--text); letter-spacing: 0.5px;
+  }
+  .loc-row-meta {
+    display: flex; gap: var(--space-2); margin-top: var(--space-1);
+    font-size: var(--font-xs); color: var(--text-soft);
+  }
+  .loc-row-status,
+  .loc-row-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    font-size: var(--font-xs); font-weight: var(--weight-bold);
+    letter-spacing: 0.5px;
+    background: var(--divider); color: var(--text-soft);
+  }
+  .loc-row-status--open       { background: var(--success-soft); color: var(--success-text); }
+  .loc-row-status--full       { background: var(--warn-soft);    color: var(--warn); }
+  .loc-row-status--restricted { background: var(--danger-soft);  color: var(--danger); }
+  .loc-row-badge--polygon { background: var(--info-soft); color: var(--info-text); }
+  .loc-row-badge--name    { background: var(--surface-hover); color: var(--muted); }
+
   /* DETAILER PANELS — scan-loaded views (history list, dashboard avg) */
   .detail-scan-empty { text-align: center; padding: 24px 0; color: var(--text-soft); }
   .detail-scan-empty p { margin: 0 0 14px; }
@@ -3525,12 +3560,25 @@
   .tally-btn {
     flex: 0 0 44px; min-height: 44px;
     background: var(--accent); color: var(--text-on-accent); border: none;
-    border-radius: var(--radius); font-size: var(--font-xl); font-weight: 900;
+    border-radius: var(--radius);
     cursor: pointer; touch-action: manipulation; user-select: none;
     display: flex; align-items: center; justify-content: center;
     line-height: 1;
+    /* Suppress the iOS grey tap flash + Android ripple-esque highlight. The
+       button still shows :active feedback (scale + opacity), and focus-visible
+       is preserved for keyboard users. */
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
   }
+  .tally-btn:focus { outline: none; }
+  .tally-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   .tally-btn:active { transform: scale(0.94); opacity: 0.85; }
+  .tally-btn-icon {
+    width: 22px; height: 22px;
+    stroke: currentColor; stroke-width: 3;
+    stroke-linecap: round; stroke-linejoin: round;
+    fill: none; pointer-events: none;
+  }
   .garage-tile-remove {
     position: absolute; top: 4px; right: 6px;
     background: transparent; border: none; color: var(--muted);

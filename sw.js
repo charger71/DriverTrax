@@ -1,6 +1,6 @@
 // DriverTrax Service Worker
 // Provides offline support and caches app assets
-const CACHE_VERSION = "drivertrax-v9.16-counter-share-persist";
+const CACHE_VERSION = "drivertrax-v9.21-locations-datadriven";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -19,6 +19,7 @@ const APP_SHELL = [
   "./drop-offs.js",
   "./damage.js",
   "./users.js",
+  "./locations.js",
   "./detailer.js",
   "./elearning.js",
   "./notifications.js",
@@ -28,11 +29,17 @@ const APP_SHELL = [
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
   "https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js"
 ];
-// Install: pre-cache the app shell
+// Install: pre-cache the app shell. `cache: "reload"` bypasses the
+// browser's HTTP cache so a stale in-disk copy of an app-shell asset
+// (left over from the previous SW generation) can't get baked into the
+// new cache — otherwise a v-bump would still serve old JS/CSS to users
+// whose browser cached those resources with a long-ish freshness window.
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_VERSION).then((cache) => {
-      return cache.addAll(APP_SHELL).catch((err) => {
+      return cache.addAll(
+        APP_SHELL.map((u) => new Request(u, { cache: "reload" }))
+      ).catch((err) => {
         console.warn("Some shell assets failed to cache:", err);
       });
     })

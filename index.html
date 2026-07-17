@@ -320,6 +320,9 @@
     <a class="menu-item manager-only" onclick="showTab('users'); closeMenu()">
       <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Users
     </a>
+    <a class="menu-item manager-only" onclick="showTab('locations'); closeMenu()">
+      <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span> Locations
+    </a>
 
     <!-- Utility section — visible to everyone -->
     <div class="menu-section-label">Utility</div>
@@ -689,7 +692,9 @@
       <span class="field-label">Location</span>
       <select id="destination" onchange="toggleOtherField('destination')">
         <option value="">-- LOCATION --</option>
-        <option>GARAGE</option><option>QTA</option><option>BACKLOT</option><option>ATLANTIC</option><option>BRANCH</option><option>OTHER</option>
+        <!-- Options populated at runtime from parking_sections (see
+             populateDestinationSelects in app.js). "OTHER" is always
+             appended at the end for freeform text. -->
       </select>
       <input type="text" id="destinationOther" class="other-input u-hidden" placeholder="Specify other location..." maxlength="40" autocomplete="off">
     </label>
@@ -1035,7 +1040,10 @@
         <select id="fNoTag" onchange="renderRecords()"><option value="">All Records</option><option value="yes">Bad Tag Only</option><option value="no">Good Tag Only</option></select>
       </div>
       <div class="filter-row">
-        <select id="fDest" onchange="renderRecords()"><option value="">All Locations</option><option>GARAGE</option><option>QTA</option><option>BACKLOT</option><option>ATLANTIC</option><option>BRANCH</option><option>OTHER</option></select>
+        <select id="fDest" onchange="renderRecords()">
+          <option value="">All Locations</option>
+          <!-- Options populated at runtime by populateDestinationSelects. -->
+        </select>
       </div>
       <div class="filter-row">
         <input type="date" id="fDateFrom" onchange="renderRecords()">
@@ -1273,6 +1281,56 @@
       </div>
     </div>
     <div id="usersList"><div class="u-empty">Loading…</div></div>
+  </div>
+</div>
+
+<!-- Manager-only Locations panel: list + add name-only parking sections
+     (the six historical dropdown codes are seeded by the schema; add
+     more here as needed). Polygon drawing stays out of this UI — those
+     still require the manual Leaflet tool documented in
+     parking-sections-schema.sql. -->
+<div class="panel" id="panel-locations" role="region" aria-label="Locations">
+  <div class="users-actions">
+    <button type="button" class="btn btn-primary" id="locAddBtn" aria-label="Add location">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span>Add Location</span>
+    </button>
+  </div>
+  <div class="dash-section">
+    <div class="dash-title">Locations</div>
+    <p class="loc-help">These populate the driver's Location dropdown. Rows marked <em>polygon</em> also participate in GPS auto-tagging on the shift map.</p>
+    <div id="locList"><div class="u-empty">Loading…</div></div>
+  </div>
+</div>
+
+<!-- Add/edit location modal — same shape as the Users modal so it inherits
+     the existing keyboard, focus, and Escape handling. -->
+<div class="users-modal" id="locModal" aria-hidden="true"
+     role="dialog" aria-modal="true" aria-label="Add location">
+  <div class="users-modal-card">
+    <div class="users-modal-header">
+      <span id="locModalTitle">Add location</span>
+      <button type="button" class="btn btn-destructive btn-icon" id="locModalClose" aria-label="Close">&times;</button>
+    </div>
+    <form id="locForm">
+      <input type="hidden" name="id">
+      <label>Name
+        <input type="text" name="name" required maxlength="40"
+               placeholder="e.g. OVERFLOW" autocomplete="off">
+      </label>
+      <label>Status
+        <select name="status">
+          <option value="open">Open</option>
+          <option value="full">Full</option>
+          <option value="restricted">Restricted</option>
+        </select>
+      </label>
+      <div class="users-modal-msg" id="locModalMsg"></div>
+      <div class="users-modal-actions">
+        <button type="button" class="btn btn-secondary" id="locModalCancel">Cancel</button>
+        <button type="submit" class="btn btn-primary btn--block" id="locModalSubmit">Save</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -1611,6 +1669,7 @@
 <script src="drop-offs.js"></script>
 <script src="damage.js"></script>
 <script src="users.js"></script>
+<script src="locations.js"></script>
 <script src="detailer.js"></script>
 <script src="elearning.js"></script>
 <script src="notifications.js"></script>

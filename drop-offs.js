@@ -15,7 +15,6 @@
   if (!window.DT_AUTH) return;
   const sb  = DT_AUTH.client;
   const $   = (id) => document.getElementById(id);
-  const esc = window.DT_ESC;
 
   // The modal is shared across concurrent drop-off inserts (rare, but
   // possible if the driver taps Save twice quickly). We queue rows and

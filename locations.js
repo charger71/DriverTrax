@@ -123,7 +123,12 @@
 
   async function onDelete(id, name) {
     if (!id) return;
-    if (!confirm(`Delete "${name}"?\n\nThis removes it from the Location dropdown. Existing records that already reference this name are unaffected.`)) return;
+    if (!await DT_UI.confirm({
+      title: `Delete "${name}"?`,
+      body: "This removes it from the Location dropdown. Records that already reference the name are unaffected.",
+      okLabel: "Delete",
+      danger: true
+    })) return;
     const { error } = await sb
       .from("parking_sections")
       .delete()

@@ -250,7 +250,6 @@
   </div>
 </div>
 
-
 <!-- Alert banner — slim, dismissible, shows newest unread post -->
 <div id="annBanner" class="ann-banner hidden" role="status" aria-live="polite">
   <div class="ann-banner-icon" aria-hidden="true">
@@ -639,12 +638,7 @@
     <svg class="icon icon--xl" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-scan"/></svg>
     SCAN BARCODE
   </button>
-  <!-- Scanbot button hidden — kept here in case we re-enable the trial flow later.
-  <button class="btn btn-ghost btn--block btn--dashed" onclick="openScanbotScanner()" title="Experimental: Scanbot SDK (trial mode, 60s/session)">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="u-icon-mr-2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-    Scan with Scanbot (beta)
-  </button>
-  -->
+
   <button class="btn btn-secondary btn-manual-toggle" onclick="toggleManualEntry()">Enter Manually</button>
   </div>
   <label id="manualEntrySection" class="field-row u-hidden">
@@ -1485,6 +1479,24 @@
     <div class="users-modal-actions">
       <button type="button" class="btn btn-secondary" id="alertModalDismiss">Dismiss</button>
       <button type="button" class="btn btn-primary" id="alertModalView">View</button>
+    </div>
+  </div>
+</div>
+
+<!-- Shared confirmation dialog (DT_UI.confirm in utils.js). Replaces native
+     confirm(), which blocks the main thread, can't be styled, and is
+     suppressed outright in some WKWebView configurations. -->
+<div class="users-modal" id="dtConfirmModal" aria-hidden="true"
+     role="dialog" aria-modal="true" aria-labelledby="dtConfirmTitle">
+  <div class="users-modal-card">
+    <div class="users-modal-header">
+      <span id="dtConfirmTitle">Are you sure?</span>
+      <button type="button" class="btn btn-destructive btn-icon users-modal-close" id="dtConfirmClose" aria-label="Close">&times;</button>
+    </div>
+    <div id="dtConfirmBody" class="alert-modal-body"></div>
+    <div class="users-modal-actions">
+      <button type="button" class="btn btn-secondary" id="dtConfirmCancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="dtConfirmOk">Confirm</button>
     </div>
   </div>
 </div>

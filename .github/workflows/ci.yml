@@ -1,8 +1,14 @@
 name: CI
 
-# DriverTrax is a no-build, plain HTML/CSS/JS PWA, so CI stays dependency-free:
-# it parses every JavaScript file with Node's built-in syntax checker and guards
-# against a couple of easy-to-miss mistakes. No npm install, no bundler.
+# DriverTrax is a no-build, plain HTML/CSS/JS PWA — that stays true: nothing
+# here compiles, bundles, or transforms the app, and no node_modules is
+# committed or installed into the repo.
+#
+# CI does more than parse, though. `node --check` only catches syntax errors,
+# which meant a typo'd cross-file call or a script missing from the service
+# worker's precache list shipped clean. The lint step fetches a pinned ESLint
+# on demand (npx, nothing written to the repo) and the precache step is plain
+# Node with no dependencies at all.
 
 on:
   push:
@@ -43,6 +49,14 @@ jobs:
             fi
           done
           exit $status
+
+      # Pinned so a new ESLint release can't turn the build red on its own.
+      # Keep in step with the eslint devDependency in package.json.
+      - name: Lint
+        run: npx --yes eslint@9.39.5 .
+
+      - name: Service worker precaches everything index.html loads
+        run: node scripts/check-precache.mjs
 
       - name: No merge-conflict markers
         run: |

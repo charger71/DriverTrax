@@ -793,6 +793,12 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
 <section class="cl-section" id="modal">
   <h2>Modal</h2>
   <p class="cl-desc">All app modals use the <code>.users-modal</code> pattern. Toggle <code>.show</code> to open. Status line uses <code>DT_UI.setMessage(el, text, "ok"|"err")</code>.</p>
+  <p class="cl-desc">
+    For a plain yes/no, don't build one — <code>await DT_UI.confirm({ title, body, okLabel, danger })</code>
+    resolves to a boolean and reuses this pattern. Never <code>confirm()</code>: it blocks the main
+    thread, can't be styled, and some WKWebView configurations suppress it outright, which returns
+    false and makes the action silently do nothing.
+  </p>
   <div class="cl-block">
     <div class="cl-preview">
       <button type="button" class="btn btn-primary" onclick="document.getElementById('demoModal').classList.add('show')">Open modal</button>
@@ -847,6 +853,55 @@ DT_TOAST.show("Could not save record", "error");</pre>
   </div>
 </section>
 <div id="demoToastEl" class="toast" style="display:none;"></div>
+
+<!-- ===================== PWA SHELL CHROME ===================== -->
+<section class="cl-section" id="pwa-chrome">
+  <h2>PWA shell chrome</h2>
+  <p class="cl-desc">
+    Built by <code>pwa.js</code>, not by app code — the persistent "Update available" prompt and
+    the Install pill. Separate from <code>.toast</code> because they carry an action and stay put
+    until dismissed. Listed here so the next person finds them instead of writing a third toast.
+  </p>
+  <div class="cl-block">
+    <div class="cl-preview" style="flex-direction:column;align-items:stretch;gap:var(--space-3);">
+      <div class="pwa-toast" style="align-self:center;">
+        <span>Update available</span>
+        <button type="button" class="pwa-toast-action">Refresh</button>
+        <button type="button" class="pwa-toast-close" aria-label="Dismiss">×</button>
+      </div>
+      <button type="button" class="pwa-install-pill" style="position:static;align-self:center;">Install DriverTrax</button>
+    </div>
+<pre class="cl-code">&lt;div class="pwa-toast"&gt;
+  &lt;span&gt;Update available&lt;/span&gt;
+  &lt;button class="pwa-toast-action"&gt;Refresh&lt;/button&gt;
+  &lt;button class="pwa-toast-close" aria-label="Dismiss"&gt;×&lt;/button&gt;
+&lt;/div&gt;
+
+&lt;button class="pwa-install-pill"&gt;Install DriverTrax&lt;/button&gt;</pre>
+  </div>
+</section>
+
+<!-- ===================== MAP + DAMAGE PALETTES ===================== -->
+<section class="cl-section" id="canvas-colors">
+  <h2>Map &amp; damage colors</h2>
+  <p class="cl-desc">
+    Leaflet <code>divIcon</code> markup and inline SVG fills can't use <code>var()</code>, so JS
+    resolves the token at draw time with <code>DT_UI.cssVar("--token")</code>. Never inline a hex
+    for these — it won't follow the theme. Map markers reuse the semantic and
+    <code>--chart-*</code> tokens; damage marks have their own.
+  </p>
+  <div class="cl-block">
+    <div class="cl-swatch-grid" id="sw-damage"></div>
+<pre class="cl-code">// Leaflet divIcon
+const color = DT_UI.cssVar("--accent");
+
+// Status marker — STATUS_MAP_TOKEN in app.js maps status → token
+statusMapColor("CLEAN");   // resolves --accent
+
+// Damage mark
+DT_UI.cssVar("--damage-dent");</pre>
+  </div>
+</section>
 
 <!-- ===================== ROLE COLORS ===================== -->
 <section class="cl-section" id="roles">
@@ -1007,6 +1062,7 @@ z-index: 99998; /* one more than the next thing */</pre>
   renderSwatches("sw-text",     ["--text","--text-soft","--muted","--text-on-accent","--text-on-status"]);
   renderSwatches("sw-status",   ["--accent","--accent-strong","--warn","--warn-strong","--danger","--danger-strong","--info","--info-strong","--success"]);
   renderSwatches("sw-roles",    ["--role-manager","--role-cxr","--role-driver","--role-admin","--role-detailer"]);
+  renderSwatches("sw-damage",   ["--damage-dent","--damage-scratch","--damage-chip","--damage-crack","--damage-missing"]);
 
   // -------- Spacing scale --------
   (function () {

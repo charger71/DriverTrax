@@ -18,17 +18,26 @@
 
   const FOCUSABLE_TAGS = new Set(["BUTTON", "A", "INPUT", "SELECT", "TEXTAREA", "LABEL"]);
 
+  // Elements whose own semantics matter more than role="button". Overwriting
+  // a <tr>'s role detaches it from its table, so screen readers lose row and
+  // column context — the very thing that makes a data table navigable. These
+  // get keyboard focus and Enter/Space activation, but keep their real role.
+  const KEEP_OWN_ROLE = new Set(["TR", "TD", "TH", "LI", "SUMMARY", "DETAILS"]);
+
   function makeKeyboardAccessible(el) {
     if (!el || el.dataset.a11yKb === "1") return;
     if (FOCUSABLE_TAGS.has(el.tagName)) return;
-    if (el.getAttribute("role") === "button") {
-      if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "0");
-      el.dataset.a11yKb = "1";
-      return;
-    }
-    el.setAttribute("role", "button");
+
     if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "0");
+    if (!KEEP_OWN_ROLE.has(el.tagName) && !el.getAttribute("role")) {
+      el.setAttribute("role", "button");
+    }
     el.dataset.a11yKb = "1";
+  }
+
+  // Does this element get Enter/Space activation from us?
+  function isRetrofitted(el) {
+    return !!el && el.dataset && el.dataset.a11yKb === "1";
   }
 
   function scan(root) {
@@ -42,12 +51,24 @@
     ).forEach(makeKeyboardAccessible);
   }
 
-  // Enter / Space activation for role=button elements that aren't real buttons.
+  // Enter / Space activation for the elements we retrofitted above.
+  //
+  // The WAI-ARIA button pattern splits the two keys: Enter fires on keydown,
+  // Space on keyup. Space still has to be prevented on keydown, or the page
+  // scrolls while the key is held — but firing the click there too means a
+  // user can't back out by moving focus away before releasing.
+  const isSpace = (e) => e.key === " " || e.key === "Spacebar";
+
   document.addEventListener("keydown", function (e) {
-    if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
     const t = e.target;
-    if (!t || FOCUSABLE_TAGS.has(t.tagName)) return;
-    if (t.getAttribute("role") !== "button") return;
+    if (!isRetrofitted(t) || FOCUSABLE_TAGS.has(t.tagName)) return;
+    if (e.key === "Enter") { e.preventDefault(); t.click(); return; }
+    if (isSpace(e)) e.preventDefault();   // suppress scroll; activate on keyup
+  });
+
+  document.addEventListener("keyup", function (e) {
+    const t = e.target;
+    if (!isSpace(e) || !isRetrofitted(t) || FOCUSABLE_TAGS.has(t.tagName)) return;
     e.preventDefault();
     t.click();
   });

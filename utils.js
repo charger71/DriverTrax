@@ -35,19 +35,34 @@
     if (!valid(d)) return "";
     return d.toLocaleString(undefined, { timeZone: TZ });
   };
-  // Prefer the rich timeAgo from announcements.js when loaded; fall back to dateTime.
-  const timeAgo = (v, prefix) => {
-    if (typeof window.dtTimeAgo === "function") return window.dtTimeAgo(v, prefix);
-    return dateTime(v);
+  // Twitter-style relative time. Lives here rather than in announcements.js:
+  // that had the shared utility delegating to a feature module via a
+  // window.dtTimeAgo global, so relative times silently degraded to full
+  // timestamps whenever that module hadn't loaded.
+  //
+  // Default prefix is "" ("5 min ago"). Announcements passes "Posted " for
+  // its own phrasing.
+  const timeAgo = (v, prefix = "") => {
+    const d = toDate(v);
+    if (!valid(d)) return "";
+    const s = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (s < 5)  return "Just now";
+    if (s < 60) return `${prefix}${s} sec ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${prefix}${m} min${m === 1 ? "" : "s"} ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${prefix}${h} hour${h === 1 ? "" : "s"} ago`;
+    const dd = Math.floor(h / 24);
+    if (dd < 7) return `${prefix}${dd} day${dd === 1 ? "" : "s"} ago`;
+    return `${prefix}${d.toLocaleDateString(undefined, { timeZone: TZ })}`;
   };
-  // Records show "5 min ago" when announcements.js is loaded, EST clock time otherwise.
-  const timeAgoOrClock = (v) => {
-    if (typeof window.dtTimeAgo === "function") return window.dtTimeAgo(v);
-    return time(v);
-  };
+  const timeAgoOrClock = (v) => timeAgo(v);
 
   window.DT_ESC = esc;
   window.DT_FORMAT = { time, date, dateTime, timeAgo, timeAgoOrClock, TZ };
+  // Long-standing shorthand used across app.js and backlot.js. Now a plain
+  // alias rather than the thing DT_FORMAT depended on.
+  window.dtTimeAgo = timeAgo;
 
   // Toast: delegate to showToast() defined in app.js once it's loaded.
   // Safe to call before app.js initializes — calls are dropped silently.
@@ -78,11 +93,84 @@
 
   // Set a modal status message (matches the .users-modal-msg className pattern
   // already used in users/auth modals).
+  // Resolve a CSS custom property to its current value. Canvas, Leaflet
+  // divIcons and inline SVG fills can't use var(), so anything drawn that way
+  // has to read the token instead of hardcoding a hex — otherwise it keeps
+  // the dark-theme color on a light page. Cached per theme, since a render
+  // pass can ask for the same token once per marker.
+  let _cssVarCache = {};
+  let _cssVarTheme = null;
   window.DT_UI = {
     setMessage(el, text, kind) {
       if (!el) return;
       el.textContent = text || "";
       el.className = "users-modal-msg" + (kind ? " " + kind : "");
+    },
+    // Promise<boolean> confirmation on the .users-modal pattern. Native
+    // confirm() blocks the main thread, can't be styled, looks wrong in a
+    // standalone PWA, and is suppressed in some WKWebView configurations —
+    // which matters here, because a suppressed confirm() returns false and
+    // the action silently does nothing.
+    //
+    //   if (!await DT_UI.confirm({ title: "Delete user?",
+    //                              body: "This cannot be undone.",
+    //                              okLabel: "Delete", danger: true })) return;
+    confirm({ title = "Are you sure?", body = "", okLabel = "Confirm", cancelLabel = "Cancel", danger = false } = {}) {
+      const modal  = document.getElementById("dtConfirmModal");
+      const titleEl = document.getElementById("dtConfirmTitle");
+      const bodyEl  = document.getElementById("dtConfirmBody");
+      const okBtn   = document.getElementById("dtConfirmOk");
+      const cancelBtn = document.getElementById("dtConfirmCancel");
+      const closeBtn  = document.getElementById("dtConfirmClose");
+      // No markup (a page that doesn't include the dialog) — refuse rather
+      // than silently proceeding with a destructive action.
+      if (!modal || !titleEl || !bodyEl || !okBtn || !cancelBtn || !closeBtn) {
+        console.warn("[DT_UI] #dtConfirmModal missing; treating confirm as declined");
+        return Promise.resolve(false);
+      }
+
+      titleEl.textContent = title;
+      bodyEl.textContent = body;
+      okBtn.textContent = okLabel;
+      cancelBtn.textContent = cancelLabel;
+      okBtn.className = "btn " + (danger ? "btn-destructive" : "btn-primary");
+
+      return new Promise((resolve) => {
+        const finish = (result) => {
+          modal.classList.remove("show");
+          modal.setAttribute("aria-hidden", "true");
+          okBtn.removeEventListener("click", onOk);
+          cancelBtn.removeEventListener("click", onCancel);
+          closeBtn.removeEventListener("click", onCancel);
+          modal.removeEventListener("click", onBackdrop);
+          document.removeEventListener("keydown", onKey);
+          resolve(result);
+        };
+        const onOk = () => finish(true);
+        const onCancel = () => finish(false);
+        const onBackdrop = (e) => { if (e.target === modal) finish(false); };
+        const onKey = (e) => { if (e.key === "Escape") finish(false); };
+
+        okBtn.addEventListener("click", onOk);
+        cancelBtn.addEventListener("click", onCancel);
+        closeBtn.addEventListener("click", onCancel);
+        modal.addEventListener("click", onBackdrop);
+        document.addEventListener("keydown", onKey);
+
+        modal.classList.add("show");
+        modal.setAttribute("aria-hidden", "false");
+        okBtn.focus();
+      });
+    },
+    cssVar(name, fallback = "#888888") {
+      const theme = document.documentElement.getAttribute("data-theme") || "";
+      if (theme !== _cssVarTheme) { _cssVarCache = {}; _cssVarTheme = theme; }
+      if (name in _cssVarCache) return _cssVarCache[name];
+      let value = "";
+      try {
+        value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      } catch (_) { /* no computed style (tests, detached doc) */ }
+      return (_cssVarCache[name] = value || fallback);
     }
   };
 

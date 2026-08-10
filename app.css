@@ -120,6 +120,14 @@
     --chart-4:           #3dcfcf;  /* teal */
     --chart-5:           #b76eff;  /* purple */
 
+    /* Damage-mark hues. Drawn into SVG fills from damage.js, which can't use
+       var(), so JS resolves these through DT_UI.cssVar(). */
+    --damage-dent:       #ef9f27;
+    --damage-scratch:    #d85a30;
+    --damage-chip:       #7f77dd;
+    --damage-crack:      #e24b4a;
+    --damage-missing:    #5f5e5a;
+
     /* Layout primitives */
     --radius:            10px;
     --space:             var(--space-4);
@@ -237,6 +245,12 @@
     --chart-3:           #b45309;
     --chart-4:           #0e7490;
     --chart-5:           #6d28d9;
+
+    --damage-dent:       #b26a00;
+    --damage-scratch:    #a93c17;
+    --damage-chip:       #4f46b8;
+    --damage-crack:      #b32b2a;
+    --damage-missing:    #4a4945;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: var(--bg); color: var(--text); max-width: 600px; margin: 0 auto; padding-top: env(safe-area-inset-top, 0px); line-height: var(--leading-base); }
@@ -3118,6 +3132,76 @@
     opacity: 0.7;
   }
   .app-version-footer--mismatch { color: var(--warn); opacity: 1; }
+
+  /* PWA shell chrome — the "Update available" toast and the Install pill.
+     Distinct from .toast (which is transient and text-only): these carry an
+     action button and the update one is persistent. They were previously
+     built from inline style.cssText in pwa.js with hardcoded hex, so they
+     stayed dark-themed on a light page. */
+  .pwa-toast-host {
+    position: fixed;
+    left: 0; right: 0;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--space-4));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    z-index: 99998;
+    pointer-events: none;
+  }
+  .pwa-toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    max-width: 92vw;
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--space-6);
+    background: var(--card);
+    color: var(--text);
+    font-size: var(--font-sm);
+    font-weight: var(--weight-medium);
+    box-shadow: var(--shadow-lg);
+  }
+  .pwa-toast-action {
+    border: 0;
+    border-radius: var(--space-6);
+    padding: var(--space-2) var(--space-3);
+    background: var(--accent);
+    color: var(--text-on-accent);
+    font-size: var(--font-xs);
+    font-weight: var(--weight-bold);
+    cursor: pointer;
+  }
+  .pwa-toast-action:hover { background: var(--accent-strong); }
+  .pwa-toast-close {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: var(--font-lg);
+    line-height: 1;
+    padding: 0 var(--space-1);
+    cursor: pointer;
+  }
+  .pwa-toast-close:hover { color: var(--text); }
+
+  .pwa-install-pill {
+    position: fixed;
+    right: var(--space-4);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
+    z-index: 99997;
+    border: 0;
+    border-radius: var(--space-6);
+    padding: var(--space-3) var(--space-4);
+    background: var(--accent);
+    color: var(--text-on-accent);
+    font-size: var(--font-sm);
+    font-weight: var(--weight-bold);
+    box-shadow: var(--shadow-lg);
+    cursor: pointer;
+  }
+  .pwa-install-pill:hover { background: var(--accent-strong); }
 
   /* Read-only damage viewer — cloned silhouette rendered without ID.
      Mirrors #entryDamageSvg's shell styling but keyed by class so both

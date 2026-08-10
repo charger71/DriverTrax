@@ -18,22 +18,10 @@
   const esc = window.DT_ESC;
   const profileCache = new Map(); // user_id -> display_name
 
-  // Twitter-style relative time. Pass prefix:"" for "5 min ago", or omit
-  // (defaults to "Posted ") for the alert phrasing "Posted 5 min ago".
-  function timeAgo(input, prefix = "Posted ") {
-    const d = (input instanceof Date) ? input : new Date(input);
-    if (!d || isNaN(d.getTime())) return "";
-    const s = Math.floor((Date.now() - d.getTime()) / 1000);
-    if (s < 5)  return "Just now";
-    if (s < 60) return `${prefix}${s} sec ago`;
-    const m = Math.floor(s / 60);
-    if (m < 60) return `${prefix}${m} min${m === 1 ? "" : "s"} ago`;
-    const h = Math.floor(m / 60);
-    if (h < 24) return `${prefix}${h} hour${h === 1 ? "" : "s"} ago`;
-    const dd = Math.floor(h / 24);
-    if (dd < 7) return `${prefix}${dd} day${dd === 1 ? "" : "s"} ago`;
-    return `${prefix}${d.toLocaleDateString()}`;
-  }
+  // The implementation lives in utils.js (DT_FORMAT.timeAgo). This wrapper
+  // just supplies the alert phrasing — "Posted 5 min ago" — which is the
+  // default everywhere in this module and for DT_ANN.timeAgo consumers.
+  const timeAgo = (input, prefix = "Posted ") => DT_FORMAT.timeAgo(input, prefix);
 
   async function fetchProfileNames(ids) {
     const missing = [...new Set(ids)].filter(id => id && !profileCache.has(id));
@@ -139,7 +127,7 @@
         }).join("");
         listEl.querySelectorAll(".ann-reply-del").forEach(b => {
           b.addEventListener("click", async () => {
-            if (!confirm("Delete this reply?")) return;
+            if (!await DT_UI.confirm({ title: "Delete this reply?", okLabel: "Delete", danger: true })) return;
             await sb.from("announcement_replies").delete().eq("id", b.dataset.id);
           });
         });
@@ -418,6 +406,4 @@
     renderTimes,
     reload: loadAnnouncementsForDriver
   };
-  // Convenience shorthand for code outside this module
-  window.dtTimeAgo = (input, prefix) => timeAgo(input, prefix === undefined ? "" : prefix);
 })();

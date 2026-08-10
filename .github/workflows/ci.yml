@@ -1,0 +1,62 @@
+name: CI
+
+# DriverTrax is a no-build, plain HTML/CSS/JS PWA, so CI stays dependency-free:
+# it parses every JavaScript file with Node's built-in syntax checker and guards
+# against a couple of easy-to-miss mistakes. No npm install, no bundler.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Static checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: JavaScript syntax check
+        run: |
+          shopt -s nullglob
+          files=(*.js)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No .js files found" >&2
+            exit 1
+          fi
+          echo "Checking ${#files[@]} JavaScript file(s) with 'node --check'..."
+          status=0
+          for f in "${files[@]}"; do
+            if node --check "$f"; then
+              echo "  ok   $f"
+            else
+              echo "  FAIL $f"
+              status=1
+            fi
+          done
+          exit $status
+
+      - name: No merge-conflict markers
+        run: |
+          if grep -rEn '^(<{7}|={7}|>{7})( |$)' \
+               --include='*.js' --include='*.css' --include='*.html' --include='*.sql' .; then
+            echo "Merge-conflict markers found (see above)." >&2
+            exit 1
+          fi
+          echo "No merge-conflict markers."
+
+      - name: Service worker cache version is set
+        run: |
+          if ! grep -qE 'const CACHE_VERSION = "[^"]+";' sw.js; then
+            echo "sw.js is missing a CACHE_VERSION constant." >&2
+            exit 1
+          fi
+          grep -E 'const CACHE_VERSION = "[^"]+";' sw.js

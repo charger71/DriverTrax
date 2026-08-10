@@ -16,6 +16,7 @@ const STATUS_LABELS = {
   "MR": "MR (RECALL)",
   "OM": "OM (OVER MILES)",
   "TI": "TI(TIRE)",
+  "LP": "LP (LICENSE PLATE)",
   "CHECK_IN": "CHECK IN",
   "CHECK_OUT": "CHECK OUT",
   "HOLD": "HOLD",
@@ -43,7 +44,7 @@ const DT_OPTIONS = {
   // Selectable by any role on the NEW ENTRY form + notes form.
   STATUS_BASE: [
     "CLEAN","DIRTY","REWASH","BODY","PM","MK","MR","OM",
-    "AUDIT FAIL","WI/DELETE","GLASS","TI","OTHER"
+    "AUDIT FAIL","WI/DELETE","GLASS","TI","LP","OTHER"
   ],
   // Selectable only by CXR / manager / admin.
   STATUS_PRIVILEGED: ["CHECK_OUT","HOLD","DNR"],
@@ -4315,7 +4316,7 @@ function statusMapColor(status) {
     "CLEAN":"00a651","DIRTY":"e85550",
     "REWASH":"3dcfcf","TOP OFF FLUID":"6aadff",
     "PM":"4d9bff","MK":"f0b04a","MR":"e85550","OM":"b87be8",
-    "AUDIT FAIL":"e85550","TI":"e85550","GLASS":"4d9bff",
+    "AUDIT FAIL":"e85550","TI":"e85550","LP":"b76eff","GLASS":"4d9bff",
     "OTHER":"888888","WI/DELETE":"e85550"
   };
   return map[status] || "888888";
@@ -4440,7 +4441,7 @@ function renderDashboard() {
     <div class="stat-card"><div class="stat-num stat-num--danger">${noTagCount}</div><div class="stat-label">Bad Tag</div></div>
   `;
 
-  const statuses = ["CLEAN","DIRTY","REWASH","BODY","PM","MK","MR","OM","AUDIT FAIL","WI/DELETE","GLASS","TI","OTHER"];
+  const statuses = ["CLEAN","DIRTY","REWASH","BODY","PM","MK","MR","OM","AUDIT FAIL","WI/DELETE","GLASS","TI","LP","OTHER"];
   const sc = {};
   statuses.forEach(s => sc[s] = 0);
   all.forEach(r => { sc[r.status] !== undefined ? sc[r.status]++ : sc["OTHER"]++; });

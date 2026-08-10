@@ -244,9 +244,81 @@ function getRecords() {
   }
   return _recordsCache;
 }
+// Smallest on-device history we'll fall back to before giving up entirely.
+const RECORDS_MIN_KEEP = 50;
+
+function isQuotaExceeded(err) {
+  if (!err) return false;
+  return err.name === "QuotaExceededError"
+      || err.name === "NS_ERROR_DOM_QUOTA_REACHED"   // Firefox
+      || err.code === 22 || err.code === 1014;
+}
+
+// Pick the `keep` records worth holding on disk. Records arrive newest-first
+// (saveRecord unshifts; pullAndMerge sorts descending), so the plain answer is
+// slice(0, keep). The wrinkle: a record with an unflushed cloud write must
+// outrank a newer one, because dropping it loses it from this device *and*
+// Supabase — everything else is still recoverable from the cloud.
+//
+// Pending status is a priority, not a veto. If the pending set alone overruns
+// the budget we still have to shed something, so sorting (rather than
+// exempting) lets it degrade instead of failing to write at all.
+function trimForStorage(r, keep) {
+  let pending;
+  try { pending = new Set(Object.keys(window.DT_SYNC?.queue?.() || {})); }
+  catch (_) { pending = new Set(); }
+  if (!pending.size) return r.slice(0, keep);
+  const idx = new Map(r.map((rec, i) => [rec, i]));
+  const rank = (rec) => (pending.has(String(rec.id)) ? 0 : 1);
+  return r.slice()
+    // Pending first, then newest-first; ties break on original position.
+    .sort((a, b) => rank(a) - rank(b) || idx.get(a) - idx.get(b))
+    .slice(0, keep)
+    // Restore the newest-first order the rest of the app relies on.
+    .sort((a, b) => idx.get(a) - idx.get(b));
+}
+
 function setRecords(r) {
   _recordsCache = r;
-  localStorage.setItem(DB_KEY, JSON.stringify(r));
+  try {
+    localStorage.setItem(DB_KEY, JSON.stringify(r));
+    return;
+  } catch (err) {
+    if (!isQuotaExceeded(err)) {
+      console.error("[Records] save failed", err);
+      showToast("Couldn't save to this device's storage", "error");
+      return;
+    }
+  }
+
+  // Storage is full. Shed the oldest entries from the on-disk copy only.
+  // _recordsCache — and the array sync.js diffs to build its queue — still
+  // hold every record, so trimming here never reads as a delete and never
+  // removes anything from Supabase. It only reduces what this device keeps
+  // for offline use.
+  let keep = Math.floor(r.length / 2);
+  while (keep >= RECORDS_MIN_KEEP) {
+    try {
+      const trimmed = trimForStorage(r, keep);
+      localStorage.setItem(DB_KEY, JSON.stringify(trimmed));
+      console.warn(`[Records] storage full — kept ${trimmed.length} of ${r.length} on this device`);
+      showToast("Storage full — older entries are cloud-only now", "warn");
+      return;
+    } catch (err) {
+      if (!isQuotaExceeded(err)) {
+        console.error("[Records] save failed while trimming", err);
+        showToast("Couldn't save to this device's storage", "error");
+        return;
+      }
+      keep = Math.floor(keep / 2);
+    }
+  }
+
+  // Even the floor didn't fit — something else is filling the origin's quota.
+  // The entry is still in memory and still queued for the cloud, so say so
+  // rather than implying the work was lost.
+  console.error("[Records] storage full; trimming to", RECORDS_MIN_KEEP, "did not help");
+  showToast("Device storage is full — new entries save to the cloud only", "error");
 }
 function invalidateRecordsCache() { _recordsCache = null; }
 function statusClass(s) { return "status-" + s.replace(/[^A-Z]/g,""); }

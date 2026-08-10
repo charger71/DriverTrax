@@ -6,9 +6,9 @@ the time of review.
 
 **26 findings — 6 critical, 7 high, 9 medium, 4 low.**
 
-> **Status.** F01 and F02 are fixed on this branch, along with the queue-precedence
-> guard from F03 (F01's one-time repair is inert without it — see F03). Everything
-> else is open.
+> **Status.** F01–F06 are fixed — the whole critical tier. F03 came along with F01
+> (the one-time repair is inert without it) and F09 fell out of F01's rewrite.
+> Everything from F07 down is open.
 
 ---
 
@@ -74,17 +74,20 @@ specifically **field updates** that vanish.
 + let prevJson = snapshotOf(getRecords());
 
   window.setRecords = function (records) {
-    origSetRecords(records);
+-   origSetRecords(records);
 +   const nextJson = snapshotOf(records);
 +   for (const id in nextJson) {
 +     if (prevJson[id] !== nextJson[id]) queue[id] = "upsert";
 +   }
 +   for (const id in prevJson) if (!(id in nextJson)) queue[id] = "delete";
 +   prevJson = nextJson;
++   origSetRecords(records);
     persistQueue();
     scheduleFlush();
   };
 ```
+
+(The write moved *below* the diff while fixing F06 — see there for why.)
 
 This also fixes F09 for free. Add a one-time repair on next deploy that re-queues
 every local record as `upsert`, otherwise edits already lost stay lost.
@@ -118,7 +121,7 @@ minor at any time with no review — pinning to an exact version (as Leaflet and
 already do) removes both the availability and supply-chain surprise.
 
 *Fixed.* All three added; `CACHE_VERSION` bumped to
-`drivertrax-v9.24-offline-shell-supabase`. Two related install-path defects surfaced
+`drivertrax-v9.24-offline-shell-supabase` (v9.25 after the F04–F06 work). Two related install-path defects surfaced
 while fixing it and were fixed too, since either one keeps the precache from
 actually landing:
 
@@ -163,7 +166,7 @@ without it. Note the effect was worse than "the edit doesn't upload": because
 `pullAndMerge` runs on every `dt-auth-change`, the stale cloud copy was written back
 over the local record at boot, so the user watched their edit disappear.
 
-### F04 — Edits made during a flush are silently dropped · CRITICAL
+### F04 — Edits made during a flush are silently dropped · CRITICAL · FIXED
 
 `sync.js:183-192`
 
@@ -174,7 +177,12 @@ Save a record while a flush is in flight and its 600 ms timer fires into a no-op
 **Fix.** Set a `flushAgain` flag on the early return and re-run in the `finally`
 block.
 
-### F05 — A failed flush never retries on its own · CRITICAL
+*Fixed.* `flushAgain` is set on the early return and handed off after the flush
+settles. On a *failed* flush it's cleared instead — whatever arrived mid-flush is
+still queued and rides along with the F05 retry, so we don't fire an immediate
+second attempt into a backend that just errored.
+
+### F05 — A failed flush never retries on its own · CRITICAL · FIXED
 
 `sync.js:280-285`
 
@@ -185,7 +193,7 @@ the user happens to save something else.
 **Fix.** Capped exponential backoff — `setTimeout(flushQueue, delay)` doubling from
 ~5 s to a ~5 min ceiling, reset on success.
 
-### F06 — No localStorage quota handling, no record retention cap · CRITICAL
+### F06 — No localStorage quota handling, no record retention cap · CRITICAL · FIXED
 
 `app.js:247-250` — and 26 other `setItem` calls
 
@@ -201,6 +209,27 @@ fires, and the driver has no idea. Worst for the heaviest users.
 than the retention window needed locally (they're already in Supabase), retry once,
 and surface `DT_TOAST.show("Storage full — older entries archived", "warn")` if it
 still fails. A hard cap of the most recent N records prevents reaching that point.
+
+*Fixed*, reactively rather than with a fixed cap — record size varies far too much
+(vinData present or not, damage marks, photo arrays) for a count to mean anything.
+On `QuotaExceededError` the on-disk copy is halved until it fits, down to a floor of
+50, and the user gets a warn toast.
+
+Two things the implementation has to get right:
+
+- **Trimming must not read as a delete.** Only the on-disk copy shrinks;
+  `_recordsCache` and the array sync.js diffs still hold every record, so no delete
+  is ever queued and nothing is removed from Supabase. Verified explicitly.
+- **A record with an unflushed cloud write outranks a newer one**, because dropping
+  it loses it from the device *and* the cloud, while everything else is recoverable.
+  Pending status is a sort priority rather than an exemption: when the pending set
+  alone overruns the budget we still have to shed something, and an absolute
+  exemption meant nothing could be written at all.
+
+That second point forced a change in `sync.js`: the wrapper now diffs and queues
+*before* calling through to the write, not after. The diff never needed the write to
+have happened, and doing it first is what lets the trim see an up-to-date queue —
+otherwise it reads one call stale and can drop a record whose write is still pending.
 
 ---
 
@@ -246,7 +275,7 @@ user id is unchanged. Drop the standalone `getSession()` call and let
 `INITIAL_SESSION` do the boot. Separately, cap the `pullAndMerge` select with a date
 window.
 
-### F09 — Change detection serializes every record on every write · MEDIUM
+### F09 — Change detection serializes every record on every write · MEDIUM · FIXED
 
 `sync.js:167-172`
 
@@ -524,12 +553,12 @@ session in `sync.js` and `sw.js`.
    re-queue.
 2. ~~**F02 — precache supabase-js.**~~ **Done.** Restores offline boot for the whole
    app, plus two install-path defects that would have kept the precache from landing.
-3. **F04, F05 — the rest of sync.js.** ~~F03~~ went in with F01. Still open: flush
-   handoff and retry backoff. Same file, same context.
-4. **F06 — quota guard.** Prevents the failure mode that hits heaviest users first
-   and gives no signal when it does.
+3. ~~**F04, F05 — the rest of sync.js.**~~ **Done.** Flush handoff and retry backoff;
+   F03 went in with F01.
+4. ~~**F06 — quota guard.**~~ **Done.** Prevented the failure mode that hits heaviest
+   users first and gave no signal when it did.
 5. **F21 — toast aria-live.** Two attributes; fixes the app's entire feedback layer
-   for assistive tech.
+   for assistive tech. **Next.**
 6. **F07, F08 — query volume.** Real battery and cost savings on always-on devices.
 7. **F10 — lifecycle helper.** Do it once in `utils.js`, then adopt in five modules.
    Also defuses the F07 compounding path.

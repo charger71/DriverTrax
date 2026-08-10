@@ -35,6 +35,8 @@
   let queueReady = false;
   let flushing = false;
   let pendingFlush = null;
+  let pendingFlushDelay = Infinity; // delay the pending timer was armed with
+  let flushAgain = false;           // a write arrived while a flush was running
   // Previous state, keyed by id, stored as JSON *strings* rather than object
   // references. getRecords() hands out the live cached array, so callers that
   // edit a record in place (saveEdit, the deferred vinData backfill,
@@ -197,7 +199,12 @@
   // ----- diff & queue on every local write -----
   const origSetRecords = window.setRecords;
   window.setRecords = function (records) {
-    origSetRecords(records);
+    // Diff and queue *before* writing, not after. The diff only compares the
+    // incoming array against the previous snapshot, so it doesn't need the
+    // write to have happened — and when storage is full, origSetRecords sheds
+    // old records from disk and consults this queue to decide which ones it
+    // must keep. Writing first would show it a queue one call out of date and
+    // let it drop a record whose cloud write is still pending.
     const nextJson = snapshotOf(records);
     // Inserts + updates
     for (const id in nextJson) {
@@ -208,21 +215,44 @@
       if (!(id in nextJson)) queue[id] = "delete";
     }
     prevJson = nextJson;
+    origSetRecords(records);
     persistQueue();
     scheduleFlush();
   };
 
   // ----- flush queue to Supabase -----
-  function scheduleFlush() {
-    if (pendingFlush) return;
+  // Normal coalescing delay for a burst of local writes.
+  const FLUSH_DEBOUNCE_MS = 600;
+  // Retry backoff after a failed flush: doubles from 5s to a 5min ceiling and
+  // resets on the next success. Without this the badge promised a retry that
+  // nothing ever scheduled — a transient error parked the queue until the user
+  // happened to save something else, which on an idle phone can be hours.
+  const RETRY_MIN_MS = 5000;
+  const RETRY_MAX_MS = 5 * 60 * 1000;
+  let retryDelay = RETRY_MIN_MS;
+
+  function scheduleFlush(delay = FLUSH_DEBOUNCE_MS) {
+    // A retry already in flight shouldn't be pushed back by routine local
+    // writes, but an explicit shorter request (online event, manual flush)
+    // should win over a long backoff.
+    if (pendingFlush) {
+      if (delay >= pendingFlushDelay) return;
+      clearTimeout(pendingFlush);
+    }
+    pendingFlushDelay = delay;
     pendingFlush = setTimeout(() => {
       pendingFlush = null;
+      pendingFlushDelay = Infinity;
       flushQueue();
-    }, 600);
+    }, delay);
   }
 
   async function flushQueue() {
-    if (flushing || !queueReady) return;
+    // A write that lands mid-flush used to hit this early return and never
+    // reschedule, so its queue entry sat until some unrelated trigger came
+    // along. Remember that we were asked and hand off in the finally block.
+    if (flushing) { flushAgain = true; return; }
+    if (!queueReady) return;
     const user = DT_AUTH.getUser();
     if (!user) return;
     // Detailers don't write records directly — the detailer flow inserts
@@ -234,6 +264,7 @@
     if (ids.length === 0) { updateBadge("ok"); return; }
 
     flushing = true;
+    let ok = false;
     updateBadge("syncing");
 
     const recordsById = indexBy(getRecords());
@@ -310,11 +341,24 @@
       }
       persistQueue();
       updateBadge("ok");
+      ok = true;
     } catch (err) {
       console.warn("[Sync] flush failed", err);
       updateBadge("err");
     } finally {
       flushing = false;
+    }
+
+    if (ok) {
+      retryDelay = RETRY_MIN_MS;
+      // Pick up anything queued while we were awaiting Supabase.
+      if (flushAgain) { flushAgain = false; scheduleFlush(0); }
+    } else {
+      // Whatever arrived mid-flush is still queued and rides along with the
+      // retry, so don't also fire an immediate attempt into a failing backend.
+      flushAgain = false;
+      scheduleFlush(retryDelay);
+      retryDelay = Math.min(retryDelay * 2, RETRY_MAX_MS);
     }
   }
 
@@ -413,7 +457,13 @@
     if (e.detail.user && shouldRunSync()) pullAndMerge();
     else clearBadge();
   });
-  window.addEventListener("online",  () => { if (shouldRunSync()) scheduleFlush(); });
+  // Connectivity just came back, so whatever the backoff had grown to was
+  // measuring the old (offline) world — start over from the short delay.
+  window.addEventListener("online",  () => {
+    if (!shouldRunSync()) return;
+    retryDelay = RETRY_MIN_MS;
+    scheduleFlush(0);
+  });
   window.addEventListener("offline", () => { if (shouldRunSync()) updateBadge(); });
   navigator.serviceWorker?.addEventListener?.("message", (e) => {
     if (e.data?.type === "dt-sync-flush" && shouldRunSync()) scheduleFlush();

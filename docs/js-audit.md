@@ -400,6 +400,17 @@ timezone, not ET, so the range shifts again for anyone whose phone isn't Eastern
 boundaries with an explicit ET offset. `app.js:3667 isoDate()` has the same UTC-slice
 issue in week/month bucketing.
 
+> **Correction.** The headline here — "an evening-shift manager opens Records on
+> tomorrow's empty day" — was wrong. `fetchFleetRecords()` is reached only through
+> `onRecordsDateChange()`, which nothing calls; the Records tab was rewritten into a
+> search-driven VIN lookup that doesn't use the date filter at all. That code path never
+> ran, so no manager ever hit the bug. The `estDayRangeISO` half of this fix is therefore
+> unreachable too, and stays only for whoever re-wires that view.
+>
+> The rest of F14 is real and live: `isoDate()` was UTC while `estDateStr()` was ET, so
+> `renderDashboard`'s "today" count — which every driver sees — was wrong for anything
+> logged after 8pm ET. That comparison runs on every dashboard render.
+
 *Fixed.* New `etOffsetAt()` / `estInstantISO()` / `estDayRangeISO()` helpers resolve ET
 wall-clock times to UTC instants. Getting the offset right takes two passes — DST flips
 at 2am local, so an offset sampled at midday is wrong for midnight on the two
@@ -733,8 +744,11 @@ behind when authoring moved to `elearning-admin.js`.
 
 It also surfaced **7 dead top-level functions in `app.js`** that `vars: "local"` won't
 catch — `destroyMap`, `onRecordsDateChange`, `getShiftGroups`, `toggleTire`,
-`vinKeypadCopy`, `renderPaginationControls`, `testWeatherAlert`. Each appears exactly once
-repo-wide (its own declaration). Left in place: a couple look like deliberate debug
-affordances, and deleting load-bearing-sounding functions without being able to run the app
-is not a safe unilateral call.
+`vinKeypadCopy`, `renderPaginationControls`, `testWeatherAlert`. All since deleted (90
+lines).
+
+Checking them first was worth it: `renderRecords()` had been rewritten at some point into a
+search-driven VIN lookup — no date filter, no pagination, no fleet array — and these were
+the remains of the list view it replaced. That also means `fetchFleetRecords()` has no
+reachable caller (see F14).
 

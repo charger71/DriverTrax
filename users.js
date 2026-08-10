@@ -136,7 +136,14 @@
     const u = users.find(x => x.id === id);
     if (!u) { DT_TOAST.missing("user"); return; }
     const verb = action === "disable" ? "Disable" : "Enable";
-    if (!confirm(`${verb} ${u.display_name || u.email || "this user"}? ${action === "disable" ? "They will not be able to sign in." : "They will be able to sign in again."}`)) return;
+    if (!await DT_UI.confirm({
+      title: `${verb} ${u.display_name || u.email || "this user"}?`,
+      body: action === "disable"
+        ? "They will not be able to sign in."
+        : "They will be able to sign in again.",
+      okLabel: verb,
+      danger: action === "disable"
+    })) return;
     const { error } = await adminCall(action, { user_id: id });
     if (error) { DT_TOAST.show(`${verb} failed: ${error}`, "error"); return; }
     load();
@@ -147,8 +154,12 @@
     const u = users.find(x => x.id === id);
     if (!u) { DT_TOAST.missing("user"); return; }
     const label = u.display_name || u.email || "this user";
-    if (!confirm(`Permanently delete ${label}? This cannot be undone.`)) return;
-    if (!confirm(`Really delete ${label}? Type-once confirmation.`)) return;
+    if (!await DT_UI.confirm({
+      title: `Permanently delete ${label}?`,
+      body: "This removes the account and cannot be undone.",
+      okLabel: "Delete permanently",
+      danger: true
+    })) return;
     setMsg("Deleting…");
     const { error } = await adminCall("delete", { user_id: id });
     if (error) { setMsg("Delete failed: " + error, "err"); return; }
@@ -160,7 +171,7 @@
   async function onApprove(id) {
     const u = users.find(x => x.id === id);
     if (!u) { DT_TOAST.missing("user"); return; }
-    if (!confirm(`Approve ${u.display_name || u.email || "this user"}?`)) return;
+    if (!await DT_UI.confirm({ title: `Approve ${u.display_name || u.email || "this user"}?`, okLabel: "Approve" })) return;
     const { error } = await sb.from("profiles").update({ approved: true }).eq("id", id);
     if (error) { DT_TOAST.show("Approve failed: " + error.message, "error"); return; }
     load();
@@ -245,7 +256,7 @@
   async function onResetPassword() {
     const email = $("usersForm").elements.email.value.trim();
     if (!email) { setMsg("No email on this profile.", "err"); return; }
-    if (!confirm(`Send a password-reset email to ${email}?`)) return;
+    if (!await DT_UI.confirm({ title: "Send a password-reset email?", body: email, okLabel: "Send" })) return;
     setMsg("Sending reset link…");
     const { error } = await sb.auth.resetPasswordForEmail(email, {
       redirectTo: location.origin + location.pathname

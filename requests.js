@@ -95,7 +95,7 @@
           const wantedResponse = b.dataset.response;
           const checkedShifts = [...card.querySelectorAll('input[name="shifts"]:checked')].map(i => i.value);
           if (wantedResponse === "yes" && checkedShifts.length === 0) {
-            alert("Pick at least one shift you can cover.");
+            DT_TOAST.show("Pick at least one shift you can cover", "warn");
             return;
           }
           await respond(reqId, wantedResponse, wantedResponse === "yes" ? checkedShifts : []);
@@ -112,7 +112,7 @@
       .from("extra_driver_responses")
       .upsert({ request_id: requestId, driver_id: user.id, response, shifts: shifts || [] },
               { onConflict: "request_id,driver_id" });
-    if (error) { alert(error.message); return; }
+    if (error) { DT_TOAST.show(error.message || "Couldn't record your response", "error"); return; }
   }
 
   const life = DT_LIFECYCLE.create({

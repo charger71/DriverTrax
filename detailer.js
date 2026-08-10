@@ -74,12 +74,12 @@
     // SCAN BARCODE button on the landing screen.
     $("detailScanBtn")?.addEventListener("click", () => {
       if (typeof openScanner === "function") openScanner();
-      else alert("Scanner not loaded.");
+      else DT_TOAST.show("Scanner not loaded", "error");
     });
     $("detailScanManualBtn")?.addEventListener("click", (e) => {
       e.preventDefault();
       if (typeof openVinKeypad === "function") openVinKeypad("serial");
-      else alert("VIN keypad not loaded.");
+      else DT_TOAST.show("VIN keypad not loaded", "error");
     });
     // VIN scanned anywhere in the app (including the shared panel-entry scan
     // button) — load it into the detailer flow.
@@ -388,7 +388,11 @@
   async function onCompleteJob() {
     if (!currentJob || !currentJob.id) { await saveJob(); }
     const open = currentJob.todo.filter(t => !t.done).length;
-    if (open > 0 && !confirm(`${open} item${open === 1 ? "" : "s"} still open. Complete anyway?`)) return;
+    if (open > 0 && !await DT_UI.confirm({
+      title: `${open} item${open === 1 ? "" : "s"} still open`,
+      body: "Complete the job anyway?",
+      okLabel: "Complete"
+    })) return;
 
     if (typeof showToast === "function") showToast("Capturing location…", "info");
     const loc = await DT_MEDIA.captureGps();
@@ -397,7 +401,7 @@
     const jobUpdate = { completed_at: completedAt };
     if (loc) { jobUpdate.completion_lat = loc.lat; jobUpdate.completion_lng = loc.lng; }
     const { error } = await sb.from("detail_jobs").update(jobUpdate).eq("id", currentJob.id);
-    if (error) { alert(error.message); return; }
+    if (error) { DT_TOAST.show(error.message || "Couldn't save the job", "error"); return; }
 
     // Stamp the linked tracking record with the completion GPS + CLEAN status
     // so the VIN's current_status flips to CLEAN as soon as the detailer
@@ -527,7 +531,7 @@
       .select("id,serial_id,condition_tags,todo_state,completed_at,record_id")
       .eq("id", jobId)
       .maybeSingle();
-    if (error || !data) { alert(error?.message || "Job not found"); return; }
+    if (error || !data) { DT_TOAST.show(error?.message || "Job not found", "error"); return; }
     currentVin = data.serial_id;
     currentJob = {
       id: data.id,

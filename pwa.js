@@ -67,33 +67,39 @@
   }
 
   // ---------- Toast helpers ----------
+  // Styling lives in app.css (.pwa-toast-host / .pwa-toast / .pwa-install-pill)
+  // so these follow the theme like everything else.
   function ensureToastHost() {
     let host = document.getElementById("dtPwaToasts");
     if (host) return host;
     host = document.createElement("div");
     host.id = "dtPwaToasts";
-    host.style.cssText = "position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom, 0px) + 16px);display:flex;flex-direction:column;align-items:center;gap:8px;z-index:99998;pointer-events:none;";
+    host.className = "pwa-toast-host";
     document.body.appendChild(host);
     return host;
   }
   function showToast({ text, actionLabel, onAction, persistent = false }) {
     const host = ensureToastHost();
     const t = document.createElement("div");
-    t.style.cssText = "pointer-events:auto;background:#13161a;color:#fff;border:1px solid #2a2f36;border-radius:999px;padding:10px 14px;display:flex;align-items:center;gap:12px;box-shadow:0 6px 24px rgba(0,0,0,0.35);font:500 14px/1.2 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:92vw;";
+    t.className = "pwa-toast";
+    t.setAttribute("role", "status");
+    t.setAttribute("aria-live", "polite");
     const msg = document.createElement("span");
     msg.textContent = text;
     t.appendChild(msg);
     if (actionLabel) {
       const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "pwa-toast-action";
       btn.textContent = actionLabel;
-      btn.style.cssText = "background:#4a9eff;color:#fff;border:0;border-radius:999px;padding:6px 12px;font:600 13px/1 system-ui,-apple-system,sans-serif;cursor:pointer;";
       btn.addEventListener("click", () => { try { onAction && onAction(); } finally { t.remove(); } });
       t.appendChild(btn);
     }
     const close = document.createElement("button");
+    close.type = "button";
+    close.className = "pwa-toast-close";
     close.textContent = "×";
     close.setAttribute("aria-label", "Dismiss");
-    close.style.cssText = "background:transparent;color:#9aa3ad;border:0;font-size:20px;line-height:1;cursor:pointer;padding:0 4px;";
     close.addEventListener("click", () => t.remove());
     t.appendChild(close);
     host.appendChild(t);
@@ -265,8 +271,9 @@
     pill = document.createElement("button");
     pill.id = "dtInstallPill";
     pill.type = "button";
+    pill.className = "pwa-install-pill";
+    pill.hidden = true;
     pill.textContent = "Install DriverTrax";
-    pill.style.cssText = "position:fixed;right:14px;bottom:calc(env(safe-area-inset-bottom, 0px) + 72px);z-index:99997;background:#4a9eff;color:#fff;border:0;border-radius:999px;padding:10px 16px;font:600 14px/1 system-ui,-apple-system,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,0.35);cursor:pointer;display:none;";
     pill.addEventListener("click", async () => {
       if (!deferredInstallEvent) return;
       pill.disabled = true;
@@ -287,7 +294,7 @@
     if (localStorage.getItem("drivertrax_install_dismissed") === "1") return;
     deferredInstallEvent = e;
     const pill = ensureInstallPill();
-    pill.style.display = "inline-flex";
+    pill.hidden = false;
   });
 
   window.addEventListener("appinstalled", () => {

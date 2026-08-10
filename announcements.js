@@ -127,7 +127,7 @@
         }).join("");
         listEl.querySelectorAll(".ann-reply-del").forEach(b => {
           b.addEventListener("click", async () => {
-            if (!confirm("Delete this reply?")) return;
+            if (!await DT_UI.confirm({ title: "Delete this reply?", okLabel: "Delete", danger: true })) return;
             await sb.from("announcement_replies").delete().eq("id", b.dataset.id);
           });
         });

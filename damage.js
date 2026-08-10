@@ -23,7 +23,9 @@
   const $ = (id) => document.getElementById(id);
   const esc = window.DT_ESC;
 
-  const COLORS = { dent:"#EF9F27", scratch:"#D85A30", chip:"#7F77DD", crack:"#E24B4A", missing:"#5F5E5A" };
+  // Resolved from app.css tokens at draw time. SVG fills can't use var(), so
+  // these used to be fixed hex and stayed dark-themed on a light page.
+  const damageColor = (type) => DT_UI.cssVar(`--damage-${type}`, DT_UI.cssVar("--muted"));
   const LABELS = { dent:"Dent", scratch:"Scratch", chip:"Chip", crack:"Crack", missing:"Missing" };
 
   const TIRE_POSITIONS = ["FL", "FR", "RL", "RR"];
@@ -81,12 +83,12 @@
     const halo = document.createElementNS(SVG_NS, "circle");
     halo.setAttribute("cx", m.x); halo.setAttribute("cy", m.y);
     halo.setAttribute("r", 9);
-    halo.setAttribute("fill", COLORS[m.damage_type] || "#888");
+    halo.setAttribute("fill", damageColor(m.damage_type));
     halo.setAttribute("opacity", "0.25");
     const dot = document.createElementNS(SVG_NS, "circle");
     dot.setAttribute("cx", m.x); dot.setAttribute("cy", m.y);
     dot.setAttribute("r", 6);
-    dot.setAttribute("fill", COLORS[m.damage_type] || "#888");
+    dot.setAttribute("fill", damageColor(m.damage_type));
     dot.setAttribute("stroke", "var(--panel)");
     dot.setAttribute("stroke-width", "1");
     const text = document.createElementNS(SVG_NS, "text");
@@ -127,7 +129,7 @@
     marks.forEach((m, idx) => {
       const row = document.createElement("div");
       row.className = "damage-log-row";
-      const color = COLORS[m.damage_type] || "#888";
+      const color = damageColor(m.damage_type);
       const label = LABELS[m.damage_type] || m.damage_type;
       const location = PANEL_NAMES[m.panel_id] || m.panel_id;
       row.innerHTML = `
@@ -410,7 +412,7 @@
     }
 
     const logRows = rawMarks.map((m, idx) => {
-      const color = COLORS[m.damage_type] || "#888";
+      const color = damageColor(m.damage_type);
       const label = LABELS[m.damage_type] || m.damage_type;
       const location = PANEL_NAMES[m.panel_id] || m.panel_id;
       return `<div class="damage-log-row damage-log-row--ro">
@@ -473,7 +475,9 @@
     loadFromRecord,
     renderDamageViewer,
     renderTireViewer,
-    COLORS, LABELS, PANEL_NAMES,
+    // COLORS used to be exported here; nothing consumed it, and the palette
+    // now lives in app.css (--damage-*). Use DT_UI.cssVar if you need one.
+    LABELS, PANEL_NAMES,
     TIRE_POSITIONS, TIRE_POS_LABEL, TIRE_CONDITION_LABEL
   };
 })();

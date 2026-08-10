@@ -93,11 +93,84 @@
 
   // Set a modal status message (matches the .users-modal-msg className pattern
   // already used in users/auth modals).
+  // Resolve a CSS custom property to its current value. Canvas, Leaflet
+  // divIcons and inline SVG fills can't use var(), so anything drawn that way
+  // has to read the token instead of hardcoding a hex — otherwise it keeps
+  // the dark-theme color on a light page. Cached per theme, since a render
+  // pass can ask for the same token once per marker.
+  let _cssVarCache = {};
+  let _cssVarTheme = null;
   window.DT_UI = {
     setMessage(el, text, kind) {
       if (!el) return;
       el.textContent = text || "";
       el.className = "users-modal-msg" + (kind ? " " + kind : "");
+    },
+    // Promise<boolean> confirmation on the .users-modal pattern. Native
+    // confirm() blocks the main thread, can't be styled, looks wrong in a
+    // standalone PWA, and is suppressed in some WKWebView configurations —
+    // which matters here, because a suppressed confirm() returns false and
+    // the action silently does nothing.
+    //
+    //   if (!await DT_UI.confirm({ title: "Delete user?",
+    //                              body: "This cannot be undone.",
+    //                              okLabel: "Delete", danger: true })) return;
+    confirm({ title = "Are you sure?", body = "", okLabel = "Confirm", cancelLabel = "Cancel", danger = false } = {}) {
+      const modal  = document.getElementById("dtConfirmModal");
+      const titleEl = document.getElementById("dtConfirmTitle");
+      const bodyEl  = document.getElementById("dtConfirmBody");
+      const okBtn   = document.getElementById("dtConfirmOk");
+      const cancelBtn = document.getElementById("dtConfirmCancel");
+      const closeBtn  = document.getElementById("dtConfirmClose");
+      // No markup (a page that doesn't include the dialog) — refuse rather
+      // than silently proceeding with a destructive action.
+      if (!modal || !titleEl || !bodyEl || !okBtn || !cancelBtn || !closeBtn) {
+        console.warn("[DT_UI] #dtConfirmModal missing; treating confirm as declined");
+        return Promise.resolve(false);
+      }
+
+      titleEl.textContent = title;
+      bodyEl.textContent = body;
+      okBtn.textContent = okLabel;
+      cancelBtn.textContent = cancelLabel;
+      okBtn.className = "btn " + (danger ? "btn-destructive" : "btn-primary");
+
+      return new Promise((resolve) => {
+        const finish = (result) => {
+          modal.classList.remove("show");
+          modal.setAttribute("aria-hidden", "true");
+          okBtn.removeEventListener("click", onOk);
+          cancelBtn.removeEventListener("click", onCancel);
+          closeBtn.removeEventListener("click", onCancel);
+          modal.removeEventListener("click", onBackdrop);
+          document.removeEventListener("keydown", onKey);
+          resolve(result);
+        };
+        const onOk = () => finish(true);
+        const onCancel = () => finish(false);
+        const onBackdrop = (e) => { if (e.target === modal) finish(false); };
+        const onKey = (e) => { if (e.key === "Escape") finish(false); };
+
+        okBtn.addEventListener("click", onOk);
+        cancelBtn.addEventListener("click", onCancel);
+        closeBtn.addEventListener("click", onCancel);
+        modal.addEventListener("click", onBackdrop);
+        document.addEventListener("keydown", onKey);
+
+        modal.classList.add("show");
+        modal.setAttribute("aria-hidden", "false");
+        okBtn.focus();
+      });
+    },
+    cssVar(name, fallback = "#888888") {
+      const theme = document.documentElement.getAttribute("data-theme") || "";
+      if (theme !== _cssVarTheme) { _cssVarCache = {}; _cssVarTheme = theme; }
+      if (name in _cssVarCache) return _cssVarCache[name];
+      let value = "";
+      try {
+        value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      } catch (_) { /* no computed style (tests, detached doc) */ }
+      return (_cssVarCache[name] = value || fallback);
     }
   };
 

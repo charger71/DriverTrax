@@ -6,10 +6,10 @@ the time of review.
 
 **26 findings — 6 critical, 7 high, 9 medium, 4 low.**
 
-> **Status.** The critical and high tiers are clear: **F01–F15 and F21 are fixed**
-> (F03 came along with F01, F09 fell out of F01's rewrite, and F11–F13 came with
-> F10). Open: **F16–F20** and **F22–F26** — conventions, the a11y retrofit's rough
-> edges, and hygiene.
+> **Status.** All 26 are fixed. One item inside F19 is deliberately out of scope
+> (`elearning-admin.js`'s native dialogs — that page doesn't load `utils.js`), and one
+> inside F08 is a product call left open (capping the `pullAndMerge` select). Both
+> noted in place.
 
 ---
 
@@ -436,7 +436,7 @@ Each of these is something the conventions file explicitly rules out.
 
 *Fixed*, both parts.
 
-### F16 — Three HTML escapers where the rules call for one · MEDIUM
+### F16 — Three HTML escapers where the rules call for one · MEDIUM · FIXED
 
 `utils.js:14` (`DT_ESC`) · `app.js:336` (`sanitizeText`) · `app.js:2103`
 (`escapeHtml`)
@@ -453,7 +453,11 @@ maintenance one.
 `sanitizeText` to `DT_ESC`. Keep `sanitizeSerial`/`Notes`/`Name` — those do real
 input constraint, not escaping.
 
-### F17 — pwa.js ships a second toast system with hardcoded colors · MEDIUM
+*Fixed.* `escapeHtml` deleted and its two callers moved to `DT_ESC`; `sanitizeText` is
+now an alias for `DT_ESC` rather than a fourth implementation. The name stays — it reads
+well at its ~40 entry-form call sites, and one alias can't drift from its target.
+
+### F17 — pwa.js ships a second toast system with hardcoded colors · MEDIUM · FIXED
 
 `pwa.js:70-102, 262-282`
 
@@ -466,7 +470,12 @@ dark pill on a warm-sand page.
 **Fix.** Move the styling into `app.css` as `.pwa-toast` / `.pwa-install-pill` using
 existing tokens, and add both to `components.html`.
 
-### F18 — Status and damage palettes live in JS and don't follow the theme · MEDIUM
+*Fixed.* `.pwa-toast-host` / `.pwa-toast` / `.pwa-toast-action` / `.pwa-toast-close` /
+`.pwa-install-pill` now live in `app.css` on the existing tokens, and both are documented
+in `components.html`. pwa.js has no `style.cssText` and no hex left. The toast also picked
+up `role="status"` while it was being rewritten.
+
+### F18 — Status and damage palettes live in JS and don't follow the theme · MEDIUM · FIXED
 
 `app.js:4355-4364` (`statusMapColor`), `4235`, `2794`, `2355-2357` · `damage.js:26`
 
@@ -480,7 +489,19 @@ and read them once per render with
 `getComputedStyle(document.documentElement).getPropertyValue("--map-status-clean")`.
 Leaflet `divIcon` markup and inline SVG fills both accept the resolved string.
 
-### F19 — `alert()` and `confirm()` in eight modules · MEDIUM
+*Fixed.* `DT_UI.cssVar(name, fallback)` resolves a token at draw time (cached per theme,
+since a render pass asks for the same token once per marker). `statusMapColor` keeps only
+the status → token *mapping*; the colors are `--accent` / `--danger` / `--warn` / `--info`
+/ `--chart-4` / `--chart-5`, which already existed and already matched the hardcoded hex.
+Damage marks got their own `--damage-*` tokens in both themes. Parking-section swatches,
+the GPS circle marker and the two fuel-badge SVGs are converted too.
+
+The `theme-color` meta tag now reads `--header-bg` instead of repeating its hex — that
+value was written out in three places (`app.css`, the pre-paint script in `index.html`,
+and `applyTheme`), which is exactly how they drift. The dead `DT_DAMAGE.COLORS` export,
+which nothing consumed, is gone.
+
+### F19 — `alert()` and `confirm()` in eight modules · MEDIUM · FIXED
 
 `app.js` (14) · `backlot.js` (13) · `users.js` (5) · `detailer.js` (5) ·
 `elearning-admin.js` (3) · `announcements.js` (2) · `requests.js` (2) ·
@@ -496,7 +517,23 @@ two `confirm()` calls back to back for a delete.
 on the `.users-modal` pattern. `notifications.js`'s `#alertModal` is a working
 precedent.
 
-### F20 — `timeAgo` lives in a feature module and utils delegates back to it · LOW
+*Fixed* for the driver app — zero `alert()` or `confirm()` left in `app.js`, `users.js`,
+`detailer.js`, `announcements.js`, `requests.js` or `locations.js`.
+
+`alert()` became `DT_TOAST.show(msg, type)`. `confirm()` became
+`await DT_UI.confirm({ title, body, okLabel, danger })` — a promise-returning dialog on
+the `.users-modal` pattern, with backdrop and Escape both resolving false, and a refusal
+(returns false) if its markup is missing rather than letting a destructive action through.
+Converting meant making a handful of handlers `async`; none of their callers use a return
+value. `users.js`'s stacked double-confirm on delete collapsed into one properly labelled
+destructive modal.
+
+**Not converted: `elearning-admin.js` (3 sites).** `elearning-admin.html` loads only its
+own script — no `utils.js`, so `DT_UI` and `DT_TOAST` don't exist on that page. Converting
+would mean pulling the shared utilities and the modal markup into a separate admin surface,
+which is a bigger change than this finding covers.
+
+### F20 — `timeAgo` lives in a feature module and utils delegates back to it · LOW · FIXED
 
 `utils.js:36-44` · `announcements.js:23-36, 354`
 
@@ -511,6 +548,11 @@ alias.
 ---
 
 ## Accessibility
+
+*Fixed.* The implementation moved to `utils.js`; `announcements.js` keeps a one-line
+wrapper supplying its "Posted …" phrasing, which is what `DT_ANN.timeAgo` consumers
+(backlot) render with. `window.dtTimeAgo` is now a plain alias rather than the thing
+`DT_FORMAT` depended on.
 
 ### F21 — Toasts are invisible to screen readers · HIGH · FIXED
 
@@ -534,7 +576,7 @@ politeness implied by `role="status"`. `showToast` also clears the text once the
 has slid off, so an identical repeat message still reads as a change and is announced
 again.
 
-### F22 — Two rough edges in the a11y retrofit · LOW
+### F22 — Two rough edges in the a11y retrofit · LOW · FIXED
 
 `a11y.js:34-53`
 
@@ -548,7 +590,13 @@ again.
 
 ## Hygiene
 
-### F23 — ~190 lines of Scanbot beta with an expired license key · LOW
+*Fixed.* A `KEEP_OWN_ROLE` set (`TR`, `TD`, `TH`, `LI`, `SUMMARY`, `DETAILS`) gets keyboard
+focus and activation without having its role overwritten, so table rows stay rows. Space
+now activates on `keyup` per the WAI-ARIA button pattern — still prevented on `keydown` to
+suppress page scroll, so a user can move focus away to abort. Activation is also keyed to
+the elements a11y.js actually retrofitted rather than anything carrying `role="button"`.
+
+### F23 — ~190 lines of Scanbot beta with an expired license key · LOW · FIXED
 
 `app.js:5290-5470`
 
@@ -560,7 +608,11 @@ never rejects on error.
 **Fix.** Delete it; it's in git history if the evaluation resumes, and a fresh trial
 key would be needed anyway.
 
-### F24 — Unguarded DOM access in the init tail · LOW
+*Fixed.* 178 lines removed from `app.js` plus the commented-out button in `index.html`.
+Nothing references Scanbot anywhere in the repo now. It's in git history if the evaluation
+ever resumes — and a fresh licence would be needed regardless.
+
+### F24 — Unguarded DOM access in the init tail · LOW · FIXED
 
 `app.js:6408-6415`
 
@@ -571,7 +623,11 @@ scheduler, `applyProfile()`, `renderTodayEntries()`.
 
 **Fix.** Add `?.` and wrap the block in try/catch.
 
-### F25 — The CLAUDE.md file-layout list no longer matches the repo · LOW
+*Fixed.* The tail is now a sequence of `initStep(label, fn)` calls, each caught and logged
+independently, with `?.` on the DOM lookups. One missing element can no longer cancel the
+weather check, the backup scheduler, `applyProfile()` and the first render.
+
+### F25 — The CLAUDE.md file-layout list no longer matches the repo · LOW · FIXED
 
 `CLAUDE.md` — "File layout" · `app.js:40`
 
@@ -583,7 +639,12 @@ an app.js comment), and omits eight modules that do: `damage.js`, `drop-offs.js`
 Outsized cost: CLAUDE.md is the first thing read before any change, so an inaccurate
 map propagates into every future edit.
 
-### F26 — CI checks syntax but not correctness · LOW
+*Fixed.* The file-layout list now matches the repo: `vehicle-notes.js` is gone (from
+`CLAUDE.md` and from the stale `app.js` comment), and the missing modules plus the new CI
+files are listed. Two entries were added to "Things to avoid" — native dialogs (F19) and
+hardcoded colors in canvas/SVG/divIcon code (F18).
+
+### F26 — CI checks syntax but not correctness · LOW · FIXED
 
 `.github/workflows/ci.yml`
 
@@ -650,3 +711,30 @@ Worth stating so none of it gets "cleaned up" by accident.
 - **The comments explain why.** The iOS HEIC fallback chain in `utils.js`, the
   `cache: "reload"` rationale in `sw.js`, the `controllerchange` note in `pwa.js` —
   these stop the next person re-introducing a fixed bug.
+
+*Fixed.* Two steps added, and the app stays no-build — nothing compiles or bundles, and no
+`node_modules` lands in the repo.
+
+- **ESLint** via `npx --yes eslint@9.39.5`, pinned so a new release can't turn the build
+  red on its own. `eslint.config.mjs` has no imports on purpose: CI installs nothing into
+  the repo, so a bare `@eslint/js` import would resolve against the repo and fail. Since
+  there are no modules, the config's `appGlobals` list doubles as the app's documented
+  cross-file surface — reach for something not on it and `no-undef` fails.
+  `no-unused-vars` runs with `vars: "local"`, because app.js's top-level functions are the
+  HTML surface and ESLint can't see inline `onclick`; every feature module is an IIFE, so
+  its internals are still fully checked.
+- **`scripts/check-precache.mjs`** asserts every asset `index.html` loads is in
+  `APP_SHELL`. Plain Node, no dependencies. Verified against a negative case — it catches
+  exactly the F02 regression.
+
+The linter found real dead code on its first run, all since removed: unused locals in
+`app.js`, `backlot.js`, `drop-offs.js` and `users.js`, and a cluster in `elearning.js` left
+behind when authoring moved to `elearning-admin.js`.
+
+It also surfaced **7 dead top-level functions in `app.js`** that `vars: "local"` won't
+catch — `destroyMap`, `onRecordsDateChange`, `getShiftGroups`, `toggleTire`,
+`vinKeypadCopy`, `renderPaginationControls`, `testWeatherAlert`. Each appears exactly once
+repo-wide (its own declaration). Left in place: a couple look like deliberate debug
+affordances, and deleting load-bearing-sounding functions without being able to run the app
+is not a safe unilateral call.
+

@@ -14,7 +14,6 @@
   const $ = (id) => document.getElementById(id);
   const ROW_ID = "global";
   let realtimeChan = null;
-  let wired = false;
 
   function canEdit() {
     return !!(DT_AUTH.isCxr?.() || DT_AUTH.isManager?.() || DT_AUTH.isAdmin?.());
@@ -137,15 +136,22 @@
     form.elements.returns_count.focus();
   }
 
-  function start() {
-    if (!wired) {
-      wired = true;
+  // subscribe() used to sit behind the same one-time `wired` flag as the
+  // listener registration, so once teardown() dropped the channel a later
+  // start() skipped straight past it and the banner quietly stopped tracking
+  // live changes until a reload. Splitting the two keeps it resubscribing.
+  const life = DT_LIFECYCLE.create({
+    wire() {
       const form = $("fcForm");
       if (form) form.addEventListener("submit", onSubmit);
       $("fcClearBtn")?.addEventListener("click", clearFields);
-      loadRow();
-      subscribe();
-    }
+    },
+    start() { loadRow(); subscribe(); },
+    stop() { teardown(); }
+  });
+
+  function start() {
+    life.start();
     applyEditorVisibility();
     // Re-prefill the form if the user just gained edit rights.
     if (canEdit()) loadRow();
@@ -153,7 +159,7 @@
 
   document.addEventListener("dt-auth-change", (e) => {
     if (e.detail?.user) start();
-    else teardown();
+    else life.stop();
   });
   if (DT_AUTH.getUser()) start();
 

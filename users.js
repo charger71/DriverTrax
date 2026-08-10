@@ -17,7 +17,6 @@
 
   let users = [];
   let realtimeChan = null;
-  let started = false;
   let mode = "edit"; // "edit" | "create"
   let sortBy = "name"; // "name" | "role"
 
@@ -312,47 +311,44 @@
     setTimeout(hideModal, 500);
   }
 
-  function start() {
-    if (started) return;
-    started = true;
-
-    $("usersInviteBtn")?.addEventListener("click", openInvite);
-    $("usersModalClose")?.addEventListener("click", hideModal);
-    $("usersModalCancel")?.addEventListener("click", hideModal);
-    $("usersModal")?.addEventListener("click", (e) => { if (e.target.id === "usersModal") hideModal(); });
-    $("usersSearch")?.addEventListener("input", render);
-    $("usersForm")?.addEventListener("submit", onSubmit);
-    $("usersForm")?.elements.role.addEventListener("change", (e) => setFormForRole(e.target.value));
-    $("usersResetBtn")?.addEventListener("click", onResetPassword);
-    $("usersDeleteBtn")?.addEventListener("click", onDelete);
-    document.querySelectorAll(".users-sort .bl-seg-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        sortBy = btn.dataset.sort;
-        document.querySelectorAll(".users-sort .bl-seg-btn").forEach(b => {
-          const active = b === btn;
-          b.classList.toggle("is-active", active);
-          b.setAttribute("aria-pressed", active ? "true" : "false");
+  const life = DT_LIFECYCLE.create({
+    // Registered once ever — see DT_LIFECYCLE in utils.js.
+    wire() {
+      $("usersInviteBtn")?.addEventListener("click", openInvite);
+      $("usersModalClose")?.addEventListener("click", hideModal);
+      $("usersModalCancel")?.addEventListener("click", hideModal);
+      $("usersModal")?.addEventListener("click", (e) => { if (e.target.id === "usersModal") hideModal(); });
+      $("usersSearch")?.addEventListener("input", render);
+      $("usersForm")?.addEventListener("submit", onSubmit);
+      $("usersForm")?.elements.role.addEventListener("change", (e) => setFormForRole(e.target.value));
+      $("usersResetBtn")?.addEventListener("click", onResetPassword);
+      $("usersDeleteBtn")?.addEventListener("click", onDelete);
+      document.querySelectorAll(".users-sort .bl-seg-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          sortBy = btn.dataset.sort;
+          document.querySelectorAll(".users-sort .bl-seg-btn").forEach(b => {
+            const active = b === btn;
+            b.classList.toggle("is-active", active);
+            b.setAttribute("aria-pressed", active ? "true" : "false");
+          });
+          render();
         });
-        render();
       });
-    });
-
-    load();
-    realtimeChan = sb.channel("users-feed")
-      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, load)
-      .subscribe();
-  }
-
-  function stop() {
-    started = false;
-    if (realtimeChan) { sb.removeChannel(realtimeChan); realtimeChan = null; }
-  }
+    },
+    start() {
+      load();
+      realtimeChan = sb.channel("users-feed")
+        .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, load)
+        .subscribe();
+    },
+    stop() {
+      if (realtimeChan) { sb.removeChannel(realtimeChan); realtimeChan = null; }
+    }
+  });
 
   const canSeeUsers = () => DT_AUTH.isManager() || (DT_AUTH.isCxr && DT_AUTH.isCxr());
-  document.addEventListener("dt-auth-change", () => {
-    if (canSeeUsers()) start(); else stop();
-  });
-  if (canSeeUsers()) start();
+  document.addEventListener("dt-auth-change", () => life.set(canSeeUsers()));
+  life.set(canSeeUsers());
 
   window.DT_USERS = { reload: load };
 })();

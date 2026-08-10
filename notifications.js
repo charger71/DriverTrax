@@ -237,11 +237,21 @@
   async function start() {
     if (started) return;
     if (!isTargetRole()) return;
+    // Claim the flag before the first await. Two dt-auth-change events
+    // arriving while ensurePermission() was pending both cleared the guard
+    // above, and the second subscribe() overwrote `chan` — orphaning the
+    // first channel, which kept delivering and produced duplicate alerts.
+    started = true;
     // Ask for native permission on platforms that support it, but don't
     // gate the Realtime subscription on the result — the #alertModal
     // fallback in show() handles WKWebView / denied-permission cases.
-    await ensurePermission();
-    started = true;
+    try {
+      await ensurePermission();
+    } catch (err) {
+      started = false;
+      console.warn("[Notifications] permission check failed", err);
+      return;
+    }
     ensurePushSubscription();
     chan = sb.channel("dt-notifications")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "announcements" },

@@ -22,15 +22,18 @@
     if (!valid(d)) return "";
     return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: TZ });
   };
+  // date/dateTime pin the same TZ as time(). Without it a phone set outside
+  // Eastern rendered the ET clock time next to its own local date, so a 10pm
+  // entry showed yesterday's date beside tonight's time.
   const date = (v) => {
     const d = toDate(v);
     if (!valid(d)) return "";
-    return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+    return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", timeZone: TZ });
   };
   const dateTime = (v) => {
     const d = toDate(v);
     if (!valid(d)) return "";
-    return d.toLocaleString();
+    return d.toLocaleString(undefined, { timeZone: TZ });
   };
   // Prefer the rich timeAgo from announcements.js when loaded; fall back to dateTime.
   const timeAgo = (v, prefix) => {
@@ -80,6 +83,46 @@
       if (!el) return;
       el.textContent = text || "";
       el.className = "users-modal-msg" + (kind ? " " + kind : "");
+    }
+  };
+
+  // Feature-module lifecycle. Modules start and stop as roles change, and
+  // dt-auth-change fires more often than it looks — a failed profile fetch
+  // (normal on lot wifi) reads as "no profile", stopping every module, and
+  // the next success starts them again. The old single `started` flag was
+  // reset by stop(), so each cycle re-ran start() and registered a second
+  // copy of every DOM and document listener.
+  //
+  // Splitting the two states fixes that: `wire` runs exactly once ever, for
+  // listener registration; `start`/`stop` may run any number of times, for
+  // subscriptions and data loads.
+  //
+  //   const life = DT_LIFECYCLE.create({
+  //     wire()  { $("btn").addEventListener("click", onClick); },
+  //     start() { load(); chan = sb.channel(...).subscribe(); },
+  //     stop()  { if (chan) { sb.removeChannel(chan); chan = null; } }
+  //   });
+  //   document.addEventListener("dt-auth-change", () => life.set(shouldRun()));
+  //   life.set(shouldRun());
+  window.DT_LIFECYCLE = {
+    create({ wire, start, stop }) {
+      let wired = false;
+      let running = false;
+      return {
+        set(on) { on ? this.start() : this.stop(); },
+        start() {
+          if (!wired) { wired = true; if (wire) wire(); }
+          if (running) return;
+          running = true;
+          if (start) start();
+        },
+        stop() {
+          if (!running) return;
+          running = false;
+          if (stop) stop();
+        },
+        get running() { return running; }
+      };
     }
   };
 

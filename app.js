@@ -351,10 +351,14 @@ async function fetchFleetRecords() {
       // Defaults to today when both filters are empty.
       const fromEl = document.getElementById("fDateFrom");
       const toEl   = document.getElementById("fDateTo");
-      const fromStr = fromEl?.value || new Date().toISOString().slice(0, 10);
+      // Both the default day and the window boundaries resolve in ET. A UTC
+      // default rolled over at 8pm ET, so an evening-shift manager opening
+      // Records saw tomorrow's (empty) day; boundaries built with a bare
+      // new Date("YYYY-MM-DDT00:00:00") parsed in the phone's timezone rather
+      // than the lot's.
+      const fromStr = fromEl?.value || estDateStr(Date.now());
       const toStr   = toEl?.value   || fromStr;
-      const sinceISO = new Date(fromStr + "T00:00:00").toISOString();
-      const untilISO = new Date(toStr   + "T23:59:59.999").toISOString();
+      const { sinceISO, untilISO } = estDayRangeISO(fromStr, toStr);
 
       const { data, error } = await DT_AUTH.client
         .from("records")
@@ -462,10 +466,29 @@ function showToast(msg, type = "success") {
     toast.id = "toast";
     document.body.appendChild(toast);
   }
+  // Toasts are this app's main confirmation channel — "record saved", "sync
+  // failed", "VIN refreshed" — so they have to reach screen readers. #toast
+  // carries these attributes statically in index.html (a live region must
+  // already exist before its text changes to be announced reliably); this
+  // covers the fallback element created above.
+  toast.setAttribute("role", "status");
+  toast.setAttribute("aria-atomic", "true");
+  // Errors interrupt whatever's being read; everything else waits for a pause.
+  // Only aria-live is toggled — swapping `role` on a live region mid-flight
+  // confuses some screen readers, and an explicit aria-live outranks the
+  // politeness implied by role="status" anyway.
+  toast.setAttribute("aria-live", type === "error" ? "assertive" : "polite");
+
   toast.textContent = msg;
   toast.className = "toast toast-" + type + " toast-show";
   clearTimeout(toast._timer);
-  toast._timer = setTimeout(() => { toast.className = "toast"; }, 2800);
+  clearTimeout(toast._clearTimer);
+  toast._timer = setTimeout(() => {
+    toast.className = "toast";
+    // Drop the text once it has slid off (0.3s transition) so that an
+    // identical next message still reads as a change and gets announced.
+    toast._clearTimer = setTimeout(() => { toast.textContent = ""; }, 400);
+  }, 2800);
   // Couple haptic feedback to toast type so callers don't have to remember
   if (type === "warn") haptic("warn");
   else if (type === "error") haptic("error");
@@ -476,9 +499,47 @@ function showToast(msg, type = "success") {
 // ============================
 const SHIFT_GAP_MS = 6 * 60 * 60 * 1000;
 
-function estDateStr(ts) {
-  const d = new Date(new Date(ts).toLocaleString("en-US", {timeZone:"America/New_York"}));
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+// The lot runs on Eastern time, so every "which day is this" decision has to
+// resolve in ET regardless of how the phone is set. en-CA formats as
+// YYYY-MM-DD directly, which avoids the old round-trip through
+// new Date(d.toLocaleString(...)) — that relied on the localized string
+// happening to be re-parseable.
+const _estDateFmt = new Intl.DateTimeFormat("en-CA", {
+  timeZone: DT_FORMAT.TZ, year: "numeric", month: "2-digit", day: "2-digit"
+});
+function estDateStr(ts) { return _estDateFmt.format(new Date(ts)); }
+
+// ET's UTC offset at a given instant: -05:00 in winter, -04:00 in summer.
+function etOffsetAt(date) {
+  try {
+    const part = new Intl.DateTimeFormat("en-US", { timeZone: DT_FORMAT.TZ, timeZoneName: "longOffset" })
+      .formatToParts(date).find(p => p.type === "timeZoneName");
+    const m = part && /GMT([+-]\d{2}:\d{2})/.exec(part.value);
+    if (m) return m[1];
+  } catch (_) { /* longOffset unsupported — fall through */ }
+  const et  = new Date(date.toLocaleString("en-US", { timeZone: DT_FORMAT.TZ }));
+  const utc = new Date(date.toLocaleString("en-US", { timeZone: "UTC" }));
+  const mins = Math.round((et - utc) / 60000);
+  const abs = Math.abs(mins);
+  return `${mins < 0 ? "-" : "+"}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
+}
+
+// The UTC instant for a wall-clock time on an ET calendar day. Resolving the
+// offset takes two passes: DST flips at 2am local, so an offset sampled at
+// midday can be wrong for midnight on the two switchover days. Guess from
+// midday (never ambiguous), then re-sample at the instant that guess produced.
+function estInstantISO(dateStr, clock) {
+  const guess = etOffsetAt(new Date(`${dateStr}T12:00:00Z`));
+  const once  = new Date(`${dateStr}T${clock}${guess}`);
+  return new Date(`${dateStr}T${clock}${etOffsetAt(once)}`).toISOString();
+}
+
+// Inclusive ET day window for a from/to pair of YYYY-MM-DD strings.
+function estDayRangeISO(fromStr, toStr) {
+  return {
+    sinceISO: estInstantISO(fromStr, "00:00:00.000"),
+    untilISO: estInstantISO(toStr,   "23:59:59.999")
+  };
 }
 
 // Cached shift grouping - invalidated when records change
@@ -3736,7 +3797,10 @@ function startOfWeek(d) {
   return dt;
 }
 
-function isoDate(d) { return d.toISOString().slice(0,10); }
+// ET, not UTC. renderDashboard compares isoDate(r.timestamp) against
+// estDateStr(now) for its "today" count — a UTC slice made those two disagree
+// for everything logged between 8pm ET and midnight.
+function isoDate(d) { return estDateStr(d instanceof Date ? d.getTime() : d); }
 
 // ============================
 // PERSONAL RECORDS
@@ -6081,7 +6145,8 @@ function openPinSetupModal() {
 function getDriverFileName(base, ext) {
   const profile = getProfile();
   const name = profile.name ? "_" + profile.name.replace(/\s+/g,"_") : "";
-  const date = new Date().toISOString().slice(0,10);
+  // ET so an export made late in the evening is filed under the shift's day.
+  const date = estDateStr(Date.now());
   return `${base}${name}_${date}.${ext}`;
 }
 // ============================

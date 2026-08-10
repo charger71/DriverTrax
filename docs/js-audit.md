@@ -6,9 +6,10 @@ the time of review.
 
 **26 findings — 6 critical, 7 high, 9 medium, 4 low.**
 
-> **Status.** F01–F06 are fixed — the whole critical tier. F03 came along with F01
-> (the one-time repair is inert without it) and F09 fell out of F01's rewrite.
-> Everything from F07 down is open.
+> **Status.** The critical and high tiers are clear: **F01–F15 and F21 are fixed**
+> (F03 came along with F01, F09 fell out of F01's rewrite, and F11–F13 came with
+> F10). Open: **F16–F20** and **F22–F26** — conventions, the a11y retrofit's rough
+> edges, and hygiene.
 
 ---
 
@@ -121,7 +122,7 @@ minor at any time with no review — pinning to an exact version (as Leaflet and
 already do) removes both the availability and supply-chain surprise.
 
 *Fixed.* All three added; `CACHE_VERSION` bumped to
-`drivertrax-v9.24-offline-shell-supabase` (v9.25 after the F04–F06 work). Two related install-path defects surfaced
+`drivertrax-v9.24-offline-shell-supabase` (v9.26 after the F07–F21 work). Two related install-path defects surfaced
 while fixing it and were fixed too, since either one keeps the precache from
 actually landing:
 
@@ -235,7 +236,7 @@ otherwise it reads one call stale and can drop a record whose write is still pen
 
 ## Load and cost
 
-### F07 — Announcements fires up to 100 queries a minute, forever · HIGH
+### F07 — Announcements fires up to 100 queries a minute, forever · HIGH · FIXED
 
 `announcements.js:46-54, 234-257, 306-307, 330-341`
 
@@ -256,7 +257,16 @@ anywhere triggers `refreshVisible()`, re-running the same fan-out for all cards.
   visible cards, grouped client-side — 100 queries becomes 2.
 - Scope `refreshVisible()` to the announcement the realtime payload names.
 
-### F08 — Every token refresh triggers a profile fetch and a full record pull · HIGH
+*Fixed*, all three. `fetchThreads(ids)` batches with `.in()` and `paintThread()` does
+the DOM work, so a panel costs two queries plus one name lookup instead of two per
+card — measured at **3 round-trips for 50 announcements, down from 100+**. The minute
+tick now calls `renderTimes()`, which rewrites `.ann-time[data-ts]` text and touches
+no network. Realtime repaints only the card named in the payload.
+
+`DT_ANN.renderThreads` exposes the batched path; the Backlot view still loops over
+`renderThread` and could adopt it (out of scope here per CLAUDE.md).
+
+### F08 — Every token refresh triggers a profile fetch and a full record pull · HIGH · FIXED
 
 `auth.js:311-371, 374-385` · `sync.js:367-370`
 
@@ -275,6 +285,15 @@ user id is unchanged. Drop the standalone `getSession()` call and let
 `INITIAL_SESSION` do the boot. Separately, cap the `pullAndMerge` select with a date
 window.
 
+*Fixed*, except the select cap. `applySession` now takes the event name and returns
+early on a token refresh for the same user, after updating credentials in place.
+`getSession()` is demoted to a 1.5s fallback that only fires if no auth event arrived
+— dropping it outright would stake the whole boot on `INITIAL_SESSION`.
+
+The `pullAndMerge` date cap is **deliberately left open**: it would mean older records
+never come back after a reinstall, which is a product call rather than a bug fix. The
+churn that made the unbounded select expensive is gone either way.
+
 ### F09 — Change detection serializes every record on every write · MEDIUM · FIXED
 
 `sync.js:167-172`
@@ -289,7 +308,7 @@ Folded into the F01 fix.
 The `start()`/`stop()` shape is copied across five modules with the same defect in
 each. `fleet-counts.js` is closest to correct and makes a good template.
 
-### F10 — Listeners accumulate on every start/stop cycle · HIGH
+### F10 — Listeners accumulate on every start/stop cycle · HIGH · FIXED
 
 `announcements.js:275-319` · `users.js:315-349` · `locations.js` · `detailer.js` ·
 `requests.js`
@@ -311,7 +330,14 @@ never reset (guards listener registration), and a `running` flag `stop()` may cl
 (guards subscriptions and data loads). Worth writing once in `utils.js` as a small
 `DT_LIFECYCLE` helper.
 
-### F11 — The announcements thread channel is never torn down · MEDIUM
+*Fixed.* `DT_LIFECYCLE.create({ wire, start, stop })` lives in `utils.js` and is
+adopted by announcements, users, locations, requests and fleet-counts. Verified that
+25 stop/start cycles wire exactly once while still starting and stopping each time.
+
+`detailer.js` turned out not to need it — it has no `stop()`, so its `started` flag is
+never reset and it cannot double-wire.
+
+### F11 — The announcements thread channel is never torn down · MEDIUM · FIXED
 
 `announcements.js:310-319, 330-343`
 
@@ -321,7 +347,10 @@ subscription stays live after sign-out and keeps querying with the old session.
 **Fix.** Add `if (threadChan) { sb.removeChannel(threadChan); threadChan = null; }`
 to `stop()`.
 
-### F12 — Notifications can open two realtime channels · MEDIUM
+*Fixed* — `teardownThreadRealtime()`, called from the lifecycle's `stop()`. Setup moved
+into `start()` so the channel follows the module's running state.
+
+### F12 — Notifications can open two realtime channels · MEDIUM · FIXED
 
 `notifications.js:237-257`
 
@@ -332,7 +361,9 @@ keeps delivering, producing duplicate alerts.
 
 **Fix.** Move `started = true` above the `await`; reset it in a catch if setup fails.
 
-### F13 — Fleet counts stops updating live after a sign-out · MEDIUM
+*Fixed*, exactly that.
+
+### F13 — Fleet counts stops updating live after a sign-out · MEDIUM · FIXED
 
 `fleet-counts.js:112-119, 140-152`
 
@@ -349,7 +380,10 @@ with `if (realtimeChan) return;`.
 The app pins `America/New_York` as its operating timezone; three date derivations
 bypass it.
 
-### F14 — The manager fleet view defaults to the wrong day after 8pm · HIGH
+*Fixed* via `DT_LIFECYCLE`: `subscribe()` moved out of the one-time `wire()` and into
+`start()`, so it re-runs after every teardown.
+
+### F14 — The manager fleet view defaults to the wrong day after 8pm · HIGH · FIXED
 
 `app.js:282-286`
 
@@ -366,7 +400,22 @@ timezone, not ET, so the range shifts again for anyone whose phone isn't Eastern
 boundaries with an explicit ET offset. `app.js:3667 isoDate()` has the same UTC-slice
 issue in week/month bucketing.
 
-### F15 — `DT_FORMAT.date` ignores the timezone `DT_FORMAT.time` pins · MEDIUM
+*Fixed.* New `etOffsetAt()` / `estInstantISO()` / `estDayRangeISO()` helpers resolve ET
+wall-clock times to UTC instants. Getting the offset right takes two passes — DST flips
+at 2am local, so an offset sampled at midday is wrong for midnight on the two
+switchover days. Verified that day windows land on exact ET midnight year-round,
+including the 23-hour and 25-hour days.
+
+`isoDate()` is now ET-backed, which also repairs a mismatch the audit missed:
+`renderDashboard` compared `isoDate(r.timestamp)` (UTC) against `estDateStr(now)` (ET),
+so the "today" count was wrong for anything logged after 8pm ET. Export filenames use
+ET too.
+
+Still local-time: `startOfWeek()`'s arithmetic, so week *boundaries* can shift by a day
+for a device set outside Eastern. Pre-existing, no regression, and a wider change than
+this finding covers.
+
+### F15 — `DT_FORMAT.date` ignores the timezone `DT_FORMAT.time` pins · MEDIUM · FIXED
 
 `utils.js:20-34`
 
@@ -384,6 +433,8 @@ beside the previous day's date.
 ## Drift from CLAUDE.md
 
 Each of these is something the conventions file explicitly rules out.
+
+*Fixed*, both parts.
 
 ### F16 — Three HTML escapers where the rules call for one · MEDIUM
 
@@ -461,7 +512,7 @@ alias.
 
 ## Accessibility
 
-### F21 — Toasts are invisible to screen readers · HIGH
+### F21 — Toasts are invisible to screen readers · HIGH · FIXED
 
 `index.html:1512` · `app.js:386-400`
 
@@ -476,6 +527,12 @@ any of them.
 **Fix.** Add `role="status" aria-live="polite" aria-atomic="true"` to the element in
 `index.html`, and the same attributes in the `showToast()` fallback that creates it
 dynamically. Use `aria-live="assertive"` when `type === "error"`.
+
+*Fixed.* Only `aria-live` is toggled per type — swapping `role` on a live region
+mid-flight confuses some screen readers, and an explicit `aria-live` outranks the
+politeness implied by `role="status"`. `showToast` also clears the text once the toast
+has slid off, so an identical repeat message still reads as a change and is announced
+again.
 
 ### F22 — Two rough edges in the a11y retrofit · LOW
 
@@ -557,13 +614,16 @@ session in `sync.js` and `sw.js`.
    F03 went in with F01.
 4. ~~**F06 — quota guard.**~~ **Done.** Prevented the failure mode that hits heaviest
    users first and gave no signal when it did.
-5. **F21 — toast aria-live.** Two attributes; fixes the app's entire feedback layer
-   for assistive tech. **Next.**
-6. **F07, F08 — query volume.** Real battery and cost savings on always-on devices.
-7. **F10 — lifecycle helper.** Do it once in `utils.js`, then adopt in five modules.
-   Also defuses the F07 compounding path.
-8. **F14, F15 — timezone.** Small, and F14 is visible to managers every evening.
-9. **F26 — CI.** Before the convention cleanups, so they can't regress.
+5. ~~**F21 — toast aria-live.**~~ **Done.** Fixed the app's entire feedback layer for
+   assistive tech.
+6. ~~**F07, F08 — query volume.**~~ **Done.** 50 announcements went from 100+
+   round-trips per render to 3, and the per-minute refetch is gone entirely.
+7. ~~**F10 — lifecycle helper.**~~ **Done.** `DT_LIFECYCLE` in `utils.js`, adopted by
+   five modules; took F11–F13 with it.
+8. ~~**F14, F15 — timezone.**~~ **Done.** Plus a dashboard "today" mismatch the audit
+   had missed.
+9. **F26 — CI.** Do this before the convention cleanups so the cleanups can't regress.
+   **Next.**
 10. **F16–F20, F22–F25.** Convention and hygiene. Safe to batch, worth doing before
     the next feature lands on top of them.
 

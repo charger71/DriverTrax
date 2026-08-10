@@ -13,7 +13,6 @@
   const esc = window.DT_ESC;
 
   let realtimeChan = null;
-  let started = false;
 
   async function load() {
     const user = DT_AUTH.getUser();
@@ -116,23 +115,21 @@
     if (error) { alert(error.message); return; }
   }
 
-  function start() {
-    if (started) return;
-    started = true;
-    load();
-    realtimeChan = sb.channel("edr-driver")
-      .on("postgres_changes", { event: "*", schema: "public", table: "extra_driver_requests" },  load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "extra_driver_responses" }, load)
-      .subscribe();
-  }
-
-  function stop() {
-    started = false;
-    if (realtimeChan) { sb.removeChannel(realtimeChan); realtimeChan = null; }
-    const section = $("edrDriverSection");
-    if (section) section.style.display = "none";
-    window.DT_PWA?.setBadgeSource?.("coverage", 0);
-  }
+  const life = DT_LIFECYCLE.create({
+    start() {
+      load();
+      realtimeChan = sb.channel("edr-driver")
+        .on("postgres_changes", { event: "*", schema: "public", table: "extra_driver_requests" },  load)
+        .on("postgres_changes", { event: "*", schema: "public", table: "extra_driver_responses" }, load)
+        .subscribe();
+    },
+    stop() {
+      if (realtimeChan) { sb.removeChannel(realtimeChan); realtimeChan = null; }
+      const section = $("edrDriverSection");
+      if (section) section.style.display = "none";
+      window.DT_PWA?.setBadgeSource?.("coverage", 0);
+    }
+  });
 
   // Coverage requests are visible to all front-line roles (driver, detailer, CXR).
   // Managers see the manager-side list in the Alerts panel instead.
@@ -142,8 +139,8 @@
     return p.role === "driver" || p.role === "detailer" || p.role === "cxr";
   }
 
-  document.addEventListener("dt-auth-change", () => { shouldRun() ? start() : stop(); });
-  if (shouldRun()) start();
+  document.addEventListener("dt-auth-change", () => life.set(shouldRun()));
+  life.set(shouldRun());
 
   window.DT_REQUESTS = { reload: load };
 })();

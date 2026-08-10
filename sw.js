@@ -1,6 +1,10 @@
 // DriverTrax Service Worker
 // Provides offline support and caches app assets
-const CACHE_VERSION = "drivertrax-v9.23-status-selects-datadriven";
+const CACHE_VERSION = "drivertrax-v9.24-offline-shell-supabase";
+// Every <script src> and <link href> in index.html must appear here. Anything
+// missing is unavailable on an offline cold start: cross-origin assets in
+// particular can't be backfilled at runtime by any reliable means, so a gap
+// here is a gap forever. Keep this list in sync when adding a script tag.
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -10,6 +14,8 @@ const APP_SHELL = [
   "./icon.png",
   "./supabase-config.js",
   "./utils.js",
+  "./a11y.js",
+  "./idb.js",
   "./auth.js",
   "./sync.js",
   "./backlot.js",
@@ -27,23 +33,33 @@ const APP_SHELL = [
   "./pwa.js",
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css",
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
-  "https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js"
+  "https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js",
+  // Without this the app cannot boot offline at all: auth.js bails when
+  // window.supabase is missing, and every feature module then trips its own
+  // `if (!window.DT_AUTH) return;` guard. Unlike leaflet/zxing this URL is an
+  // unpinned major range, so jsDelivr may serve a new minor at any time —
+  // worth pinning to an exact version on a future pass.
+  "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"
 ];
 // Install: pre-cache the app shell. `cache: "reload"` bypasses the
 // browser's HTTP cache so a stale in-disk copy of an app-shell asset
 // (left over from the previous SW generation) can't get baked into the
 // new cache — otherwise a v-bump would still serve old JS/CSS to users
 // whose browser cached those resources with a long-ish freshness window.
+// cache.addAll() is all-or-nothing: one unreachable CDN asset during install
+// rejects the whole batch and leaves an empty cache. That failed silently
+// here, so a momentary blip while installing produced a PWA with no offline
+// support at all. Add each entry independently instead, so the same-origin
+// shell always lands even when a third-party host is having a bad minute.
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => {
-      return cache.addAll(
-        APP_SHELL.map((u) => new Request(u, { cache: "reload" }))
-      ).catch((err) => {
-        console.warn("Some shell assets failed to cache:", err);
-      });
-    })
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_VERSION);
+    const results = await Promise.allSettled(
+      APP_SHELL.map((u) => cache.add(new Request(u, { cache: "reload" })))
+    );
+    const failed = APP_SHELL.filter((_, i) => results[i].status === "rejected");
+    if (failed.length) console.warn("[SW] shell assets not cached:", failed);
+  })());
 });
 
 // Page can ask the waiting SW to activate immediately when the user
@@ -196,9 +212,12 @@ self.addEventListener("fetch", (event) => {
         }).catch(() => {});
         return cached;
       }
-      // Not in cache: fetch from network and cache it
+      // Not in cache: fetch from network and cache it. "basic" alone would
+      // skip every cross-origin asset (those come back as "cors"), which is
+      // how a missing precache entry stayed missing forever. Opaque responses
+      // are still excluded — res.ok is false for those.
       return fetch(event.request).then((res) => {
-        if (res && res.ok && res.type === "basic") {
+        if (res && res.ok && (res.type === "basic" || res.type === "cors")) {
           const clone = res.clone();
           caches.open(CACHE_VERSION).then((c) => c.put(event.request, clone));
         }

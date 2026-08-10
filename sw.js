@@ -1,6 +1,6 @@
 // DriverTrax Service Worker
 // Provides offline support and caches app assets
-const CACHE_VERSION = "drivertrax-v9.22-lp-status";
+const CACHE_VERSION = "drivertrax-v9.23-status-selects-datadriven";
 const APP_SHELL = [
   "./",
   "./index.html",

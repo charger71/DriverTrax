@@ -669,22 +669,10 @@
       <span class="field-label is-required">Status</span>
       <select id="status" onchange="handleStatusChange()">
         <option value="">-- STATUS --</option>
-        <option value="CLEAN">CLEAN</option>
-        <option value="DIRTY">DIRTY</option>
-        <option value="REWASH">REWASH/FLUIDS</option>
-        <option value="BODY">BODY DAMAGE</option>
-        <option value="PM">PM (MAINT.)</option>
-        <option value="MK">MK (MECH.)</option>
-        <option value="MR">MR (RECALL)</option>
-        <option value="OM">OM (OVER MILES)</option>
-        <option value="AUDIT FAIL">AUDIT FAIL</option>
-        <option value="WI/DELETE">WI/DELETE</option>
-        <option value="GLASS">GLASS</option>
-        <option value="TI">TI(TIRE)</option>
-        <option value="LP">LP (LICENSE PLATE)</option>
-        <option value="CHECK_IN">CHECK IN</option>
-        <!-- Privileged options (CHECK_OUT, HOLD, DNR) are injected
-             by gateCxrStatusOption() in app.js for CXR/manager/admin. -->
+        <!-- Base statuses + CHECK_IN are generated from DT_OPTIONS.STATUS_BASE
+             by populateStatusSelects() in app.js; privileged options
+             (CHECK_OUT, HOLD, DNR) are injected by gateCxrStatusOption() for
+             CXR/manager/admin. OTHER stays as the trailing anchor. -->
         <option value="OTHER">OTHER</option>
       </select>
       <input type="text" id="statusOther" class="other-input u-hidden" placeholder="Specify other status..." maxlength="40" autocomplete="off">
@@ -1018,25 +1006,9 @@
       <div class="filter-row">
         <select id="fStatus" onchange="renderRecords()">
           <option value="">All Statuses</option>
-          <option value="CLEAN">CLEAN</option>
-          <option value="DIRTY">DIRTY</option>
-          <option value="REWASH">REWASH/FLUIDS</option>
-          <option value="BODY">BODY DAMAGE</option>
-          <option value="PM">PM (MAINT.)</option>
-          <option value="MK">MK (MECH.)</option>
-          <option value="MR">MR (RECALL)</option>
-          <option value="OM">OM (OVER MILES)</option>
-          <option value="AUDIT FAIL">AUDIT FAIL</option>
-          <option value="WI/DELETE">WI/DELETE</option>
-          <option value="GLASS">GLASS</option>
-          <option value="TI">TI(TIRE)</option>
-          <option value="LP">LP (LICENSE PLATE)</option>
-          <option value="CHECK_IN">CHECK IN</option>
-          <option value="CHECK_OUT">CHECK OUT</option>
-          <option value="HOLD">HOLD</option>
-          <option value="DNR">DO NOT RENT (DNR)</option>
-          <option value="DETAILING">DETAILING</option>
-          <option value="DETAILED">DETAILED</option>
+          <!-- Statuses are generated from the DT_OPTIONS catalogs (STATUS_BASE
+               + CHECK_IN + STATUS_PRIVILEGED + STATUS_DERIVED) by
+               populateStatusSelects() in app.js. OTHER stays as the anchor. -->
           <option value="OTHER">OTHER</option>
         </select>
         <select id="fNoTag" onchange="renderRecords()"><option value="">All Records</option><option value="yes">Bad Tag Only</option><option value="no">Good Tag Only</option></select>

@@ -1635,6 +1635,47 @@ function gateCxrStatusOption() {
 document.addEventListener("dt-auth-change", gateCxrStatusOption);
 document.addEventListener("DOMContentLoaded", gateCxrStatusOption);
 
+// Populate the entry (#status) and records-filter (#fStatus) dropdowns from the
+// DT_OPTIONS catalogs so they can never drift out of sync with STATUS_BASE.
+// The static markup keeps only a leading placeholder and a trailing OTHER
+// anchor; every other option is generated here. Base options are inserted at
+// the FRONT (after the placeholder) while gateCxrStatusOption() injects the
+// per-role privileged options at the BACK (before OTHER), so the two passes
+// never depend on each other's ordering. Labels come from statusLabel(), which
+// already matches the previous hardcoded text exactly.
+function fillStatusSelect(id, codes) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  // Remove anything we generated before so re-running is idempotent. Options
+  // injected by gateCxrStatusOption() carry .opt-cxr-only and are left alone.
+  sel.querySelectorAll("option.opt-status-gen").forEach(o => o.remove());
+  const frag = document.createDocumentFragment();
+  codes.forEach(code => {
+    const opt = document.createElement("option");
+    opt.value = code;
+    opt.textContent = statusLabel(code);
+    opt.className = "opt-status-gen";
+    frag.appendChild(opt);
+  });
+  const placeholder = sel.options[0] || null;
+  sel.insertBefore(frag, placeholder ? placeholder.nextSibling : sel.firstChild);
+}
+
+function populateStatusSelects() {
+  const base = DT_OPTIONS.STATUS_BASE.filter(c => c !== "OTHER");
+  // Entry form: base + CHECK_IN. Privileged options are added per-role by
+  // gateCxrStatusOption(); OTHER is the static trailing anchor in index.html.
+  fillStatusSelect("status", [...base, "CHECK_IN"]);
+  // Records filter: base + CHECK_IN + privileged + derived (all roles can
+  // filter on any status), again with OTHER as the trailing anchor.
+  fillStatusSelect("fStatus", [
+    ...base, "CHECK_IN",
+    ...DT_OPTIONS.STATUS_PRIVILEGED,
+    ...DT_OPTIONS.STATUS_DERIVED
+  ]);
+}
+document.addEventListener("DOMContentLoaded", populateStatusSelects);
+
 // ============================================================
 // Data-driven Location dropdown
 //

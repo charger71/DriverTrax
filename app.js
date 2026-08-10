@@ -205,14 +205,6 @@ function createMap(elementId, options = {}) {
   return map;
 }
 
-function destroyMap(elementId) {
-  const el = document.getElementById(elementId);
-  if (!el || !el._leaflet_map) return;
-  try { el._leaflet_map.remove(); } catch(e) {}
-  el._leaflet_map = null;
-  el.innerHTML = "";
-}
-
 function createNumberedMarker(num, color, size = 26) {
   if (!window.L) return null;
   return L.divIcon({
@@ -330,17 +322,6 @@ let _fleetRecords = [];
 let _fleetFetching = null;
 function isManagerView() { return !!(window.DT_AUTH && DT_AUTH.isManager()); }
 function getEffectiveRecords() { return isManagerView() ? _fleetRecords : getRecords(); }
-
-// Triggered by the Records date inputs — managers need to refetch the fleet
-// when the date range changes; drivers just re-render their local set.
-function onRecordsDateChange() {
-  resetRecordsPage();
-  if (isManagerView()) {
-    fetchFleetRecords().then(renderRecords);
-  } else {
-    renderRecords();
-  }
-}
 
 async function fetchFleetRecords() {
   if (!window.DT_AUTH || !DT_AUTH.client) return;
@@ -588,16 +569,6 @@ function getShiftsByDay(days) {
     if (byDay[shift.date] !== undefined) byDay[shift.date].push(shift);
   });
   return byDay;
-}
-
-function getShiftGroups(sortedRecords) {
-  if (sortedRecords.length === 0) return [];
-  const shifts = [[sortedRecords[0]]];
-  for (let i = 1; i < sortedRecords.length; i++) {
-    if (sortedRecords[i].timestamp - sortedRecords[i-1].timestamp >= SHIFT_GAP_MS) shifts.push([]);
-    shifts[shifts.length-1].push(sortedRecords[i]);
-  }
-  return shifts;
 }
 
 // ============================
@@ -1906,19 +1877,6 @@ function toggleOtherField(selectId) {
   else setTimeout(() => inp.focus(), 50);
 }
 
-function toggleTire(tire) {
-  const btn = document.getElementById("tire-" + tire);
-  const idx = selectedTires.indexOf(tire);
-  if (idx === -1) {
-    selectedTires.push(tire);
-    btn.classList.add("selected");
-  } else {
-    selectedTires.splice(idx, 1);
-    btn.classList.remove("selected");
-  }
-  updateTireLabel();
-}
-
 function updateTireLabel() {
   const label = document.getElementById("tireSelectedLabel");
   if (selectedTires.length === 0) {
@@ -2141,20 +2099,6 @@ function vinKeypadArrow(direction) {
   _vinKeypadCursor = Math.max(0, Math.min(len, _vinKeypadCursor + direction));
   syncKeypadDisplay();
   if (navigator.vibrate) navigator.vibrate(5);
-}
-
-function vinKeypadCopy() {
-  const input = document.getElementById(_vinKeypadTargetId);
-  if (!input || !input.value) return;
-  const val = input.value;
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(val)
-      .then(() => showToast("Copied to clipboard", "success"))
-      .catch(() => showToast("Copy failed", "error"));
-  } else {
-    showToast("Clipboard not available on this browser", "warn");
-  }
-  if (navigator.vibrate) navigator.vibrate(8);
 }
 
 function vinKeypadPaste() {
@@ -3479,35 +3423,6 @@ async function renderVinTimeline(vin, opts) {
   const pins = [];
   records.forEach(r => { if (Number.isFinite(r.lat) && Number.isFinite(r.lng)) pins.push({ lat: r.lat, lng: r.lng, label: r.serial_id, ts: new Date(r.ts).getTime() || 0 }); });
   _renderRecordsMapMarkers(pins);
-}
-
-function renderPaginationControls(current, total) {
-  const prevDisabled = current <= 1;
-  const nextDisabled = current >= total;
-
-  // Build numbered page buttons (max 5 visible: current ± 2)
-  let pageButtons = "";
-  const start = Math.max(1, current - 2);
-  const end = Math.min(total, current + 2);
-
-  if (start > 1) {
-    pageButtons += `<button class="page-btn" onclick="changeRecordsPage(1)">1</button>`;
-    if (start > 2) pageButtons += `<span class="page-ellipsis">...</span>`;
-  }
-  for (let i = start; i <= end; i++) {
-    pageButtons += `<button class="page-btn ${i === current ? 'active' : ''}" onclick="changeRecordsPage(${i})">${i}</button>`;
-  }
-  if (end < total) {
-    if (end < total - 1) pageButtons += `<span class="page-ellipsis">...</span>`;
-    pageButtons += `<button class="page-btn" onclick="changeRecordsPage(${total})">${total}</button>`;
-  }
-
-  return `
-    <div class="pagination">
-      <button class="page-btn page-nav" ${prevDisabled ? 'disabled' : ''} onclick="changeRecordsPage(${current - 1})">&#8592; Prev</button>
-      <div class="page-numbers">${pageButtons}</div>
-      <button class="page-btn page-nav" ${nextDisabled ? 'disabled' : ''} onclick="changeRecordsPage(${current + 1})">Next &#8594;</button>
-    </div>`;
 }
 
 // ============================
@@ -6331,11 +6246,6 @@ const ALERT_DISMISSED_KEY = "drivertrax_alert_dismissed";
 function dismissWeatherAlert() {
   document.getElementById("weatherAlert").classList.remove("show");
   localStorage.setItem(ALERT_DISMISSED_KEY, Date.now().toString());
-}
-
-function testWeatherAlert() {
-  localStorage.removeItem(ALERT_DISMISSED_KEY);
-  checkWeatherAlert();
 }
 
 async function checkWeatherAlert() {

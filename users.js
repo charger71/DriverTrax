@@ -271,7 +271,7 @@
       if (!email) { setMsg("Email is required.", "err"); return; }
       if (!password || password.length < 8) { setMsg("Password must be at least 8 characters.", "err"); return; }
       setMsg("Creating user…");
-      const { data, error } = await adminCall("create", {
+      const { error } = await adminCall("create", {
         email,
         password,
         profile: { display_name, phone, role, shuttle_subrole, home_airport, callbacks_opt_in }

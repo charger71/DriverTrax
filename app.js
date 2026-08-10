@@ -409,16 +409,11 @@ async function fetchFleetRecords() {
 // ============================
 // INPUT SANITIZATION
 // ============================
-function sanitizeText(str) {
-  if (!str) return "";
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;")
-    .replace(/\//g, "&#x2F;");
-}
+// HTML escaping has exactly one implementation: DT_ESC in utils.js. This is
+// an alias, not a second escaper — the name is kept because it reads well at
+// the entry-form call sites and there are ~40 of them. (The old body also
+// encoded "/", which is harmless but unnecessary outside legacy XSS advice.)
+const sanitizeText = (str) => DT_ESC(str);
 
 function sanitizeSerial(str) {
   // Serial IDs: only alphanumeric, hyphens, max 30 chars
@@ -2221,9 +2216,9 @@ function syncKeypadDisplay() {
       const before = val.slice(0, pos);
       const after = val.slice(pos);
       display.innerHTML =
-        escapeHtml(before) +
+        DT_ESC(before) +
         '<span class="vin-cursor">|</span>' +
-        escapeHtml(after);
+        DT_ESC(after);
     }
   }
   if (count) {
@@ -2231,12 +2226,6 @@ function syncKeypadDisplay() {
     count.textContent = `${len} / 17`;
     count.classList.toggle("valid", len === 17);
   }
-}
-
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
 }
 
 // ============================
@@ -2477,7 +2466,6 @@ function getVehicleSVG(vinData) {
   // SUVs, sedans, etc.).
   const size = vinData._size || 40;
   const c = "var(--accent)";
-  const uid = "v" + Math.random().toString(36).slice(2,7);
 
   const isElectric = fuel.includes("electric") && !fuel.includes("hybrid");
   const isHybrid = fuel.includes("hybrid") || (fuel.includes("electric") && fuel.includes("gasoline"));
@@ -3266,7 +3254,6 @@ async function renderVinTimeline(vin, opts) {
     .map(r => ({ ts: new Date(r.ts).getTime(), kind: "record", r }))
     .sort((a, b) => b.ts - a.ts);
 
-  const ago = (input) => DT_FORMAT.timeAgo(input);
   const esc = (s) => sanitizeText(s);
 
   // First record carrying NHTSA-decoded vin_data is the source of truth for
@@ -3948,7 +3935,7 @@ function renderRange(id) {
   const today = estDateStr(now.getTime());
   const all = getRecords();
 
-  let cutoff, groupFn, labelFn, title;
+  let cutoff, groupFn, labelFn;
 
   if (id === '7days') {
     // Already rendered by renderDashboard - just ensure visible
@@ -3957,7 +3944,6 @@ function renderRange(id) {
     cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - 30);
     groupFn = r => estDateStr(r.timestamp);
     labelFn = d => d.slice(5);
-    title = 'Last 30 Days';
     const days = [];
     for (let i = 29; i >= 0; i--) {
       const d = new Date(now); d.setDate(d.getDate() - i);

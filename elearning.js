@@ -14,20 +14,14 @@
 
   // ---------- state ----------
   let quizzes = [];           // merged list (custom override bundled by id)
-  let bundledIds = new Set(); // ids that come from disk (read-only)
   let view = { tab: "train", stage: "catalog", quizId: null, qIdx: 0, answers: {}, startTs: 0, elapsed: 0, timerId: null };
-  let buildState = { quizIdx: 0, qIdx: 0 };
   let initialized = false;
-  let mounted = false;
 
   // ---------- utils ----------
   function esc(s) {
     return String(s == null ? "" : s)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-  }
-  function uid(prefix) {
-    return (prefix || "q") + "-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   }
   function pad2(n) { return String(n).padStart(2, "0"); }
   function getResults() {
@@ -44,10 +38,6 @@
     try { return JSON.parse(localStorage.getItem(LS_CUSTOM) || "[]"); }
     catch (e) { return []; }
   }
-  function saveCustom(list) {
-    localStorage.setItem(LS_CUSTOM, JSON.stringify(list));
-  }
-  function isCustom(id) { return !bundledIds.has(id); }
 
   // ---------- loading ----------
   async function loadBundled() {
@@ -71,7 +61,6 @@
 
   async function loadAll() {
     const bundled = await loadBundled();
-    bundledIds = new Set(bundled.map(m => m.id));
     const custom = getCustom();
     const map = new Map();
     bundled.forEach(m => map.set(m.id, m));
@@ -468,12 +457,10 @@
       await loadAll();
       initialized = true;
     }
-    mounted = true;
     render();
   }
 
   function teardown() {
-    mounted = false;
     stopTimer();
   }
 

@@ -35,19 +35,34 @@
     if (!valid(d)) return "";
     return d.toLocaleString(undefined, { timeZone: TZ });
   };
-  // Prefer the rich timeAgo from announcements.js when loaded; fall back to dateTime.
-  const timeAgo = (v, prefix) => {
-    if (typeof window.dtTimeAgo === "function") return window.dtTimeAgo(v, prefix);
-    return dateTime(v);
+  // Twitter-style relative time. Lives here rather than in announcements.js:
+  // that had the shared utility delegating to a feature module via a
+  // window.dtTimeAgo global, so relative times silently degraded to full
+  // timestamps whenever that module hadn't loaded.
+  //
+  // Default prefix is "" ("5 min ago"). Announcements passes "Posted " for
+  // its own phrasing.
+  const timeAgo = (v, prefix = "") => {
+    const d = toDate(v);
+    if (!valid(d)) return "";
+    const s = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (s < 5)  return "Just now";
+    if (s < 60) return `${prefix}${s} sec ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${prefix}${m} min${m === 1 ? "" : "s"} ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${prefix}${h} hour${h === 1 ? "" : "s"} ago`;
+    const dd = Math.floor(h / 24);
+    if (dd < 7) return `${prefix}${dd} day${dd === 1 ? "" : "s"} ago`;
+    return `${prefix}${d.toLocaleDateString(undefined, { timeZone: TZ })}`;
   };
-  // Records show "5 min ago" when announcements.js is loaded, EST clock time otherwise.
-  const timeAgoOrClock = (v) => {
-    if (typeof window.dtTimeAgo === "function") return window.dtTimeAgo(v);
-    return time(v);
-  };
+  const timeAgoOrClock = (v) => timeAgo(v);
 
   window.DT_ESC = esc;
   window.DT_FORMAT = { time, date, dateTime, timeAgo, timeAgoOrClock, TZ };
+  // Long-standing shorthand used across app.js and backlot.js. Now a plain
+  // alias rather than the thing DT_FORMAT depended on.
+  window.dtTimeAgo = timeAgo;
 
   // Toast: delegate to showToast() defined in app.js once it's loaded.
   // Safe to call before app.js initializes — calls are dropped silently.

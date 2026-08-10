@@ -6,6 +6,10 @@ the time of review.
 
 **26 findings — 6 critical, 7 high, 9 medium, 4 low.**
 
+> **Status.** F01 and F02 are fixed on this branch, along with the queue-precedence
+> guard from F03 (F01's one-time repair is inert without it — see F03). Everything
+> else is open.
+
 ---
 
 ## Verdict
@@ -27,7 +31,7 @@ The problems cluster in two places:
 
 ## Data integrity and offline
 
-### F01 — In-place record edits never sync to the cloud · CRITICAL
+### F01 — In-place record edits never sync to the cloud · CRITICAL · FIXED
 
 `sync.js:163-180` · `app.js:241-250, 3567-3595, 879-885` · `drop-offs.js:206-212`
 
@@ -85,7 +89,12 @@ specifically **field updates** that vanish.
 This also fixes F09 for free. Add a one-time repair on next deploy that re-queues
 every local record as `upsert`, otherwise edits already lost stay lost.
 
-### F02 — Offline cold start can't boot; supabase-js isn't cacheable · CRITICAL
+*Fixed.* `snapshotOf()` replaces `prevById`, and `repairInPlaceEdits()` re-queues the
+local set once behind an IDB marker. The repair depends on F03's guard: without it,
+`pullAndMerge` reverts the local record to the cloud copy before the queue flushes,
+and the repair uploads the stale row back.
+
+### F02 — Offline cold start can't boot; supabase-js isn't cacheable · CRITICAL · FIXED
 
 `sw.js:4-31, 187-205` · `index.html:1631`
 
@@ -108,7 +117,23 @@ supabase-js locally: `@2` is an unpinned major range, so jsDelivr can serve a ne
 minor at any time with no review — pinning to an exact version (as Leaflet and ZXing
 already do) removes both the availability and supply-chain surprise.
 
-### F03 — Pull-and-merge overwrites edits that haven't flushed · CRITICAL
+*Fixed.* All three added; `CACHE_VERSION` bumped to
+`drivertrax-v9.24-offline-shell-supabase`. Two related install-path defects surfaced
+while fixing it and were fixed too, since either one keeps the precache from
+actually landing:
+
+- `cache.addAll()` is all-or-nothing and its rejection was swallowed by a
+  `console.warn`, so one unreachable CDN asset during install produced an *empty*
+  cache and no offline support at all — silently. Now each entry is added
+  independently via `Promise.allSettled`, so the same-origin shell always lands.
+- The runtime cache-first branch only stored `res.type === "basic"`, which excludes
+  every cross-origin asset (`"cors"`). That's why a precache miss could never be
+  backfilled. Broadened to accept `cors`; opaque responses stay excluded, since
+  `res.ok` is already false for those.
+
+Pinning the supabase version is still open — noted in a comment beside the URL.
+
+### F03 — Pull-and-merge overwrites edits that haven't flushed · CRITICAL · FIXED
 
 `sync.js:289-335`
 
@@ -132,6 +157,11 @@ for (const id in queue) {
   if (queue[id] === "delete") delete merged[id];
 }
 ```
+
+*Fixed*, ahead of its place in the running order — F01's one-time repair is a no-op
+without it. Note the effect was worse than "the edit doesn't upload": because
+`pullAndMerge` runs on every `dt-auth-change`, the stale cloud copy was written back
+over the local record at boot, so the user watched their edit disappear.
 
 ### F04 — Edits made during a flush are silently dropped · CRITICAL
 
@@ -489,11 +519,13 @@ catches parse errors. None of F01–F26 would have been caught.
 Sequenced by risk retired per hour, not severity alone. Steps 1–3 are one focused
 session in `sync.js` and `sw.js`.
 
-1. **F01 — the sync diff.** Highest-value fix here. Data is being lost silently right
-   now, and the change is contained to one function. Include the one-time re-queue.
-2. **F02 — precache supabase-js.** One line plus a `CACHE_VERSION` bump; restores
-   offline boot for the whole app.
-3. **F03, F04, F05 — the rest of sync.js.** Same file, same context as F01.
+1. ~~**F01 — the sync diff.**~~ **Done.** Highest-value fix here. Data was being lost
+   silently, and the change is contained to one function. Includes the one-time
+   re-queue.
+2. ~~**F02 — precache supabase-js.**~~ **Done.** Restores offline boot for the whole
+   app, plus two install-path defects that would have kept the precache from landing.
+3. **F04, F05 — the rest of sync.js.** ~~F03~~ went in with F01. Still open: flush
+   handoff and retry backoff. Same file, same context.
 4. **F06 — quota guard.** Prevents the failure mode that hits heaviest users first
    and gives no signal when it does.
 5. **F21 — toast aria-live.** Two attributes; fixes the app's entire feedback layer

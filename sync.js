@@ -25,6 +25,7 @@
   const IDB = DT_IDB;
   const QUEUE_KEY = "sync_queue";       // in `kv` store: { [id]: "upsert" | "delete" }
   const SNAPSHOT_KEY = "sync_snapshot"; // in `kv` store: { [id]: lastCloudRow }
+  const REPAIR_KEY = "sync_repair_inplace_v1"; // in `kv` store: ms timestamp
   const LS_QUEUE_KEY = "drivertrax_sync_queue";       // legacy
   const LS_SNAPSHOT_KEY = "drivertrax_sync_snapshot"; // legacy
 
@@ -34,7 +35,14 @@
   let queueReady = false;
   let flushing = false;
   let pendingFlush = null;
-  let prevById = indexBy(getRecords());
+  // Previous state, keyed by id, stored as JSON *strings* rather than object
+  // references. getRecords() hands out the live cached array, so callers that
+  // edit a record in place (saveEdit, the deferred vinData backfill,
+  // drop-offs patchLocalRecord) hand setRecords() the very objects this map
+  // would otherwise be holding — making every in-place edit compare equal to
+  // itself and never queue. Serializing at snapshot time freezes the
+  // comparison value and closes that hole.
+  let prevJson = snapshotOf(getRecords());
 
   // ----- one-time migration from localStorage to IDB -----
   async function migrateFromLocalStorage() {
@@ -59,9 +67,29 @@
     }
   }
 
+  // ----- one-time repair for edits lost to the reference-diff bug -----
+  // Until the string-snapshot diff landed, any record edited in place (VIN or
+  // notes corrections, the deferred NHTSA vinData backfill, drop-off section
+  // geotagging) was written to localStorage but never queued, so the cloud
+  // copy stayed stale. Re-queue every local record once so those edits
+  // upload. Upserts are idempotent, so re-sending unchanged rows is harmless.
+  async function repairInPlaceEdits() {
+    if (await IDB.get("kv", REPAIR_KEY)) return;
+    // Claim the marker before touching the queue. IDB.set fails closed
+    // (private mode, locked storage), and without a durable marker this would
+    // re-queue the entire local set on every single boot.
+    if (!(await IDB.set("kv", REPAIR_KEY, Date.now()))) return;
+    const local = getRecords();
+    if (!local.length) return;
+    for (const r of local) queue[String(r.id)] = "upsert";
+    persistQueue();
+    console.info(`[Sync] re-queued ${local.length} record(s) to repair in-place edits`);
+  }
+
   async function loadQueue() {
     await migrateFromLocalStorage();
     queue = (await IDB.get("kv", QUEUE_KEY)) || {};
+    await repairInPlaceEdits();
     queueReady = true;
     updateBadge();
     // If anything queued before we finished loading, schedule a flush.
@@ -158,23 +186,28 @@
     return m;
   }
 
+  // id -> serialized record. See the note on `prevJson` above for why the
+  // diff compares strings instead of object references.
+  function snapshotOf(arr) {
+    const m = {};
+    for (const r of arr) m[String(r.id)] = JSON.stringify(r);
+    return m;
+  }
+
   // ----- diff & queue on every local write -----
   const origSetRecords = window.setRecords;
   window.setRecords = function (records) {
     origSetRecords(records);
-    const nextById = indexBy(records);
+    const nextJson = snapshotOf(records);
     // Inserts + updates
-    for (const id in nextById) {
-      const prev = prevById[id];
-      if (!prev || JSON.stringify(prev) !== JSON.stringify(nextById[id])) {
-        queue[id] = "upsert";
-      }
+    for (const id in nextJson) {
+      if (prevJson[id] !== nextJson[id]) queue[id] = "upsert";
     }
     // Deletes
-    for (const id in prevById) {
-      if (!nextById[id]) queue[id] = "delete";
+    for (const id in prevJson) {
+      if (!(id in nextJson)) queue[id] = "delete";
     }
-    prevById = nextById;
+    prevJson = nextJson;
     persistQueue();
     scheduleFlush();
   };
@@ -307,8 +340,20 @@
       const local = getRecords();
       const localById = indexBy(local);
 
-      // Cloud wins on conflict; keep local-only rows for upload.
-      const merged = { ...localById, ...cloudById };
+      // Cloud wins on conflict — except for ids with a pending queue entry.
+      // Those hold a local edit (or delete) that hasn't uploaded yet, so
+      // taking the cloud copy here would revert the user's change and then
+      // upload the reverted row, losing the edit for good. A queued delete
+      // likewise has to survive, or the row resurrects locally after the
+      // delete flushes.
+      const merged = { ...localById };
+      for (const id in cloudById) {
+        if (queue[id]) continue;
+        merged[id] = cloudById[id];
+      }
+      for (const id in queue) {
+        if (queue[id] === "delete") delete merged[id];
+      }
       const mergedArr = Object.values(merged).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
       // Push local-only rows
@@ -324,7 +369,7 @@
       // Write merged set without re-queueing everything: skip our wrapper
       origSetRecords(mergedArr);
       if (typeof invalidateRecordsCache === "function") invalidateRecordsCache();
-      prevById = indexBy(mergedArr);
+      prevJson = snapshotOf(mergedArr);
 
       tryRender();
       scheduleFlush();

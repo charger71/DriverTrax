@@ -22,6 +22,7 @@
 
   const TYPE_LABELS = {
     body: "Body shop", glass: "Glass shop", tire: "Tire shop",
+    towing: "Towing", locksmith: "Locksmith",
     dealer: "Dealer", general: "General repair", other: "Other"
   };
 

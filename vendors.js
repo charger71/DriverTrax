@@ -26,11 +26,16 @@
     dealer: "Dealer", general: "General repair", other: "Other"
   };
 
+  function fullAddress(v) {
+    const cityStateZip = [v.city, [v.state, v.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+    return [v.address, cityStateZip].filter(Boolean).join(", ");
+  }
+
   async function load() {
     const list = $("vendorList");
     const { data, error } = await sb
       .from("service_vendors")
-      .select("id,name,vendor_type,contact_name,phone,address,active")
+      .select("id,name,vendor_type,contact_name,phone,address,city,state,zip,active")
       .order("name", { ascending: true });
     if (error) {
       if (list) list.innerHTML = `<div class="u-empty">${esc(error.message)}</div>`;
@@ -55,6 +60,7 @@
             <span class="loc-row-badge loc-row-badge--name">${esc(TYPE_LABELS[v.vendor_type] || v.vendor_type)}</span>
             <span class="loc-row-status ${v.active ? "loc-row-status--open" : "loc-row-status--restricted"}">${v.active ? "Active" : "Inactive"}</span>
             ${v.phone ? `<span>${esc(v.phone)}</span>` : ""}
+            ${fullAddress(v) ? `<span>${esc(fullAddress(v))}</span>` : ""}
           </div>
         </div>
         <button type="button" class="btn btn-secondary btn--sm vendor-row-edit"
@@ -79,6 +85,9 @@
       form.elements.contact_name.value = v.contact_name || "";
       form.elements.phone.value = v.phone || "";
       form.elements.address.value = v.address || "";
+      form.elements.city.value = v.city || "";
+      form.elements.state.value = v.state || "";
+      form.elements.zip.value = v.zip || "";
       form.elements.active.checked = v.active !== false;
     } else {
       form.elements.id.value = "";
@@ -112,6 +121,9 @@
       contact_name: (form.elements.contact_name.value || "").trim().slice(0, 60) || null,
       phone: (form.elements.phone.value || "").trim().slice(0, 30) || null,
       address: (form.elements.address.value || "").trim().slice(0, 120) || null,
+      city: (form.elements.city.value || "").trim().slice(0, 60) || null,
+      state: (form.elements.state.value || "").trim().slice(0, 2).toUpperCase() || null,
+      zip: (form.elements.zip.value || "").trim().slice(0, 10) || null,
       active: form.elements.active.checked
     };
     if (!payload.name) {

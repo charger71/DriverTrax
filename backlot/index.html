@@ -392,7 +392,12 @@
             </label>
             <label class="bl-field"><span class="bl-field-label">Contact name</span><input name="contact_name" maxlength="60" autocomplete="off"></label>
             <label class="bl-field"><span class="bl-field-label">Phone</span><input name="phone" type="tel" maxlength="30" autocomplete="off"></label>
-            <label class="bl-field"><span class="bl-field-label">Address</span><input name="address" maxlength="120" autocomplete="off"></label>
+            <label class="bl-field"><span class="bl-field-label">Address</span><input name="address" maxlength="120" autocomplete="off" placeholder="Street address"></label>
+            <label class="bl-field"><span class="bl-field-label">City</span><input name="city" maxlength="60" autocomplete="off"></label>
+            <div class="bl-field-row">
+              <label class="bl-field"><span class="bl-field-label">State</span><input name="state" maxlength="2" autocomplete="off" placeholder="e.g. KY"></label>
+              <label class="bl-field"><span class="bl-field-label">ZIP</span><input name="zip" maxlength="10" inputmode="numeric" autocomplete="off"></label>
+            </div>
             <label><input type="checkbox" name="active" checked> Active</label>
             <div class="bl-msg" id="blVendorsModalMsg" role="status" aria-live="polite"></div>
             <div class="bl-modal-actions">

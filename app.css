@@ -1885,6 +1885,9 @@
   .svc-state-banner--waiting-parts {
     background: var(--danger-soft); border: var(--border-thin) solid var(--danger); color: var(--danger);
   }
+  .svc-state-banner--flagged {
+    background: var(--warn-soft); border: var(--border-thin) solid var(--warn); color: var(--warn-text);
+  }
   .svc-days-out {
     display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px;
     font-size: var(--font-xs); font-weight: var(--weight-bold);

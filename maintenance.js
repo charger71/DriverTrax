@@ -177,54 +177,79 @@
 
   // A VIN can carry more than one open job at once (e.g. an MK job and a TI
   // job in progress together) — service_jobs was never limited to one row
-  // per VIN, but scanning used to silently resume only the single most
-  // recent one, leaving the other invisible until it happened to surface on
-  // the landing screen's Open Jobs list. Fetch every open job for the VIN
-  // and make the mechanic pick when there's more than one.
+  // per VIN. Fetch every open job for the VIN and, whenever at least one
+  // already exists, show a picker with a "Start a New Job" option instead
+  // of silently resuming a single job with no way to add a second one.
+  //
+  // Also checks the vehicle's driver-set current_status: a driver or CXR
+  // flagging BODY/MR/etc. from the normal entry form only ever writes a
+  // `records` row — nothing tells a mechanic scanning that VIN later that a
+  // flag is sitting there unless it happens to already have an open job.
   async function loadVin(serialId) {
     if (!serialId) return;
     const vin = serialId.toUpperCase();
-    const { data, error } = await sb
-      .from("service_jobs")
-      .select("*")
-      .eq("serial_id", vin)
-      .neq("state", "CLOSED")
-      .order("opened_at", { ascending: false });
-    if (error) console.warn("[Maint] loadVin", error);
-    const openJobs = data || [];
+    const [jobsRes, vehicleRes] = await Promise.all([
+      sb.from("service_jobs").select("*").eq("serial_id", vin).neq("state", "CLOSED").order("opened_at", { ascending: false }),
+      sb.from("vehicles").select("current_status,last_seen_at").eq("serial_id", vin).maybeSingle()
+    ]);
+    if (jobsRes.error) console.warn("[Maint] loadVin jobs", jobsRes.error);
+    if (vehicleRes.error) console.warn("[Maint] loadVin vehicle", vehicleRes.error);
+    const openJobs = jobsRes.data || [];
+    const vehicle = vehicleRes.data || null;
 
-    if (openJobs.length > 1) {
-      showJobPicker(vin, openJobs);
+    // A flagged status is only worth surfacing if it's a maintenance job
+    // type and nothing already open is handling it.
+    let flaggedType = null;
+    if (vehicle && JOB_TYPES.includes(vehicle.current_status) &&
+        !openJobs.some((j) => j.job_type === vehicle.current_status)) {
+      flaggedType = vehicle.current_status;
+    }
+
+    if (openJobs.length === 0 && !flaggedType) {
+      currentVin = vin;
+      currentJob = freshJob();
+      await Promise.all([populateDestinationSelect(), ensureVendorOptions()]);
+      $("svcScanEmpty")?.classList.add("u-hidden");
+      $("svcJobPicker")?.classList.add("u-hidden");
+      $("svcScanForm")?.classList.remove("u-hidden");
+      renderForm();
       return;
     }
 
-    currentVin = vin;
-    currentJob = freshJob();
-    if (openJobs.length === 1) hydrateJobFromRow(openJobs[0]);
-    await Promise.all([populateDestinationSelect(), ensureVendorOptions()]);
-
-    $("svcScanEmpty")?.classList.add("u-hidden");
-    $("svcJobPicker")?.classList.add("u-hidden");
-    $("svcScanForm")?.classList.remove("u-hidden");
-    renderForm();
+    showJobPicker(vin, openJobs, flaggedType ? { type: flaggedType, lastSeenAt: vehicle.last_seen_at } : null);
   }
 
   let pickerJobs = [];
 
-  function showJobPicker(vin, jobs) {
+  function showJobPicker(vin, jobs, flag) {
     currentVin = vin;
     currentJob = null;
     pickerJobs = jobs;
+
     const vinEl = $("svcPickerVin");
     if (vinEl) vinEl.textContent = vin;
+
+    const flagBanner = $("svcPickerFlagBanner");
+    if (flagBanner) {
+      if (flag) {
+        flagBanner.classList.remove("u-hidden");
+        flagBanner.innerHTML = `Driver flagged ${esc(statusLabel(flag.type))} — ${esc(ago(flag.lastSeenAt))} — no job open for it yet.`;
+      } else {
+        flagBanner.classList.add("u-hidden");
+        flagBanner.innerHTML = "";
+      }
+    }
+
     const list = $("svcJobPickerList");
     if (list) {
-      list.innerHTML = jobs.map((j) => `
-        <div class="detail-history-row" data-job-id="${esc(j.id)}">
-          <div class="detail-history-serial">${esc(statusLabel(j.job_type))}</div>
-          <div class="detail-history-meta">${esc(j.state)} · opened ${esc(ago(j.opened_at))}</div>
-        </div>
-      `).join("");
+      list.innerHTML = jobs.length
+        ? jobs.map((j) => `
+            <div class="detail-history-row" data-job-id="${esc(j.id)}">
+              <div class="detail-history-serial">${esc(statusLabel(j.job_type))}</div>
+              <div class="detail-history-meta">${esc(j.state)} · opened ${esc(ago(j.opened_at))}</div>
+            </div>
+          `).join("")
+        : `<div class="u-empty">No open jobs yet.</div>`;
       list.querySelectorAll(".detail-history-row").forEach((row) => {
         row.addEventListener("click", () => {
           const job = pickerJobs.find((j) => j.id === row.dataset.jobId);
@@ -232,6 +257,13 @@
         });
       });
     }
+
+    const newBtn = $("svcJobPickerNewBtn");
+    if (newBtn) {
+      newBtn.textContent = flag ? `Start Job for ${statusLabel(flag.type)}` : "Start a New Job";
+      newBtn.dataset.presetType = flag ? flag.type : "";
+    }
+
     $("svcScanEmpty")?.classList.add("u-hidden");
     $("svcScanForm")?.classList.add("u-hidden");
     $("svcJobPicker")?.classList.remove("u-hidden");
@@ -247,6 +279,11 @@
 
   async function startNewJobFromPicker() {
     currentJob = freshJob();
+    const presetType = $("svcJobPickerNewBtn")?.dataset.presetType;
+    if (presetType) {
+      currentJob.jobType = presetType;
+      currentJob.performedBy = VENDOR_DEFAULT.has(presetType) ? "vendor" : "in_house";
+    }
     await Promise.all([populateDestinationSelect(), ensureVendorOptions()]);
     $("svcJobPicker")?.classList.add("u-hidden");
     $("svcScanForm")?.classList.remove("u-hidden");

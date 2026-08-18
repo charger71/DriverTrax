@@ -1398,6 +1398,24 @@
     <div id="svcClosedJobsList"><div class="u-empty">Loading…</div></div>
   </div>
 
+  <!-- Shown instead of the form when a scanned VIN already has more than one
+       open job (e.g. an MK job and a TI job running at the same time) —
+       scanning used to silently resume just the most recent one. -->
+  <div id="svcJobPicker" class="u-hidden">
+    <div class="detail-vin-header">
+      <div>
+        <div class="detail-vin-label">VIN</div>
+        <div class="detail-vin-value" id="svcPickerVin">—</div>
+      </div>
+      <button type="button" class="btn btn-secondary btn--sm" id="svcJobPickerBackBtn">
+        <svg class="icon" aria-hidden="true"><use href="#icon-back"/></svg> Back
+      </button>
+    </div>
+    <div class="detail-subhead">Multiple open jobs on this VIN — pick one to continue</div>
+    <div id="svcJobPickerList"></div>
+    <button type="button" class="btn btn-secondary btn--block" id="svcJobPickerNewBtn">Start a New Job</button>
+  </div>
+
   <div id="svcScanForm" class="u-hidden">
     <div class="detail-vin-header">
       <div>

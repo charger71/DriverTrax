@@ -55,6 +55,8 @@
       if (vin) loadVin(vin);
     });
     $("svcBackBtn")?.addEventListener("click", showLandingScreen);
+    $("svcJobPickerBackBtn")?.addEventListener("click", showLandingScreen);
+    $("svcJobPickerNewBtn")?.addEventListener("click", startNewJobFromPicker);
     $("svcJobTypeChips")?.addEventListener("click", (e) => {
       const chip = e.target.closest(".svc-chip");
       if (!chip || isJobLocked()) return;
@@ -114,7 +116,9 @@
   function showLandingScreen() {
     currentVin = null;
     currentJob = null;
+    pickerJobs = [];
     $("svcScanForm")?.classList.add("u-hidden");
+    $("svcJobPicker")?.classList.add("u-hidden");
     $("svcScanEmpty")?.classList.remove("u-hidden");
     loadOpenJobs();
     loadWaitingPartsJobs();
@@ -162,35 +166,91 @@
   }
 
   // ---- loading a VIN ----
-  async function loadVin(serialId) {
-    if (!serialId) return;
-    currentVin = serialId.toUpperCase();
-    currentJob = {
+  function freshJob() {
+    return {
       id: null, jobType: null, performedBy: "in_house", performedByTouched: false,
       vendorId: null, destination: "", mileage: null, notes: "", parts: [],
       state: "OPEN", closeStatus: "CLEAN",
       waitingOnParts: false, partsNote: "", waitingSince: null
     };
-
-    await tryResumeJob(currentVin);
-    await Promise.all([populateDestinationSelect(), ensureVendorOptions()]);
-
-    $("svcScanEmpty")?.classList.add("u-hidden");
-    $("svcScanForm")?.classList.remove("u-hidden");
-    renderForm();
   }
 
-  async function tryResumeJob(vin) {
+  // A VIN can carry more than one open job at once (e.g. an MK job and a TI
+  // job in progress together) — service_jobs was never limited to one row
+  // per VIN, but scanning used to silently resume only the single most
+  // recent one, leaving the other invisible until it happened to surface on
+  // the landing screen's Open Jobs list. Fetch every open job for the VIN
+  // and make the mechanic pick when there's more than one.
+  async function loadVin(serialId) {
+    if (!serialId) return;
+    const vin = serialId.toUpperCase();
     const { data, error } = await sb
       .from("service_jobs")
       .select("*")
       .eq("serial_id", vin)
       .neq("state", "CLOSED")
-      .order("opened_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (error) { console.warn("[Maint] tryResumeJob", error); return; }
-    if (data) hydrateJobFromRow(data);
+      .order("opened_at", { ascending: false });
+    if (error) console.warn("[Maint] loadVin", error);
+    const openJobs = data || [];
+
+    if (openJobs.length > 1) {
+      showJobPicker(vin, openJobs);
+      return;
+    }
+
+    currentVin = vin;
+    currentJob = freshJob();
+    if (openJobs.length === 1) hydrateJobFromRow(openJobs[0]);
+    await Promise.all([populateDestinationSelect(), ensureVendorOptions()]);
+
+    $("svcScanEmpty")?.classList.add("u-hidden");
+    $("svcJobPicker")?.classList.add("u-hidden");
+    $("svcScanForm")?.classList.remove("u-hidden");
+    renderForm();
+  }
+
+  let pickerJobs = [];
+
+  function showJobPicker(vin, jobs) {
+    currentVin = vin;
+    currentJob = null;
+    pickerJobs = jobs;
+    const vinEl = $("svcPickerVin");
+    if (vinEl) vinEl.textContent = vin;
+    const list = $("svcJobPickerList");
+    if (list) {
+      list.innerHTML = jobs.map((j) => `
+        <div class="detail-history-row" data-job-id="${esc(j.id)}">
+          <div class="detail-history-serial">${esc(statusLabel(j.job_type))}</div>
+          <div class="detail-history-meta">${esc(j.state)} · opened ${esc(ago(j.opened_at))}</div>
+        </div>
+      `).join("");
+      list.querySelectorAll(".detail-history-row").forEach((row) => {
+        row.addEventListener("click", () => {
+          const job = pickerJobs.find((j) => j.id === row.dataset.jobId);
+          if (job) selectPickedJob(job);
+        });
+      });
+    }
+    $("svcScanEmpty")?.classList.add("u-hidden");
+    $("svcScanForm")?.classList.add("u-hidden");
+    $("svcJobPicker")?.classList.remove("u-hidden");
+  }
+
+  async function selectPickedJob(job) {
+    hydrateJobFromRow(job);
+    await Promise.all([populateDestinationSelect(), ensureVendorOptions()]);
+    $("svcJobPicker")?.classList.add("u-hidden");
+    $("svcScanForm")?.classList.remove("u-hidden");
+    renderForm();
+  }
+
+  async function startNewJobFromPicker() {
+    currentJob = freshJob();
+    await Promise.all([populateDestinationSelect(), ensureVendorOptions()]);
+    $("svcJobPicker")?.classList.add("u-hidden");
+    $("svcScanForm")?.classList.remove("u-hidden");
+    renderForm();
   }
 
   function hydrateJobFromRow(row) {
@@ -222,6 +282,7 @@
     hydrateJobFromRow(data);
     await Promise.all([populateDestinationSelect(), ensureVendorOptions()]);
     $("svcScanEmpty")?.classList.add("u-hidden");
+    $("svcJobPicker")?.classList.add("u-hidden");
     $("svcScanForm")?.classList.remove("u-hidden");
     renderForm();
   }

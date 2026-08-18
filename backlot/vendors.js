@@ -26,10 +26,15 @@
     dealer: "Dealer", general: "General repair", other: "Other"
   };
 
+  function fullAddress(v) {
+    const cityStateZip = [v.city, [v.state, v.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+    return [v.address, cityStateZip].filter(Boolean).join(", ");
+  }
+
   async function load() {
     const { data, error } = await sb
       .from("service_vendors")
-      .select("id,name,vendor_type,contact_name,phone,address,active")
+      .select("id,name,vendor_type,contact_name,phone,address,city,state,zip,active")
       .order("name", { ascending: true });
     const el = $("blVendorsList");
     if (error) { if (el) el.innerHTML = `<div class="bl-empty">${esc(error.message)}</div>`; return; }
@@ -51,7 +56,7 @@
             <span class="bl-role-pill">${esc(TYPE_LABELS[v.vendor_type] || v.vendor_type)}</span>
             ${v.active === false ? `<span class="bl-disabled-pill">Inactive</span>` : ""}
           </div>
-          <div class="meta">${[v.contact_name, v.phone, v.address].filter(Boolean).map(esc).join(" · ")}</div>
+          <div class="meta">${[v.contact_name, v.phone, fullAddress(v)].filter(Boolean).map(esc).join(" · ")}</div>
         </div>
         <div class="actions">
           <button class="bl-btn bl-btn--sm bl-btn--secondary" data-act="edit" data-id="${v.id}">Edit</button>
@@ -94,6 +99,9 @@
     f.elements.contact_name.value = v.contact_name || "";
     f.elements.phone.value = v.phone || "";
     f.elements.address.value = v.address || "";
+    f.elements.city.value = v.city || "";
+    f.elements.state.value = v.state || "";
+    f.elements.zip.value = v.zip || "";
     f.elements.active.checked = v.active !== false;
     showModal();
   }
@@ -108,6 +116,9 @@
       contact_name: (f.elements.contact_name.value || "").trim().slice(0, 60) || null,
       phone: (f.elements.phone.value || "").trim().slice(0, 30) || null,
       address: (f.elements.address.value || "").trim().slice(0, 120) || null,
+      city: (f.elements.city.value || "").trim().slice(0, 60) || null,
+      state: (f.elements.state.value || "").trim().slice(0, 2).toUpperCase() || null,
+      zip: (f.elements.zip.value || "").trim().slice(0, 10) || null,
       active: f.elements.active.checked
     };
     if (!payload.name) { setMsg("Enter a name.", "err"); return; }

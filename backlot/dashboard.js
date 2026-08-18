@@ -24,7 +24,7 @@
   // Status → lot category (see app status catalog).
   const READY   = new Set(["CLEAN", "DETAILED"]);
   const DIRTY   = new Set(["DIRTY", "REWASH", "DETAILING", "GLASS"]);
-  const SERVICE = new Set(["PM", "MK", "MR", "OM", "BODY", "TI", "HOLD", "DNR", "AUDIT FAIL", "WI/DELETE"]);
+  const SERVICE = new Set(["PM", "MK", "MR", "OM", "BODY", "TI", "HOLD", "DNR", "AUDIT FAIL", "WI/DELETE", "AT_VENDOR", "WAITING_PARTS"]);
   function categoryOf(status) {
     const s = (status || "").toUpperCase();
     if (READY.has(s)) return "ready";

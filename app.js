@@ -20,7 +20,9 @@ const STATUS_LABELS = {
   "CHECK_IN": "CHECK IN",
   "CHECK_OUT": "CHECK OUT",
   "HOLD": "HOLD",
-  "DNR": "DO NOT RENT (DNR)"
+  "DNR": "DO NOT RENT (DNR)",
+  "AT_VENDOR": "AT VENDOR",
+  "WAITING_PARTS": "WAITING ON PARTS"
 };
 function statusLabel(s) { return STATUS_LABELS[s] || s || ""; }
 
@@ -50,7 +52,9 @@ const DT_OPTIONS = {
   STATUS_PRIVILEGED: ["CHECK_OUT","HOLD","DNR"],
   // System-set by the detailer flow. Not selectable from any form,
   // but appears as a filter option in the records view.
-  STATUS_DERIVED: ["DETAILING","DETAILED"],
+  // AT_VENDOR / WAITING_PARTS are system-set by the mechanic flow (maintenance.js)
+  // the same way DETAILING/DETAILED are system-set by the detailer flow.
+  STATUS_DERIVED: ["DETAILING","DETAILED","AT_VENDOR","WAITING_PARTS"],
   // Fallback list only. The real dropdown options come from the
   // parking_sections table via DT_DROPOFFS.getSections() — see
   // populateDestinationSelects(). Kept here so any legacy caller that

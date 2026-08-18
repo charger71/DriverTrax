@@ -109,10 +109,6 @@
       const sel = $("svcCloseStatus");
       if (sel) sel.value = "CLEAN";
     }
-
-    document.addEventListener("dt-tab-shown", (e) => {
-      if (e.detail === "service-scan") { loadOpenJobs(); loadWaitingPartsJobs(); loadVendorJobs(); loadClosedJobs(); }
-    });
   }
 
   function showLandingScreen() {
@@ -678,6 +674,18 @@
     if (DT_AUTH.isMechanic && DT_AUTH.isMechanic()) start();
   });
   if (DT_AUTH.isMechanic && DT_AUTH.isMechanic()) start();
+
+  // Registered unconditionally at load time (matches detailer.js's own
+  // top-level dt-tab-shown listener) rather than inside start(). auth.js's
+  // role-transition handler calls showTab("service-scan") — which dispatches
+  // this same event — BEFORE it dispatches the dt-auth-change that gets
+  // start() running for the first time. Wiring this listener inside start()
+  // meant a mechanic's very first sign-in fired dt-tab-shown into a void:
+  // nothing was listening yet, so the landing lists never loaded and sat on
+  // their static "Loading…" placeholders forever.
+  document.addEventListener("dt-tab-shown", (e) => {
+    if (e.detail === "service-scan") { loadOpenJobs(); loadWaitingPartsJobs(); loadVendorJobs(); loadClosedJobs(); }
+  });
 
   window.DT_MAINT = { loadVin, showLandingScreen, renderDashboard };
 })();

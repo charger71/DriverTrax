@@ -176,6 +176,7 @@
     <li><a href="#status">Status chips</a></li>
     <li><a href="#stats">Stat cards</a></li>
     <li><a href="#compositions">Compositions</a></li>
+    <li><a href="#mechanic">Mechanic / service jobs</a></li>
     <li><a href="#vin-history">VIN history</a></li>
     <li><a href="#states">States</a></li>
     <li><a href="#modal">Modal</a></li>
@@ -557,6 +558,61 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
   &lt;button class="btn btn-secondary"&gt;Cancel&lt;/button&gt;
   &lt;button class="btn btn-primary"&gt;Save&lt;/button&gt;
 &lt;/div&gt;</pre>
+  </div>
+</section>
+
+<!-- ===================== MECHANIC / SERVICE JOBS ===================== -->
+<section class="cl-section" id="mechanic">
+  <h2>Mechanic / service jobs</h2>
+  <p class="cl-desc">Used on <code>#panel-service-scan</code> (see <code>maintenance.js</code>). Job-type chips share the <code>.cond-chip</code> shape with a <code>--role-mechanic</code> tint; Body/Glass get a warn tint since they route to an outside vendor by default.</p>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Job-type chips</div>
+    <div class="cl-preview">
+      <div class="detail-conditions">
+        <label class="svc-chip checked"><input type="radio" checked><span>PM (MAINT.)</span></label>
+        <label class="svc-chip"><input type="radio"><span>MK (MECH.)</span></label>
+        <label class="svc-chip checked is-vendor-default"><input type="radio" checked><span>BODY DAMAGE</span></label>
+        <label class="svc-chip"><input type="radio"><span>GLASS</span></label>
+      </div>
+    </div>
+<pre class="cl-code">&lt;label class="svc-chip checked is-vendor-default"&gt;
+  &lt;input type="radio" name="svcJobType" value="BODY" checked&gt;
+  &lt;span&gt;BODY DAMAGE&lt;/span&gt;
+&lt;/label&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">In-house / vendor toggle</div>
+    <div class="cl-preview">
+      <div class="svc-performed-toggle" style="max-width: 320px;">
+        <button type="button">In-House</button>
+        <button type="button" class="active">Outside Vendor</button>
+      </div>
+    </div>
+<pre class="cl-code">&lt;div class="svc-performed-toggle"&gt;
+  &lt;button type="button" data-val="in_house"&gt;In-House&lt;/button&gt;
+  &lt;button type="button" data-val="vendor" class="active"&gt;Outside Vendor&lt;/button&gt;
+&lt;/div&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Parts list — freeform strings, add/remove only (no ordering/receiving workflow)</div>
+    <div class="cl-preview cl-stack">
+      <div class="svc-parts-list">
+        <div class="svc-part-row"><span>Front bumper clip</span><button type="button" aria-label="Remove">&times;</button></div>
+        <div class="svc-part-row"><span>Headlight assembly, driver side</span><button type="button" aria-label="Remove">&times;</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Job-state banners — mirrors <code>.detail-locked-banner</code>'s shape, tinted per state</div>
+    <div class="cl-preview cl-stack">
+      <div class="svc-state-banner svc-state-banner--sent-out">Out at Bo's Body Shop — sent 3 days ago<span class="svc-days-out">3 days out</span></div>
+      <div class="svc-state-banner svc-state-banner--returned">Returned 2 hours ago — pick a location and close the job.</div>
+      <div class="svc-state-banner svc-state-banner--closed">Job closed 5 min ago — read-only.</div>
+    </div>
   </div>
 </section>
 
@@ -1061,7 +1117,7 @@ z-index: 99998; /* one more than the next thing */</pre>
   renderSwatches("sw-surfaces", ["--header-bg","--bg","--panel","--card","--card-soft","--surface-hover","--border","--divider"]);
   renderSwatches("sw-text",     ["--text","--text-soft","--muted","--text-on-accent","--text-on-status"]);
   renderSwatches("sw-status",   ["--accent","--accent-strong","--warn","--warn-strong","--danger","--danger-strong","--info","--info-strong","--success"]);
-  renderSwatches("sw-roles",    ["--role-manager","--role-cxr","--role-driver","--role-admin","--role-detailer"]);
+  renderSwatches("sw-roles",    ["--role-manager","--role-cxr","--role-driver","--role-admin","--role-detailer","--role-mechanic"]);
   renderSwatches("sw-damage",   ["--damage-dent","--damage-scratch","--damage-chip","--damage-crack","--damage-missing"]);
 
   // -------- Spacing scale --------

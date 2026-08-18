@@ -51,6 +51,7 @@
     isAdmin:   () => state.profile && state.profile.role === "admin",
     isCxr:     () => state.profile && state.profile.role === "cxr",
     isDetailer:() => state.profile && state.profile.role === "detailer",
+    isMechanic:() => state.profile && state.profile.role === "mechanic",
     signOut: async () => {
       await sb.auth.signOut();
       location.reload();
@@ -67,6 +68,7 @@
       document.body.classList.toggle("is-admin",    role === "admin");
       document.body.classList.toggle("is-cxr",      role === "cxr");
       document.body.classList.toggle("is-detailer", role === "detailer");
+      document.body.classList.toggle("is-mechanic", role === "mechanic");
       document.dispatchEvent(new CustomEvent("dt-auth-change", { detail: { user: state.user, profile: state.profile } }));
     },
     // PIN management for the Profile page
@@ -363,16 +365,20 @@
     const isAdmin    = role === "admin";
     const isCxr      = role === "cxr";
     const isDetailer = role === "detailer";
+    const isMechanic = role === "mechanic";
     const isMgrLike  = isManager || isCxr;
     const wasMgrLike  = document.body.classList.contains("is-manager") || document.body.classList.contains("is-cxr");
     const wasDetailer = document.body.classList.contains("is-detailer");
+    const wasMechanic = document.body.classList.contains("is-mechanic");
     document.body.classList.toggle("is-manager",  isManager);
     document.body.classList.toggle("is-admin",    isAdmin);
     document.body.classList.toggle("is-cxr",      isCxr);
     document.body.classList.toggle("is-detailer", isDetailer);
+    document.body.classList.toggle("is-mechanic", isMechanic);
     // Switch to a role-appropriate tab on role transition or fresh sign-in.
     if (state.user && typeof showTab === "function") {
       if (isDetailer && !wasDetailer) showTab("detail-scan");
+      else if (isMechanic && !wasMechanic) showTab("service-scan");
       else if (isMgrLike !== wasMgrLike) showTab(isMgrLike ? "backlot-stats" : "entry");
     }
     if (!state.ready) {

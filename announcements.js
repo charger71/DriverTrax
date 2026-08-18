@@ -244,7 +244,7 @@
 
   function renderBadge() {
     const n = unreadCount();
-    const targets = [$("annUnreadBadge"), $("tabAlertsBadge"), $("tabAlertsDetBadge")];
+    const targets = [$("annUnreadBadge"), $("tabAlertsBadge"), $("tabAlertsDetBadge"), $("tabAlertsMechBadge")];
     targets.forEach(el => {
       if (!el) return;
       if (n > 0) { el.textContent = n; el.classList.remove("hidden"); }
@@ -357,6 +357,7 @@
       $("annUnreadBadge")?.classList.add("hidden");
       $("tabAlertsBadge")?.classList.add("hidden");
       $("tabAlertsDetBadge")?.classList.add("hidden");
+      $("tabAlertsMechBadge")?.classList.add("hidden");
       window.DT_PWA?.setBadgeSource?.("alerts", 0);
     }
   });

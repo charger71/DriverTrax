@@ -900,6 +900,7 @@ function saveRecord() {
     const records = getRecords();
     records.unshift(recordData);
     setRecords(records);
+    document.dispatchEvent(new CustomEvent("dt-record-saved", { detail: { id: recordData.id, serialId: recordData.serialId } }));
     resetEntryPhotoUI();
     document.getElementById("serial").value = "";
     toggleClearBtn();
@@ -1074,6 +1075,7 @@ function showTab(name) {
   // of the driver one, so the same nav element gives every role a useful view.
   const visualTab = name; // for the active-class lookup
   if (name === "dashboard" && window.DT_AUTH?.isDetailer?.()) name = "dashboard-detailer";
+  if (name === "dashboard" && window.DT_AUTH?.isMechanic?.()) name = "dashboard-mechanic";
   document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
   document.querySelectorAll(".tab").forEach(t => {
     t.classList.remove("active");
@@ -1093,6 +1095,9 @@ function showTab(name) {
   if (name === "dashboard") { applyProfile(); renderDashboard(); }
   if (name === "dashboard-detailer" && window.DT_DETAIL?.renderDashboard) {
     DT_DETAIL.renderDashboard();
+  }
+  if (name === "dashboard-mechanic" && window.DT_MAINT?.renderDashboard) {
+    DT_MAINT.renderDashboard();
   }
   if (name === "profile") applyProfile();
   if (name === "keyup") loadKeyUp();

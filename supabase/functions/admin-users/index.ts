@@ -85,8 +85,8 @@ Deno.serve(async (req) => {
       return { ok: true };
     }
     // cxr
-    if (t === "driver" || t === "detailer") return { ok: true };
-    return { ok: false, reason: "cxr can only act on drivers and detailers" };
+    if (t === "driver" || t === "detailer" || t === "mechanic") return { ok: true };
+    return { ok: false, reason: "cxr can only act on drivers, detailers, and mechanics" };
   };
 
   try {

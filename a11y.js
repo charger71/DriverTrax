@@ -47,7 +47,8 @@
     // Class-based clickables that wire handlers via JS (records, legend rows, etc.)
     scope.querySelectorAll(
       ".record, .map-legend-row, .stat-card.clickable, .quiz-author-item, " +
-      ".quiz-recent-row, .day-table tr.has-entries, .training-list-item.clickable"
+      ".quiz-recent-row, .day-table tr.has-entries, .training-list-item.clickable, " +
+      ".detail-history-row"
     ).forEach(makeKeyboardAccessible);
   }
 

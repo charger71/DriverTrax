@@ -21,7 +21,7 @@
   let sortBy = "name"; // "name" | "role"
 
   // Order used when sorting by role: most-privileged first, then alpha by name.
-  const ROLE_ORDER = ["admin", "manager", "cxr", "driver", "detailer"];
+  const ROLE_ORDER = ["admin", "manager", "cxr", "driver", "detailer", "mechanic"];
   const roleRank = (r) => {
     const i = ROLE_ORDER.indexOf(r || "driver");
     return i === -1 ? ROLE_ORDER.length : i;
@@ -64,7 +64,7 @@
   function render() {
     const amAdmin = DT_AUTH.isAdmin && DT_AUTH.isAdmin();
     const amCxr   = DT_AUTH.isCxr   && DT_AUTH.isCxr();
-    const CXR_EDITABLE = new Set(["driver", "detailer"]);
+    const CXR_EDITABLE = new Set(["driver", "detailer", "mechanic"]);
     const term = ($("usersSearch")?.value || "").trim().toLowerCase();
     const visible = amCxr ? users.filter(u => CXR_EDITABLE.has(u.role || "driver")) : users;
     const list = visible.filter(u => !term
@@ -193,7 +193,7 @@
     const form = $("usersForm");
     const amCxr = DT_AUTH.isCxr && DT_AUTH.isCxr();
     Array.from(form.elements.role.options).forEach(opt => {
-      const allowed = amCxr ? (opt.value === "driver" || opt.value === "detailer") : true;
+      const allowed = amCxr ? (opt.value === "driver" || opt.value === "detailer" || opt.value === "mechanic") : true;
       opt.hidden = !allowed;
       opt.disabled = !allowed;
     });

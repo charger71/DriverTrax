@@ -205,6 +205,10 @@
     <button type="button" class="tab detailer-only"      role="tab" aria-selected="false" aria-controls="panel-announcements"     data-tab="announcements"      onclick="showTab('announcements')">ALERTS<span class="tab-badge hidden" id="tabAlertsDetBadge"></span></button>
     <button type="button" class="tab detailer-only"      role="tab" aria-selected="false" aria-controls="panel-records"           data-tab="records"            onclick="showTab('records')">VIN LOOKUP</button>
     <button type="button" class="tab detailer-only"      role="tab" aria-selected="false" aria-controls="panel-dashboard"         data-tab="dashboard"          onclick="showTab('dashboard')">DASHBOARD</button>
+    <button type="button" class="tab mechanic-only"      role="tab" aria-selected="false" aria-controls="panel-service-scan"      data-tab="service-scan"       onclick="showTab('service-scan')">NEW ENTRY</button>
+    <button type="button" class="tab mechanic-only"      role="tab" aria-selected="false" aria-controls="panel-announcements"     data-tab="announcements"      onclick="showTab('announcements')">ALERTS<span class="tab-badge hidden" id="tabAlertsMechBadge"></span></button>
+    <button type="button" class="tab mechanic-only"      role="tab" aria-selected="false" aria-controls="panel-records"           data-tab="records"            onclick="showTab('records')">VIN LOOKUP</button>
+    <button type="button" class="tab mechanic-only"      role="tab" aria-selected="false" aria-controls="panel-dashboard"         data-tab="dashboard"          onclick="showTab('dashboard')">DASHBOARD</button>
   </div>
 </header>
 
@@ -297,6 +301,17 @@
       <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span> Dashboard
     </a>
 
+    <!-- Mechanic-only menu items -->
+    <a class="menu-item mechanic-only" onclick="showTab('service-scan'); closeMenu()">
+      <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span> New Entry
+    </a>
+    <a class="menu-item mechanic-only" onclick="showTab('announcements'); closeMenu()">
+      <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-8-4 18-6-6-8-4z"/></svg></span> Alerts
+    </a>
+    <a class="menu-item mechanic-only" onclick="showTab('dashboard'); closeMenu()">
+      <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span> Dashboard
+    </a>
+
     <!-- Manager-only Backlot section. Hidden unless body has .is-manager (set by auth.js). -->
     <a class="menu-item manager-only" onclick="showTab('backlot-stats'); closeMenu()">
       <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span> Fleet Stats
@@ -321,6 +336,9 @@
     </a>
     <a class="menu-item manager-only" onclick="showTab('locations'); closeMenu()">
       <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span> Locations
+    </a>
+    <a class="menu-item manager-only" onclick="showTab('vendors'); closeMenu()">
+      <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span> Vendors
     </a>
 
     <!-- Utility section — visible to everyone -->
@@ -1353,6 +1371,178 @@
   </div>
 </div>
 
+<!-- ===================================================== -->
+<!-- MECHANIC — scan a VIN, open a service job. Glass and Body
+     route to an outside vendor by default (see maintenance.js). -->
+<!-- ===================================================== -->
+<div class="panel" id="panel-service-scan" role="tabpanel" aria-label="New entry">
+  <div id="svcScanEmpty">
+    <div class="entry-header-buttons">
+      <button class="btn btn-primary btn--hero btn--full btn--pulse" id="svcScanBtn">
+        <svg class="icon icon--xl" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-scan"/></svg>
+        SCAN BARCODE
+      </button>
+      <button class="btn btn-secondary btn-manual-toggle" id="svcScanManualBtn">Enter Manually</button>
+    </div>
+
+    <div class="today-header"><span class="today-title">Open Jobs</span><span class="today-count" id="svcOpenJobsCount">0</span></div>
+    <div id="svcOpenJobsList"><div class="u-empty">Loading…</div></div>
+
+    <div class="today-header"><span class="today-title">Out at Vendor</span><span class="today-count" id="svcVendorJobsCount">0</span></div>
+    <div id="svcVendorJobsList"><div class="u-empty">Loading…</div></div>
+
+    <div class="today-header"><span class="today-title">Closed This Week</span><span class="today-count" id="svcClosedJobsCount">0</span></div>
+    <div id="svcClosedJobsList"><div class="u-empty">Loading…</div></div>
+  </div>
+
+  <div id="svcScanForm" class="u-hidden">
+    <div class="detail-vin-header">
+      <div>
+        <div class="detail-vin-label">VIN</div>
+        <div class="detail-vin-value" id="svcFormVin">—</div>
+      </div>
+      <button type="button" class="btn btn-secondary btn--sm" id="svcBackBtn">
+        <svg class="icon" aria-hidden="true"><use href="#icon-back"/></svg> Back
+      </button>
+    </div>
+
+    <div class="svc-state-banner u-hidden" id="svcStateBanner"></div>
+
+    <div class="detail-subhead">Job Type</div>
+    <div class="detail-conditions" id="svcJobTypeChips"></div>
+
+    <div class="svc-performed-toggle" id="svcPerformedToggle">
+      <button type="button" data-val="in_house">In-House</button>
+      <button type="button" data-val="vendor">Outside Vendor</button>
+    </div>
+
+    <label class="field-row u-hidden" id="svcVendorRow">
+      <span class="field-label">Vendor</span>
+      <select id="svcVendorSelect">
+        <option value="">-- SELECT VENDOR --</option>
+      </select>
+    </label>
+
+    <label class="field-row" id="svcDestinationRow">
+      <span class="field-label">Location</span>
+      <select id="svcDestination">
+        <option value="">-- LOCATION --</option>
+      </select>
+    </label>
+
+    <label class="field-row">
+      <span class="field-label">Mileage</span>
+      <input type="number" id="svcMileage" inputmode="numeric" min="0" step="1" placeholder="000000" autocomplete="off">
+    </label>
+
+    <label class="field-row">
+      <span class="field-label">Notes</span>
+      <textarea id="svcNotes" placeholder="What's being done..."></textarea>
+    </label>
+
+    <div class="detail-subhead">Parts</div>
+    <div class="svc-parts-list" id="svcPartsList"></div>
+    <div class="svc-part-add">
+      <input type="text" id="svcPartInput" placeholder="Add a part..." maxlength="80">
+      <button type="button" class="btn btn-secondary btn--sm" id="svcPartAddBtn" aria-label="Add part">
+        <svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg>
+      </button>
+    </div>
+
+    <label class="field-row u-hidden" id="svcCloseStatusRow">
+      <span class="field-label">Closing Status</span>
+      <select id="svcCloseStatus"></select>
+    </label>
+
+    <div class="detail-job-actions" id="svcActions">
+      <button type="button" class="btn btn-primary btn--block" id="svcSaveBtn">Save</button>
+      <button type="button" class="btn btn-secondary btn--block u-hidden" id="svcSendOutBtn">Send to Vendor</button>
+      <button type="button" class="btn btn-secondary btn--block u-hidden" id="svcReturnedBtn">Mark Returned</button>
+      <button type="button" class="btn btn-primary btn--block u-hidden" id="svcCloseBtn">Close Job</button>
+    </div>
+    <div id="svcGpsStatus" class="gps-status"></div>
+  </div>
+</div>
+
+<!-- Mechanic personal dashboard — same structural pattern as the detailer dashboard -->
+<div class="panel" id="panel-dashboard-mechanic" role="tabpanel" aria-label="Dashboard">
+  <div class="dash-section">
+    <div class="dash-title">Mechanic Dashboard</div>
+    <div class="stat-grid" id="svcStatGrid">
+      <div class="stat-card"><div class="stat-label">Open</div><div class="stat-value" id="svcStatOpen">—</div><div class="stat-sub">jobs</div></div>
+      <div class="stat-card"><div class="stat-label">Out at Vendor</div><div class="stat-value" id="svcStatVendor">—</div><div class="stat-sub">jobs</div></div>
+      <div class="stat-card"><div class="stat-label">This Week</div><div class="stat-value" id="svcStatWeek">—</div><div class="stat-sub">closed</div></div>
+      <div class="stat-card"><div class="stat-label">All Time</div><div class="stat-value" id="svcStatAll">—</div><div class="stat-sub">closed</div></div>
+    </div>
+  </div>
+
+  <div class="dash-section">
+    <div class="dash-title">Recent Jobs</div>
+    <div id="svcRecentList"><div class="u-empty">Loading…</div></div>
+  </div>
+</div>
+
+<!-- ===================================================== -->
+<!-- VENDORS PANEL (manager-only) — service_vendors catalog.
+     Same shape as #panel-locations. -->
+<!-- ===================================================== -->
+<div class="panel" id="panel-vendors" role="region" aria-label="Vendors">
+  <div class="users-actions">
+    <button type="button" class="btn btn-primary" id="vendorAddBtn" aria-label="Add vendor">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span>Add Vendor</span>
+    </button>
+  </div>
+  <div class="dash-section">
+    <div class="dash-title">Outside Service Vendors</div>
+    <p class="loc-help">Body and glass work routes to one of these by default. When a mechanic sends a car out, its location shows as <em>VENDOR: name</em> instead of staying stale at its last parking spot.</p>
+    <div id="vendorList"><div class="u-empty">Loading…</div></div>
+  </div>
+</div>
+
+<!-- Add/edit vendor modal — same shape as the Locations modal. -->
+<div class="users-modal" id="vendorModal" aria-hidden="true"
+     role="dialog" aria-modal="true" aria-label="Add vendor">
+  <div class="users-modal-card">
+    <div class="users-modal-header">
+      <span id="vendorModalTitle">Add vendor</span>
+      <button type="button" class="btn btn-destructive btn-icon" id="vendorModalClose" aria-label="Close">&times;</button>
+    </div>
+    <form id="vendorForm">
+      <input type="hidden" name="id">
+      <label>Name
+        <input type="text" name="name" required maxlength="60"
+               placeholder="e.g. Bo's Body Shop" autocomplete="off">
+      </label>
+      <label>Type
+        <select name="vendor_type">
+          <option value="body">Body shop</option>
+          <option value="glass">Glass shop</option>
+          <option value="tire">Tire shop</option>
+          <option value="dealer">Dealer</option>
+          <option value="general">General repair</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+      <label>Contact name
+        <input type="text" name="contact_name" maxlength="60" autocomplete="off">
+      </label>
+      <label>Phone
+        <input type="tel" name="phone" maxlength="30" autocomplete="off">
+      </label>
+      <label>Address
+        <input type="text" name="address" maxlength="120" autocomplete="off">
+      </label>
+      <label class="checkbox-row"><input type="checkbox" name="active" checked> Active</label>
+      <div class="users-modal-msg" id="vendorModalMsg"></div>
+      <div class="users-modal-actions">
+        <button type="button" class="btn btn-secondary" id="vendorModalCancel">Cancel</button>
+        <button type="submit" class="btn btn-primary btn--block" id="vendorModalSubmit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Users invite + edit modal -->
 <div class="users-modal" id="usersModal" aria-hidden="true">
   <div class="users-modal-card">
@@ -1373,6 +1563,7 @@
           <option value="driver">Driver</option>
           <option value="cxr">CXR</option>
           <option value="detailer">Detailer</option>
+          <option value="mechanic">Mechanic</option>
           <option value="manager">Manager</option>
           <option value="admin" class="opt-admin-only">Admin</option>
         </select>
@@ -1657,6 +1848,8 @@
 <script src="users.js"></script>
 <script src="locations.js"></script>
 <script src="detailer.js"></script>
+<script src="vendors.js"></script>
+<script src="maintenance.js"></script>
 <script src="elearning.js"></script>
 <script src="notifications.js"></script>
 <script src="pull-refresh.js"></script>

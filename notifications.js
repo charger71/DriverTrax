@@ -17,7 +17,7 @@
 
   const sb = DT_AUTH.client;
   const PERM_ASKED_KEY = "drivertrax_notif_perm_asked";
-  const TARGET_ROLES = new Set(["driver", "detailer", "cxr"]);
+  const TARGET_ROLES = new Set(["driver", "detailer", "cxr", "mechanic"]);
 
   // Don't fire for rows that already existed when this session started.
   const sessionStart = Date.now();

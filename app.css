@@ -259,7 +259,9 @@
 
   /* === Shared bases (consolidated duplication) === */
   /* Card surface: dark card bg + bordered + rounded. Per-rule padding/margin still applies. */
-  input[type=text], input[type=number], select, textarea,
+  input[type=text], input[type=number], input[type=date], input[type=time],
+  input[type=email], input[type=password], input[type=search], input[type=tel], input[type=url],
+  select, textarea,
   .record, .stat-card, .bar-chart, .day-table {
     background: var(--card);
     border: 1px solid var(--border);
@@ -320,7 +322,9 @@
   /* Inside flex rows (form layouts) the row gap handles spacing, no top margin. */
   .u-row .field-label { margin-top: 0; }
 
-  input[type=text], input[type=number], select, textarea {
+  input[type=text], input[type=number], input[type=date], input[type=time],
+  input[type=email], input[type=password], input[type=search], input[type=tel], input[type=url],
+  select, textarea {
     width: 100%; padding: var(--space-3) var(--space-4); font-size: var(--font-md);
     color: var(--text);
     margin-bottom: var(--space-2);
@@ -396,7 +400,9 @@
   #serial, #editSerial { text-transform: uppercase; }
   #mileage::placeholder { color: var(--muted); opacity: 1; }
   /* #fSearch handles both VIN (uppercased server-side) and note text (mixed case) */
-  input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
+  input[type=text]:focus, input[type=number]:focus, input[type=date]:focus, input[type=time]:focus,
+  input[type=email]:focus, input[type=password]:focus, input[type=search]:focus, input[type=tel]:focus, input[type=url]:focus,
+  select:focus, textarea:focus {
     outline: none; border-color: var(--accent);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
   }

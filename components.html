@@ -609,9 +609,17 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
   <div class="cl-block">
     <div class="cl-block-label">Job-state banners — mirrors <code>.detail-locked-banner</code>'s shape, tinted per state</div>
     <div class="cl-preview cl-stack">
+      <div class="svc-state-banner svc-state-banner--waiting-parts">Waiting on parts — ordered bumper clip, ETA Thu · since 2 days ago<span class="svc-days-out">2 days</span></div>
       <div class="svc-state-banner svc-state-banner--sent-out">Out at Bo's Body Shop — sent 3 days ago<span class="svc-days-out">3 days out</span></div>
       <div class="svc-state-banner svc-state-banner--returned">Returned 2 hours ago — pick a location and close the job.</div>
       <div class="svc-state-banner svc-state-banner--closed">Job closed 5 min ago — read-only.</div>
+    </div>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Waiting on parts toggle — a flag alongside job state, not a fifth state value (see <code>maintenance.js</code>)</div>
+    <div class="cl-preview">
+      <div class="svc-waiting-row"><button type="button" class="btn btn-secondary btn--sm">Mark Waiting on Parts</button></div>
     </div>
   </div>
 </section>
@@ -1169,7 +1177,7 @@ z-index: 99998; /* one more than the next thing */</pre>
       "CLEAN","DIRTY","REWASH","PM","MK","MR","OM","BODY","TI","LP","GLASS",
       "AUDITFAIL","WIDELETE","OTHER",
       "CHECKIN","CHECKOUT","HOLD","DNR",
-      "DETAILING","DETAILED"
+      "DETAILING","DETAILED","ATVENDOR","WAITINGPARTS"
     ];
     document.getElementById("status-chips").innerHTML = codes.map(c =>
       `<span class="record-status status-${c}">${c}</span>`

@@ -96,6 +96,11 @@
     $("svcSendOutBtn")?.addEventListener("click", onSendOut);
     $("svcReturnedBtn")?.addEventListener("click", onMarkReturned);
     $("svcCloseBtn")?.addEventListener("click", onClose);
+    $("svcWaitingBtn")?.addEventListener("click", () => onToggleWaitingParts(true));
+    $("svcPartsArrivedBtn")?.addEventListener("click", () => onToggleWaitingParts(false));
+    $("svcPartsNote")?.addEventListener("input", (e) => {
+      if (currentJob) currentJob.partsNote = e.target.value;
+    });
 
     // Populate the closing-status select once — same catalog + labels the
     // driver's own #status select uses (fillStatusSelect lives in app.js).
@@ -106,7 +111,7 @@
     }
 
     document.addEventListener("dt-tab-shown", (e) => {
-      if (e.detail === "service-scan") { loadOpenJobs(); loadVendorJobs(); loadClosedJobs(); }
+      if (e.detail === "service-scan") { loadOpenJobs(); loadWaitingPartsJobs(); loadVendorJobs(); loadClosedJobs(); }
     });
   }
 
@@ -116,6 +121,7 @@
     $("svcScanForm")?.classList.add("u-hidden");
     $("svcScanEmpty")?.classList.remove("u-hidden");
     loadOpenJobs();
+    loadWaitingPartsJobs();
     loadVendorJobs();
     loadClosedJobs();
   }
@@ -166,7 +172,8 @@
     currentJob = {
       id: null, jobType: null, performedBy: "in_house", performedByTouched: false,
       vendorId: null, destination: "", mileage: null, notes: "", parts: [],
-      state: "OPEN", closeStatus: "CLEAN"
+      state: "OPEN", closeStatus: "CLEAN",
+      waitingOnParts: false, partsNote: "", waitingSince: null
     };
 
     await tryResumeJob(currentVin);
@@ -206,7 +213,10 @@
       closeStatus: row.close_status || "CLEAN",
       openedAt: row.opened_at,
       sentOutAt: row.sent_out_at,
-      returnedAt: row.returned_at
+      returnedAt: row.returned_at,
+      waitingOnParts: !!row.waiting_on_parts,
+      partsNote: row.parts_note || "",
+      waitingSince: row.waiting_since
     };
   }
 
@@ -301,11 +311,31 @@
     }
     $("svcVendorRow")?.classList.toggle("u-hidden", currentJob.performedBy !== "vendor");
 
+    // ---- waiting on parts ----
+    // Available from OPEN (in-house work blocked) or RETURNED (a vendor job
+    // that came back but still needs a part before it can close).
+    const canToggleWaiting = !locked && (currentJob.state === "OPEN" || currentJob.state === "RETURNED");
+    $("svcWaitingRow")?.classList.toggle("u-hidden", !canToggleWaiting);
+    $("svcWaitingBtn")?.classList.toggle("u-hidden", currentJob.waitingOnParts);
+    $("svcPartsArrivedBtn")?.classList.toggle("u-hidden", !currentJob.waitingOnParts);
+    const partsNoteEl = $("svcPartsNote");
+    if (partsNoteEl) {
+      partsNoteEl.value = currentJob.partsNote || "";
+      partsNoteEl.classList.toggle("u-hidden", !canToggleWaiting);
+      partsNoteEl.disabled = locked;
+    }
+
     // ---- state banner ----
     const banner = $("svcStateBanner");
     if (banner) {
       banner.className = "svc-state-banner";
-      if (currentJob.state === "SENT_OUT") {
+      if (currentJob.waitingOnParts) {
+        const days = currentJob.waitingSince ? Math.floor((Date.now() - new Date(currentJob.waitingSince).getTime()) / 86400000) : 0;
+        banner.classList.add("svc-state-banner--waiting-parts");
+        banner.innerHTML = `Waiting on parts${currentJob.partsNote ? " — " + esc(currentJob.partsNote) : ""} · since ${esc(ago(currentJob.waitingSince))}` +
+          (days >= 1 ? `<span class="svc-days-out">${days} day${days === 1 ? "" : "s"}</span>` : "");
+        banner.classList.remove("u-hidden");
+      } else if (currentJob.state === "SENT_OUT") {
         const days = currentJob.sentOutAt ? Math.floor((Date.now() - new Date(currentJob.sentOutAt).getTime()) / 86400000) : 0;
         banner.classList.add("svc-state-banner--sent-out");
         banner.innerHTML = `Out at ${esc(vendorName(currentJob.vendorId))} — sent ${esc(ago(currentJob.sentOutAt))}` +
@@ -427,18 +457,24 @@
 
     const btn = $("svcSendOutBtn");
     if (btn) btn.disabled = true;
+    // Status flips to the AT_VENDOR derived status (not the job type) so the
+    // vehicle's status badge itself shows "at vendor" everywhere it's read —
+    // VIN lookup, fleet records, the manager dashboard — not just this screen.
     const recordId = await commitTransitionRecord({
-      status: currentJob.jobType,
+      status: "AT_VENDOR",
       destination: `VENDOR: ${name}`,
       notes: `Sent out to ${name}`
     });
     const { error } = await sb.from("service_jobs").update({
-      state: "SENT_OUT", sent_out_at: new Date().toISOString(), sent_out_record_id: recordId
+      state: "SENT_OUT", sent_out_at: new Date().toISOString(), sent_out_record_id: recordId,
+      waiting_on_parts: false, waiting_since: null
     }).eq("id", currentJob.id);
     if (btn) btn.disabled = false;
     if (error) { DT_TOAST.show(error.message || "Couldn't send the job out", "error"); return; }
     currentJob.state = "SENT_OUT";
     currentJob.sentOutAt = new Date().toISOString();
+    currentJob.waitingOnParts = false;
+    currentJob.waitingSince = null;
     DT_TOAST.show(`Sent to ${name}`, "success");
     renderForm();
   }
@@ -481,12 +517,39 @@
     const closedAt = new Date().toISOString();
     const { error } = await sb.from("service_jobs").update({
       state: "CLOSED", closed_at: closedAt, close_status: closeStatus, close_record_id: recordId,
-      destination: currentJob.destination
+      destination: currentJob.destination, waiting_on_parts: false, waiting_since: null
     }).eq("id", currentJob.id);
     if (btn) btn.disabled = false;
     if (error) { DT_TOAST.show(error.message || "Couldn't close the job", "error"); return; }
     DT_TOAST.show("Job closed", "success");
     showLandingScreen();
+  }
+
+  // Mark a job blocked on a part (or resume it once the part arrives). A flag
+  // alongside `state` rather than a fifth state value — a job can be waiting
+  // on parts whether it's in-house (OPEN) or a returned vendor job still
+  // needs one before closing, so this isn't tied to a single state.
+  async function onToggleWaitingParts(waiting) {
+    if (!currentJob.id) { await onSave(); if (!currentJob.id) return; }
+    const note = ($("svcPartsNote")?.value || "").trim().slice(0, 200);
+    const btn = waiting ? $("svcWaitingBtn") : $("svcPartsArrivedBtn");
+    if (btn) btn.disabled = true;
+    await commitTransitionRecord({
+      status: waiting ? "WAITING_PARTS" : currentJob.jobType,
+      destination: currentJob.destination,
+      notes: waiting ? (note || "Waiting on parts") : "Parts arrived — resuming"
+    });
+    const payload = waiting
+      ? { waiting_on_parts: true, parts_note: note || null, waiting_since: new Date().toISOString() }
+      : { waiting_on_parts: false, waiting_since: null };
+    const { error } = await sb.from("service_jobs").update(payload).eq("id", currentJob.id);
+    if (btn) btn.disabled = false;
+    if (error) { DT_TOAST.show(error.message || "Couldn't update the job", "error"); return; }
+    currentJob.waitingOnParts = waiting;
+    currentJob.partsNote = waiting ? note : "";
+    currentJob.waitingSince = payload.waiting_since;
+    DT_TOAST.show(waiting ? "Marked waiting on parts" : "Parts arrived", "success");
+    renderForm();
   }
 
   // ---- landing lists ----
@@ -510,12 +573,35 @@
   async function loadOpenJobs() {
     const el = $("svcOpenJobsList"), countEl = $("svcOpenJobsCount");
     if (!el) return;
+    // Jobs waiting on parts have their own bucket below — don't list them twice.
     const { data, error } = await sb
       .from("service_jobs").select("id,serial_id,job_type,performed_by,state,opened_at")
-      .eq("state", "OPEN").order("opened_at", { ascending: false }).limit(50);
+      .eq("state", "OPEN").eq("waiting_on_parts", false).order("opened_at", { ascending: false }).limit(50);
     if (error) { el.innerHTML = `<div class="u-empty">${esc(error.message)}</div>`; if (countEl) countEl.textContent = "0"; return; }
     if (countEl) countEl.textContent = String((data || []).length);
     el.innerHTML = data && data.length ? data.map(renderJobRow).join("") : `<div class="u-empty">No open jobs.</div>`;
+    wireJobRows(el);
+  }
+
+  async function loadWaitingPartsJobs() {
+    const el = $("svcWaitingJobsList"), countEl = $("svcWaitingJobsCount");
+    if (!el) return;
+    const { data, error } = await sb
+      .from("service_jobs").select("id,serial_id,job_type,performed_by,state,opened_at,waiting_since")
+      .eq("waiting_on_parts", true).neq("state", "CLOSED").order("waiting_since", { ascending: false }).limit(50);
+    if (error) { el.innerHTML = `<div class="u-empty">${esc(error.message)}</div>`; if (countEl) countEl.textContent = "0"; return; }
+    if (countEl) countEl.textContent = String((data || []).length);
+    el.innerHTML = data && data.length ? data.map(j => {
+      const days = j.waiting_since ? Math.floor((Date.now() - new Date(j.waiting_since).getTime()) / 86400000) : 0;
+      return `
+        <div class="detail-history-row" data-job-id="${esc(j.id)}">
+          <div class="detail-history-serial">${esc(j.serial_id)}</div>
+          <div class="detail-history-meta">${esc(statusLabel(j.job_type))} · waiting ${esc(ago(j.waiting_since))}
+            ${days >= 1 ? `<span class="svc-days-out">${days} day${days === 1 ? "" : "s"}</span>` : ""}
+          </div>
+        </div>
+      `;
+    }).join("") : `<div class="u-empty">Nothing waiting on parts.</div>`;
     wireJobRows(el);
   }
 
@@ -562,11 +648,12 @@
   // ---- personal dashboard ----
   async function renderDashboard() {
     const { data, error } = await sb
-      .from("service_jobs").select("id,serial_id,job_type,performed_by,state,opened_at,closed_at")
+      .from("service_jobs").select("id,serial_id,job_type,performed_by,state,opened_at,closed_at,waiting_on_parts")
       .order("opened_at", { ascending: false }).limit(500);
     if (error) { console.warn("[Maint Dash]", error); return; }
     const jobs = data || [];
-    const open = jobs.filter(j => j.state === "OPEN").length;
+    const open = jobs.filter(j => j.state === "OPEN" && !j.waiting_on_parts).length;
+    const waiting = jobs.filter(j => j.waiting_on_parts && j.state !== "CLOSED").length;
     const outAtVendor = jobs.filter(j => j.state === "SENT_OUT").length;
     const weekStart = new Date(Date.now() - 7 * 86400000);
     const closedWeek = jobs.filter(j => j.state === "CLOSED" && j.closed_at && new Date(j.closed_at) >= weekStart).length;
@@ -574,6 +661,7 @@
 
     const set = (id, v) => { const el = $(id); if (el) el.textContent = v; };
     set("svcStatOpen", open);
+    set("svcStatWaiting", waiting);
     set("svcStatVendor", outAtVendor);
     set("svcStatWeek", closedWeek);
     set("svcStatAll", closedAll);

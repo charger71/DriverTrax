@@ -454,11 +454,18 @@
     saveBtn?.classList.add("u-hidden"); sendBtn?.classList.add("u-hidden");
     retBtn?.classList.add("u-hidden"); closeBtn?.classList.add("u-hidden");
     closeStatusRow?.classList.add("u-hidden");
+    if (saveBtn) saveBtn.textContent = currentJob.id ? "Update" : "Save";
 
     if (currentJob.state === "OPEN") {
       saveBtn?.classList.remove("u-hidden");
-      if (currentJob.performedBy === "vendor") sendBtn?.classList.remove("u-hidden");
-      else { closeBtn?.classList.remove("u-hidden"); closeStatusRow?.classList.remove("u-hidden"); }
+      if (currentJob.performedBy === "vendor") {
+        sendBtn?.classList.remove("u-hidden");
+      } else if (currentJob.id) {
+        // Close Job only appears once the job has been saved at least once —
+        // a brand-new job shouldn't offer to close before it even exists.
+        closeBtn?.classList.remove("u-hidden");
+        closeStatusRow?.classList.remove("u-hidden");
+      }
     } else if (currentJob.state === "SENT_OUT") {
       retBtn?.classList.remove("u-hidden");
     } else if (currentJob.state === "RETURNED") {
@@ -539,7 +546,7 @@
       else DT_TOAST.show("Saved", "success");
     }
 
-    if (btn) { btn.disabled = false; btn.textContent = "Save"; }
+    if (btn) btn.disabled = false;
     renderForm();
   }
 

@@ -125,6 +125,7 @@
           <div class="bl-kpi"><div class="label">Cars logged today</div><div class="val" id="blKpiCars">—</div><div class="delta" id="blKpiCarsSub">since midnight</div></div>
           <div class="bl-kpi"><div class="label">Drivers on shift</div><div class="val" id="blKpiDrivers">—</div><div class="delta" id="blKpiDriversSub">active today</div></div>
           <div class="bl-kpi"><div class="label">Detailers on shift</div><div class="val" id="blKpiDetailers">—</div><div class="delta" id="blKpiDetailersSub">active today</div></div>
+          <div class="bl-kpi"><div class="label">Mechanics on shift</div><div class="val" id="blKpiMechanics">—</div><div class="delta" id="blKpiMechanicsSub">active today</div></div>
           <div class="bl-kpi"><div class="label">Ready line</div><div class="val u-accent" id="blKpiReady">—</div><div class="delta">clean / detailed</div></div>
           <div class="bl-kpi"><div class="label">Dirty</div><div class="val u-warn" id="blKpiDirty">—</div><div class="delta">needs wash</div></div>
           <div class="bl-kpi"><div class="label">Service / holds</div><div class="val u-danger" id="blKpiService">—</div><div class="delta">PM · maint · hold</div></div>
@@ -227,7 +228,7 @@
 
       <section class="bl-section" id="section-roster">
         <div class="bl-page-head">
-          <div><h1>Roster &amp; Leaderboard</h1><div class="sub">On-shift drivers and detailers</div></div>
+          <div><h1>Roster &amp; Leaderboard</h1><div class="sub">On-shift drivers, detailers, and mechanics</div></div>
           <div class="actions"><button class="bl-btn bl-btn--secondary bl-btn--sm" id="blRosterRefresh">Refresh</button></div>
         </div>
 
@@ -250,6 +251,7 @@
                 <div class="bl-seg" id="blLbRole" role="group" aria-label="Leaderboard role">
                   <button class="bl-seg-btn is-active" data-role="driver">Drivers</button>
                   <button class="bl-seg-btn" data-role="detailer">Detailers</button>
+                  <button class="bl-seg-btn" data-role="mechanic">Mechanics</button>
                 </div>
                 <div class="bl-seg" id="blLbPeriod" role="group" aria-label="Leaderboard period">
                   <button class="bl-seg-btn is-active" data-period="today">Today</button>
@@ -437,6 +439,7 @@
                 <select id="blRepDataset">
                   <option value="records">Cars scanned</option>
                   <option value="detail_jobs">Detail jobs</option>
+                  <option value="service_jobs">Service jobs</option>
                   <option value="vehicles">Current inventory</option>
                 </select>
               </label>
@@ -557,6 +560,7 @@
           <select name="role">
             <option value="driver">Driver</option>
             <option value="detailer">Detailer</option>
+            <option value="mechanic">Mechanic</option>
             <option value="cxr">CXR</option>
             <option value="manager">Manager</option>
             <option value="admin">Admin</option>

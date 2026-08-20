@@ -676,6 +676,24 @@
        calls in the entry-reset path (app.js ~line 775) don't null-error. -->
   <div id="tireSelectorSection" hidden></div>
 
+  <div class="entry-form-row">
+    <label class="u-flex-1">
+      <span class="field-label">Mileage</span>
+      <input type="number" id="mileage" inputmode="numeric" min="0" step="1" placeholder="000000" autocomplete="off">
+    </label>
+    <label class="u-flex-1">
+      <span class="field-label">Fuel</span>
+      <select id="fuelLevel">
+        <option value="">-- FUEL --</option>
+        <option value="FULL">FULL</option>
+        <option value="3/4">3/4</option>
+        <option value="1/2">1/2</option>
+        <option value="1/4">1/4</option>
+        <option value="EMPTY">EMPTY</option>
+      </select>
+    </label>
+  </div>
+
   <div class="field-row" id="statusField">
     <span class="field-label is-required">Status</span>
     <div class="status-btn-group status-btn-group--primary" role="radiogroup" aria-label="Status">
@@ -722,24 +740,6 @@
     </label>
   </div>
 
-  <div class="entry-form-row">
-    <label class="u-flex-1">
-      <span class="field-label">Mileage</span>
-      <input type="number" id="mileage" inputmode="numeric" min="0" step="1" placeholder="000000" autocomplete="off">
-    </label>
-    <label class="u-flex-1">
-      <span class="field-label">Fuel</span>
-      <select id="fuelLevel">
-        <option value="">-- FUEL --</option>
-        <option value="FULL">FULL</option>
-        <option value="3/4">3/4</option>
-        <option value="1/2">1/2</option>
-        <option value="1/4">1/4</option>
-        <option value="EMPTY">EMPTY</option>
-      </select>
-    </label>
-  </div>
-
   <details class="disclosure entry-collapse" id="entryOptionsCollapse" data-collapse-key="options">
     <summary class="disclosure-summary"><span class="field-label">Options</span></summary>
     <div class="disclosure-body">
@@ -772,8 +772,12 @@
 
   <!-- Body damage collapsible — inline SVG diagram + damage log +
        insurance claim. Local state; bundled into the record on save
-       via DT_DAMAGE.getEntryState() from app.js saveRecord. -->
-  <details class="disclosure entry-collapse" id="entryDamageCollapse" data-collapse-key="damage">
+       via DT_DAMAGE.getEntryState() from app.js saveRecord. Only relevant
+       to the BODY/GLASS statuses — hidden the rest of the time by
+       syncStatusDependentSections() in app.js. Starts hidden here to match
+       the default blank #status value; JS takes over from the first
+       selectStatus() call. -->
+  <details class="disclosure entry-collapse u-hidden" id="entryDamageCollapse" data-collapse-key="damage">
     <summary class="disclosure-summary">
       <span class="field-label">Body damage</span>
       <span class="disclosure-count" id="entryDamageSummaryCount"></span>
@@ -964,10 +968,12 @@
     </div>
   </details>
 
-  <!-- Tire status collapsible — always visible. Local state; bundled
-       into the record on save. Legacy #tireSelectedLabel kept so
+  <!-- Tire status collapsible — only relevant to the TI status, hidden the
+       rest of the time by syncStatusDependentSections() in app.js. Starts
+       hidden here to match the default blank #status value. Local state;
+       bundled into the record on save. Legacy #tireSelectedLabel kept so
        updateTireLabel() stays safe. -->
-  <details class="disclosure entry-collapse" id="entryTireCollapse" data-collapse-key="tires">
+  <details class="disclosure entry-collapse u-hidden" id="entryTireCollapse" data-collapse-key="tires">
     <summary class="disclosure-summary">
       <span class="field-label">Tires</span>
       <span class="disclosure-count" id="entryTireSummaryCount"></span>
@@ -991,22 +997,27 @@
   <!-- Read-only banner shown when a completed job is opened from history. -->
   <div class="detail-locked-banner u-hidden" id="entryLockedBanner"></div>
 
-  <label class="field-row">
-    <span class="field-label">Notes</span>
-    <textarea id="notes" placeholder="Optional notes..."></textarea>
-  </label>
+  <details class="disclosure entry-collapse" id="entryAdditionalInfoCollapse" data-collapse-key="additionalInfo">
+    <summary class="disclosure-summary"><span class="field-label">Additional Info</span></summary>
+    <div class="disclosure-body">
+      <label class="field-row">
+        <span class="field-label">Notes</span>
+        <textarea id="notes" placeholder="Optional notes..."></textarea>
+      </label>
 
-  <div class="vn-photo-action">
-    <!-- iOS Safari: a JS-proxied .click() on a hidden file input is unreliable
-         (esp. inside a moved/standalone PWA context). Wrapping the visually
-         hidden input in a real <label> means the picker is opened by a native
-         click on a labeled control, which iOS handles reliably. -->
-    <label for="entryPhotoInput" class="btn btn-secondary vn-photo-btn">
-      <input type="file" name="photo" id="entryPhotoInput" accept="image/*" multiple class="visually-hidden">
-      <svg class="icon" aria-hidden="true"><use href="#icon-camera"/></svg> Add photos
-    </label>
-  </div>
-  <div class="entry-photo-strip u-hidden" id="entryPhotoStrip"></div>
+      <div class="vn-photo-action">
+        <!-- iOS Safari: a JS-proxied .click() on a hidden file input is unreliable
+             (esp. inside a moved/standalone PWA context). Wrapping the visually
+             hidden input in a real <label> means the picker is opened by a native
+             click on a labeled control, which iOS handles reliably. -->
+        <label for="entryPhotoInput" class="btn btn-secondary vn-photo-btn">
+          <input type="file" name="photo" id="entryPhotoInput" accept="image/*" multiple class="visually-hidden">
+          <svg class="icon" aria-hidden="true"><use href="#icon-camera"/></svg> Add photos
+        </label>
+      </div>
+      <div class="entry-photo-strip u-hidden" id="entryPhotoStrip"></div>
+    </div>
+  </details>
 
   <div class="u-row-end non-detailer">
     <button id="saveBtn" class="btn btn-primary btn--block" onclick="saveRecord()">Save</button>

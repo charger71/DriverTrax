@@ -1661,11 +1661,9 @@ let selectedCxrConditions = [];
 const ENTRY_CONDITIONS = DT_OPTIONS.CONDITIONS;
 
 function handleStatusChange() {
-  // The Body damage + Tires collapsibles live inline in the entry form
-  // and are always available regardless of status — nothing status-
-  // specific to do here anymore.
   toggleOtherField("status");
   syncStatusButtons();
+  syncStatusDependentSections();
 }
 
 // Status is a hidden input (#status) driven by a button grid instead of a
@@ -1692,6 +1690,30 @@ function syncStatusButtons() {
   });
   const summary = document.getElementById("entryStatusMoreSummary");
   if (summary) summary.textContent = moreLabel;
+}
+
+// Body damage only applies to the BODY/GLASS statuses and Tires only to TI —
+// keep both collapsibles hidden the rest of the time so the form doesn't
+// show sections that don't apply to the picked status. DIRTY also gets a
+// nudge: most dirty vehicles just need the regular clean, so pre-check the
+// Regular condition and pop the Conditions disclosure open (mirrors the
+// carried-over-conditions case elsewhere in app.js that also force-opens
+// #entryConditionsCollapse).
+function syncStatusDependentSections() {
+  const code = document.getElementById("status")?.value || "";
+  const damageEl = document.getElementById("entryDamageCollapse");
+  if (damageEl) damageEl.classList.toggle("u-hidden", code !== "BODY" && code !== "GLASS");
+  const tireEl = document.getElementById("entryTireCollapse");
+  if (tireEl) tireEl.classList.toggle("u-hidden", code !== "TI");
+
+  if (code === "DIRTY") {
+    if (!selectedCxrConditions.includes("REGULAR")) {
+      selectedCxrConditions.push("REGULAR");
+      renderCxrConditions();
+    }
+    const condCollapse = document.getElementById("entryConditionsCollapse");
+    if (condCollapse) condCollapse.open = true;
+  }
 }
 
 function renderCxrConditions() {

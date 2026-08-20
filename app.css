@@ -1324,14 +1324,10 @@
     background: var(--warn-soft); color: var(--warn-text); border-color: var(--warn-text);
   }
 
-  /* "More statuses" tier — compact buttons (same var(--radius) corners as
-     the base .status-btn, not a pill shape), one neutral accent treatment
-     when checked (not per-status colored — keeps the long tail calm/scannable). */
-  .status-btn-group--more .status-btn {
-    min-height: 40px;
-    padding: 0 var(--space-3);
-    font-size: var(--font-xs);
-  }
+  /* "More statuses" tier — same size as the base .status-btn (44px touch
+     target, font-sm), just one neutral accent treatment when checked instead
+     of per-status colors — keeps the long tail calm/scannable without
+     shrinking the buttons below the rest of the app's tap targets. */
   .status-btn-group--more .status-btn[aria-checked="true"] {
     background: var(--accent); color: var(--text-on-accent); border-color: var(--accent);
   }

@@ -740,23 +740,6 @@
     </label>
   </div>
 
-  <details class="disclosure entry-collapse" id="entryOptionsCollapse" data-collapse-key="options">
-    <summary class="disclosure-summary"><span class="field-label">Options</span></summary>
-    <div class="disclosure-body">
-      <div class="checkbox-row">
-        <label class="notag-row u-flex-1" id="noTagRow">
-          <input type="checkbox" id="noTag" class="visually-hidden" onchange="toggleNoTagStyle()"><span class="notag-label">Bad Tag</span>
-        </label>
-        <label class="notag-row shuttle-row u-flex-1" id="shuttleRow">
-          <input type="checkbox" id="shuttle" class="visually-hidden" onchange="toggleShuttleStyle()"><span class="notag-label">Shuttle</span>
-        </label>
-        <label class="notag-row transport-row u-flex-1" id="transportRow">
-          <input type="checkbox" id="transport" class="visually-hidden" onchange="toggleTransportStyle()"><span class="notag-label">Transport</span>
-        </label>
-      </div>
-    </div>
-  </details>
-
   <details class="disclosure entry-collapse" id="entryConditionsCollapse" data-collapse-key="conditions">
     <summary class="disclosure-summary"><span class="field-label">Conditions</span></summary>
     <div class="disclosure-body">
@@ -1000,6 +983,18 @@
   <details class="disclosure entry-collapse" id="entryAdditionalInfoCollapse" data-collapse-key="additionalInfo">
     <summary class="disclosure-summary"><span class="field-label">Additional Info</span></summary>
     <div class="disclosure-body">
+      <div class="checkbox-row">
+        <label class="notag-row u-flex-1" id="noTagRow">
+          <input type="checkbox" id="noTag" class="visually-hidden" onchange="toggleNoTagStyle()"><span class="notag-label">Bad Tag</span>
+        </label>
+        <label class="notag-row shuttle-row u-flex-1" id="shuttleRow">
+          <input type="checkbox" id="shuttle" class="visually-hidden" onchange="toggleShuttleStyle()"><span class="notag-label">Shuttle</span>
+        </label>
+        <label class="notag-row transport-row u-flex-1" id="transportRow">
+          <input type="checkbox" id="transport" class="visually-hidden" onchange="toggleTransportStyle()"><span class="notag-label">Transport</span>
+        </label>
+      </div>
+
       <label class="field-row">
         <span class="field-label">Notes</span>
         <textarea id="notes" placeholder="Optional notes..."></textarea>

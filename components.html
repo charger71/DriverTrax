@@ -473,7 +473,7 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
 <!-- ===================== STATUS BUTTONS ===================== -->
 <section class="cl-section" id="status-buttons">
   <h2>Status buttons</h2>
-  <p class="cl-desc">Entry-form Status field: a single-select button radiogroup (mirrors the <code>.theme-toggle</code> pattern — <code>role="radio"</code> + <code>aria-checked</code>, no native <code>&lt;select&gt;</code>) plus a <code>.disclosure.entry-collapse</code> for the long tail. CLEAN/DIRTY get large primary buttons colored like their <code>.status-CLEAN</code>/<code>.status-DIRTY</code> chips; everything else is a compact neutral button (same corner radius, not a pill) inside "More statuses" that just goes <code>--accent</code> when checked. Driven by <code>selectStatus(code)</code> / <code>syncStatusButtons()</code> in <code>app.js</code> — never set the hidden <code>#status</code> input's value directly.</p>
+  <p class="cl-desc">Entry-form Status field: a single-select button radiogroup (mirrors the <code>.theme-toggle</code> pattern — <code>role="radio"</code> + <code>aria-checked</code>, no native <code>&lt;select&gt;</code>) plus a <code>.disclosure.entry-collapse</code> for the long tail. CLEAN/DIRTY get large primary buttons colored like their <code>.status-CLEAN</code>/<code>.status-DIRTY</code> chips; everything else is a full-size neutral button (same 44px touch target as the base <code>.status-btn</code>) inside "More statuses" that just goes <code>--accent</code> when checked. Driven by <code>selectStatus(code)</code> / <code>syncStatusButtons()</code> in <code>app.js</code> — never set the hidden <code>#status</code> input's value directly.</p>
   <div class="cl-block">
     <div class="cl-preview cl-stack">
       <div class="status-btn-group status-btn-group--primary" role="radiogroup" aria-label="Status">
@@ -506,11 +506,11 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
 <!-- ===================== DISCLOSURE ===================== -->
 <section class="cl-section" id="disclosure">
   <h2>Disclosure</h2>
-  <p class="cl-desc">The one accordion pattern — <code>&lt;details class="disclosure entry-collapse"&gt;</code>, no JS needed for open/close itself. Backs every collapsible section in the New Entry form (Options, Conditions, Body damage, Tires, Additional Info) plus the Records filters panel. Give it a unique <code>data-collapse-key</code> and <code>applyEntryCollapseState()</code> in <code>app.js</code> auto-wires per-user open/closed persistence — no extra JS per instance. To hide a whole panel rather than just collapse it (e.g. Body damage / Tires, shown only for their matching Status), toggle <code>.u-hidden</code> on the <code>&lt;details&gt;</code> itself from JS instead of removing it.</p>
+  <p class="cl-desc">The one accordion pattern — <code>&lt;details class="disclosure entry-collapse"&gt;</code>, no JS needed for open/close itself. Backs every collapsible section in the New Entry form (Conditions, Body damage, Tires, Additional Info) plus the Records filters panel. Give it a unique <code>data-collapse-key</code> and <code>applyEntryCollapseState()</code> in <code>app.js</code> auto-wires per-user open/closed persistence — no extra JS per instance. To hide a whole panel rather than just collapse it (e.g. Body damage / Tires, shown only for their matching Status), toggle <code>.u-hidden</code> on the <code>&lt;details&gt;</code> itself from JS instead of removing it.</p>
   <div class="cl-block">
     <div class="cl-preview cl-stack">
       <details class="disclosure entry-collapse">
-        <summary class="disclosure-summary"><span class="field-label">Options</span></summary>
+        <summary class="disclosure-summary"><span class="field-label">Conditions</span></summary>
         <div class="disclosure-body">
           <div class="u-empty">Panel content goes here.</div>
         </div>
@@ -525,8 +525,8 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
         </div>
       </details>
     </div>
-<pre class="cl-code">&lt;details class="disclosure entry-collapse" data-collapse-key="options"&gt;
-  &lt;summary class="disclosure-summary"&gt;&lt;span class="field-label"&gt;Options&lt;/span&gt;&lt;/summary&gt;
+<pre class="cl-code">&lt;details class="disclosure entry-collapse" data-collapse-key="conditions"&gt;
+  &lt;summary class="disclosure-summary"&gt;&lt;span class="field-label"&gt;Conditions&lt;/span&gt;&lt;/summary&gt;
   &lt;div class="disclosure-body"&gt;
     ...panel content...
   &lt;/div&gt;

@@ -1713,6 +1713,12 @@ function syncStatusDependentSections() {
     }
     const condCollapse = document.getElementById("entryConditionsCollapse");
     if (condCollapse) condCollapse.open = true;
+  } else if (selectedCxrConditions.includes("REGULAR")) {
+    // Undo the DIRTY default the moment status moves elsewhere (e.g. a
+    // "More statuses" pick) — Regular is a Dirty-specific nudge, not a
+    // condition that should linger onto PM/MK/BODY/etc.
+    selectedCxrConditions = selectedCxrConditions.filter(c => c !== "REGULAR");
+    renderCxrConditions();
   }
 }
 

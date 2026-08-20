@@ -701,7 +701,12 @@
     <input type="hidden" id="status" value="">
   </div>
 
-  <div class="entry-form-row">
+  <!-- Hidden for now while the GPS auto-detect + polygon matching gets more
+       field testing. saveRecord() still reads #destination by id regardless
+       of visibility, and a blank value is already a fully supported "let
+       GPS figure it out" path (see checkConflictAndConfirm / isLotDestination
+       in drop-offs.js), so re-enabling is just removing u-hidden here. -->
+  <div class="entry-form-row u-hidden" id="locationField">
     <label class="u-flex-1">
       <span class="field-label-row">
         <span class="field-label">Location</span>

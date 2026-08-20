@@ -1,6 +1,6 @@
 // DriverTrax Service Worker
 // Provides offline support and caches app assets
-const CACHE_VERSION = "drivertrax-v9.38-gps-location-detect-fix";
+const CACHE_VERSION = "drivertrax-v9.39-hide-location-field";
 // Every <script src> and <link href> in index.html must appear here. Anything
 // missing is unavailable on an offline cold start: cross-origin assets in
 // particular can't be backfilled at runtime by any reliable means, so a gap

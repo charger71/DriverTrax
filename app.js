@@ -1954,6 +1954,10 @@ async function autoDetectLocation() {
   if (!("geolocation" in navigator) || !window.DT_DROPOFFS) return;
   const destSel = document.getElementById("destination");
   if (!destSel) return;
+  // Location field is hidden for now (see #locationField in index.html) —
+  // skip the GPS lookup so a driver isn't prompted for location permission
+  // for a field they can't even see.
+  if (document.getElementById("locationField")?.classList.contains("u-hidden")) return;
   // populateDestinationSelects() and DT_DROPOFFS.getSections() share the same
   // cached fetch, so awaiting it here doesn't cost an extra round trip — but
   // it does close the race where dt-auth-change (this function's usual

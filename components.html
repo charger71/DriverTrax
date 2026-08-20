@@ -175,6 +175,7 @@
     <li><a href="#badges">Badges</a></li>
     <li><a href="#status">Status chips</a></li>
     <li><a href="#status-buttons">Status buttons</a></li>
+    <li><a href="#disclosure">Disclosure</a></li>
     <li><a href="#stats">Stat cards</a></li>
     <li><a href="#compositions">Compositions</a></li>
     <li><a href="#mechanic">Mechanic / service jobs</a></li>
@@ -499,6 +500,43 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
           role="radio" aria-checked="false" onclick="selectStatus('PM')"&gt;PM (MAINT.)&lt;/button&gt;
   &lt;!-- ... --&gt;
 &lt;/div&gt;</pre>
+  </div>
+</section>
+
+<!-- ===================== DISCLOSURE ===================== -->
+<section class="cl-section" id="disclosure">
+  <h2>Disclosure</h2>
+  <p class="cl-desc">The one accordion pattern — <code>&lt;details class="disclosure entry-collapse"&gt;</code>, no JS needed for open/close itself. Backs every collapsible section in the New Entry form (Options, Conditions, Body damage, Tires, Additional Info) plus the Records filters panel. Give it a unique <code>data-collapse-key</code> and <code>applyEntryCollapseState()</code> in <code>app.js</code> auto-wires per-user open/closed persistence — no extra JS per instance. To hide a whole panel rather than just collapse it (e.g. Body damage / Tires, shown only for their matching Status), toggle <code>.u-hidden</code> on the <code>&lt;details&gt;</code> itself from JS instead of removing it.</p>
+  <div class="cl-block">
+    <div class="cl-preview cl-stack">
+      <details class="disclosure entry-collapse">
+        <summary class="disclosure-summary"><span class="field-label">Options</span></summary>
+        <div class="disclosure-body">
+          <div class="u-empty">Panel content goes here.</div>
+        </div>
+      </details>
+      <details class="disclosure entry-collapse" open>
+        <summary class="disclosure-summary">
+          <span class="field-label">Body damage</span>
+          <span class="disclosure-count">3 marks</span>
+        </summary>
+        <div class="disclosure-body">
+          <div class="u-empty">Optional .disclosure-count badge in the summary — Body damage / Tires use it for a "N marks" / "N selected" hint.</div>
+        </div>
+      </details>
+    </div>
+<pre class="cl-code">&lt;details class="disclosure entry-collapse" data-collapse-key="options"&gt;
+  &lt;summary class="disclosure-summary"&gt;&lt;span class="field-label"&gt;Options&lt;/span&gt;&lt;/summary&gt;
+  &lt;div class="disclosure-body"&gt;
+    ...panel content...
+  &lt;/div&gt;
+&lt;/details&gt;
+
+&lt;!-- Optional count badge in the summary (Body damage / Tires) --&gt;
+&lt;summary class="disclosure-summary"&gt;
+  &lt;span class="field-label"&gt;Body damage&lt;/span&gt;
+  &lt;span class="disclosure-count" id="entryDamageSummaryCount"&gt;3 marks&lt;/span&gt;
+&lt;/summary&gt;</pre>
   </div>
 </section>
 

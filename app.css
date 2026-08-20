@@ -351,9 +351,8 @@
     max-width: 50%;
   }
 
-  /* Entry-form row: side-by-side field groups (Status/Location, Mileage/Fuel). */
+  /* Entry-form row: side-by-side field groups (Mileage/Fuel, the hidden Location row). */
   .entry-form-row { display: flex; gap: var(--space-3); margin-top: var(--space-5); }
-  .entry-form-row + .entry-form-row { margin-top: var(--space-4); }
   .entry-form-row > .u-flex-1 > .field-label:first-child { margin-top: 0; }
 
   /* Checkbox row inside the entry-options collapse panel. */
@@ -3511,6 +3510,10 @@
   }
   .field-row .field-label { margin-top: 0; }
   .entry-form-row .field-row { margin-top: 0; flex: 1; min-width: 0; }
+  /* .disclosure-body has padding-top:0, assuming a flush first child — trim
+     Notes' default 24px .field-row margin down to the compact gap the other
+     entry-collapse panels' first child uses (e.g. Tires' .dt-tire-strip). */
+  #entryAdditionalInfoCollapse .field-row { margin-top: var(--space-3); }
   .data-section-danger { border-color: var(--danger); }
   .data-section-title { font-size: var(--font-sm); font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--text); margin-bottom: var(--space-2); }
   .data-section-desc { font-size: var(--font-base); color: var(--muted); line-height: var(--leading-relaxed); margin-bottom: var(--space-4); }

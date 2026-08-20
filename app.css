@@ -1327,7 +1327,14 @@
   /* "More statuses" tier — same size as the base .status-btn (44px touch
      target, font-sm), just one neutral accent treatment when checked instead
      of per-status colors — keeps the long tail calm/scannable without
-     shrinking the buttons below the rest of the app's tap targets. */
+     shrinking the buttons below the rest of the app's tap targets. Two-up,
+     stretched to fill each row evenly (same flex-basis technique as
+     .cond-chip in the Conditions panel) instead of wrapping at each
+     button's own natural width — a lone last button on its own row still
+     stretches to fill it via flex-grow, same as .cond-chip's last row. */
+  .status-btn-group--more .status-btn {
+    flex: 1 1 calc((100% - var(--space-2)) / 2);
+  }
   .status-btn-group--more .status-btn[aria-checked="true"] {
     background: var(--accent); color: var(--text-on-accent); border-color: var(--accent);
   }

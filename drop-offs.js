@@ -438,5 +438,5 @@
     return data;
   }
 
-  window.DT_DROPOFFS = { record, getSections, refreshSections, detectSection, checkConflictAndConfirm, isLotDestination };
+  window.DT_DROPOFFS = { record, getSections, refreshSections, detectSection, checkConflictAndConfirm, isLotDestination, normalizeName };
 })();

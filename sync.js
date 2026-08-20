@@ -25,6 +25,7 @@
   const IDB = DT_IDB;
   const QUEUE_KEY = "sync_queue";       // in `kv` store: { [id]: "upsert" | "delete" }
   const SNAPSHOT_KEY = "sync_snapshot"; // in `kv` store: { [id]: lastCloudRow }
+  const REPAIR_KEY = "sync_repair_inplace_v1"; // in `kv` store: ms timestamp
   const LS_QUEUE_KEY = "drivertrax_sync_queue";       // legacy
   const LS_SNAPSHOT_KEY = "drivertrax_sync_snapshot"; // legacy
 
@@ -34,7 +35,16 @@
   let queueReady = false;
   let flushing = false;
   let pendingFlush = null;
-  let prevById = indexBy(getRecords());
+  let pendingFlushDelay = Infinity; // delay the pending timer was armed with
+  let flushAgain = false;           // a write arrived while a flush was running
+  // Previous state, keyed by id, stored as JSON *strings* rather than object
+  // references. getRecords() hands out the live cached array, so callers that
+  // edit a record in place (saveEdit, the deferred vinData backfill,
+  // drop-offs patchLocalRecord) hand setRecords() the very objects this map
+  // would otherwise be holding — making every in-place edit compare equal to
+  // itself and never queue. Serializing at snapshot time freezes the
+  // comparison value and closes that hole.
+  let prevJson = snapshotOf(getRecords());
 
   // ----- one-time migration from localStorage to IDB -----
   async function migrateFromLocalStorage() {
@@ -59,9 +69,29 @@
     }
   }
 
+  // ----- one-time repair for edits lost to the reference-diff bug -----
+  // Until the string-snapshot diff landed, any record edited in place (VIN or
+  // notes corrections, the deferred NHTSA vinData backfill, drop-off section
+  // geotagging) was written to localStorage but never queued, so the cloud
+  // copy stayed stale. Re-queue every local record once so those edits
+  // upload. Upserts are idempotent, so re-sending unchanged rows is harmless.
+  async function repairInPlaceEdits() {
+    if (await IDB.get("kv", REPAIR_KEY)) return;
+    // Claim the marker before touching the queue. IDB.set fails closed
+    // (private mode, locked storage), and without a durable marker this would
+    // re-queue the entire local set on every single boot.
+    if (!(await IDB.set("kv", REPAIR_KEY, Date.now()))) return;
+    const local = getRecords();
+    if (!local.length) return;
+    for (const r of local) queue[String(r.id)] = "upsert";
+    persistQueue();
+    console.info(`[Sync] re-queued ${local.length} record(s) to repair in-place edits`);
+  }
+
   async function loadQueue() {
     await migrateFromLocalStorage();
     queue = (await IDB.get("kv", QUEUE_KEY)) || {};
+    await repairInPlaceEdits();
     queueReady = true;
     updateBadge();
     // If anything queued before we finished loading, schedule a flush.
@@ -158,38 +188,71 @@
     return m;
   }
 
+  // id -> serialized record. See the note on `prevJson` above for why the
+  // diff compares strings instead of object references.
+  function snapshotOf(arr) {
+    const m = {};
+    for (const r of arr) m[String(r.id)] = JSON.stringify(r);
+    return m;
+  }
+
   // ----- diff & queue on every local write -----
   const origSetRecords = window.setRecords;
   window.setRecords = function (records) {
-    origSetRecords(records);
-    const nextById = indexBy(records);
+    // Diff and queue *before* writing, not after. The diff only compares the
+    // incoming array against the previous snapshot, so it doesn't need the
+    // write to have happened — and when storage is full, origSetRecords sheds
+    // old records from disk and consults this queue to decide which ones it
+    // must keep. Writing first would show it a queue one call out of date and
+    // let it drop a record whose cloud write is still pending.
+    const nextJson = snapshotOf(records);
     // Inserts + updates
-    for (const id in nextById) {
-      const prev = prevById[id];
-      if (!prev || JSON.stringify(prev) !== JSON.stringify(nextById[id])) {
-        queue[id] = "upsert";
-      }
+    for (const id in nextJson) {
+      if (prevJson[id] !== nextJson[id]) queue[id] = "upsert";
     }
     // Deletes
-    for (const id in prevById) {
-      if (!nextById[id]) queue[id] = "delete";
+    for (const id in prevJson) {
+      if (!(id in nextJson)) queue[id] = "delete";
     }
-    prevById = nextById;
+    prevJson = nextJson;
+    origSetRecords(records);
     persistQueue();
     scheduleFlush();
   };
 
   // ----- flush queue to Supabase -----
-  function scheduleFlush() {
-    if (pendingFlush) return;
+  // Normal coalescing delay for a burst of local writes.
+  const FLUSH_DEBOUNCE_MS = 600;
+  // Retry backoff after a failed flush: doubles from 5s to a 5min ceiling and
+  // resets on the next success. Without this the badge promised a retry that
+  // nothing ever scheduled — a transient error parked the queue until the user
+  // happened to save something else, which on an idle phone can be hours.
+  const RETRY_MIN_MS = 5000;
+  const RETRY_MAX_MS = 5 * 60 * 1000;
+  let retryDelay = RETRY_MIN_MS;
+
+  function scheduleFlush(delay = FLUSH_DEBOUNCE_MS) {
+    // A retry already in flight shouldn't be pushed back by routine local
+    // writes, but an explicit shorter request (online event, manual flush)
+    // should win over a long backoff.
+    if (pendingFlush) {
+      if (delay >= pendingFlushDelay) return;
+      clearTimeout(pendingFlush);
+    }
+    pendingFlushDelay = delay;
     pendingFlush = setTimeout(() => {
       pendingFlush = null;
+      pendingFlushDelay = Infinity;
       flushQueue();
-    }, 600);
+    }, delay);
   }
 
   async function flushQueue() {
-    if (flushing || !queueReady) return;
+    // A write that lands mid-flush used to hit this early return and never
+    // reschedule, so its queue entry sat until some unrelated trigger came
+    // along. Remember that we were asked and hand off in the finally block.
+    if (flushing) { flushAgain = true; return; }
+    if (!queueReady) return;
     const user = DT_AUTH.getUser();
     if (!user) return;
     // Detailers don't write records directly — the detailer flow inserts
@@ -201,6 +264,7 @@
     if (ids.length === 0) { updateBadge("ok"); return; }
 
     flushing = true;
+    let ok = false;
     updateBadge("syncing");
 
     const recordsById = indexBy(getRecords());
@@ -277,11 +341,24 @@
       }
       persistQueue();
       updateBadge("ok");
+      ok = true;
     } catch (err) {
       console.warn("[Sync] flush failed", err);
       updateBadge("err");
     } finally {
       flushing = false;
+    }
+
+    if (ok) {
+      retryDelay = RETRY_MIN_MS;
+      // Pick up anything queued while we were awaiting Supabase.
+      if (flushAgain) { flushAgain = false; scheduleFlush(0); }
+    } else {
+      // Whatever arrived mid-flush is still queued and rides along with the
+      // retry, so don't also fire an immediate attempt into a failing backend.
+      flushAgain = false;
+      scheduleFlush(retryDelay);
+      retryDelay = Math.min(retryDelay * 2, RETRY_MAX_MS);
     }
   }
 
@@ -307,8 +384,20 @@
       const local = getRecords();
       const localById = indexBy(local);
 
-      // Cloud wins on conflict; keep local-only rows for upload.
-      const merged = { ...localById, ...cloudById };
+      // Cloud wins on conflict — except for ids with a pending queue entry.
+      // Those hold a local edit (or delete) that hasn't uploaded yet, so
+      // taking the cloud copy here would revert the user's change and then
+      // upload the reverted row, losing the edit for good. A queued delete
+      // likewise has to survive, or the row resurrects locally after the
+      // delete flushes.
+      const merged = { ...localById };
+      for (const id in cloudById) {
+        if (queue[id]) continue;
+        merged[id] = cloudById[id];
+      }
+      for (const id in queue) {
+        if (queue[id] === "delete") delete merged[id];
+      }
       const mergedArr = Object.values(merged).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
       // Push local-only rows
@@ -324,7 +413,7 @@
       // Write merged set without re-queueing everything: skip our wrapper
       origSetRecords(mergedArr);
       if (typeof invalidateRecordsCache === "function") invalidateRecordsCache();
-      prevById = indexBy(mergedArr);
+      prevJson = snapshotOf(mergedArr);
 
       tryRender();
       scheduleFlush();
@@ -368,7 +457,13 @@
     if (e.detail.user && shouldRunSync()) pullAndMerge();
     else clearBadge();
   });
-  window.addEventListener("online",  () => { if (shouldRunSync()) scheduleFlush(); });
+  // Connectivity just came back, so whatever the backoff had grown to was
+  // measuring the old (offline) world — start over from the short delay.
+  window.addEventListener("online",  () => {
+    if (!shouldRunSync()) return;
+    retryDelay = RETRY_MIN_MS;
+    scheduleFlush(0);
+  });
   window.addEventListener("offline", () => { if (shouldRunSync()) updateBadge(); });
   navigator.serviceWorker?.addEventListener?.("message", (e) => {
     if (e.data?.type === "dt-sync-flush" && shouldRunSync()) scheduleFlush();

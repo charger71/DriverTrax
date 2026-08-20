@@ -16,10 +16,13 @@ const STATUS_LABELS = {
   "MR": "MR (RECALL)",
   "OM": "OM (OVER MILES)",
   "TI": "TI(TIRE)",
+  "LP": "LP (LICENSE PLATE)",
   "CHECK_IN": "CHECK IN",
   "CHECK_OUT": "CHECK OUT",
   "HOLD": "HOLD",
-  "DNR": "DO NOT RENT (DNR)"
+  "DNR": "DO NOT RENT (DNR)",
+  "AT_VENDOR": "AT VENDOR",
+  "WAITING_PARTS": "WAITING ON PARTS"
 };
 function statusLabel(s) { return STATUS_LABELS[s] || s || ""; }
 
@@ -36,20 +39,22 @@ window.locationLabel = locationLabel;
 
 // ============================================================
 // Single source of truth for status / destination / condition
-// catalogs. Referenced by app.js (entry form), vehicle-notes.js
+// catalogs. Referenced by app.js (entry form), detailer.js
 // (notes form) and detailer.js so the three forms stay aligned.
 // ============================================================
 const DT_OPTIONS = {
   // Selectable by any role on the NEW ENTRY form + notes form.
   STATUS_BASE: [
     "CLEAN","DIRTY","REWASH","BODY","PM","MK","MR","OM",
-    "AUDIT FAIL","WI/DELETE","GLASS","TI","OTHER"
+    "AUDIT FAIL","WI/DELETE","GLASS","TI","LP","OTHER"
   ],
   // Selectable only by CXR / manager / admin.
   STATUS_PRIVILEGED: ["CHECK_OUT","HOLD","DNR"],
   // System-set by the detailer flow. Not selectable from any form,
   // but appears as a filter option in the records view.
-  STATUS_DERIVED: ["DETAILING","DETAILED"],
+  // AT_VENDOR / WAITING_PARTS are system-set by the mechanic flow (maintenance.js)
+  // the same way DETAILING/DETAILED are system-set by the detailer flow.
+  STATUS_DERIVED: ["DETAILING","DETAILED","AT_VENDOR","WAITING_PARTS"],
   // Fallback list only. The real dropdown options come from the
   // parking_sections table via DT_DROPOFFS.getSections() — see
   // populateDestinationSelects(). Kept here so any legacy caller that
@@ -204,19 +209,11 @@ function createMap(elementId, options = {}) {
   return map;
 }
 
-function destroyMap(elementId) {
-  const el = document.getElementById(elementId);
-  if (!el || !el._leaflet_map) return;
-  try { el._leaflet_map.remove(); } catch(e) {}
-  el._leaflet_map = null;
-  el.innerHTML = "";
-}
-
 function createNumberedMarker(num, color, size = 26) {
   if (!window.L) return null;
   return L.divIcon({
     className: "",
-    html: `<div class="map-marker-num" style="width:${size}px;height:${size}px;background:#${color};font-size:${Math.round(size*0.4)}px">${num}</div>`,
+    html: `<div class="map-marker-num" style="width:${size}px;height:${size}px;background:${color};font-size:${Math.round(size*0.4)}px">${num}</div>`,
     iconSize: [size, size],
     iconAnchor: [size/2, size/2],
     popupAnchor: [0, -(size/2)]
@@ -243,9 +240,81 @@ function getRecords() {
   }
   return _recordsCache;
 }
+// Smallest on-device history we'll fall back to before giving up entirely.
+const RECORDS_MIN_KEEP = 50;
+
+function isQuotaExceeded(err) {
+  if (!err) return false;
+  return err.name === "QuotaExceededError"
+      || err.name === "NS_ERROR_DOM_QUOTA_REACHED"   // Firefox
+      || err.code === 22 || err.code === 1014;
+}
+
+// Pick the `keep` records worth holding on disk. Records arrive newest-first
+// (saveRecord unshifts; pullAndMerge sorts descending), so the plain answer is
+// slice(0, keep). The wrinkle: a record with an unflushed cloud write must
+// outrank a newer one, because dropping it loses it from this device *and*
+// Supabase — everything else is still recoverable from the cloud.
+//
+// Pending status is a priority, not a veto. If the pending set alone overruns
+// the budget we still have to shed something, so sorting (rather than
+// exempting) lets it degrade instead of failing to write at all.
+function trimForStorage(r, keep) {
+  let pending;
+  try { pending = new Set(Object.keys(window.DT_SYNC?.queue?.() || {})); }
+  catch (_) { pending = new Set(); }
+  if (!pending.size) return r.slice(0, keep);
+  const idx = new Map(r.map((rec, i) => [rec, i]));
+  const rank = (rec) => (pending.has(String(rec.id)) ? 0 : 1);
+  return r.slice()
+    // Pending first, then newest-first; ties break on original position.
+    .sort((a, b) => rank(a) - rank(b) || idx.get(a) - idx.get(b))
+    .slice(0, keep)
+    // Restore the newest-first order the rest of the app relies on.
+    .sort((a, b) => idx.get(a) - idx.get(b));
+}
+
 function setRecords(r) {
   _recordsCache = r;
-  localStorage.setItem(DB_KEY, JSON.stringify(r));
+  try {
+    localStorage.setItem(DB_KEY, JSON.stringify(r));
+    return;
+  } catch (err) {
+    if (!isQuotaExceeded(err)) {
+      console.error("[Records] save failed", err);
+      showToast("Couldn't save to this device's storage", "error");
+      return;
+    }
+  }
+
+  // Storage is full. Shed the oldest entries from the on-disk copy only.
+  // _recordsCache — and the array sync.js diffs to build its queue — still
+  // hold every record, so trimming here never reads as a delete and never
+  // removes anything from Supabase. It only reduces what this device keeps
+  // for offline use.
+  let keep = Math.floor(r.length / 2);
+  while (keep >= RECORDS_MIN_KEEP) {
+    try {
+      const trimmed = trimForStorage(r, keep);
+      localStorage.setItem(DB_KEY, JSON.stringify(trimmed));
+      console.warn(`[Records] storage full — kept ${trimmed.length} of ${r.length} on this device`);
+      showToast("Storage full — older entries are cloud-only now", "warn");
+      return;
+    } catch (err) {
+      if (!isQuotaExceeded(err)) {
+        console.error("[Records] save failed while trimming", err);
+        showToast("Couldn't save to this device's storage", "error");
+        return;
+      }
+      keep = Math.floor(keep / 2);
+    }
+  }
+
+  // Even the floor didn't fit — something else is filling the origin's quota.
+  // The entry is still in memory and still queued for the cloud, so say so
+  // rather than implying the work was lost.
+  console.error("[Records] storage full; trimming to", RECORDS_MIN_KEEP, "did not help");
+  showToast("Device storage is full — new entries save to the cloud only", "error");
 }
 function invalidateRecordsCache() { _recordsCache = null; }
 function statusClass(s) { return "status-" + s.replace(/[^A-Z]/g,""); }
@@ -258,17 +327,6 @@ let _fleetFetching = null;
 function isManagerView() { return !!(window.DT_AUTH && DT_AUTH.isManager()); }
 function getEffectiveRecords() { return isManagerView() ? _fleetRecords : getRecords(); }
 
-// Triggered by the Records date inputs — managers need to refetch the fleet
-// when the date range changes; drivers just re-render their local set.
-function onRecordsDateChange() {
-  resetRecordsPage();
-  if (isManagerView()) {
-    fetchFleetRecords().then(renderRecords);
-  } else {
-    renderRecords();
-  }
-}
-
 async function fetchFleetRecords() {
   if (!window.DT_AUTH || !DT_AUTH.client) return;
   if (_fleetFetching) return _fleetFetching;
@@ -278,10 +336,14 @@ async function fetchFleetRecords() {
       // Defaults to today when both filters are empty.
       const fromEl = document.getElementById("fDateFrom");
       const toEl   = document.getElementById("fDateTo");
-      const fromStr = fromEl?.value || new Date().toISOString().slice(0, 10);
+      // Both the default day and the window boundaries resolve in ET. A UTC
+      // default rolled over at 8pm ET, so an evening-shift manager opening
+      // Records saw tomorrow's (empty) day; boundaries built with a bare
+      // new Date("YYYY-MM-DDT00:00:00") parsed in the phone's timezone rather
+      // than the lot's.
+      const fromStr = fromEl?.value || estDateStr(Date.now());
       const toStr   = toEl?.value   || fromStr;
-      const sinceISO = new Date(fromStr + "T00:00:00").toISOString();
-      const untilISO = new Date(toStr   + "T23:59:59.999").toISOString();
+      const { sinceISO, untilISO } = estDayRangeISO(fromStr, toStr);
 
       const { data, error } = await DT_AUTH.client
         .from("records")
@@ -332,16 +394,11 @@ async function fetchFleetRecords() {
 // ============================
 // INPUT SANITIZATION
 // ============================
-function sanitizeText(str) {
-  if (!str) return "";
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;")
-    .replace(/\//g, "&#x2F;");
-}
+// HTML escaping has exactly one implementation: DT_ESC in utils.js. This is
+// an alias, not a second escaper — the name is kept because it reads well at
+// the entry-form call sites and there are ~40 of them. (The old body also
+// encoded "/", which is harmless but unnecessary outside legacy XSS advice.)
+const sanitizeText = (str) => DT_ESC(str);
 
 function sanitizeSerial(str) {
   // Serial IDs: only alphanumeric, hyphens, max 30 chars
@@ -389,10 +446,29 @@ function showToast(msg, type = "success") {
     toast.id = "toast";
     document.body.appendChild(toast);
   }
+  // Toasts are this app's main confirmation channel — "record saved", "sync
+  // failed", "VIN refreshed" — so they have to reach screen readers. #toast
+  // carries these attributes statically in index.html (a live region must
+  // already exist before its text changes to be announced reliably); this
+  // covers the fallback element created above.
+  toast.setAttribute("role", "status");
+  toast.setAttribute("aria-atomic", "true");
+  // Errors interrupt whatever's being read; everything else waits for a pause.
+  // Only aria-live is toggled — swapping `role` on a live region mid-flight
+  // confuses some screen readers, and an explicit aria-live outranks the
+  // politeness implied by role="status" anyway.
+  toast.setAttribute("aria-live", type === "error" ? "assertive" : "polite");
+
   toast.textContent = msg;
   toast.className = "toast toast-" + type + " toast-show";
   clearTimeout(toast._timer);
-  toast._timer = setTimeout(() => { toast.className = "toast"; }, 2800);
+  clearTimeout(toast._clearTimer);
+  toast._timer = setTimeout(() => {
+    toast.className = "toast";
+    // Drop the text once it has slid off (0.3s transition) so that an
+    // identical next message still reads as a change and gets announced.
+    toast._clearTimer = setTimeout(() => { toast.textContent = ""; }, 400);
+  }, 2800);
   // Couple haptic feedback to toast type so callers don't have to remember
   if (type === "warn") haptic("warn");
   else if (type === "error") haptic("error");
@@ -403,9 +479,47 @@ function showToast(msg, type = "success") {
 // ============================
 const SHIFT_GAP_MS = 6 * 60 * 60 * 1000;
 
-function estDateStr(ts) {
-  const d = new Date(new Date(ts).toLocaleString("en-US", {timeZone:"America/New_York"}));
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+// The lot runs on Eastern time, so every "which day is this" decision has to
+// resolve in ET regardless of how the phone is set. en-CA formats as
+// YYYY-MM-DD directly, which avoids the old round-trip through
+// new Date(d.toLocaleString(...)) — that relied on the localized string
+// happening to be re-parseable.
+const _estDateFmt = new Intl.DateTimeFormat("en-CA", {
+  timeZone: DT_FORMAT.TZ, year: "numeric", month: "2-digit", day: "2-digit"
+});
+function estDateStr(ts) { return _estDateFmt.format(new Date(ts)); }
+
+// ET's UTC offset at a given instant: -05:00 in winter, -04:00 in summer.
+function etOffsetAt(date) {
+  try {
+    const part = new Intl.DateTimeFormat("en-US", { timeZone: DT_FORMAT.TZ, timeZoneName: "longOffset" })
+      .formatToParts(date).find(p => p.type === "timeZoneName");
+    const m = part && /GMT([+-]\d{2}:\d{2})/.exec(part.value);
+    if (m) return m[1];
+  } catch (_) { /* longOffset unsupported — fall through */ }
+  const et  = new Date(date.toLocaleString("en-US", { timeZone: DT_FORMAT.TZ }));
+  const utc = new Date(date.toLocaleString("en-US", { timeZone: "UTC" }));
+  const mins = Math.round((et - utc) / 60000);
+  const abs = Math.abs(mins);
+  return `${mins < 0 ? "-" : "+"}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
+}
+
+// The UTC instant for a wall-clock time on an ET calendar day. Resolving the
+// offset takes two passes: DST flips at 2am local, so an offset sampled at
+// midday can be wrong for midnight on the two switchover days. Guess from
+// midday (never ambiguous), then re-sample at the instant that guess produced.
+function estInstantISO(dateStr, clock) {
+  const guess = etOffsetAt(new Date(`${dateStr}T12:00:00Z`));
+  const once  = new Date(`${dateStr}T${clock}${guess}`);
+  return new Date(`${dateStr}T${clock}${etOffsetAt(once)}`).toISOString();
+}
+
+// Inclusive ET day window for a from/to pair of YYYY-MM-DD strings.
+function estDayRangeISO(fromStr, toStr) {
+  return {
+    sinceISO: estInstantISO(fromStr, "00:00:00.000"),
+    untilISO: estInstantISO(toStr,   "23:59:59.999")
+  };
 }
 
 // Cached shift grouping - invalidated when records change
@@ -459,16 +573,6 @@ function getShiftsByDay(days) {
     if (byDay[shift.date] !== undefined) byDay[shift.date].push(shift);
   });
   return byDay;
-}
-
-function getShiftGroups(sortedRecords) {
-  if (sortedRecords.length === 0) return [];
-  const shifts = [[sortedRecords[0]]];
-  for (let i = 1; i < sortedRecords.length; i++) {
-    if (sortedRecords[i].timestamp - sortedRecords[i-1].timestamp >= SHIFT_GAP_MS) shifts.push([]);
-    shifts[shifts.length-1].push(sortedRecords[i]);
-  }
-  return shifts;
 }
 
 // ============================
@@ -709,7 +813,7 @@ function initEntryPhotoInput() {
     const MAX_BYTES = 15 * 1024 * 1024;
     for (const file of files) {
       if (file.size > MAX_BYTES) {
-        alert(`"${file.name}" is too large (over 15MB). Skipping.`);
+        DT_TOAST.show(`"${file.name}" is too large (over 15MB) — skipped`, "warn");
         continue;
       }
       try {
@@ -717,7 +821,7 @@ function initEntryPhotoInput() {
         pendingEntryPhotos.push(blob);
       } catch (e) {
         console.warn("[Entry] photo resize", e);
-        alert(`Couldn't process "${file.name}".`);
+        DT_TOAST.show(`Couldn't process "${file.name}"`, "error");
       }
     }
     input.value = "";
@@ -800,6 +904,7 @@ function saveRecord() {
     const records = getRecords();
     records.unshift(recordData);
     setRecords(records);
+    document.dispatchEvent(new CustomEvent("dt-record-saved", { detail: { id: recordData.id, serialId: recordData.serialId } }));
     resetEntryPhotoUI();
     document.getElementById("serial").value = "";
     toggleClearBtn();
@@ -978,6 +1083,7 @@ function showTab(name) {
   // of the driver one, so the same nav element gives every role a useful view.
   const visualTab = name; // for the active-class lookup
   if (name === "dashboard" && window.DT_AUTH?.isDetailer?.()) name = "dashboard-detailer";
+  if (name === "dashboard" && window.DT_AUTH?.isMechanic?.()) name = "dashboard-mechanic";
   document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
   document.querySelectorAll(".tab").forEach(t => {
     t.classList.remove("active");
@@ -997,6 +1103,9 @@ function showTab(name) {
   if (name === "dashboard") { applyProfile(); renderDashboard(); }
   if (name === "dashboard-detailer" && window.DT_DETAIL?.renderDashboard) {
     DT_DETAIL.renderDashboard();
+  }
+  if (name === "dashboard-mechanic" && window.DT_MAINT?.renderDashboard) {
+    DT_MAINT.renderDashboard();
   }
   if (name === "profile") applyProfile();
   if (name === "keyup") loadKeyUp();
@@ -1232,8 +1341,12 @@ function createCounter(cfg) {
     _counterSaveHistory(historyKey, hist);
   }
 
-  function reset() {
-    if (!confirm(`Reset all ${shareTitle} counts and notes? (Current totals will be saved to History first.)`)) return;
+  async function reset() {
+    if (!await DT_UI.confirm({
+      title: `Reset ${shareTitle}?`,
+      body: "Current totals are saved to History first.",
+      okLabel: "Reset"
+    })) return;
     archive("reset");
     const d = loadData();
     d.counts = {};
@@ -1347,11 +1460,11 @@ function createCounter(cfg) {
     const container = document.getElementById(historyId);
     if (!container || container._dtDelBound) return;
     container._dtDelBound = true;
-    container.addEventListener("click", (e) => {
+    container.addEventListener("click", async (e) => {
       const btn = e.target.closest("[data-history-del]");
       if (!btn) return;
       const id = btn.getAttribute("data-history-del");
-      if (!confirm("Delete this archived entry?")) return;
+      if (!await DT_UI.confirm({ title: "Delete this archived entry?", okLabel: "Delete", danger: true })) return;
       const arr = _counterLoadHistory(historyKey).filter(x => x.id !== id);
       _counterSaveHistory(historyKey, arr);
       renderHistory();
@@ -1669,6 +1782,78 @@ function gateCxrStatusOption() {
 document.addEventListener("dt-auth-change", gateCxrStatusOption);
 document.addEventListener("DOMContentLoaded", gateCxrStatusOption);
 
+// Populate the records-filter (#fStatus) dropdown — and any other plain
+// <select> a feature wants filled from the status catalog, e.g. maintenance.js's
+// #svcCloseStatus — from the DT_OPTIONS catalogs so they can never drift out
+// of sync with STATUS_BASE. The static markup keeps only a leading
+// placeholder and a trailing OTHER anchor; every other option is generated
+// here. Base options are inserted at the FRONT (after the placeholder) while
+// gateCxrStatusOption() injects the per-role privileged options at the BACK
+// (before OTHER) for #fStatus, so the two passes never depend on each
+// other's ordering. Labels come from statusLabel(), which already matches
+// the previous hardcoded text exactly.
+//
+// The New Entry form's own status field is a button grid, not a <select>
+// (see #statusField in index.html) — its "More statuses" tier is generated
+// by populateStatusButtons() below instead.
+function fillStatusSelect(id, codes) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  // Remove anything we generated before so re-running is idempotent. Options
+  // injected by gateCxrStatusOption() carry .opt-cxr-only and are left alone.
+  sel.querySelectorAll("option.opt-status-gen").forEach(o => o.remove());
+  const frag = document.createDocumentFragment();
+  codes.forEach(code => {
+    const opt = document.createElement("option");
+    opt.value = code;
+    opt.textContent = statusLabel(code);
+    opt.className = "opt-status-gen";
+    frag.appendChild(opt);
+  });
+  const placeholder = sel.options[0] || null;
+  sel.insertBefore(frag, placeholder ? placeholder.nextSibling : sel.firstChild);
+}
+
+function populateStatusSelects() {
+  const base = DT_OPTIONS.STATUS_BASE.filter(c => c !== "OTHER");
+  // Records filter: base + CHECK_IN + privileged + derived (all roles can
+  // filter on any status), again with OTHER as the trailing anchor.
+  fillStatusSelect("fStatus", [
+    ...base, "CHECK_IN",
+    ...DT_OPTIONS.STATUS_PRIVILEGED,
+    ...DT_OPTIONS.STATUS_DERIVED
+  ]);
+}
+document.addEventListener("DOMContentLoaded", populateStatusSelects);
+
+// Generate the New Entry form's "More statuses" button grid from
+// DT_OPTIONS.STATUS_BASE so it can never drift out of sync — the button-grid
+// equivalent of fillStatusSelect() above. CLEAN/DIRTY are hand-authored as
+// the separate top-tier buttons in index.html and excluded here; OTHER stays
+// the static trailing anchor. Generated buttons carry .opt-status-gen so
+// re-running this is idempotent without disturbing gateCxrStatusOption()'s
+// .opt-cxr-only buttons living in the same #statusMoreGroup.
+function populateStatusButtons() {
+  const group = document.getElementById("statusMoreGroup");
+  if (!group) return;
+  group.querySelectorAll(".status-btn.opt-status-gen").forEach(b => b.remove());
+  const codes = DT_OPTIONS.STATUS_BASE.filter(c => c !== "OTHER" && c !== "CLEAN" && c !== "DIRTY");
+  codes.push("CHECK_IN");
+  const otherBtn = group.querySelector('.status-btn[data-status="OTHER"]');
+  codes.forEach(code => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "status-btn opt-status-gen";
+    btn.dataset.status = code;
+    btn.setAttribute("role", "radio");
+    btn.setAttribute("aria-checked", "false");
+    btn.textContent = statusLabel(code);
+    btn.onclick = () => selectStatus(code);
+    group.insertBefore(btn, otherBtn || null);
+  });
+}
+document.addEventListener("DOMContentLoaded", populateStatusButtons);
+
 // ============================================================
 // Data-driven Location dropdown
 //
@@ -1806,19 +1991,6 @@ function toggleOtherField(selectId) {
   inp.style.display = isOther ? "block" : "none";
   if (!isOther) inp.value = "";
   else setTimeout(() => inp.focus(), 50);
-}
-
-function toggleTire(tire) {
-  const btn = document.getElementById("tire-" + tire);
-  const idx = selectedTires.indexOf(tire);
-  if (idx === -1) {
-    selectedTires.push(tire);
-    btn.classList.add("selected");
-  } else {
-    selectedTires.splice(idx, 1);
-    btn.classList.remove("selected");
-  }
-  updateTireLabel();
 }
 
 function updateTireLabel() {
@@ -2045,20 +2217,6 @@ function vinKeypadArrow(direction) {
   if (navigator.vibrate) navigator.vibrate(5);
 }
 
-function vinKeypadCopy() {
-  const input = document.getElementById(_vinKeypadTargetId);
-  if (!input || !input.value) return;
-  const val = input.value;
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(val)
-      .then(() => showToast("Copied to clipboard", "success"))
-      .catch(() => showToast("Copy failed", "error"));
-  } else {
-    showToast("Clipboard not available on this browser", "warn");
-  }
-  if (navigator.vibrate) navigator.vibrate(8);
-}
-
 function vinKeypadPaste() {
   const input = document.getElementById(_vinKeypadTargetId);
   if (!input) return;
@@ -2122,9 +2280,9 @@ function syncKeypadDisplay() {
       const before = val.slice(0, pos);
       const after = val.slice(pos);
       display.innerHTML =
-        escapeHtml(before) +
+        DT_ESC(before) +
         '<span class="vin-cursor">|</span>' +
-        escapeHtml(after);
+        DT_ESC(after);
     }
   }
   if (count) {
@@ -2132,12 +2290,6 @@ function syncKeypadDisplay() {
     count.textContent = `${len} / 17`;
     count.classList.toggle("valid", len === 17);
   }
-}
-
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
 }
 
 // ============================
@@ -2378,7 +2530,6 @@ function getVehicleSVG(vinData) {
   // SUVs, sedans, etc.).
   const size = vinData._size || 40;
   const c = "var(--accent)";
-  const uid = "v" + Math.random().toString(36).slice(2,7);
 
   const isElectric = fuel.includes("electric") && !fuel.includes("hybrid");
   const isHybrid = fuel.includes("hybrid") || (fuel.includes("electric") && fuel.includes("gasoline"));
@@ -2386,9 +2537,9 @@ function getVehicleSVG(vinData) {
   // Small fuel icon shown separately next to vehicle
   let fuelIcon = "";
   if (isElectric) {
-    fuelIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="u-flex-shrink-0" viewBox="0 0 24 24" width="14" height="14" title="Electric"><path d="M13.5 3L5 14h6.5L10 21l9-12h-6.5z" fill="#4d9bff"/></svg>`;
+    fuelIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="u-flex-shrink-0" viewBox="0 0 24 24" width="14" height="14" title="Electric"><path d="M13.5 3L5 14h6.5L10 21l9-12h-6.5z" fill="${DT_UI.cssVar('--info')}"/></svg>`;
   } else if (isHybrid) {
-    fuelIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="u-flex-shrink-0" viewBox="0 0 24 24" width="14" height="14" title="Hybrid"><path d="M12 3C9 3 6 6.5 6 10.5c0 2.2 1 4.2 3 5.5 0-2.2.8-4.5 3-6-1 2.5-1 4.8 0 6 2-1.2 3-3.2 3-5.5C15 6.5 14 3 12 3z" fill="#00c853"/></svg>`;
+    fuelIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="u-flex-shrink-0" viewBox="0 0 24 24" width="14" height="14" title="Hybrid"><path d="M12 3C9 3 6 6.5 6 10.5c0 2.2 1 4.2 3 5.5 0-2.2.8-4.5 3-6-1 2.5-1 4.8 0 6 2-1.2 3-3.2 3-5.5C15 6.5 14 3 12 3z" fill="${DT_UI.cssVar('--accent')}"/></svg>`;
   }
 
   let svg = "";
@@ -2502,14 +2653,14 @@ function renderTodayEntries() {
   ).join("");
 }
 
-function deleteTodayRecord(id) {
-  if (!confirm("Delete this record? This cannot be undone.")) return;
+async function deleteTodayRecord(id) {
+  if (!await DT_UI.confirm({ title: "Delete this record?", body: "This cannot be undone.", okLabel: "Delete", danger: true })) return;
   setRecords(getRecords().filter(r => r.id !== id));
   renderTodayEntries();
 }
 
-function deleteRecord(id) {
-  if (!confirm("Delete this record? This cannot be undone.")) return;
+async function deleteRecord(id) {
+  if (!await DT_UI.confirm({ title: "Delete this record?", body: "This cannot be undone.", okLabel: "Delete", danger: true })) return;
   setRecords(getRecords().filter(r => r.id !== id));
   renderRecords();
 }
@@ -2825,7 +2976,8 @@ function _renderRecordsMapMarkers(pins) {
   document.getElementById("recordsMapEmpty").style.display = "none";
   const bounds = [];
   deduped.forEach(p => {
-    const m = L.circleMarker([p.lat, p.lng], { radius: 7, color: "#00a651", weight: 2, fillColor: "#00a651", fillOpacity: 0.7 })
+    const accent = DT_UI.cssVar("--accent");
+    const m = L.circleMarker([p.lat, p.lng], { radius: 7, color: accent, weight: 2, fillColor: accent, fillOpacity: 0.7 })
       .bindPopup(`<b>${sanitizeText(p.label)}</b>`)
       .addTo(recordsLeafletMap);
     recordsMapMarkers.push(m);
@@ -3167,7 +3319,6 @@ async function renderVinTimeline(vin, opts) {
     .map(r => ({ ts: new Date(r.ts).getTime(), kind: "record", r }))
     .sort((a, b) => b.ts - a.ts);
 
-  const ago = (input) => DT_FORMAT.timeAgo(input);
   const esc = (s) => sanitizeText(s);
 
   // First record carrying NHTSA-decoded vin_data is the source of truth for
@@ -3390,35 +3541,6 @@ async function renderVinTimeline(vin, opts) {
   _renderRecordsMapMarkers(pins);
 }
 
-function renderPaginationControls(current, total) {
-  const prevDisabled = current <= 1;
-  const nextDisabled = current >= total;
-
-  // Build numbered page buttons (max 5 visible: current ± 2)
-  let pageButtons = "";
-  const start = Math.max(1, current - 2);
-  const end = Math.min(total, current + 2);
-
-  if (start > 1) {
-    pageButtons += `<button class="page-btn" onclick="changeRecordsPage(1)">1</button>`;
-    if (start > 2) pageButtons += `<span class="page-ellipsis">...</span>`;
-  }
-  for (let i = start; i <= end; i++) {
-    pageButtons += `<button class="page-btn ${i === current ? 'active' : ''}" onclick="changeRecordsPage(${i})">${i}</button>`;
-  }
-  if (end < total) {
-    if (end < total - 1) pageButtons += `<span class="page-ellipsis">...</span>`;
-    pageButtons += `<button class="page-btn" onclick="changeRecordsPage(${total})">${total}</button>`;
-  }
-
-  return `
-    <div class="pagination">
-      <button class="page-btn page-nav" ${prevDisabled ? 'disabled' : ''} onclick="changeRecordsPage(${current - 1})">&#8592; Prev</button>
-      <div class="page-numbers">${pageButtons}</div>
-      <button class="page-btn page-nav" ${nextDisabled ? 'disabled' : ''} onclick="changeRecordsPage(${current + 1})">Next &#8594;</button>
-    </div>`;
-}
-
 // ============================
 // RECORD DETAIL OVERLAY
 // ============================
@@ -3522,8 +3644,8 @@ function openDetail(id, onDelete) {
   }
 
   // Delete button
-  _detailDeleteFn = () => {
-    if (!confirm("Delete this record? This cannot be undone.")) return;
+  _detailDeleteFn = async () => {
+    if (!await DT_UI.confirm({ title: "Delete this record?", body: "This cannot be undone.", okLabel: "Delete", danger: true })) return;
     setRecords(getRecords().filter(rec => rec.id !== id));
     closeDetail();
     if (onDelete === "deleteTodayRecord") renderTodayEntries();
@@ -3698,7 +3820,10 @@ function startOfWeek(d) {
   return dt;
 }
 
-function isoDate(d) { return d.toISOString().slice(0,10); }
+// ET, not UTC. renderDashboard compares isoDate(r.timestamp) against
+// estDateStr(now) for its "today" count — a UTC slice made those two disagree
+// for everything logged between 8pm ET and midnight.
+function isoDate(d) { return estDateStr(d instanceof Date ? d.getTime() : d); }
 
 // ============================
 // PERSONAL RECORDS
@@ -3846,7 +3971,7 @@ function renderRange(id) {
   const today = estDateStr(now.getTime());
   const all = getRecords();
 
-  let cutoff, groupFn, labelFn, title;
+  let cutoff, groupFn, labelFn;
 
   if (id === '7days') {
     // Already rendered by renderDashboard - just ensure visible
@@ -3855,7 +3980,6 @@ function renderRange(id) {
     cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - 30);
     groupFn = r => estDateStr(r.timestamp);
     labelFn = d => d.slice(5);
-    title = 'Last 30 Days';
     const days = [];
     for (let i = 29; i >= 0; i--) {
       const d = new Date(now); d.setDate(d.getDate() - i);
@@ -4266,11 +4390,15 @@ async function ensureShiftMapSections() {
   try { sections = await DT_DROPOFFS.getSections(); }
   catch (e) { console.warn("[shift map] sections load", e); return; }
   if (!sections.length) return;
-  const statusColor = { open: "#00a651", full: "#e85550", restricted: "#f0b04a" };
+  const statusColor = {
+    open: DT_UI.cssVar("--accent"),
+    full: DT_UI.cssVar("--danger"),
+    restricted: DT_UI.cssVar("--warn")
+  };
   leafletSectionLayer = L.layerGroup().addTo(leafletMap);
   sections.forEach(s => {
     if (!s.rings.length) return;
-    const color = statusColor[s.status] || "#4d9bff";
+    const color = statusColor[s.status] || DT_UI.cssVar("--info");
     const poly = L.polygon(s.rings, {
       color, fillColor: color, fillOpacity: 0.10, weight: 1.5, interactive: false
     });
@@ -4386,15 +4514,27 @@ function renderShiftMap(shiftIndex) {
   }
 }
 
+// Which design token each status paints with. Only the mapping lives here —
+// the colors themselves are tokens in app.css, so map markers follow the
+// theme instead of staying dark-themed on a light page.
+const STATUS_MAP_TOKEN = {
+  "CLEAN": "--accent",
+  "DIRTY": "--danger",
+  "REWASH": "--chart-4",
+  "TOP OFF FLUID": "--info",
+  "PM": "--info",
+  "MK": "--warn",
+  "MR": "--danger",
+  "OM": "--chart-5",
+  "AUDIT FAIL": "--danger",
+  "TI": "--danger",
+  "LP": "--chart-5",
+  "GLASS": "--info",
+  "OTHER": "--muted",
+  "WI/DELETE": "--danger"
+};
 function statusMapColor(status) {
-  const map = {
-    "CLEAN":"00a651","DIRTY":"e85550",
-    "REWASH":"3dcfcf","TOP OFF FLUID":"6aadff",
-    "PM":"4d9bff","MK":"f0b04a","MR":"e85550","OM":"b87be8",
-    "AUDIT FAIL":"e85550","TI":"e85550","GLASS":"4d9bff",
-    "OTHER":"888888","WI/DELETE":"e85550"
-  };
-  return map[status] || "888888";
+  return DT_UI.cssVar(STATUS_MAP_TOKEN[status] || "--muted");
 }
 
 function renderShiftMapControls() {
@@ -4516,7 +4656,7 @@ function renderDashboard() {
     <div class="stat-card"><div class="stat-num stat-num--danger">${noTagCount}</div><div class="stat-label">Bad Tag</div></div>
   `;
 
-  const statuses = ["CLEAN","DIRTY","REWASH","BODY","PM","MK","MR","OM","AUDIT FAIL","WI/DELETE","GLASS","TI","OTHER"];
+  const statuses = ["CLEAN","DIRTY","REWASH","BODY","PM","MK","MR","OM","AUDIT FAIL","WI/DELETE","GLASS","TI","LP","OTHER"];
   const sc = {};
   statuses.forEach(s => sc[s] = 0);
   all.forEach(r => { sc[r.status] !== undefined ? sc[r.status]++ : sc["OTHER"]++; });
@@ -5321,185 +5461,6 @@ window.addEventListener("pagehide", () => {
   }
 });
 
-// ============================
-// SCANBOT SDK (DISABLED — kept for future re-enable)
-// ============================
-/* Scanbot trial flow disabled. The button in index.html is commented
-   out; this whole block stays here so we can revive it without rewriting.
-   To re-enable: remove this opening /* and the closing one before TORCH below,
-   then uncomment the button in index.html.
-
-// Loads on first tap of the "Scan with Scanbot (beta)" button. Runs in
-// license-free trial mode (~60s per session) — enough to evaluate read
-// reliability on iPhone vs. the existing ZXing path. To go production
-// we'd need a paid license key set in SCANBOT_LICENSE.
-const SCANBOT_VERSION = "5";                                       // major version pin
-const SCANBOT_SDK_URL = "https://cdn.jsdelivr.net/npm/scanbot-web-sdk@5/bundle/ScanbotSDK.min.js";
-const SCANBOT_ENGINE_PATH = "https://cdn.jsdelivr.net/npm/scanbot-web-sdk@5/bundle/bin/complete/";
-// Trial license — domain-bound to localhost + charger71.github.io.
-// 60 s/session cap; reload to reset. Replace with paid key for production.
-const SCANBOT_LICENSE =
-  "LFW8qn0iYWUSo8e8LxKhsic8cXJA+6" +
-  "Ym6onxKt8obw2IYbyK614CLXO6hwoC" +
-  "OaB+XsTBJtgZgTEVTf+LdN6WZQhBkL" +
-  "aylHNg/fGpRaJ8oHIdFWvZvmSZN7Xb" +
-  "12qQtpmbgg3c2smAzPdVj1VdPr+18U" +
-  "M5qC6NcPDYbs493Yl/flPc5KE2jlss" +
-  "+BsBkHiZyf2ABztHnJMxA2s0skupOJ" +
-  "MoBevJgusfUV+PLJwfIbinVZZxMlKI" +
-  "12r2AW+vZQRDpvzMr8hdu9z6w82uq+" +
-  "JFqqplfKH5D3IXrNz2ABwxJLhpK/4i" +
-  "UK7Vlaiv0fwHNvWLGQknBiHpzzg6vP" +
-  "FCYoWoz0Lx8Q==\nU2NhbmJvdFNESw" +
-  "psb2NhbGhvc3R8d3d3LmRyaXZlcnRy" +
-  "YXguc2l0ZQoxNzgwMjcxOTk5CjgzOD" +
-  "g2MDcKOA==\n";
-
-
-let _scanbotSDK = null;          // resolved SDK instance after init
-let _scanbotLoading = null;      // Promise so concurrent taps don't race
-let _scanbotScanner = null;      // active scanner instance (for cleanup)
-
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector(`script[data-src="${src}"]`);
-    if (existing) { existing.dataset.loaded === "1" ? resolve() : existing.addEventListener("load", resolve); return; }
-    const s = document.createElement("script");
-    s.src = src;
-    s.async = true;
-    s.dataset.src = src;
-    s.onload = () => { s.dataset.loaded = "1"; resolve(); };
-    s.onerror = () => reject(new Error("Failed to load " + src));
-    document.head.appendChild(s);
-  });
-}
-
-async function ensureScanbotSDK() {
-  if (_scanbotSDK) return _scanbotSDK;
-  if (_scanbotLoading) return _scanbotLoading;
-  _scanbotLoading = (async () => {
-    if (!window.ScanbotSDK) {
-      await loadScript(SCANBOT_SDK_URL);
-    }
-    if (!window.ScanbotSDK || typeof window.ScanbotSDK.initialize !== "function") {
-      throw new Error("ScanbotSDK global not available after script load (CDN path or API may have changed)");
-    }
-    _scanbotSDK = await window.ScanbotSDK.initialize({
-      licenseKey: SCANBOT_LICENSE,
-      enginePath: SCANBOT_ENGINE_PATH
-    });
-    return _scanbotSDK;
-  })();
-  try { return await _scanbotLoading; }
-  finally { _scanbotLoading = null; }
-}
-
-async function openScanbotScanner() {
-  const hostId = "scanbotHost";
-  // Lazily inject a host container the first time
-  let host = document.getElementById(hostId);
-  if (!host) {
-    host = document.createElement("div");
-    host.id = hostId;
-    host.style.cssText = "position:fixed;inset:0;z-index:1500;background:#000;display:none";
-    document.body.appendChild(host);
-  }
-  host.style.display = "block";
-  // Add a close button overlay since the SDK UI may not include one.
-  // Mounted on document.body (not host) at a very high z-index so the
-  // Scanbot SDK can't render on top of it.
-  let closeBtn = document.getElementById("scanbotCloseBtn");
-  if (!closeBtn) {
-    closeBtn = document.createElement("button");
-    closeBtn.id = "scanbotCloseBtn";
-    closeBtn.className = "scanbot-close";
-    closeBtn.setAttribute("aria-label", "Close scanner");
-    closeBtn.innerHTML =
-      '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-    closeBtn.style.cssText =
-      "position:fixed;" +
-      "top:calc(env(safe-area-inset-top,0px) + 12px);" +
-      "right:calc(env(safe-area-inset-right,0px) + 12px);" +
-      "z-index:2147483647;" +
-      "width:44px;height:44px;display:flex;align-items:center;justify-content:center;" +
-      "border-radius:50%;border:1px solid rgba(255,255,255,0.35);" +
-      "background:rgba(0,0,0,0.65);color:#fff;cursor:pointer;" +
-      "-webkit-tap-highlight-color:transparent;touch-action:manipulation;" +
-      "box-shadow:0 2px 8px rgba(0,0,0,0.4);padding:0;";
-    closeBtn.onclick = closeScanbotScanner;
-    document.body.appendChild(closeBtn);
-  }
-  closeBtn.style.display = "flex";
-
-  showToast("Loading Scanbot…", "success");
-  try {
-    const sdk = await ensureScanbotSDK();
-    // Scanbot Web SDK has renamed the format-restriction key across versions:
-    //   v3 / v4: `barcodeFormats: [...]`
-    //   v5+:     `acceptedFormats: [...]`
-    //   some builds also accept: `barcodeFormatConfigurations: [{ formats: [...] }]`
-    // Pass under all of them — unknown keys are ignored.
-    const FORMATS = ["CODE_39", "CODE_128", "QR_CODE", "DATA_MATRIX", "PDF_417", "AZTEC", "EAN_13", "EAN_8", "UPC_A", "UPC_E", "ITF"];
-    const config = {
-      containerId: hostId,
-      barcodeFormats: FORMATS,
-      acceptedFormats: FORMATS,
-      barcodeFormatConfigurations: [{ formats: FORMATS }],
-      preferredCamera: "back",
-      onBarcodesDetected: (result) => {
-        try {
-          const list = (result && (result.barcodes || result.results)) || [];
-          const first = list[0];
-          if (!first) return;
-          const raw = (first.text || first.textWithExtension || first.rawText || "").trim().toUpperCase();
-          if (!raw) return;
-          const fmt = first.format || first.symbology || first.barcodeFormat || "";
-          // Diagnostic: log what Scanbot detected so we know its format strings
-          console.log("[Scanbot] detected", { format: fmt, text: raw });
-          const is2D = /QR|DATA_?MATRIX|PDF_?417|AZTEC/i.test(fmt);
-          // Reuse the existing acceptance path: it handles VIN extraction,
-          // beep/haptic, populating the Serial input, and closing.
-          const accepted = acceptScanResult(raw, is2D);
-          if (accepted) closeScanbotScanner();
-        } catch (e) {
-          console.warn("Scanbot result handling failed:", e);
-        }
-      },
-      onError: (err) => {
-        console.error("Scanbot error:", err);
-        showToast("Scanbot error: " + (err && err.message ? err.message : "see console"), "error");
-      }
-    };
-    // Different Scanbot Web SDK versions expose this under different names.
-    // Try the most likely ones in order.
-    const factory = sdk.createBarcodeScanner || sdk.createBarcodeScannerView || sdk.UI && sdk.UI.createBarcodeScanner;
-    if (!factory) throw new Error("createBarcodeScanner not found on SDK (API may have moved)");
-    _scanbotScanner = await factory.call(sdk, config);
-  } catch (e) {
-    console.error(e);
-    showToast("Couldn't start Scanbot: " + (e && e.message ? e.message : "unknown"), "error");
-    host.style.display = "none";
-    const cb = document.getElementById("scanbotCloseBtn");
-    if (cb) cb.style.display = "none";
-  }
-}
-
-async function closeScanbotScanner() {
-  const host = document.getElementById("scanbotHost");
-  try {
-    if (_scanbotScanner) {
-      if (typeof _scanbotScanner.dispose === "function") await _scanbotScanner.dispose();
-      else if (typeof _scanbotScanner.destroy === "function") await _scanbotScanner.destroy();
-      else if (typeof _scanbotScanner.close === "function") await _scanbotScanner.close();
-    }
-  } catch (e) { } // ignore
-  _scanbotScanner = null;
-  if (host) host.style.display = "none";
-  const closeBtn = document.getElementById("scanbotCloseBtn");
-  if (closeBtn) closeBtn.style.display = "none";
-}
-*/ // end SCANBOT disabled block
-
 async function toggleTorch() {
   // ZXing path may not have populated activeStream yet — grab from the video element.
   if (!activeStream) {
@@ -5595,9 +5556,13 @@ function applyTheme(pref) {
   // light-theme block. The user preference (system/light/dark) lives in localStorage.
   const resolved = resolveTheme(pref);
   document.documentElement.setAttribute("data-theme", resolved);
+  // Browser chrome matches the app's top bar. Read the token rather than
+  // repeating its hex — this value also lives in app.css and in the
+  // pre-paint bootstrap in index.html, and three copies drift.
+  // data-theme is set above, so the computed value is already the new theme's.
   const meta = document.getElementById("metaThemeColor")
             || document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", resolved === "light" ? "#f1ede5" : "#13161a");
+  if (meta) meta.setAttribute("content", DT_UI.cssVar("--header-bg", resolved === "light" ? "#f1ede5" : "#13161a"));
   // Reflect the user-facing preference in the segmented control
   document.querySelectorAll(".theme-toggle-btn").forEach(btn => {
     const on = btn.dataset.themeValue === pref;
@@ -5816,7 +5781,7 @@ function initProfileAvatarHandlers() {
 
   removeBtn?.addEventListener("click", async () => {
     if (!window.DT_AUTH || !DT_AUTH.getUser()) return;
-    if (!confirm("Remove your profile photo?")) return;
+    if (!await DT_UI.confirm({ title: "Remove your profile photo?", okLabel: "Remove", danger: true })) return;
     try {
       setStatus("Removing…");
       const userId = DT_AUTH.getUser().id;
@@ -6007,8 +5972,12 @@ async function forceSync() {
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btnSetPin")?.addEventListener("click", openPinSetupModal);
   document.getElementById("btnChangePin")?.addEventListener("click", openPinSetupModal);
-  document.getElementById("btnRemovePin")?.addEventListener("click", () => {
-    if (!confirm("Remove the PIN on this device? Email + password will be required next time you open the app.")) return;
+  document.getElementById("btnRemovePin")?.addEventListener("click", async () => {
+    if (!await DT_UI.confirm({
+      title: "Remove the PIN on this device?",
+      body: "Email and password will be required next time you open the app.",
+      okLabel: "Remove PIN", danger: true
+    })) return;
     if (window.DT_AUTH && DT_AUTH.removePin) DT_AUTH.removePin();
     applyProfile();
     showToast("PIN removed", "success");
@@ -6017,7 +5986,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!window.DT_AUTH || !DT_AUTH.getUser()) { showToast("Not signed in", "error"); return; }
     const email = DT_AUTH.getUser().email;
     if (!email) { showToast("No email on this account", "error"); return; }
-    if (!confirm(`Send a password-reset email to ${email}?`)) return;
+    if (!await DT_UI.confirm({ title: "Send a password-reset email?", body: email, okLabel: "Send" })) return;
     const { error } = await DT_AUTH.client.auth.resetPasswordForEmail(email, {
       redirectTo: location.origin + location.pathname
     });
@@ -6043,7 +6012,8 @@ function openPinSetupModal() {
 function getDriverFileName(base, ext) {
   const profile = getProfile();
   const name = profile.name ? "_" + profile.name.replace(/\s+/g,"_") : "";
-  const date = new Date().toISOString().slice(0,10);
+  // ET so an export made late in the evening is filed under the shift's day.
+  const date = estDateStr(Date.now());
   return `${base}${name}_${date}.${ext}`;
 }
 // ============================
@@ -6183,7 +6153,11 @@ async function restoreFromBackup(ts) {
   if (!window.DT_IDB) { showToast("Restore unavailable", "error"); return; }
   const entry = await DT_IDB.get("backups", ts);
   if (!entry || !entry.keys) { showToast("Snapshot not found", "error"); return; }
-  if (!confirm(`Restore ${entry.recordCount} records from ${new Date(ts).toLocaleString()}? Your current state will be saved as an undo point.`)) return;
+  if (!await DT_UI.confirm({
+    title: `Restore ${entry.recordCount} records?`,
+    body: `From ${new Date(ts).toLocaleString()}. Your current state is saved as an undo point.`,
+    okLabel: "Restore"
+  })) return;
 
   // Save current state as the pre-restore undo slot before mutating.
   const undo = {
@@ -6204,7 +6178,7 @@ async function undoRestore() {
   if (!window.DT_IDB) return;
   const undo = await DT_IDB.get("backups", PRE_RESTORE_KEY);
   if (!undo || !undo.keys) { showToast("Nothing to undo", "error"); return; }
-  if (!confirm("Undo the last restore? Current state will be replaced.")) return;
+  if (!await DT_UI.confirm({ title: "Undo the last restore?", body: "Your current state will be replaced.", okLabel: "Undo", danger: true })) return;
   applySnapshot(undo.keys);
   await DT_IDB.del("backups", PRE_RESTORE_KEY);
   updatePreRestoreUI();
@@ -6270,7 +6244,7 @@ function importJSON(event) {
   if (statusEl) statusEl.textContent = "Reading file...";
 
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
       const parsed = JSON.parse(e.target.result);
       const isV2 = parsed.version === 2 && parsed.keys;
@@ -6294,8 +6268,13 @@ function importJSON(event) {
       const merged = [...existing, ...newRecords].sort((a,b) => b.timestamp - a.timestamp);
 
       const dupCount = cleanRecords.length - newRecords.length;
-      const baseMsg = `Import ${newRecords.length} new records? (${dupCount} duplicates skipped${rejected ? `, ${rejected} invalid rejected` : ""})`;
-      if (!confirm(baseMsg)) {
+      const detail = `${dupCount} duplicate${dupCount === 1 ? "" : "s"} skipped`
+        + (rejected ? `, ${rejected} invalid rejected` : "");
+      if (!await DT_UI.confirm({
+        title: `Import ${newRecords.length} new record${newRecords.length === 1 ? "" : "s"}?`,
+        body: detail,
+        okLabel: "Import"
+      })) {
         if (statusEl) statusEl.textContent = "";
         event.target.value = "";
         return;
@@ -6313,7 +6292,11 @@ function importJSON(event) {
         const incomingName = (incomingProfile.name || "").trim();
         const namesDiffer = currentName && incomingName && currentName !== incomingName;
         const shouldOverwrite = !currentName ||
-          (namesDiffer && confirm(`Overwrite profile "${currentName}" with "${incomingName}" from the file?`));
+          (namesDiffer && await DT_UI.confirm({
+            title: "Overwrite your profile?",
+            body: `Replace "${currentName}" with "${incomingName}" from the file.`,
+            okLabel: "Overwrite"
+          }));
         if (shouldOverwrite) {
           localStorage.setItem(PROFILE_KEY, JSON.stringify(incomingProfile));
           applyProfile();
@@ -6381,11 +6364,6 @@ function dismissWeatherAlert() {
   localStorage.setItem(ALERT_DISMISSED_KEY, Date.now().toString());
 }
 
-function testWeatherAlert() {
-  localStorage.removeItem(ALERT_DISMISSED_KEY);
-  checkWeatherAlert();
-}
-
 async function checkWeatherAlert() {
   const dismissed = parseInt(localStorage.getItem(ALERT_DISMISSED_KEY) || "0");
   if (Date.now() - dismissed < 30 * 60 * 1000) return;
@@ -6439,20 +6417,41 @@ async function checkWeatherAlert() {
 // ============================
 // INIT
 // ============================
-if (localStorage.getItem(SHUTTLE_KEY) === "1") {
-  document.getElementById("shuttle").checked = true;
-  document.getElementById("shuttleRow").classList.add("shuttle-checked");
+// Each step is independent, so one failing must not cancel the rest. This
+// block used to reach for #shuttle without a null check — the only
+// undefended DOM access in an otherwise careful file — and a throw there
+// took the weather check, the backup scheduler, applyProfile() and the
+// first render down with it.
+function initStep(label, fn) {
+  try { fn(); }
+  catch (err) { console.error(`[Init] ${label} failed`, err); }
 }
-if (localStorage.getItem(TRANSPORT_KEY) === "1") {
-  document.getElementById("transport").checked = true;
-  document.getElementById("transportRow").classList.add("transport-checked");
-}
-checkWeatherAlert();
-setInterval(checkWeatherAlert, 15 * 60 * 1000);
-migrateLegacyBackup().then(() => {
-  runBackup();
-  setInterval(runBackup, BACKUP_INTERVAL_MS);
+
+initStep("restore toggles", () => {
+  if (localStorage.getItem(SHUTTLE_KEY) === "1") {
+    const box = document.getElementById("shuttle");
+    if (box) box.checked = true;
+    document.getElementById("shuttleRow")?.classList.add("shuttle-checked");
+  }
+  if (localStorage.getItem(TRANSPORT_KEY) === "1") {
+    const box = document.getElementById("transport");
+    if (box) box.checked = true;
+    document.getElementById("transportRow")?.classList.add("transport-checked");
+  }
 });
-updateBackupStatus();
-applyProfile();
-renderTodayEntries();
+
+initStep("weather alert", () => {
+  checkWeatherAlert();
+  setInterval(checkWeatherAlert, 15 * 60 * 1000);
+});
+
+initStep("backups", () => {
+  migrateLegacyBackup().then(() => {
+    runBackup();
+    setInterval(runBackup, BACKUP_INTERVAL_MS);
+  }).catch(err => console.error("[Init] backup migration failed", err));
+  updateBackupStatus();
+});
+
+initStep("profile", applyProfile);
+initStep("today's entries", renderTodayEntries);

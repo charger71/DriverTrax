@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "lint": "npx --yes eslint@9.39.5 .",
+    "check:precache": "node scripts/check-precache.mjs"
+  },
   "devDependencies": {
     "supabase": "^2.107.0"
   }

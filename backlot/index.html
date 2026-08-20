@@ -49,6 +49,7 @@
     <symbol id="icon-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></symbol>
     <symbol id="icon-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></symbol>
     <symbol id="icon-map-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></symbol>
+    <symbol id="icon-wrench" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
     <symbol id="icon-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></symbol>
   </svg>
 
@@ -103,6 +104,9 @@
       <button class="bl-nav-item" data-section="counters" aria-label="Shift-close counters">
         <svg class="bl-icon" aria-hidden="true"><use href="#icon-calendar"/></svg><span class="label-text">Counters</span>
       </button>
+      <button class="bl-nav-item" data-section="vendors" aria-label="Service vendors">
+        <svg class="bl-icon" aria-hidden="true"><use href="#icon-wrench"/></svg><span class="label-text">Vendors</span>
+      </button>
       <!-- Admin-only: in-app section manager (rename / delete / merge).
            The standalone Leaflet polygon designer is linked from inside. -->
       <button class="bl-nav-item bl-admin-only" data-section="parking-sections"
@@ -125,6 +129,7 @@
           <div class="bl-kpi"><div class="label">Cars logged today</div><div class="val" id="blKpiCars">—</div><div class="delta" id="blKpiCarsSub">since midnight</div></div>
           <div class="bl-kpi"><div class="label">Drivers on shift</div><div class="val" id="blKpiDrivers">—</div><div class="delta" id="blKpiDriversSub">active today</div></div>
           <div class="bl-kpi"><div class="label">Detailers on shift</div><div class="val" id="blKpiDetailers">—</div><div class="delta" id="blKpiDetailersSub">active today</div></div>
+          <div class="bl-kpi"><div class="label">Mechanics on shift</div><div class="val" id="blKpiMechanics">—</div><div class="delta" id="blKpiMechanicsSub">active today</div></div>
           <div class="bl-kpi"><div class="label">Ready line</div><div class="val u-accent" id="blKpiReady">—</div><div class="delta">clean / detailed</div></div>
           <div class="bl-kpi"><div class="label">Dirty</div><div class="val u-warn" id="blKpiDirty">—</div><div class="delta">needs wash</div></div>
           <div class="bl-kpi"><div class="label">Service / holds</div><div class="val u-danger" id="blKpiService">—</div><div class="delta">PM · maint · hold</div></div>
@@ -227,7 +232,7 @@
 
       <section class="bl-section" id="section-roster">
         <div class="bl-page-head">
-          <div><h1>Roster &amp; Leaderboard</h1><div class="sub">On-shift drivers and detailers</div></div>
+          <div><h1>Roster &amp; Leaderboard</h1><div class="sub">On-shift drivers, detailers, and mechanics</div></div>
           <div class="actions"><button class="bl-btn bl-btn--secondary bl-btn--sm" id="blRosterRefresh">Refresh</button></div>
         </div>
 
@@ -250,6 +255,7 @@
                 <div class="bl-seg" id="blLbRole" role="group" aria-label="Leaderboard role">
                   <button class="bl-seg-btn is-active" data-role="driver">Drivers</button>
                   <button class="bl-seg-btn" data-role="detailer">Detailers</button>
+                  <button class="bl-seg-btn" data-role="mechanic">Mechanics</button>
                 </div>
                 <div class="bl-seg" id="blLbPeriod" role="group" aria-label="Leaderboard period">
                   <button class="bl-seg-btn is-active" data-period="today">Today</button>
@@ -350,6 +356,58 @@
         </div>
       </section>
 
+      <section class="bl-section" id="section-vendors">
+        <div class="bl-page-head">
+          <div><h1>Service Vendors</h1><div class="sub">Outside shops mechanics route work to</div></div>
+          <div class="actions">
+            <button class="bl-btn bl-btn--primary bl-btn--sm" id="blVendorsCreate" data-shortcut="new" title="Add vendor (n)"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-plus"/></svg>Add vendor</button>
+          </div>
+        </div>
+        <div class="bl-card">
+          <div id="blVendorsList" class="bl-users-list"><div class="bl-empty">Loading…</div></div>
+        </div>
+      </section>
+
+      <!-- ===== vendor create/edit modal ===== -->
+      <div class="bl-modal" id="blVendorsModal" role="dialog" aria-modal="true" aria-label="Vendor">
+        <div class="bl-modal-card">
+          <div class="bl-modal-head">
+            <h3 id="blVendorsModalTitle">Add vendor</h3>
+            <button class="bl-btn bl-btn--icon bl-btn--ghost" id="blVendorsModalClose" aria-label="Close"><svg class="bl-icon" aria-hidden="true"><use href="#icon-x"/></svg></button>
+          </div>
+          <form id="blVendorsForm" class="bl-modal-body">
+            <input type="hidden" name="id">
+            <label class="bl-field"><span class="bl-field-label">Name</span><input name="name" required maxlength="60" placeholder="e.g. Bo's Body Shop" autocomplete="off"></label>
+            <label class="bl-field"><span class="bl-field-label">Type</span>
+              <select name="vendor_type">
+                <option value="body">Body shop</option>
+                <option value="glass">Glass shop</option>
+                <option value="tire">Tire shop</option>
+                <option value="towing">Towing</option>
+                <option value="locksmith">Locksmith</option>
+                <option value="dealer">Dealer</option>
+                <option value="general">General repair</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+            <label class="bl-field"><span class="bl-field-label">Contact name</span><input name="contact_name" maxlength="60" autocomplete="off"></label>
+            <label class="bl-field"><span class="bl-field-label">Phone</span><input name="phone" type="tel" maxlength="30" autocomplete="off"></label>
+            <label class="bl-field"><span class="bl-field-label">Address</span><input name="address" maxlength="120" autocomplete="off" placeholder="Street address"></label>
+            <label class="bl-field"><span class="bl-field-label">City</span><input name="city" maxlength="60" autocomplete="off"></label>
+            <div class="bl-field-row">
+              <label class="bl-field"><span class="bl-field-label">State</span><input name="state" maxlength="2" autocomplete="off" placeholder="e.g. KY"></label>
+              <label class="bl-field"><span class="bl-field-label">ZIP</span><input name="zip" maxlength="10" inputmode="numeric" autocomplete="off"></label>
+            </div>
+            <label><input type="checkbox" name="active" checked> Active</label>
+            <div class="bl-msg" id="blVendorsModalMsg" role="status" aria-live="polite"></div>
+            <div class="bl-modal-actions">
+              <button type="button" class="bl-btn bl-btn--ghost" id="blVendorsCancel">Cancel</button>
+              <button type="submit" class="bl-btn bl-btn--primary" id="blVendorsSubmit">Save</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
       <section class="bl-section" id="section-comms">
         <div class="bl-page-head"><div><h1>Communications</h1><div class="sub">Broadcasts and extra-driver requests</div></div></div>
         <div class="bl-grid bl-grid--even">
@@ -437,6 +495,7 @@
                 <select id="blRepDataset">
                   <option value="records">Cars scanned</option>
                   <option value="detail_jobs">Detail jobs</option>
+                  <option value="service_jobs">Service jobs</option>
                   <option value="vehicles">Current inventory</option>
                 </select>
               </label>
@@ -557,6 +616,7 @@
           <select name="role">
             <option value="driver">Driver</option>
             <option value="detailer">Detailer</option>
+            <option value="mechanic">Mechanic</option>
             <option value="cxr">CXR</option>
             <option value="manager">Manager</option>
             <option value="admin">Admin</option>
@@ -823,6 +883,7 @@
   <script src="roster.js"></script>
   <script src="users.js"></script>
   <script src="parking-sections.js"></script>
+  <script src="vendors.js"></script>
   <script src="comms.js"></script>
   <script src="reports.js"></script>
   <script src="counters.js"></script>

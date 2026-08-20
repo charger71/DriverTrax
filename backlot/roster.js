@@ -1,9 +1,10 @@
 // ============================================================
 // Backlot — Roster & Leaderboard
 //   Mounts into #section-roster.
-//     • On-shift roster (today): drivers from records + detailers
-//       from detail_jobs, with count / pace / last-active.
-//     • Leaderboard: role (driver|detailer) × period
+//     • On-shift roster (today): drivers from records, detailers
+//       from detail_jobs, mechanics from service_jobs, with
+//       count / pace / last-active.
+//     • Leaderboard: role (driver|detailer|mechanic) × period
 //       (today|week|month|quarter), ranked by volume.
 //   Realtime + 30s poll. Self-contained (BL_* only).
 // ============================================================
@@ -13,6 +14,17 @@
   const $   = (id) => document.getElementById(id);
   const esc = window.BL_ESC;
   const fmt = window.BL_FORMAT;
+
+  // Single source of truth for the three roles this panel tracks. Driver
+  // volume comes from `records` (one row per scan); detailer/mechanic
+  // volume comes from their own per-job tables (one row per job, not per
+  // scan), so both need a start/end pair instead of a single timestamp.
+  const ROLE_META = {
+    driver:   { label: "Driver",   plural: "drivers",   unit: "car" },
+    detailer: { label: "Detailer", plural: "detailers", unit: "job" },
+    mechanic: { label: "Mechanic", plural: "mechanics", unit: "job" }
+  };
+  const roleLabel = (r) => (ROLE_META[r] || ROLE_META.driver).label;
 
   const state = { role: "driver", period: "today" };
   let realtimeChan = null, pollTimer = null, started = false;
@@ -48,29 +60,52 @@
     return "—";
   }
 
-  // ---------- on-shift roster (today, both roles) ----------
+  // Aggregate per-job rows (detail_jobs / service_jobs shape: one row per
+  // job, with separate start/end timestamps) into { count, first, last } by id.
+  function aggregateByJob(rows, idCol, startCol, endCol) {
+    const byId = {};
+    rows.forEach((j) => {
+      const id = j[idCol];
+      if (!id) return;
+      const last = j[endCol] || j[startCol];
+      const a = byId[id] || (byId[id] = { count: 0, first: j[startCol], last });
+      a.count++; if (j[startCol] < a.first) a.first = j[startCol]; if (last > a.last) a.last = last;
+    });
+    return byId;
+  }
+
+  // Aggregate per-scan rows (records shape: one row per scan, single ts)
+  // into the same { count, first, last } shape by id.
+  function aggregateByTs(rows, idCol, tsCol) {
+    const byId = {};
+    rows.forEach((r) => {
+      const id = r[idCol];
+      if (!id) return;
+      const a = byId[id] || (byId[id] = { count: 0, first: r[tsCol], last: r[tsCol] });
+      a.count++; if (r[tsCol] < a.first) a.first = r[tsCol]; if (r[tsCol] > a.last) a.last = r[tsCol];
+    });
+    return byId;
+  }
+
+  // ---------- on-shift roster (today, all three roles) ----------
   async function loadRoster() {
     const since = startOfToday().toISOString();
-    const [recRes, jobRes] = await Promise.all([
+    const [recRes, jobRes, svcRes] = await Promise.all([
       sb.from("records").select("user_id,ts,status").gte("ts", since).not("status", "in", "(DETAILING,DETAILED)"),
       sb.from("detail_jobs").select("detailer_id,started_at,completed_at").gte("started_at", since),
+      sb.from("service_jobs").select("opened_by,opened_at,closed_at").gte("opened_at", since),
     ]);
     if (recRes.error) console.warn("[Backlot] roster records", recRes.error);
     if (jobRes.error) console.warn("[Backlot] roster jobs", jobRes.error);
+    if (svcRes.error) console.warn("[Backlot] roster service jobs", svcRes.error);
 
     const agg = {}; // key `${role}:${id}` → { id, role, count, first, last }
-    (recRes.data || []).forEach((r) => {
-      const k = "driver:" + r.user_id;
-      const a = agg[k] || (agg[k] = { id: r.user_id, role: "driver", count: 0, first: r.ts, last: r.ts });
-      a.count++; if (r.ts < a.first) a.first = r.ts; if (r.ts > a.last) a.last = r.ts;
-    });
-    (jobRes.data || []).forEach((j) => {
-      if (!j.detailer_id) return;
-      const last = j.completed_at || j.started_at;
-      const k = "detailer:" + j.detailer_id;
-      const a = agg[k] || (agg[k] = { id: j.detailer_id, role: "detailer", count: 0, first: j.started_at, last });
-      a.count++; if (j.started_at < a.first) a.first = j.started_at; if (last > a.last) a.last = last;
-    });
+    const merge = (role, byId) => {
+      Object.entries(byId).forEach(([id, a]) => { agg[`${role}:${id}`] = { id, role, ...a }; });
+    };
+    merge("driver", aggregateByTs(recRes.data || [], "user_id", "ts"));
+    merge("detailer", aggregateByJob(jobRes.data || [], "detailer_id", "started_at", "completed_at"));
+    merge("mechanic", aggregateByJob(svcRes.data || [], "opened_by", "opened_at", "closed_at"));
 
     const rows = Object.values(agg).sort((a, b) => b.count - a.count);
     const countEl = $("blRosterCount");
@@ -79,14 +114,14 @@
     const body = $("blRosterBody");
     if (!body) return;
     if (!rows.length) {
-      const err = recRes.error?.message || jobRes.error?.message;
-      const msg = err ? `Query error: ${err}` : "No drivers or detailers active yet today.";
+      const err = recRes.error?.message || jobRes.error?.message || svcRes.error?.message;
+      const msg = err ? `Query error: ${err}` : "No drivers, detailers, or mechanics active yet today.";
       body.innerHTML = `<tr><td colspan="5"><div class="bl-empty">${esc(msg)}</div></td></tr>`;
       hidePager($("blRosterPager"));
       return;
     }
     const names = await resolveNames(rows.map((r) => r.id), "Unknown");
-    const enriched = rows.map((r) => ({ ...r, name: names[r.id] || (r.role === "detailer" ? "Detailer" : "Driver") }));
+    const enriched = rows.map((r) => ({ ...r, name: names[r.id] || roleLabel(r.role) }));
     ensureRosterPager();
     rosterPager.setItems(enriched);
   }
@@ -95,7 +130,7 @@
     const body = $("blRosterBody");
     if (!body) return;
     body.innerHTML = rows.map((r) => {
-      const unit = r.role === "detailer" ? "job" : "car";
+      const unit = (ROLE_META[r.role] || ROLE_META.driver).unit;
       return `<tr>
         <td>${esc(r.name)}</td>
         <td><span class="bl-role-pill bl-role-pill--${esc(r.role)}">${esc(r.role)}</span></td>
@@ -111,50 +146,45 @@
 
   // ---------- leaderboard (role × period) ----------
   async function loadLeaderboard() {
+    const meta = ROLE_META[state.role] || ROLE_META.driver;
     const title = $("blLbTitle");
-    if (title) title.textContent = `${periodLabel(state.period)} ${state.role === "detailer" ? "Detailer" : "Driver"} Leaders`;
+    if (title) title.textContent = `${periodLabel(state.period)} ${meta.label} Leaders`;
     const el = $("blLeaderboard");
     if (!el) return;
     const seq = ++lbSeq;
     const since = periodStart(state.period).toISOString();
 
-    const byUser = {};
+    let byUser = {};
     let lbError = null;
     if (state.role === "detailer") {
       const { data, error } = await sb.from("detail_jobs").select("detailer_id,started_at,completed_at").gte("started_at", since);
       if (error) { console.warn("[Backlot] leaderboard", error); lbError = error; }
-      (data || []).forEach((j) => {
-        if (!j.detailer_id) return;
-        const last = j.completed_at || j.started_at;
-        const u = byUser[j.detailer_id] || (byUser[j.detailer_id] = { count: 0, first: j.started_at, last });
-        u.count++; if (j.started_at < u.first) u.first = j.started_at; if (last > u.last) u.last = last;
-      });
+      byUser = aggregateByJob(data || [], "detailer_id", "started_at", "completed_at");
+    } else if (state.role === "mechanic") {
+      const { data, error } = await sb.from("service_jobs").select("opened_by,opened_at,closed_at").gte("opened_at", since);
+      if (error) { console.warn("[Backlot] leaderboard", error); lbError = error; }
+      byUser = aggregateByJob(data || [], "opened_by", "opened_at", "closed_at");
     } else {
       const { data, error } = await sb.from("records").select("user_id,ts").gte("ts", since).not("status", "in", "(DETAILING,DETAILED)");
       if (error) { console.warn("[Backlot] leaderboard", error); lbError = error; }
-      (data || []).forEach((r) => {
-        const u = byUser[r.user_id] || (byUser[r.user_id] = { count: 0, first: r.ts, last: r.ts });
-        u.count++; if (r.ts < u.first) u.first = r.ts; if (r.ts > u.last) u.last = r.ts;
-      });
+      byUser = aggregateByTs(data || [], "user_id", "ts");
     }
 
     if (seq !== lbSeq) return; // a newer toggle superseded this load
     const ids = Object.keys(byUser);
     if (!ids.length) {
-      const who = state.role === "detailer" ? "detailers" : "drivers";
       const when = { today: "yet today", week: "this week", month: "this month", quarter: "this quarter" }[state.period];
-      el.innerHTML = `<div class="bl-empty">${lbError ? esc("Query error: " + lbError.message) : `No ${who} active ${when}.`}</div>`;
+      el.innerHTML = `<div class="bl-empty">${lbError ? esc("Query error: " + lbError.message) : `No ${meta.plural} active ${when}.`}</div>`;
       hidePager($("blLbPager"));
       return;
     }
-    const names = await resolveNames(ids, state.role === "detailer" ? "Detailer" : "Driver");
+    const names = await resolveNames(ids, meta.label);
     if (seq !== lbSeq) return;
-    const unit = state.role === "detailer" ? "job" : "car";
-    const rows = ids.map((id) => ({ id, name: names[id] || (state.role === "detailer" ? "Detailer" : "Driver"), ...byUser[id] }))
+    const rows = ids.map((id) => ({ id, name: names[id] || meta.label, ...byUser[id] }))
       .sort((a, b) => b.count - a.count)
       .map((r, i) => ({ ...r, rank: i + 1 })); // stamp absolute rank before paginating
 
-    lbCtx.unit = unit;
+    lbCtx.unit = meta.unit;
     ensureLbPager();
     lbPager.setItems(rows);
   }
@@ -211,6 +241,7 @@
     realtimeChan = sb.channel("backlot-roster")
       .on("postgres_changes", { event: "*", schema: "public", table: "records" }, refreshAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "detail_jobs" }, refreshAll)
+      .on("postgres_changes", { event: "*", schema: "public", table: "service_jobs" }, refreshAll)
       .subscribe();
   }
 

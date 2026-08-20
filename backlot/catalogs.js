@@ -17,7 +17,7 @@
     // Selectable only by CXR / manager / admin.
     STATUS_PRIVILEGED: ["CHECK_OUT", "HOLD", "DNR"],
     // System-set by the detailer flow — not user-selectable.
-    STATUS_DERIVED: ["DETAILING", "DETAILED"],
+    STATUS_DERIVED: ["DETAILING", "DETAILED", "AT_VENDOR", "WAITING_PARTS"],
     DESTINATIONS: ["GARAGE", "QTA", "BACKLOT", "ATLANTIC", "BRANCH", "OTHER"],
     CONDITIONS: [
       { id: "REGULAR",      label: "Regular" },
@@ -48,6 +48,8 @@
     "DNR": "DO NOT RENT (DNR)",
     "DETAILING": "DETAILING",
     "DETAILED": "DETAILED",
+    "AT_VENDOR": "AT VENDOR",
+    "WAITING_PARTS": "WAITING ON PARTS",
   };
 
   const conditionLabel = (id) => (OPTIONS.CONDITIONS.find((c) => c.id === id)?.label) || id;

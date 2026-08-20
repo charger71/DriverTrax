@@ -14,12 +14,22 @@
   const fmt = window.BL_FORMAT;
 
   const GROUPS = {
-    records:     [["driver", "Driver"], ["status", "Status"], ["section", "Section"], ["day", "Day"]],
-    detail_jobs: [["detailer", "Detailer"], ["day", "Day"]],
-    vehicles:    [["status", "Status"], ["destination", "Destination"], ["section", "Section"]],
+    records:      [["driver", "Driver"], ["status", "Status"], ["section", "Section"], ["day", "Day"]],
+    detail_jobs:  [["detailer", "Detailer"], ["day", "Day"]],
+    service_jobs: [["mechanic", "Mechanic"], ["job_type", "Job Type"], ["state", "State"], ["day", "Day"]],
+    vehicles:     [["status", "Status"], ["destination", "Destination"], ["section", "Section"]],
   };
-  const DATASET_LABEL = { records: "Cars scanned", detail_jobs: "Detail jobs", vehicles: "Current inventory" };
-  const UNIT = { records: "cars", detail_jobs: "jobs", vehicles: "vehicles" };
+  const DATASET_LABEL = { records: "Cars scanned", detail_jobs: "Detail jobs", service_jobs: "Service jobs", vehicles: "Current inventory" };
+  const UNIT = { records: "cars", detail_jobs: "jobs", service_jobs: "jobs", vehicles: "vehicles" };
+  // Per-dataset column names that differ from the records/detail_jobs
+  // shape (timestamp column + the row's id/timestamp used for the "day"
+  // grouping and the date-range filter).
+  const TS_COL = { records: "ts", detail_jobs: "started_at", service_jobs: "opened_at" };
+  const SELECT_COLS = {
+    records: "user_id,ts,status,section_name",
+    detail_jobs: "detailer_id,started_at,completed_at",
+    service_jobs: "opened_by,opened_at,closed_at,job_type,state",
+  };
 
   let started = false;
   let lastReport = null; // { dataset, groupLabel, rows:[{label,count}], total, unit }
@@ -58,9 +68,8 @@
       const res = await sb.from("vehicles").select("current_status,current_destination,section_name");
       rows = res.data || []; error = res.error;
     } else {
-      const tsCol = ds === "records" ? "ts" : "started_at";
-      const sel = ds === "records" ? "user_id,ts,status,section_name" : "detailer_id,started_at,completed_at";
-      let q = sb.from(ds).select(sel);
+      const tsCol = TS_COL[ds];
+      let q = sb.from(ds).select(SELECT_COLS[ds]);
       if (from) q = q.gte(tsCol, new Date(from + "T00:00:00").toISOString());
       if (to)   q = q.lte(tsCol, new Date(to + "T23:59:59.999").toISOString());
       const res = await q;
@@ -77,17 +86,21 @@
       let key;
       if (group === "driver") key = r.user_id;
       else if (group === "detailer") key = r.detailer_id;
+      else if (group === "mechanic") key = r.opened_by;
+      else if (group === "job_type") key = r.job_type;
+      else if (group === "state") key = r.state;
       else if (group === "status") key = (ds === "vehicles" ? r.current_status : r.status);
       else if (group === "destination") key = r.current_destination;
       else if (group === "section") key = r.section_name;
-      else if (group === "day") key = fmtDay(ds === "records" ? r.ts : r.started_at);
+      else if (group === "day") key = fmtDay(r[TS_COL[ds]]);
       if (key == null || key === "") key = "(none)";
       counts[key] = (counts[key] || 0) + 1;
     });
 
     let labels = {};
-    if (group === "driver" || group === "detailer") {
-      labels = await resolveNames(Object.keys(counts), group === "detailer" ? "Detailer" : "Driver");
+    if (group === "driver" || group === "detailer" || group === "mechanic") {
+      const fallback = group === "detailer" ? "Detailer" : group === "mechanic" ? "Mechanic" : "Driver";
+      labels = await resolveNames(Object.keys(counts), fallback);
     }
     let out = Object.entries(counts).map(([k, c]) => ({ label: labels[k] || k, count: c }));
     if (group === "day") out.sort((a, b) => a.label.localeCompare(b.label));

@@ -24,7 +24,7 @@
   // Status → lot category (see app status catalog).
   const READY   = new Set(["CLEAN", "DETAILED"]);
   const DIRTY   = new Set(["DIRTY", "REWASH", "DETAILING", "GLASS"]);
-  const SERVICE = new Set(["PM", "MK", "MR", "OM", "BODY", "TI", "HOLD", "DNR", "AUDIT FAIL", "WI/DELETE"]);
+  const SERVICE = new Set(["PM", "MK", "MR", "OM", "BODY", "TI", "HOLD", "DNR", "AUDIT FAIL", "WI/DELETE", "AT_VENDOR", "WAITING_PARTS"]);
   function categoryOf(status) {
     const s = (status || "").toUpperCase();
     if (READY.has(s)) return "ready";
@@ -175,21 +175,24 @@
 
   async function loadAll() {
     const since = startOfToday().toISOString();
-    const [vehRes, recRes, fcRes, djRes] = await Promise.all([
+    const [vehRes, recRes, fcRes, djRes, sjRes] = await Promise.all([
       sb.from("vehicles").select("serial_id,current_status,last_lat,last_lng,last_seen_at,last_user_id"),
       sb.from("records").select("user_id,ts,status,section_id").gte("ts", since),
       sb.from("fleet_counts").select("returns_count,rentals_count,updated_at").eq("id", "global").maybeSingle(),
       sb.from("detail_jobs").select("detailer_id,started_at").gte("started_at", since),
+      sb.from("service_jobs").select("opened_by,opened_at").gte("opened_at", since),
     ]);
     if (vehRes.error) console.warn("[Backlot] vehicles", vehRes.error);
     if (recRes.error) console.warn("[Backlot] records", recRes.error);
     if (djRes.error)  console.warn("[Backlot] detail_jobs", djRes.error);
+    if (sjRes.error)  console.warn("[Backlot] service_jobs", sjRes.error);
 
     latest = {
-      vehicles:   vehRes.data || [],
-      records:    recRes.data || [],
-      fc:         fcRes.data  || null,
-      detailJobs: djRes.data  || [],
+      vehicles:    vehRes.data || [],
+      records:     recRes.data || [],
+      fc:          fcRes.data  || null,
+      detailJobs:  djRes.data  || [],
+      serviceJobs: sjRes.data  || [],
     };
     // We might have polygons that used to reference records/vehicles but
     // aren't in this fetch's data anymore. Selection survives fine — it's
@@ -214,7 +217,7 @@
       ? recordsAll.filter(r => r.section_id === sel.id)
       : recordsAll;
 
-    renderKpis(vehiclesFiltered, recordsFiltered, latest.fc, latest.detailJobs);
+    renderKpis(vehiclesFiltered, recordsFiltered, latest.fc, latest.detailJobs, latest.serviceJobs);
     renderThroughput(recordsFiltered);
     await renderMap(vehiclesFiltered);
     renderBySection();
@@ -227,7 +230,7 @@
     }
   }
 
-  function renderKpis(vehicles, records, fc, detailJobs) {
+  function renderKpis(vehicles, records, fc, detailJobs, serviceJobs) {
     // lot-state counts from current vehicle inventory
     const cat = { ready: 0, dirty: 0, service: 0, other: 0 };
     vehicles.forEach((v) => { cat[categoryOf(v.current_status)]++; });
@@ -237,16 +240,19 @@
     const cars = records.length;
     const drivers = new Set(records.filter((r) => !DETAILER_STATUS.has(r.status)).map((r) => r.user_id)).size;
     const detailers = new Set((detailJobs || []).map((j) => j.detailer_id).filter(Boolean)).size;
+    const mechanics = new Set((serviceJobs || []).map((j) => j.opened_by).filter(Boolean)).size;
 
     const set = (id, val) => { const el = $(id); if (el) el.textContent = val; };
     set("blKpiCars", cars);
     set("blKpiDrivers", drivers);
     set("blKpiDetailers", detailers);
+    set("blKpiMechanics", mechanics);
     set("blKpiReady", cat.ready);
     set("blKpiDirty", cat.dirty);
     set("blKpiService", cat.service);
     set("blKpiDriversSub", drivers === 1 ? "driver active today" : "drivers active today");
     set("blKpiDetailersSub", detailers === 1 ? "detailer active today" : "detailers active today");
+    set("blKpiMechanicsSub", mechanics === 1 ? "mechanic active today" : "mechanics active today");
 
     set("blKpiReturns", fc ? fc.returns_count : "—");
     set("blKpiRentals", fc ? fc.rentals_count : "—");

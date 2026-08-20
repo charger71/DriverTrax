@@ -51,6 +51,7 @@
     isAdmin:   () => state.profile && state.profile.role === "admin",
     isCxr:     () => state.profile && state.profile.role === "cxr",
     isDetailer:() => state.profile && state.profile.role === "detailer",
+    isMechanic:() => state.profile && state.profile.role === "mechanic",
     signOut: async () => {
       await sb.auth.signOut();
       location.reload();
@@ -67,6 +68,7 @@
       document.body.classList.toggle("is-admin",    role === "admin");
       document.body.classList.toggle("is-cxr",      role === "cxr");
       document.body.classList.toggle("is-detailer", role === "detailer");
+      document.body.classList.toggle("is-mechanic", role === "mechanic");
       document.dispatchEvent(new CustomEvent("dt-auth-change", { detail: { user: state.user, profile: state.profile } }));
     },
     // PIN management for the Profile page
@@ -308,7 +310,19 @@
     return data;
   }
 
-  async function applySession(session) {
+  async function applySession(session, event) {
+    // A token refresh is bookkeeping, not a change of who's signed in.
+    // supabase-js fires TOKEN_REFRESHED roughly hourly and again on refocus
+    // near expiry; treating each one as a fresh sign-in meant re-reading the
+    // profile row and dispatching dt-auth-change, which sync.js answers with
+    // a full select("*") pull of every record the user owns. Refresh the
+    // credentials in place and stop.
+    if (event === "TOKEN_REFRESHED" && state.ready
+        && session?.user && state.user && session.user.id === state.user.id) {
+      state.user = session.user;
+      return;
+    }
+
     if (session && session.user) {
       state.user = session.user;
       state.profile = await loadProfile(session.user.id);
@@ -351,16 +365,20 @@
     const isAdmin    = role === "admin";
     const isCxr      = role === "cxr";
     const isDetailer = role === "detailer";
+    const isMechanic = role === "mechanic";
     const isMgrLike  = isManager || isCxr;
     const wasMgrLike  = document.body.classList.contains("is-manager") || document.body.classList.contains("is-cxr");
     const wasDetailer = document.body.classList.contains("is-detailer");
+    const wasMechanic = document.body.classList.contains("is-mechanic");
     document.body.classList.toggle("is-manager",  isManager);
     document.body.classList.toggle("is-admin",    isAdmin);
     document.body.classList.toggle("is-cxr",      isCxr);
     document.body.classList.toggle("is-detailer", isDetailer);
+    document.body.classList.toggle("is-mechanic", isMechanic);
     // Switch to a role-appropriate tab on role transition or fresh sign-in.
     if (state.user && typeof showTab === "function") {
       if (isDetailer && !wasDetailer) showTab("detail-scan");
+      else if (isMechanic && !wasMechanic) showTab("service-scan");
       else if (isMgrLike !== wasMgrLike) showTab(isMgrLike ? "backlot-stats" : "entry");
     }
     if (!state.ready) {
@@ -370,17 +388,29 @@
     document.dispatchEvent(new CustomEvent("dt-auth-change", { detail: { user: state.user, profile: state.profile } }));
   }
 
-  // Initial session check
-  sb.auth.getSession().then(({ data }) => applySession(data.session));
-
-  // Listen for sign-in / sign-out / token refresh / password recovery
+  // Boot + sign-in / sign-out / token refresh / password recovery.
+  // supabase-js v2 emits INITIAL_SESSION as soon as this handler is
+  // registered, so the getSession() call that used to sit alongside it was a
+  // duplicate — two profile loads and two full record pulls on every cold
+  // start. It's kept below purely as a fallback, since dropping it outright
+  // would stake the entire boot on that one event arriving.
+  let sawAuthEvent = false;
   sb.auth.onAuthStateChange((event, session) => {
+    sawAuthEvent = true;
     if (event === "PASSWORD_RECOVERY") {
       ensureModal();
       showForm("reset");
       document.getElementById("dt-auth-modal").classList.add("show");
       return;
     }
-    applySession(session);
+    applySession(session, event);
   });
+
+  // Should never fire on a current supabase-js. If it does, the app boots a
+  // beat late instead of not at all.
+  setTimeout(() => {
+    if (sawAuthEvent || state.ready) return;
+    console.warn("[Auth] no INITIAL_SESSION event — falling back to getSession()");
+    sb.auth.getSession().then(({ data }) => applySession(data.session, "INITIAL_SESSION"));
+  }, 1500);
 })();

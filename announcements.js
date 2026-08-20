@@ -18,22 +18,10 @@
   const esc = window.DT_ESC;
   const profileCache = new Map(); // user_id -> display_name
 
-  // Twitter-style relative time. Pass prefix:"" for "5 min ago", or omit
-  // (defaults to "Posted ") for the alert phrasing "Posted 5 min ago".
-  function timeAgo(input, prefix = "Posted ") {
-    const d = (input instanceof Date) ? input : new Date(input);
-    if (!d || isNaN(d.getTime())) return "";
-    const s = Math.floor((Date.now() - d.getTime()) / 1000);
-    if (s < 5)  return "Just now";
-    if (s < 60) return `${prefix}${s} sec ago`;
-    const m = Math.floor(s / 60);
-    if (m < 60) return `${prefix}${m} min${m === 1 ? "" : "s"} ago`;
-    const h = Math.floor(m / 60);
-    if (h < 24) return `${prefix}${h} hour${h === 1 ? "" : "s"} ago`;
-    const dd = Math.floor(h / 24);
-    if (dd < 7) return `${prefix}${dd} day${dd === 1 ? "" : "s"} ago`;
-    return `${prefix}${d.toLocaleDateString()}`;
-  }
+  // The implementation lives in utils.js (DT_FORMAT.timeAgo). This wrapper
+  // just supplies the alert phrasing — "Posted 5 min ago" — which is the
+  // default everywhere in this module and for DT_ANN.timeAgo consumers.
+  const timeAgo = (input, prefix = "Posted ") => DT_FORMAT.timeAgo(input, prefix);
 
   async function fetchProfileNames(ids) {
     const missing = [...new Set(ids)].filter(id => id && !profileCache.has(id));
@@ -43,17 +31,39 @@
   }
 
   // ---------- thread renderer (shared) ----------
-  async function renderThread(card, announcementId) {
-    if (!card || !announcementId) return;
-    const user = DT_AUTH.getUser();
-    if (!user) return;
+  // Fetching is separated from painting so a panel full of cards costs two
+  // queries instead of two per card. renderDriverPanel used to call
+  // renderThread() once per card — with 50 announcements that was 100
+  // round-trips, and the minute-tick re-render fired the whole set again.
+  async function fetchThreads(ids) {
+    const wanted = [...new Set(ids.filter(Boolean))];
+    const out = {};
+    if (!wanted.length) return out;
+    wanted.forEach(id => { out[id] = { reactions: [], replies: [] }; });
 
     const [{ data: reactions }, { data: replies }] = await Promise.all([
-      sb.from("announcement_reactions").select("emoji,user_id").eq("announcement_id", announcementId),
-      sb.from("announcement_replies").select("id,author_id,body,created_at").eq("announcement_id", announcementId).order("created_at", { ascending: true })
+      sb.from("announcement_reactions").select("announcement_id,emoji,user_id").in("announcement_id", wanted),
+      sb.from("announcement_replies").select("id,announcement_id,author_id,body,created_at")
+        .in("announcement_id", wanted).order("created_at", { ascending: true })
     ]);
+    (reactions || []).forEach(r => { if (out[r.announcement_id]) out[r.announcement_id].reactions.push(r); });
+    (replies   || []).forEach(r => { if (out[r.announcement_id]) out[r.announcement_id].replies.push(r); });
 
-    await fetchProfileNames((replies || []).map(r => r.author_id));
+    // One name lookup for every author and reactor across the whole batch.
+    await fetchProfileNames([
+      ...(replies   || []).map(r => r.author_id),
+      ...(reactions || []).map(r => r.user_id)
+    ]);
+    return out;
+  }
+
+  // Paint one card from data already fetched. No queries.
+  function paintThread(card, announcementId, thread) {
+    if (!card || !announcementId || !thread) return;
+    const user = DT_AUTH.getUser();
+    if (!user) return;
+    const reactions = thread.reactions || [];
+    const replies = thread.replies || [];
 
     // Reactions row + names
     const reactionEl = card.querySelector(".ann-reactions");
@@ -62,16 +72,12 @@
       const usersByEmoji = {};
       const mine = new Set();
       REACTION_EMOJIS.forEach(e => { counts[e] = 0; usersByEmoji[e] = []; });
-      (reactions || []).forEach(r => {
+      reactions.forEach(r => {
         if (counts[r.emoji] === undefined) { counts[r.emoji] = 0; usersByEmoji[r.emoji] = []; }
         counts[r.emoji]++;
         usersByEmoji[r.emoji].push(r.user_id);
         if (r.user_id === user.id) mine.add(r.emoji);
       });
-
-      // Make sure we have display names for everyone who reacted
-      const allReactorIds = (reactions || []).map(r => r.user_id);
-      await fetchProfileNames(allReactorIds);
 
       reactionEl.innerHTML = REACTION_EMOJIS.map(e => `
         <button type="button" class="ann-reaction ${mine.has(e) ? "mine" : ""}" data-emoji="${e}">
@@ -104,7 +110,7 @@
     // Reply list
     const listEl = card.querySelector(".ann-reply-list");
     if (listEl) {
-      if (!replies || !replies.length) {
+      if (!replies.length) {
         listEl.innerHTML = "";
       } else {
         const canManage = DT_AUTH.isManager();
@@ -114,14 +120,14 @@
           const delBtn = (own || canManage) ? `<button class="ann-reply-del" data-id="${r.id}">delete</button>` : "";
           return `
             <div class="ann-reply">
-              <div class="ann-reply-meta"><b>${esc(name)}</b> · ${esc(timeAgo(r.created_at, ""))} ${delBtn}</div>
+              <div class="ann-reply-meta"><b>${esc(name)}</b> · <span class="ann-time" data-ts="${esc(r.created_at)}">${esc(timeAgo(r.created_at, ""))}</span> ${delBtn}</div>
               <div class="ann-reply-body">${esc(r.body)}</div>
             </div>
           `;
         }).join("");
         listEl.querySelectorAll(".ann-reply-del").forEach(b => {
           b.addEventListener("click", async () => {
-            if (!confirm("Delete this reply?")) return;
+            if (!await DT_UI.confirm({ title: "Delete this reply?", okLabel: "Delete", danger: true })) return;
             await sb.from("announcement_replies").delete().eq("id", b.dataset.id);
           });
         });
@@ -142,12 +148,29 @@
           announcement_id: announcementId, author_id: user.id, body
         });
         input.disabled = false;
-        if (error) { alert(error.message); return; }
+        if (error) { DT_TOAST.show(error.message || "Couldn't post that reply", "error"); return; }
         input.value = "";
         // Realtime will re-render; do a synchronous re-render too for snappier UX
         renderThread(card, announcementId);
       });
     }
+  }
+
+  // Single-card fetch + paint. Kept for callers outside this module
+  // (DT_ANN.renderThread — the manager Backlot view renders one card at a
+  // time) and for the post-action refreshes below.
+  async function renderThread(card, announcementId) {
+    if (!card || !announcementId) return;
+    const threads = await fetchThreads([announcementId]);
+    paintThread(card, announcementId, threads[announcementId]);
+  }
+
+  // Batched fetch + paint for a whole panel of cards.
+  async function renderThreadsFor(cards) {
+    const list = [...cards].filter(c => c.dataset.annId);
+    if (!list.length) return;
+    const threads = await fetchThreads(list.map(c => c.dataset.annId));
+    list.forEach(c => paintThread(c, c.dataset.annId, threads[c.dataset.annId]));
   }
 
   async function toggleReaction(announcementId, emoji) {
@@ -188,7 +211,6 @@
   let announcements = [];           // newest first
   let realtimeChan = null;
   let threadChan = null;
-  let started = false;
   let timeTickInterval = null;
 
   function getDismissed() {
@@ -214,7 +236,7 @@
     const author = profileCache.get(top.author_id) || "Manager";
     $("annBannerBody").innerHTML = `
       <span class="ann-author">${esc(author)}</span>
-      <span class="ann-time">${esc(timeAgo(top.created_at))}</span>
+      <span class="ann-time" data-ts="${esc(top.created_at)}">${esc(timeAgo(top.created_at))}</span>
       <span class="ann-body-text">${esc(top.body)}</span>`;
     banner.dataset.id = top.id;
     banner.classList.remove("hidden");
@@ -222,7 +244,7 @@
 
   function renderBadge() {
     const n = unreadCount();
-    const targets = [$("annUnreadBadge"), $("tabAlertsBadge"), $("tabAlertsDetBadge")];
+    const targets = [$("annUnreadBadge"), $("tabAlertsBadge"), $("tabAlertsDetBadge"), $("tabAlertsMechBadge")];
     targets.forEach(el => {
       if (!el) return;
       if (n > 0) { el.textContent = n; el.classList.remove("hidden"); }
@@ -245,14 +267,28 @@
       <div class="ann-card ${dismissed.has(a.id) ? "" : "unread"}" data-ann-id="${a.id}">
         <div class="meta">
           <span class="ann-author">${esc(author)}</span>
-          <span class="ann-time">${esc(timeAgo(a.created_at))}</span>
+          <span class="ann-time" data-ts="${esc(a.created_at)}">${esc(timeAgo(a.created_at))}</span>
         </div>
         <div class="body">${esc(a.body)}</div>
       </div>
     `}).join("");
-    el.querySelectorAll(".ann-card").forEach(card => {
-      injectThreadMarkup(card);
-      renderThread(card, card.dataset.annId);
+    const cards = el.querySelectorAll(".ann-card");
+    cards.forEach(injectThreadMarkup);
+    renderThreadsFor(cards);
+  }
+
+  // Relative times only. The minute tick used to call renderAll(), which
+  // re-rendered every card and refetched every thread once a minute on every
+  // signed-in device, panel visible or not — all to turn "4 min ago" into
+  // "5 min ago". Rewriting the text nodes costs nothing and hits no network.
+  function renderTimes() {
+    document.querySelectorAll(".ann-time[data-ts]").forEach(el => {
+      const ts = el.dataset.ts;
+      if (!ts) return;
+      // Replies render bare ("5 min ago"); banner and cards use the
+      // "Posted 5 min ago" phrasing.
+      const bare = !!el.closest(".ann-reply-meta");
+      el.textContent = timeAgo(ts, bare ? "" : undefined);
     });
   }
 
@@ -272,84 +308,103 @@
     renderAll();
   }
 
-  function start() {
-    if (started) return;
-    started = true;
-    $("annBannerClose")?.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const banner = $("annBanner");
-      const id = banner?.dataset.id;
-      if (!id) return;
-      const d = getDismissed(); d.add(id); setDismissed(d);
-      renderAll();
-    });
-    // Tapping the banner body opens the Announcements panel
-    $("annBanner")?.addEventListener("click", (e) => {
-      if (e.target.closest("#annBannerClose")) return;
-      if (typeof showTab === "function") showTab("announcements");
-    });
-    document.addEventListener("dt-tab-shown", (e) => {
-      if (e.detail === "announcements") {
+  const life = DT_LIFECYCLE.create({
+    // Registered once ever — see DT_LIFECYCLE in utils.js. These used to live
+    // in start(), which stop() made re-runnable, so every profile-fetch blip
+    // added another dt-refresh and dt-tab-shown handler. After N blips one
+    // pull-to-refresh fired N parallel loads.
+    wire() {
+      $("annBannerClose")?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const banner = $("annBanner");
+        const id = banner?.dataset.id;
+        if (!id) return;
+        const d = getDismissed(); d.add(id); setDismissed(d);
+        renderAll();
+      });
+      // Tapping the banner body opens the Announcements panel
+      $("annBanner")?.addEventListener("click", (e) => {
+        if (e.target.closest("#annBannerClose")) return;
+        if (typeof showTab === "function") showTab("announcements");
+      });
+      document.addEventListener("dt-tab-shown", (e) => {
+        if (e.detail !== "announcements" || !life.running) return;
         const d = getDismissed();
         announcements.forEach(a => d.add(a.id));
         setDismissed(d);
         renderAll();
-      }
-    });
-    loadAnnouncementsForDriver();
-    // Refetch on pull-to-refresh (pull-refresh.js dispatches this).
-    document.addEventListener("dt-refresh", loadAnnouncementsForDriver);
-    realtimeChan = sb.channel("driver-announcements")
-      .on("postgres_changes", { event: "*", schema: "public", table: "announcements" }, loadAnnouncementsForDriver)
-      .subscribe();
-    // Keep relative times ("5 min ago") fresh without re-fetching
-    if (timeTickInterval) clearInterval(timeTickInterval);
-    timeTickInterval = setInterval(renderAll, 60000);
-  }
-
-  function stop() {
-    started = false;
-    if (realtimeChan) { sb.removeChannel(realtimeChan); realtimeChan = null; }
-    if (timeTickInterval) { clearInterval(timeTickInterval); timeTickInterval = null; }
-    $("annBanner")?.classList.add("hidden");
-    $("annUnreadBadge")?.classList.add("hidden");
-    $("tabAlertsBadge")?.classList.add("hidden");
-    $("tabAlertsDetBadge")?.classList.add("hidden");
-    window.DT_PWA?.setBadgeSource?.("alerts", 0);
-  }
+      });
+      // Refetch on pull-to-refresh (pull-refresh.js dispatches this).
+      document.addEventListener("dt-refresh", () => {
+        if (life.running) loadAnnouncementsForDriver();
+      });
+    },
+    start() {
+      loadAnnouncementsForDriver();
+      realtimeChan = sb.channel("driver-announcements")
+        .on("postgres_changes", { event: "*", schema: "public", table: "announcements" }, loadAnnouncementsForDriver)
+        .subscribe();
+      setupThreadRealtime();
+      // Keep relative times fresh. Text only — no re-render, no refetch.
+      if (timeTickInterval) clearInterval(timeTickInterval);
+      timeTickInterval = setInterval(renderTimes, 60000);
+    },
+    stop() {
+      if (realtimeChan) { sb.removeChannel(realtimeChan); realtimeChan = null; }
+      teardownThreadRealtime();
+      if (timeTickInterval) { clearInterval(timeTickInterval); timeTickInterval = null; }
+      $("annBanner")?.classList.add("hidden");
+      $("annUnreadBadge")?.classList.add("hidden");
+      $("tabAlertsBadge")?.classList.add("hidden");
+      $("tabAlertsDetBadge")?.classList.add("hidden");
+      $("tabAlertsMechBadge")?.classList.add("hidden");
+      window.DT_PWA?.setBadgeSource?.("alerts", 0);
+    }
+  });
 
   function shouldRunDriverUI() {
     // Alerts go to everyone who's signed in, regardless of role.
     return !!DT_AUTH.getProfile();
   }
 
-  document.addEventListener("dt-auth-change", () => { shouldRunDriverUI() ? start() : stop(); });
-  if (shouldRunDriverUI()) start();
+  document.addEventListener("dt-auth-change", () => life.set(shouldRunDriverUI()));
+  life.set(shouldRunDriverUI());
 
-  // ---------- shared realtime: refresh every visible card on any reply/reaction change ----------
+  // ---------- shared realtime: refresh the affected card on reply/reaction change ----------
   function setupThreadRealtime() {
     if (threadChan) return;
-    const refreshVisible = () => {
-      document.querySelectorAll(".ann-card[data-ann-id]").forEach(card => {
-        renderThread(card, card.dataset.annId);
-      });
+    // Repaint only the announcement the payload names. This used to re-render
+    // every card on screen for any reply or reaction anywhere, re-running the
+    // per-card fetch across the whole panel.
+    const refreshOne = (payload) => {
+      const id = payload?.new?.announcement_id ?? payload?.old?.announcement_id;
+      if (!id) return;
+      document.querySelectorAll(`.ann-card[data-ann-id="${CSS.escape(String(id))}"]`)
+        .forEach(card => renderThread(card, String(id)));
     };
     threadChan = sb.channel("ann-threads")
-      .on("postgres_changes", { event: "*", schema: "public", table: "announcement_replies" },   refreshVisible)
-      .on("postgres_changes", { event: "*", schema: "public", table: "announcement_reactions" }, refreshVisible)
+      .on("postgres_changes", { event: "*", schema: "public", table: "announcement_replies" },   refreshOne)
+      .on("postgres_changes", { event: "*", schema: "public", table: "announcement_reactions" }, refreshOne)
       .subscribe();
   }
-  document.addEventListener("dt-auth-change", () => { if (DT_AUTH.getUser()) setupThreadRealtime(); });
-  if (DT_AUTH.getUser()) setupThreadRealtime();
+
+  function teardownThreadRealtime() {
+    // stop() used to leave this subscribed after sign-out, still querying
+    // with the old session.
+    if (threadChan) { sb.removeChannel(threadChan); threadChan = null; }
+  }
 
   // ---------- public API ----------
   window.DT_ANN = {
     REACTION_EMOJIS,
     renderThread,
+    // Batched equivalent for a whole list of cards: two queries total rather
+    // than two per card. Prefer it wherever more than one card is rendered
+    // at once (the Backlot view still loops over renderThread).
+    renderThreads: renderThreadsFor,
     injectThreadMarkup,
     timeAgo,
+    renderTimes,
     reload: loadAnnouncementsForDriver
   };
-  // Convenience shorthand for code outside this module
-  window.dtTimeAgo = (input, prefix) => timeAgo(input, prefix === undefined ? "" : prefix);
 })();

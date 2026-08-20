@@ -17,12 +17,11 @@
 
   let users = [];
   let realtimeChan = null;
-  let started = false;
   let mode = "edit"; // "edit" | "create"
   let sortBy = "name"; // "name" | "role"
 
   // Order used when sorting by role: most-privileged first, then alpha by name.
-  const ROLE_ORDER = ["admin", "manager", "cxr", "driver", "detailer"];
+  const ROLE_ORDER = ["admin", "manager", "cxr", "driver", "detailer", "mechanic"];
   const roleRank = (r) => {
     const i = ROLE_ORDER.indexOf(r || "driver");
     return i === -1 ? ROLE_ORDER.length : i;
@@ -65,7 +64,7 @@
   function render() {
     const amAdmin = DT_AUTH.isAdmin && DT_AUTH.isAdmin();
     const amCxr   = DT_AUTH.isCxr   && DT_AUTH.isCxr();
-    const CXR_EDITABLE = new Set(["driver", "detailer"]);
+    const CXR_EDITABLE = new Set(["driver", "detailer", "mechanic"]);
     const term = ($("usersSearch")?.value || "").trim().toLowerCase();
     const visible = amCxr ? users.filter(u => CXR_EDITABLE.has(u.role || "driver")) : users;
     const list = visible.filter(u => !term
@@ -137,7 +136,14 @@
     const u = users.find(x => x.id === id);
     if (!u) { DT_TOAST.missing("user"); return; }
     const verb = action === "disable" ? "Disable" : "Enable";
-    if (!confirm(`${verb} ${u.display_name || u.email || "this user"}? ${action === "disable" ? "They will not be able to sign in." : "They will be able to sign in again."}`)) return;
+    if (!await DT_UI.confirm({
+      title: `${verb} ${u.display_name || u.email || "this user"}?`,
+      body: action === "disable"
+        ? "They will not be able to sign in."
+        : "They will be able to sign in again.",
+      okLabel: verb,
+      danger: action === "disable"
+    })) return;
     const { error } = await adminCall(action, { user_id: id });
     if (error) { DT_TOAST.show(`${verb} failed: ${error}`, "error"); return; }
     load();
@@ -148,8 +154,12 @@
     const u = users.find(x => x.id === id);
     if (!u) { DT_TOAST.missing("user"); return; }
     const label = u.display_name || u.email || "this user";
-    if (!confirm(`Permanently delete ${label}? This cannot be undone.`)) return;
-    if (!confirm(`Really delete ${label}? Type-once confirmation.`)) return;
+    if (!await DT_UI.confirm({
+      title: `Permanently delete ${label}?`,
+      body: "This removes the account and cannot be undone.",
+      okLabel: "Delete permanently",
+      danger: true
+    })) return;
     setMsg("Deleting…");
     const { error } = await adminCall("delete", { user_id: id });
     if (error) { setMsg("Delete failed: " + error, "err"); return; }
@@ -161,7 +171,7 @@
   async function onApprove(id) {
     const u = users.find(x => x.id === id);
     if (!u) { DT_TOAST.missing("user"); return; }
-    if (!confirm(`Approve ${u.display_name || u.email || "this user"}?`)) return;
+    if (!await DT_UI.confirm({ title: `Approve ${u.display_name || u.email || "this user"}?`, okLabel: "Approve" })) return;
     const { error } = await sb.from("profiles").update({ approved: true }).eq("id", id);
     if (error) { DT_TOAST.show("Approve failed: " + error.message, "error"); return; }
     load();
@@ -183,7 +193,7 @@
     const form = $("usersForm");
     const amCxr = DT_AUTH.isCxr && DT_AUTH.isCxr();
     Array.from(form.elements.role.options).forEach(opt => {
-      const allowed = amCxr ? (opt.value === "driver" || opt.value === "detailer") : true;
+      const allowed = amCxr ? (opt.value === "driver" || opt.value === "detailer" || opt.value === "mechanic") : true;
       opt.hidden = !allowed;
       opt.disabled = !allowed;
     });
@@ -246,7 +256,7 @@
   async function onResetPassword() {
     const email = $("usersForm").elements.email.value.trim();
     if (!email) { setMsg("No email on this profile.", "err"); return; }
-    if (!confirm(`Send a password-reset email to ${email}?`)) return;
+    if (!await DT_UI.confirm({ title: "Send a password-reset email?", body: email, okLabel: "Send" })) return;
     setMsg("Sending reset link…");
     const { error } = await sb.auth.resetPasswordForEmail(email, {
       redirectTo: location.origin + location.pathname
@@ -272,7 +282,7 @@
       if (!email) { setMsg("Email is required.", "err"); return; }
       if (!password || password.length < 8) { setMsg("Password must be at least 8 characters.", "err"); return; }
       setMsg("Creating user…");
-      const { data, error } = await adminCall("create", {
+      const { error } = await adminCall("create", {
         email,
         password,
         profile: { display_name, phone, role, shuttle_subrole, home_airport, callbacks_opt_in }
@@ -312,47 +322,44 @@
     setTimeout(hideModal, 500);
   }
 
-  function start() {
-    if (started) return;
-    started = true;
-
-    $("usersInviteBtn")?.addEventListener("click", openInvite);
-    $("usersModalClose")?.addEventListener("click", hideModal);
-    $("usersModalCancel")?.addEventListener("click", hideModal);
-    $("usersModal")?.addEventListener("click", (e) => { if (e.target.id === "usersModal") hideModal(); });
-    $("usersSearch")?.addEventListener("input", render);
-    $("usersForm")?.addEventListener("submit", onSubmit);
-    $("usersForm")?.elements.role.addEventListener("change", (e) => setFormForRole(e.target.value));
-    $("usersResetBtn")?.addEventListener("click", onResetPassword);
-    $("usersDeleteBtn")?.addEventListener("click", onDelete);
-    document.querySelectorAll(".users-sort .bl-seg-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        sortBy = btn.dataset.sort;
-        document.querySelectorAll(".users-sort .bl-seg-btn").forEach(b => {
-          const active = b === btn;
-          b.classList.toggle("is-active", active);
-          b.setAttribute("aria-pressed", active ? "true" : "false");
+  const life = DT_LIFECYCLE.create({
+    // Registered once ever — see DT_LIFECYCLE in utils.js.
+    wire() {
+      $("usersInviteBtn")?.addEventListener("click", openInvite);
+      $("usersModalClose")?.addEventListener("click", hideModal);
+      $("usersModalCancel")?.addEventListener("click", hideModal);
+      $("usersModal")?.addEventListener("click", (e) => { if (e.target.id === "usersModal") hideModal(); });
+      $("usersSearch")?.addEventListener("input", render);
+      $("usersForm")?.addEventListener("submit", onSubmit);
+      $("usersForm")?.elements.role.addEventListener("change", (e) => setFormForRole(e.target.value));
+      $("usersResetBtn")?.addEventListener("click", onResetPassword);
+      $("usersDeleteBtn")?.addEventListener("click", onDelete);
+      document.querySelectorAll(".users-sort .bl-seg-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          sortBy = btn.dataset.sort;
+          document.querySelectorAll(".users-sort .bl-seg-btn").forEach(b => {
+            const active = b === btn;
+            b.classList.toggle("is-active", active);
+            b.setAttribute("aria-pressed", active ? "true" : "false");
+          });
+          render();
         });
-        render();
       });
-    });
-
-    load();
-    realtimeChan = sb.channel("users-feed")
-      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, load)
-      .subscribe();
-  }
-
-  function stop() {
-    started = false;
-    if (realtimeChan) { sb.removeChannel(realtimeChan); realtimeChan = null; }
-  }
+    },
+    start() {
+      load();
+      realtimeChan = sb.channel("users-feed")
+        .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, load)
+        .subscribe();
+    },
+    stop() {
+      if (realtimeChan) { sb.removeChannel(realtimeChan); realtimeChan = null; }
+    }
+  });
 
   const canSeeUsers = () => DT_AUTH.isManager() || (DT_AUTH.isCxr && DT_AUTH.isCxr());
-  document.addEventListener("dt-auth-change", () => {
-    if (canSeeUsers()) start(); else stop();
-  });
-  if (canSeeUsers()) start();
+  document.addEventListener("dt-auth-change", () => life.set(canSeeUsers()));
+  life.set(canSeeUsers());
 
   window.DT_USERS = { reload: load };
 })();

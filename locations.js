@@ -19,7 +19,6 @@
 
   let sections = [];
   let realtimeChan = null;
-  let started = false;
 
   async function load() {
     const list = $("locList");
@@ -124,7 +123,12 @@
 
   async function onDelete(id, name) {
     if (!id) return;
-    if (!confirm(`Delete "${name}"?\n\nThis removes it from the Location dropdown. Existing records that already reference this name are unaffected.`)) return;
+    if (!await DT_UI.confirm({
+      title: `Delete "${name}"?`,
+      body: "This removes it from the Location dropdown. Records that already reference the name are unaffected.",
+      okLabel: "Delete",
+      danger: true
+    })) return;
     const { error } = await sb
       .from("parking_sections")
       .delete()
@@ -145,42 +149,39 @@
     }
   }
 
-  function start() {
-    if (started) return;
-    started = true;
-
-    $("locAddBtn")?.addEventListener("click", showModal);
-    $("locModalClose")?.addEventListener("click", hideModal);
-    $("locModalCancel")?.addEventListener("click", hideModal);
-    $("locModal")?.addEventListener("click", (e) => { if (e.target.id === "locModal") hideModal(); });
-    $("locForm")?.addEventListener("submit", onSubmit);
-    $("locList")?.addEventListener("click", (e) => {
-      const btn = e.target.closest(".loc-row-delete");
-      if (!btn) return;
-      onDelete(btn.dataset.id, btn.dataset.name);
-    });
-
-    load();
-    realtimeChan = sb.channel("locations-feed")
-      .on("postgres_changes", { event: "*", schema: "public", table: "parking_sections" }, () => {
-        load();
-        if (window.DT_DROPOFFS?.refreshSections) {
-          DT_DROPOFFS.refreshSections().catch(() => {});
-        }
-      })
-      .subscribe();
-  }
-
-  function stop() {
-    started = false;
-    if (realtimeChan) { sb.removeChannel(realtimeChan); realtimeChan = null; }
-  }
+  const life = DT_LIFECYCLE.create({
+    // Registered once ever — see DT_LIFECYCLE in utils.js.
+    wire() {
+      $("locAddBtn")?.addEventListener("click", showModal);
+      $("locModalClose")?.addEventListener("click", hideModal);
+      $("locModalCancel")?.addEventListener("click", hideModal);
+      $("locModal")?.addEventListener("click", (e) => { if (e.target.id === "locModal") hideModal(); });
+      $("locForm")?.addEventListener("submit", onSubmit);
+      $("locList")?.addEventListener("click", (e) => {
+        const btn = e.target.closest(".loc-row-delete");
+        if (!btn) return;
+        onDelete(btn.dataset.id, btn.dataset.name);
+      });
+    },
+    start() {
+      load();
+      realtimeChan = sb.channel("locations-feed")
+        .on("postgres_changes", { event: "*", schema: "public", table: "parking_sections" }, () => {
+          load();
+          if (window.DT_DROPOFFS?.refreshSections) {
+            DT_DROPOFFS.refreshSections().catch(() => {});
+          }
+        })
+        .subscribe();
+    },
+    stop() {
+      if (realtimeChan) { sb.removeChannel(realtimeChan); realtimeChan = null; }
+    }
+  });
 
   const canSee = () => !!(DT_AUTH.isManager?.() || DT_AUTH.isAdmin?.());
-  document.addEventListener("dt-auth-change", () => {
-    if (canSee()) start(); else stop();
-  });
-  if (canSee()) start();
+  document.addEventListener("dt-auth-change", () => life.set(canSee()));
+  life.set(canSee());
 
   window.DT_LOCATIONS = { reload: load };
 })();

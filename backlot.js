@@ -12,7 +12,6 @@
 
   const $ = (id) => document.getElementById(id);
   const startOfToday = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
-  const fmtHM = (d) => d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   const esc = window.DT_ESC;
 
   let map = null;

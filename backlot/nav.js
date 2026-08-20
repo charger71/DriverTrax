@@ -11,7 +11,7 @@
   const SECTION_LABELS = {
     dashboard: "Dashboard", records: "Records", roster: "Roster", users: "Users",
     comms: "Comms", reports: "Reports", counters: "Counters", vin: "Vehicle history",
-    "parking-sections": "Parking sections",
+    "parking-sections": "Parking sections", vendors: "Vendors",
   };
   // Sections shown programmatically (not from the sidebar tab bar). These
   // don't take a highlighted nav item, and the crumb shows their label.

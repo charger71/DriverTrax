@@ -21,7 +21,7 @@
   const selected = new Set(); // ids of selected users (bulk actions)
   let lastRenderedIds = new Set(); // ids in the currently rendered page (for select-all scope)
 
-  const CXR_EDITABLE = new Set(["driver", "detailer"]);
+  const CXR_EDITABLE = new Set(["driver", "detailer", "mechanic"]);
 
   async function adminCall(action, payload) {
     const { data: sess } = await sb.auth.getSession();
@@ -73,7 +73,7 @@
     const role = u.role || "driver";
     let canEdit = false, block = "";
     if (amAdmin) canEdit = true;
-    else if (amCxr) { canEdit = CXR_EDITABLE.has(role); if (!canEdit) block = "CXR can only edit drivers and detailers"; }
+    else if (amCxr) { canEdit = CXR_EDITABLE.has(role); if (!canEdit) block = "CXR can only edit drivers, detailers, and mechanics"; }
     else { canEdit = role !== "admin"; if (!canEdit) block = "Only an admin can edit another admin"; }
     const isSelf = myId && u.id === myId;
     return {

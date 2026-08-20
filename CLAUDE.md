@@ -11,9 +11,16 @@ The whole app lives in the repo root (no `src/`).
 - `index.html` — single page. Contains all panels, modals, templates. Load order for scripts at the bottom matters — don't reorder without reason.
 - `app.css` — **canonical design tokens and component styles** for the driver app. Light/dark themes live here via `:root[data-theme="..."]`. Always prefer adding to `app.css` over inline styles or a new stylesheet.
 - `app.js` — the main controller: panels, records, entry form, maps, toasts, session/shift logic. Huge file — search before adding.
-- `utils.js` — shared helpers exposed as globals: `DT_ESC`, `DT_FORMAT`, `DT_TOAST`, `DT_ERR`, `DT_UI`. **Use these, do not redefine.**
+- `utils.js` — shared helpers exposed as globals: `DT_ESC`, `DT_FORMAT`, `DT_TOAST`, `DT_ERR`, `DT_UI`, `DT_MEDIA`, `DT_LIFECYCLE`. **Use these, do not redefine.**
 - `auth.js` — exposes `window.DT_AUTH` (client, role checks, profile, PIN). Every feature module should gate on it.
-- Feature modules — `detailer.js`, `users.js`, `requests.js`, `fleet-counts.js`, `vehicle-notes.js`, `announcements.js`, `notifications.js`, `elearning.js`, `sync.js`, `pwa.js`. Each is an IIFE wrapping its own state.
+- `idb.js` — `window.DT_IDB`, a tiny IndexedDB key/value wrapper. Fails closed (private mode, locked storage) so callers never crash.
+- `a11y.js` — keyboard + ARIA retrofit for `<div onclick>` elements and overlays. See the Accessibility section below.
+- `sync.js` — local ⇄ Supabase record sync: diffs every `setRecords()`, queues to IDB, flushes with retry backoff.
+- Feature modules — `announcements.js`, `damage.js`, `detailer.js`, `drop-offs.js`, `elearning.js`, `fleet-counts.js`, `locations.js`, `notifications.js`, `pull-refresh.js`, `pwa.js`, `requests.js`, `users.js`. Each is an IIFE wrapping its own state.
+- `backlot.js` / `backlot.html` and `backlot/` — the separate manager dashboard. Not a pattern source; see the note at the top.
+- `elearning-admin.js` / `elearning-admin.html` — quiz authoring, its own page (not loaded by `index.html`).
+- `eslint.config.mjs` — CI lint config. Its `appGlobals` list is the app's cross-file surface; add to it when a module starts exposing something new, or `no-undef` will fail the build.
+- `scripts/check-precache.mjs` — CI guard that every asset `index.html` loads is in `sw.js`'s `APP_SHELL`.
 - `*-schema.sql` — Supabase schema snippets paired with the feature that owns them.
 
 ## Module pattern (use this verbatim for new features)
@@ -100,6 +107,8 @@ The app uses many `<div onclick=...>` elements for tabs, cards, and tiles. `a11y
 - Don't hardcode `#hexcolors`, pixel spacing, or font sizes when a variable exists.
 - Don't introduce inline `<style>` blocks in `index.html` for component styling — extend `app.css`. The existing inline blocks (splash, auth modal) are bootstrapped before `app.css` loads on purpose; don't add to that pattern unless you have the same constraint.
 - Don't write a second time/date formatter, HTML escaper, or toast helper — use `DT_FORMAT`, `DT_ESC`, `DT_TOAST`.
+- Don't call `alert()` or `confirm()`. Use `DT_TOAST.show(msg, type)` and `await DT_UI.confirm({ title, body, okLabel, danger })`. Native dialogs block the main thread, can't be themed, and some WKWebView configurations suppress them — a suppressed `confirm()` returns false, so the action silently does nothing.
+- Don't hardcode a color in JS for anything drawn to canvas, a Leaflet `divIcon`, or an inline SVG fill. Those can't use `var()`, so resolve the token at draw time with `DT_UI.cssVar("--token")` — otherwise it keeps the dark-theme color on a light page.
 - Don't reference `backlot.html` / `backlot.js` as a pattern source — they're a separate dashboard.
 - Don't gate on raw role strings outside `DT_AUTH` — use `DT_AUTH.isManager()`, `.isAdmin()`, `.isCxr()`, `.isDetailer()`.
 

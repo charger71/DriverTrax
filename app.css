@@ -94,12 +94,13 @@
     --success-soft:      var(--accent-soft);
     --success-text:      #a7f3d0;
 
-    /* Role colors (manager/cxr/driver/admin/detailer) */
+    /* Role colors (manager/cxr/driver/admin/detailer/mechanic) */
     --role-manager:      #00a651;
     --role-cxr:          #f0b429;
     --role-driver:       #4a9eff;
     --role-admin:        #e85550;
     --role-detailer:     #b76eff;
+    --role-mechanic:     #5b8fa8;
 
     /* Interaction states */
     --focus-ring:        rgba(74, 158, 255, 0.5);
@@ -119,6 +120,14 @@
     --chart-3:           #f0b429;  /* amber */
     --chart-4:           #3dcfcf;  /* teal */
     --chart-5:           #b76eff;  /* purple */
+
+    /* Damage-mark hues. Drawn into SVG fills from damage.js, which can't use
+       var(), so JS resolves these through DT_UI.cssVar(). */
+    --damage-dent:       #ef9f27;
+    --damage-scratch:    #d85a30;
+    --damage-chip:       #7f77dd;
+    --damage-crack:      #e24b4a;
+    --damage-missing:    #5f5e5a;
 
     /* Layout primitives */
     --radius:            10px;
@@ -222,6 +231,7 @@
     --role-driver:       #1d4ed8;
     --role-admin:        #c1232c;
     --role-detailer:     #6d28d9;
+    --role-mechanic:     #2c5f7a;
 
     --focus-ring:        rgba(29, 78, 216, 0.4);
     --disabled-bg:       rgba(0, 0, 0, 0.05);
@@ -237,13 +247,21 @@
     --chart-3:           #b45309;
     --chart-4:           #0e7490;
     --chart-5:           #6d28d9;
+
+    --damage-dent:       #b26a00;
+    --damage-scratch:    #a93c17;
+    --damage-chip:       #4f46b8;
+    --damage-crack:      #b32b2a;
+    --damage-missing:    #4a4945;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: var(--bg); color: var(--text); max-width: 600px; margin: 0 auto; padding-top: env(safe-area-inset-top, 0px); line-height: var(--leading-base); }
 
   /* === Shared bases (consolidated duplication) === */
   /* Card surface: dark card bg + bordered + rounded. Per-rule padding/margin still applies. */
-  input[type=text], input[type=number], select, textarea,
+  input[type=text], input[type=number], input[type=date], input[type=time],
+  input[type=email], input[type=password], input[type=search], input[type=tel], input[type=url],
+  select, textarea,
   .record, .stat-card, .bar-chart, .day-table {
     background: var(--card);
     border: 1px solid var(--border);
@@ -304,7 +322,9 @@
   /* Inside flex rows (form layouts) the row gap handles spacing, no top margin. */
   .u-row .field-label { margin-top: 0; }
 
-  input[type=text], input[type=number], select, textarea {
+  input[type=text], input[type=number], input[type=date], input[type=time],
+  input[type=email], input[type=password], input[type=search], input[type=tel], input[type=url],
+  select, textarea {
     width: 100%; padding: var(--space-3) var(--space-4); font-size: var(--font-md);
     color: var(--text);
     margin-bottom: var(--space-2);
@@ -380,7 +400,9 @@
   #serial, #editSerial { text-transform: uppercase; }
   #mileage::placeholder { color: var(--muted); opacity: 1; }
   /* #fSearch handles both VIN (uppercased server-side) and note text (mixed case) */
-  input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
+  input[type=text]:focus, input[type=number]:focus, input[type=date]:focus, input[type=time]:focus,
+  input[type=email]:focus, input[type=password]:focus, input[type=search]:focus, input[type=tel]:focus, input[type=url]:focus,
+  select:focus, textarea:focus {
     outline: none; border-color: var(--accent);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
   }
@@ -791,12 +813,15 @@
   .status-AUDITFAIL { background: rgba(61, 207, 207, 0.10); color: var(--chart-4); border: 1px solid var(--chart-4); }
   .status-DETAILING { background: rgba(61, 207, 207, 0.10); color: var(--chart-4); border: 1px solid var(--chart-4); }
   .status-DETAILED  { background: rgba(61, 207, 207, 0.10); color: var(--chart-4); border: 1px solid var(--chart-4); }
+  .status-ATVENDOR      { background: var(--warn-soft);   color: var(--warn);      border: 1px solid var(--warn); }
+  .status-WAITINGPARTS  { background: var(--danger-soft); color: var(--danger);    border: 1px solid var(--danger); }
   .status-GLASS     { background: var(--warn-soft); color: var(--warn); border: 1px solid var(--warn); }
   .status-PM        { background: var(--warn-soft); color: var(--warn); border: 1px solid var(--warn); }
   .status-MK        { background: var(--warn-soft); color: var(--warn); border: 1px solid var(--warn); }
   .status-MR        { background: var(--warn-soft); color: var(--warn); border: 1px solid var(--warn); }
   .status-BODY      { background: var(--warn-soft); color: var(--warn); border: 1px solid var(--warn); }
   .status-TI        { background: var(--warn-soft); color: var(--warn); border: 1px solid var(--warn); }
+  .status-LP        { background: rgba(183, 110, 255, 0.10); color: var(--chart-5); border: 1px solid var(--chart-5); }
   .status-OM        { background: var(--warn-soft); color: var(--warn-strong); border: 1px solid var(--warn-strong); }
   .status-WIDELETE  { background: var(--warn-soft); color: var(--warn-strong); border: 1px solid var(--warn-strong); }
   .status-CHECKOUT  { background: var(--info-soft); color: var(--info); border: 1px solid var(--info); }
@@ -1484,6 +1509,7 @@
   .contact-role.role-manager  { color: var(--accent); }
   .contact-role.role-admin    { color: var(--danger); }
   .contact-role.role-detailer { color: var(--role-detailer); }
+  .contact-role.role-mechanic { color: var(--role-mechanic); }
   .contact-rows { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 16px; text-align: left; }
   .contact-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; background: var(--card); border: var(--border-thin) solid var(--border); border-radius: var(--radius); }
   .contact-row-label { font-size: 11px; font-weight: var(--weight-bold); text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
@@ -1507,6 +1533,7 @@
   .profile-role-pill.role-driver  { color: var(--info-text); border-color: var(--info); background: var(--info-soft); }
   .profile-role-pill.role-admin   { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
   .profile-role-pill.role-detailer{ color: var(--role-detailer); border-color: var(--role-detailer); background: rgba(183, 110, 255, 0.10); }
+  .profile-role-pill.role-mechanic{ color: var(--role-mechanic); border-color: var(--role-mechanic); background: rgba(91, 143, 168, 0.10); }
   /* Admin role option is only available to admins */
   .opt-admin-only { display: none; }
   body.is-admin .opt-admin-only { display: block; }
@@ -1747,6 +1774,7 @@
   .note-role.role-manager  { color: var(--accent); }
   .note-role.role-admin    { color: var(--danger); }
   .note-role.role-detailer { color: var(--role-detailer); }
+  .note-role.role-mechanic { color: var(--role-mechanic); }
 
   /* Record-detail author block (avatar + name + role) */
   .detail-header-left { display: flex; flex-direction: column; gap: 6px; }
@@ -1774,6 +1802,7 @@
   .detail-author-role.role-manager  { color: var(--accent); }
   .detail-author-role.role-admin    { color: var(--danger); }
   .detail-author-role.role-detailer { color: var(--role-detailer); }
+  .detail-author-role.role-mechanic { color: var(--role-mechanic); }
 
   /* Condition checkbox chips (Priority, Pet Hair, etc.) */
   .detail-conditions { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -1848,6 +1877,92 @@
     gap: var(--space-4);
   }
   /* Save / Complete buttons use their own .btn--full / .btn--block sizing. */
+
+  /* MAINTENANCE / SERVICE JOBS (mechanic role) — #panel-service-scan.
+     Job-type chips reuse the .cond-chip shape with a mechanic tint. */
+  .svc-chip {
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+    box-sizing: border-box; height: var(--dt-input-h);
+    flex: 1 1 calc((100% - 16px) / 3);
+    background: var(--card); color: var(--text-soft);
+    border: 1.5px solid var(--border); border-radius: var(--radius);
+    padding: 0 14px; font-size: 13px; font-weight: var(--weight-bold);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    text-align: center;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .svc-chip input { display: none; }
+  .svc-chip:hover { border-color: var(--text-soft); }
+  .svc-chip.checked {
+    background: rgba(91, 143, 168, 0.10); border-color: var(--role-mechanic); color: var(--role-mechanic);
+  }
+  /* Body/Glass route to an outside agency by default — flag that with the
+     warn palette so it reads as "leaves the lot" at a glance. */
+  .svc-chip.checked.is-vendor-default {
+    background: var(--warn-soft); border-color: var(--warn); color: var(--warn-text);
+  }
+
+  /* In-house / Outside vendor segmented toggle. */
+  .svc-performed-toggle { display: flex; gap: 8px; margin: var(--space-3) 0; }
+  .svc-performed-toggle button {
+    flex: 1; height: var(--dt-input-h);
+    background: var(--card); color: var(--text-soft);
+    border: 1.5px solid var(--border); border-radius: var(--radius);
+    font-size: 13px; font-weight: var(--weight-bold); text-transform: uppercase; letter-spacing: 0.5px;
+    cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .svc-performed-toggle button.active {
+    background: rgba(91, 143, 168, 0.10); border-color: var(--role-mechanic); color: var(--role-mechanic);
+  }
+
+  /* Parts list — freeform text items, add/remove only (per CLAUDE.md: no
+     ordering/receiving workflow, just a list attached to the job). */
+  .svc-parts-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .svc-part-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    background: var(--panel); border: var(--border-thin) solid var(--divider); border-radius: 8px;
+    padding: 8px 12px; font-size: 14px; color: var(--text);
+  }
+  .svc-part-row button {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    padding: 2px 6px; line-height: 1;
+  }
+  .svc-part-row button:hover { color: var(--danger); }
+  .svc-part-add { display: flex; gap: 8px; margin-top: 8px; }
+  .svc-part-add input { flex: 1; }
+
+  /* Job-state banners — mirrors .detail-locked-banner's shape, tinted per state. */
+  .svc-state-banner {
+    margin: 8px 0 4px; padding: 8px 12px; border-radius: 8px;
+    font-size: 12px; font-weight: var(--weight-bold); letter-spacing: 0.5px;
+  }
+  .svc-state-banner--sent-out {
+    background: var(--warn-soft); border: var(--border-thin) solid var(--warn); color: var(--warn-text);
+  }
+  .svc-state-banner--returned {
+    background: var(--info-soft); border: var(--border-thin) solid var(--info); color: var(--info-text);
+  }
+  .svc-state-banner--closed {
+    background: rgba(0, 166, 81, 0.12); border: var(--border-thin) solid rgba(0, 166, 81, 0.5); color: var(--accent-strong);
+  }
+  .svc-state-banner--waiting-parts {
+    background: var(--danger-soft); border: var(--border-thin) solid var(--danger); color: var(--danger);
+  }
+  .svc-state-banner--flagged {
+    background: var(--warn-soft); border: var(--border-thin) solid var(--warn); color: var(--warn-text);
+  }
+  .svc-days-out {
+    display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px;
+    font-size: var(--font-xs); font-weight: var(--weight-bold);
+    background: var(--danger-soft); color: var(--danger);
+  }
+  .svc-parts-note {
+    width: 100%; margin-top: 8px; padding: 8px 10px; border-radius: 6px;
+    background: var(--bg); color: var(--text); border: var(--border-thin) solid var(--divider);
+    font-size: 13px; height: 44px; resize: vertical; font-family: inherit;
+  }
+  .svc-waiting-row { display: flex; gap: 8px; margin: var(--space-3) 0; }
+
   /* Disabled option rows in the detailer Options disclosure — visible but not interactive. */
   .notag-row[aria-disabled="true"] {
     opacity: 0.45;
@@ -2615,6 +2730,15 @@
   body.is-detailer .driver-only,
   body.is-detailer .manager-only                  { display: none !important; }
 
+  /* Mechanic — same shape as Detailer: a focused role with its own
+     landing screen and entry form, everything else hidden. */
+  .mechanic-only                                  { display: none !important; }
+  body.is-mechanic .mechanic-only.tab             { display: block !important; }
+  body.is-mechanic .mechanic-only.menu-item       { display: flex  !important; }
+  body.is-mechanic .mechanic-only.disclosure      { display: block !important; }
+  body.is-mechanic .driver-only,
+  body.is-mechanic .manager-only                  { display: none !important; }
+
   /* Manager header — invert colors: green background, dark text + logo,
      full-width white underline (matches the green stripe on the driver side) */
   body.is-manager header {
@@ -2650,7 +2774,8 @@
   body.is-manager.is-admin header { border-top-color: var(--danger); }
   body.is-cxr      header { border-top-color: var(--warn); }
   body.is-detailer header { border-top-color: var(--role-detailer); }
-  body:not(.is-admin):not(.is-manager):not(.is-cxr):not(.is-detailer) header { border-top-color: var(--info); }
+  body.is-mechanic header { border-top-color: var(--role-mechanic); }
+  body:not(.is-admin):not(.is-manager):not(.is-cxr):not(.is-detailer):not(.is-mechanic) header { border-top-color: var(--info); }
 
   /* HEADER TOP ROW */
   .header-top { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
@@ -3180,6 +3305,76 @@
     opacity: 0.7;
   }
   .app-version-footer--mismatch { color: var(--warn); opacity: 1; }
+
+  /* PWA shell chrome — the "Update available" toast and the Install pill.
+     Distinct from .toast (which is transient and text-only): these carry an
+     action button and the update one is persistent. They were previously
+     built from inline style.cssText in pwa.js with hardcoded hex, so they
+     stayed dark-themed on a light page. */
+  .pwa-toast-host {
+    position: fixed;
+    left: 0; right: 0;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--space-4));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    z-index: 99998;
+    pointer-events: none;
+  }
+  .pwa-toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    max-width: 92vw;
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--space-6);
+    background: var(--card);
+    color: var(--text);
+    font-size: var(--font-sm);
+    font-weight: var(--weight-medium);
+    box-shadow: var(--shadow-lg);
+  }
+  .pwa-toast-action {
+    border: 0;
+    border-radius: var(--space-6);
+    padding: var(--space-2) var(--space-3);
+    background: var(--accent);
+    color: var(--text-on-accent);
+    font-size: var(--font-xs);
+    font-weight: var(--weight-bold);
+    cursor: pointer;
+  }
+  .pwa-toast-action:hover { background: var(--accent-strong); }
+  .pwa-toast-close {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: var(--font-lg);
+    line-height: 1;
+    padding: 0 var(--space-1);
+    cursor: pointer;
+  }
+  .pwa-toast-close:hover { color: var(--text); }
+
+  .pwa-install-pill {
+    position: fixed;
+    right: var(--space-4);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
+    z-index: 99997;
+    border: 0;
+    border-radius: var(--space-6);
+    padding: var(--space-3) var(--space-4);
+    background: var(--accent);
+    color: var(--text-on-accent);
+    font-size: var(--font-sm);
+    font-weight: var(--weight-bold);
+    box-shadow: var(--shadow-lg);
+    cursor: pointer;
+  }
+  .pwa-install-pill:hover { background: var(--accent-strong); }
 
   /* Read-only damage viewer — cloned silhouette rendered without ID.
      Mirrors #entryDamageSvg's shell styling but keyed by class so both

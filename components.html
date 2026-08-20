@@ -177,6 +177,7 @@
     <li><a href="#status-buttons">Status buttons</a></li>
     <li><a href="#stats">Stat cards</a></li>
     <li><a href="#compositions">Compositions</a></li>
+    <li><a href="#mechanic">Mechanic / service jobs</a></li>
     <li><a href="#vin-history">VIN history</a></li>
     <li><a href="#states">States</a></li>
     <li><a href="#modal">Modal</a></li>
@@ -609,6 +610,69 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
   </div>
 </section>
 
+<!-- ===================== MECHANIC / SERVICE JOBS ===================== -->
+<section class="cl-section" id="mechanic">
+  <h2>Mechanic / service jobs</h2>
+  <p class="cl-desc">Used on <code>#panel-service-scan</code> (see <code>maintenance.js</code>). Job-type chips share the <code>.cond-chip</code> shape with a <code>--role-mechanic</code> tint; Body/Glass get a warn tint since they route to an outside vendor by default.</p>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Job-type chips</div>
+    <div class="cl-preview">
+      <div class="detail-conditions">
+        <label class="svc-chip checked"><input type="radio" checked><span>PM (MAINT.)</span></label>
+        <label class="svc-chip"><input type="radio"><span>MK (MECH.)</span></label>
+        <label class="svc-chip checked is-vendor-default"><input type="radio" checked><span>BODY DAMAGE</span></label>
+        <label class="svc-chip"><input type="radio"><span>GLASS</span></label>
+      </div>
+    </div>
+<pre class="cl-code">&lt;label class="svc-chip checked is-vendor-default"&gt;
+  &lt;input type="radio" name="svcJobType" value="BODY" checked&gt;
+  &lt;span&gt;BODY DAMAGE&lt;/span&gt;
+&lt;/label&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">In-house / vendor toggle</div>
+    <div class="cl-preview">
+      <div class="svc-performed-toggle" style="max-width: 320px;">
+        <button type="button">In-House</button>
+        <button type="button" class="active">Outside Vendor</button>
+      </div>
+    </div>
+<pre class="cl-code">&lt;div class="svc-performed-toggle"&gt;
+  &lt;button type="button" data-val="in_house"&gt;In-House&lt;/button&gt;
+  &lt;button type="button" data-val="vendor" class="active"&gt;Outside Vendor&lt;/button&gt;
+&lt;/div&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Parts list — freeform strings, add/remove only (no ordering/receiving workflow)</div>
+    <div class="cl-preview cl-stack">
+      <div class="svc-parts-list">
+        <div class="svc-part-row"><span>Front bumper clip</span><button type="button" aria-label="Remove">&times;</button></div>
+        <div class="svc-part-row"><span>Headlight assembly, driver side</span><button type="button" aria-label="Remove">&times;</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Job-state banners — mirrors <code>.detail-locked-banner</code>'s shape, tinted per state</div>
+    <div class="cl-preview cl-stack">
+      <div class="svc-state-banner svc-state-banner--waiting-parts">Waiting on parts — ordered bumper clip, ETA Thu · since 2 days ago<span class="svc-days-out">2 days</span></div>
+      <div class="svc-state-banner svc-state-banner--sent-out">Out at Bo's Body Shop — sent 3 days ago<span class="svc-days-out">3 days out</span></div>
+      <div class="svc-state-banner svc-state-banner--returned">Returned 2 hours ago — pick a location and close the job.</div>
+      <div class="svc-state-banner svc-state-banner--closed">Job closed 5 min ago — read-only.</div>
+    </div>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Waiting on parts toggle — a flag alongside job state, not a fifth state value (see <code>maintenance.js</code>)</div>
+    <div class="cl-preview">
+      <div class="svc-waiting-row"><button type="button" class="btn btn-secondary btn--sm">Mark Waiting on Parts</button></div>
+    </div>
+  </div>
+</section>
+
 <!-- ===================== VIN HISTORY ===================== -->
 <section class="cl-section" id="vin-history">
   <h2>VIN history</h2>
@@ -842,6 +906,12 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
 <section class="cl-section" id="modal">
   <h2>Modal</h2>
   <p class="cl-desc">All app modals use the <code>.users-modal</code> pattern. Toggle <code>.show</code> to open. Status line uses <code>DT_UI.setMessage(el, text, "ok"|"err")</code>.</p>
+  <p class="cl-desc">
+    For a plain yes/no, don't build one — <code>await DT_UI.confirm({ title, body, okLabel, danger })</code>
+    resolves to a boolean and reuses this pattern. Never <code>confirm()</code>: it blocks the main
+    thread, can't be styled, and some WKWebView configurations suppress it outright, which returns
+    false and makes the action silently do nothing.
+  </p>
   <div class="cl-block">
     <div class="cl-preview">
       <button type="button" class="btn btn-primary" onclick="document.getElementById('demoModal').classList.add('show')">Open modal</button>
@@ -896,6 +966,55 @@ DT_TOAST.show("Could not save record", "error");</pre>
   </div>
 </section>
 <div id="demoToastEl" class="toast" style="display:none;"></div>
+
+<!-- ===================== PWA SHELL CHROME ===================== -->
+<section class="cl-section" id="pwa-chrome">
+  <h2>PWA shell chrome</h2>
+  <p class="cl-desc">
+    Built by <code>pwa.js</code>, not by app code — the persistent "Update available" prompt and
+    the Install pill. Separate from <code>.toast</code> because they carry an action and stay put
+    until dismissed. Listed here so the next person finds them instead of writing a third toast.
+  </p>
+  <div class="cl-block">
+    <div class="cl-preview" style="flex-direction:column;align-items:stretch;gap:var(--space-3);">
+      <div class="pwa-toast" style="align-self:center;">
+        <span>Update available</span>
+        <button type="button" class="pwa-toast-action">Refresh</button>
+        <button type="button" class="pwa-toast-close" aria-label="Dismiss">×</button>
+      </div>
+      <button type="button" class="pwa-install-pill" style="position:static;align-self:center;">Install DriverTrax</button>
+    </div>
+<pre class="cl-code">&lt;div class="pwa-toast"&gt;
+  &lt;span&gt;Update available&lt;/span&gt;
+  &lt;button class="pwa-toast-action"&gt;Refresh&lt;/button&gt;
+  &lt;button class="pwa-toast-close" aria-label="Dismiss"&gt;×&lt;/button&gt;
+&lt;/div&gt;
+
+&lt;button class="pwa-install-pill"&gt;Install DriverTrax&lt;/button&gt;</pre>
+  </div>
+</section>
+
+<!-- ===================== MAP + DAMAGE PALETTES ===================== -->
+<section class="cl-section" id="canvas-colors">
+  <h2>Map &amp; damage colors</h2>
+  <p class="cl-desc">
+    Leaflet <code>divIcon</code> markup and inline SVG fills can't use <code>var()</code>, so JS
+    resolves the token at draw time with <code>DT_UI.cssVar("--token")</code>. Never inline a hex
+    for these — it won't follow the theme. Map markers reuse the semantic and
+    <code>--chart-*</code> tokens; damage marks have their own.
+  </p>
+  <div class="cl-block">
+    <div class="cl-swatch-grid" id="sw-damage"></div>
+<pre class="cl-code">// Leaflet divIcon
+const color = DT_UI.cssVar("--accent");
+
+// Status marker — STATUS_MAP_TOKEN in app.js maps status → token
+statusMapColor("CLEAN");   // resolves --accent
+
+// Damage mark
+DT_UI.cssVar("--damage-dent");</pre>
+  </div>
+</section>
 
 <!-- ===================== ROLE COLORS ===================== -->
 <section class="cl-section" id="roles">
@@ -1055,7 +1174,8 @@ z-index: 99998; /* one more than the next thing */</pre>
   renderSwatches("sw-surfaces", ["--header-bg","--bg","--panel","--card","--card-soft","--surface-hover","--border","--divider"]);
   renderSwatches("sw-text",     ["--text","--text-soft","--muted","--text-on-accent","--text-on-status"]);
   renderSwatches("sw-status",   ["--accent","--accent-strong","--warn","--warn-strong","--danger","--danger-strong","--info","--info-strong","--success"]);
-  renderSwatches("sw-roles",    ["--role-manager","--role-cxr","--role-driver","--role-admin","--role-detailer"]);
+  renderSwatches("sw-roles",    ["--role-manager","--role-cxr","--role-driver","--role-admin","--role-detailer","--role-mechanic"]);
+  renderSwatches("sw-damage",   ["--damage-dent","--damage-scratch","--damage-chip","--damage-crack","--damage-missing"]);
 
   // -------- Spacing scale --------
   (function () {
@@ -1103,10 +1223,10 @@ z-index: 99998; /* one more than the next thing */</pre>
     // Mirrors DT_OPTIONS.STATUS_BASE / STATUS_PRIVILEGED / STATUS_DERIVED in app.js,
     // after statusClass() strips non-letters (e.g. "AUDIT FAIL" → AUDITFAIL).
     const codes = [
-      "CLEAN","DIRTY","REWASH","PM","MK","MR","OM","BODY","TI","GLASS",
+      "CLEAN","DIRTY","REWASH","PM","MK","MR","OM","BODY","TI","LP","GLASS",
       "AUDITFAIL","WIDELETE","OTHER",
       "CHECKIN","CHECKOUT","HOLD","DNR",
-      "DETAILING","DETAILED"
+      "DETAILING","DETAILED","ATVENDOR","WAITINGPARTS"
     ];
     document.getElementById("status-chips").innerHTML = codes.map(c =>
       `<span class="record-status status-${c}">${c}</span>`

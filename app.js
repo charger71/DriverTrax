@@ -805,13 +805,17 @@ function saveRecord() {
     toggleClearBtn();
     updateVinCount();
     document.getElementById("notes").value = "";
-    document.getElementById("status").selectedIndex = 0;
+    selectStatus("");
     resetTires();
     window.DT_DAMAGE?.reset?.();
     selectedCxrConditions = [];
     renderCxrConditions();
     clearEntryCurrentState();
     document.getElementById("destination").selectedIndex = 0;
+    clearDestinationAutoBadge();
+    // Re-guess for the next vehicle — the driver may have walked to a
+    // different section between saves.
+    autoDetectLocation();
     document.getElementById("statusOther").value = "";
     document.getElementById("statusOther").style.display = "none";
     document.getElementById("destinationOther").value = "";
@@ -984,7 +988,7 @@ function showTab(name) {
     t.classList.add("active");
     if (t.hasAttribute("aria-selected")) t.setAttribute("aria-selected", "true");
   });
-  if (name === "entry") { restoreInlineNewEntry(); renderTodayEntries(); }
+  if (name === "entry") { restoreInlineNewEntry(); renderTodayEntries(); autoDetectLocation(); }
   if (name === "records") {
     // Search-driven view: don't auto-populate dates, don't render anything
     // until the user types. renderRecords() handles the empty-input state.
@@ -1548,6 +1552,33 @@ function handleStatusChange() {
   // and are always available regardless of status — nothing status-
   // specific to do here anymore.
   toggleOtherField("status");
+  syncStatusButtons();
+}
+
+// Status is a hidden input (#status) driven by a button grid instead of a
+// <select> — CLEAN/DIRTY up top, everything else behind the "More statuses"
+// disclosure. selectStatus() is the only way JS or a click should change it,
+// so the hidden input's value always stays in sync with which button is lit.
+function selectStatus(code) {
+  const input = document.getElementById("status");
+  if (!input) return;
+  input.value = code;
+  handleStatusChange();
+}
+
+// Reflect the hidden #status value onto the button grid: mark the matching
+// button aria-checked, clear the rest, and surface a hint in the "More
+// statuses" summary when the checked one is hiding behind that collapsible.
+function syncStatusButtons() {
+  const code = document.getElementById("status")?.value || "";
+  let moreLabel = "";
+  document.querySelectorAll(".status-btn").forEach(btn => {
+    const on = btn.dataset.status === code;
+    btn.setAttribute("aria-checked", on ? "true" : "false");
+    if (on && btn.closest("#statusMoreGroup")) moreLabel = btn.textContent.trim();
+  });
+  const summary = document.getElementById("entryStatusMoreSummary");
+  if (summary) summary.textContent = moreLabel;
 }
 
 function renderCxrConditions() {
@@ -1606,28 +1637,32 @@ function applyEntryCollapseState() {
 document.addEventListener("DOMContentLoaded", applyEntryCollapseState);
 document.addEventListener("dt-auth-change", applyEntryCollapseState);
 
-// Privileged status options (CHECK_IN, CHECK_OUT, HOLD, DNR) are CXR /
-// manager / admin only. `display:none` on <option> is unreliable across
-// browsers, so we add/remove the nodes from the DOM as role changes.
+// Privileged status buttons (CHECK_OUT, HOLD, DNR) are CXR / manager / admin
+// only. We add/remove the button nodes from the "More statuses" group as
+// role changes, same approach the old <select> used for its <option> nodes.
 function gateCxrStatusOption() {
-  const sel = document.getElementById("status");
-  if (!sel) return;
+  const group = document.getElementById("statusMoreGroup");
+  if (!group) return;
   const allowed = !!(window.DT_AUTH && (DT_AUTH.isCxr?.() || DT_AUTH.isManager?.() || DT_AUTH.isAdmin?.()));
   DT_OPTIONS.STATUS_PRIVILEGED.forEach(code => {
-    let opt = sel.querySelector(`option[value="${code}"]`);
+    let btn = group.querySelector(`.status-btn[data-status="${code}"]`);
     if (allowed) {
-      if (!opt) {
-        opt = document.createElement("option");
-        opt.value = code;
-        opt.textContent = statusLabel(code);
-        opt.className = "opt-cxr-only";
+      if (!btn) {
+        btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "status-btn opt-cxr-only";
+        btn.dataset.status = code;
+        btn.setAttribute("role", "radio");
+        btn.setAttribute("aria-checked", "false");
+        btn.textContent = statusLabel(code);
+        btn.onclick = () => selectStatus(code);
       }
-      if (!opt.isConnected) {
-        const otherOpt = sel.querySelector('option[value="OTHER"]');
-        sel.insertBefore(opt, otherOpt || null);
+      if (!btn.isConnected) {
+        const otherBtn = group.querySelector('.status-btn[data-status="OTHER"]');
+        group.insertBefore(btn, otherBtn || null);
       }
-    } else if (opt && opt.isConnected) {
-      opt.remove();
+    } else if (btn && btn.isConnected) {
+      btn.remove();
     }
   });
 }
@@ -1712,6 +1747,47 @@ async function populateDestinationSelects() {
 document.addEventListener("DOMContentLoaded", populateDestinationSelects);
 document.addEventListener("dt-sections-change", populateDestinationSelects);
 window.populateDestinationSelects = populateDestinationSelects;
+
+// Proactively guess the driver's current parking section from GPS as soon as
+// the New Entry form is in play, so Location can be pre-filled (with a "GPS"
+// badge) instead of waiting on a manual pick. Re-checks live state after the
+// async GPS + polygon lookup resolves so it never clobbers a value the driver
+// picked (or a fresher auto-guess already in place) while this was in flight.
+// This is a convenience prefill only — saveRecord() still takes its own GPS
+// fix at Save time for the record that actually gets stored.
+let destinationAutoDetected = false;
+function setDestinationAutoBadge(on) {
+  document.getElementById("destinationAutoBadge")?.classList.toggle("u-hidden", !on);
+}
+// Wired to the Location <select>'s onchange — the driver taking over the
+// field (manually picking something, including OTHER) always wins.
+function clearDestinationAutoBadge() {
+  destinationAutoDetected = false;
+  setDestinationAutoBadge(false);
+}
+async function autoDetectLocation() {
+  if (!("geolocation" in navigator) || !window.DT_DROPOFFS) return;
+  const destSel = document.getElementById("destination");
+  if (!destSel || destSel.options.length <= 1) return; // sections haven't loaded yet
+  if (destSel.value && !destinationAutoDetected) return; // driver already chose one
+
+  navigator.geolocation.getCurrentPosition(
+    async pos => {
+      const detected = await DT_DROPOFFS.detectSection(pos.coords.latitude, pos.coords.longitude);
+      if (!detected) return;
+      if (destSel.value && !destinationAutoDetected) return; // picked something while we were checking
+      const upperName = String(detected.name || "").trim().toUpperCase();
+      const opt = destSel.querySelector(`option[value="${CSS.escape(upperName)}"]`);
+      if (!opt) return; // detected polygon's name isn't a dropdown option — skip silently
+      destSel.value = upperName;
+      destinationAutoDetected = true;
+      setDestinationAutoBadge(true);
+    },
+    () => {}, // silent — this is a form convenience, not the record's saved GPS
+    { timeout: 8000, maximumAge: 30000, enableHighAccuracy: true }
+  );
+}
+document.addEventListener("dt-auth-change", autoDetectLocation);
 
 // Damage set (per-vehicle damage on-file flag) — re-render record surfaces
 // so the DAMAGE badge appears/disappears when marks are added/removed
@@ -5846,21 +5922,22 @@ async function renderEntryCurrentState(vin) {
     <div>${parts.length ? parts.join('<span class="ecs-sep">·</span>') : "No prior status."}</div>
   `;
 
-  // Pre-select the current status (when one exists and matches an option) so
+  // Pre-select the current status (when one exists and matches a button) so
   // the user can submit without changing it. Previously we overloaded the
   // placeholder text with the current value, which made the same status
   // appear twice in the dropdown and left the form un-submittable until the
   // user re-picked it.
-  const statusSel = document.getElementById("status");
-  if (statusSel?.options.length) {
-    statusSel.options[0].text = "-- STATUS --";
-    if (curStatus && Array.from(statusSel.options).some(o => o.value === curStatus)) {
-      statusSel.value = curStatus;
-      if (curStatus === "OTHER" && curStatusOther) {
-        const so = document.getElementById("statusOther");
-        if (so) so.value = curStatusOther;
-      }
-      if (typeof handleStatusChange === "function") handleStatusChange();
+  if (curStatus && document.querySelector(`.status-btn[data-status="${curStatus}"]`)) {
+    selectStatus(curStatus);
+    if (curStatus === "OTHER" && curStatusOther) {
+      const so = document.getElementById("statusOther");
+      if (so) so.value = curStatusOther;
+    }
+    // Force the "More statuses" collapsible open when the carried-over status
+    // lives there — otherwise the panel hides what the user just inherited.
+    if (document.querySelector(`#statusMoreGroup .status-btn[data-status="${curStatus}"]`)) {
+      const moreCollapse = document.getElementById("entryStatusMoreCollapse");
+      if (moreCollapse) moreCollapse.open = true;
     }
   }
   setSelectPlaceholderHint("destination", "-- LOCATION --", curDest
@@ -5904,7 +5981,6 @@ function setInputPlaceholderHint(id, defaultPlaceholder, lastVal) {
 function clearEntryCurrentState() {
   const el = document.getElementById("entryCurrentState");
   if (el) { el.style.display = "none"; el.innerHTML = ""; }
-  setSelectPlaceholderHint("status",      "-- STATUS --",   "");
   setSelectPlaceholderHint("destination", "-- LOCATION --", "");
   setSelectPlaceholderHint("fuelLevel",   "-- FUEL --",     "");
   setInputPlaceholderHint("mileage", "optional", "");

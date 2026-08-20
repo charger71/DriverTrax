@@ -764,7 +764,7 @@
   .record-serial { font-size: var(--font-lg); font-weight: 700; letter-spacing: 1px; color: var(--text); }
   .record-badges { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
   /* Shared base for all record/status badges — variants below override color only. */
-  .record-status, .badge-dest, .badge-notag, .badge-shuttle, .badge-transport, .badge-damage {
+  .record-status, .badge-dest, .badge-notag, .badge-shuttle, .badge-transport, .badge-damage, .badge-gps {
     font-size: var(--font-xs); font-weight: 700;
     padding: var(--space-1) var(--space-2); border-radius: 6px;
     text-transform: uppercase; letter-spacing: 0.5px;
@@ -774,6 +774,12 @@
   .badge-shuttle { background: var(--info-soft); color: var(--info); border: 1px solid var(--info); }
   .badge-transport { background: var(--warn-soft); color: var(--warn); border: 1px solid var(--warn); }
   .badge-damage { background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); }
+  /* Marks a field value as auto-filled from GPS rather than hand-picked —
+     see Location in the entry form. JS toggles .u-hidden; never shown alone. */
+  .badge-gps { background: var(--info-soft); color: var(--info); border: 1px solid var(--info); }
+  /* Lets a field-label share its line with a badge (e.g. .badge-gps) without
+     disturbing .field-label's own block spacing rules elsewhere. */
+  .field-label-row { display: flex; align-items: center; gap: var(--space-2); }
   .transport-row:has(input:checked) { border-color: var(--warn); background: var(--warn-soft); }
   .transport-row:has(input:checked) .notag-label { color: var(--warn); }
   .transport-row.transport-checked { border-color: var(--warn); background: var(--warn-soft); }
@@ -1247,6 +1253,63 @@
     font-size: var(--font-sm);
     color: var(--muted);
     line-height: 1.4;
+  }
+
+  /* STATUS BUTTONS — replaces the old <select id="status">. CLEAN/DIRTY are
+     surfaced as large buttons (the two most common picks); everything else
+     lives in the "More statuses" .entry-collapse above so the form doesn't
+     front-load a wall of buttons. Selection state mirrors the .theme-toggle
+     radiogroup (role="radio" + aria-checked, toggled from selectStatus() /
+     syncStatusButtons() in app.js) rather than a native <select>. */
+  .status-btn-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+  }
+  .status-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    box-sizing: border-box;
+    min-height: var(--dt-input-h);
+    padding: 0 var(--space-4);
+    background: var(--card-soft);
+    color: var(--text);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    font-size: var(--font-sm);
+    font-weight: var(--weight-bold);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .status-btn:hover { background: var(--surface-hover); }
+  .status-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+  /* Primary tier — CLEAN / DIRTY, half-width hero buttons colored the same
+     as their .record-status.status-CLEAN/DIRTY chips elsewhere in the app. */
+  .status-btn-group--primary .status-btn {
+    flex: 1;
+    min-height: 56px;
+    font-size: var(--font-base);
+  }
+  .status-btn-group--primary .status-btn[data-status="CLEAN"][aria-checked="true"] {
+    background: var(--success-soft); color: var(--accent-strong); border-color: var(--accent-strong);
+  }
+  .status-btn-group--primary .status-btn[data-status="DIRTY"][aria-checked="true"] {
+    background: var(--warn-soft); color: var(--warn-text); border-color: var(--warn-text);
+  }
+
+  /* "More statuses" tier — compact pills, one neutral accent treatment when
+     checked (not per-status colored — keeps the long tail calm/scannable). */
+  .status-btn-group--more .status-btn {
+    min-height: 40px;
+    padding: 0 var(--space-3);
+    font-size: var(--font-xs);
+    border-radius: 999px;
+  }
+  .status-btn-group--more .status-btn[aria-checked="true"] {
+    background: var(--accent); color: var(--text-on-accent); border-color: var(--accent);
   }
 
   /* PAGINATION */

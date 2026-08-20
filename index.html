@@ -664,33 +664,47 @@
        calls in the entry-reset path (app.js ~line 775) don't null-error. -->
   <div id="tireSelectorSection" hidden></div>
 
+  <div class="field-row" id="statusField">
+    <span class="field-label is-required">Status</span>
+    <div class="status-btn-group status-btn-group--primary" role="radiogroup" aria-label="Status">
+      <button type="button" class="status-btn" data-status="CLEAN" role="radio" aria-checked="false" onclick="selectStatus('CLEAN')">CLEAN</button>
+      <button type="button" class="status-btn" data-status="DIRTY" role="radio" aria-checked="false" onclick="selectStatus('DIRTY')">DIRTY</button>
+    </div>
+    <details class="disclosure entry-collapse" id="entryStatusMoreCollapse" data-collapse-key="statusMore">
+      <summary class="disclosure-summary">
+        <span class="field-label">More statuses</span>
+        <span class="disclosure-count" id="entryStatusMoreSummary"></span>
+      </summary>
+      <div class="disclosure-body">
+        <div class="status-btn-group status-btn-group--more" id="statusMoreGroup" role="radiogroup" aria-label="More statuses">
+          <button type="button" class="status-btn" data-status="REWASH" role="radio" aria-checked="false" onclick="selectStatus('REWASH')">REWASH/FLUIDS</button>
+          <button type="button" class="status-btn" data-status="BODY" role="radio" aria-checked="false" onclick="selectStatus('BODY')">BODY DAMAGE</button>
+          <button type="button" class="status-btn" data-status="PM" role="radio" aria-checked="false" onclick="selectStatus('PM')">PM (MAINT.)</button>
+          <button type="button" class="status-btn" data-status="MK" role="radio" aria-checked="false" onclick="selectStatus('MK')">MK (MECH.)</button>
+          <button type="button" class="status-btn" data-status="MR" role="radio" aria-checked="false" onclick="selectStatus('MR')">MR (RECALL)</button>
+          <button type="button" class="status-btn" data-status="OM" role="radio" aria-checked="false" onclick="selectStatus('OM')">OM (OVER MILES)</button>
+          <button type="button" class="status-btn" data-status="AUDIT FAIL" role="radio" aria-checked="false" onclick="selectStatus('AUDIT FAIL')">AUDIT FAIL</button>
+          <button type="button" class="status-btn" data-status="WI/DELETE" role="radio" aria-checked="false" onclick="selectStatus('WI/DELETE')">WI/DELETE</button>
+          <button type="button" class="status-btn" data-status="GLASS" role="radio" aria-checked="false" onclick="selectStatus('GLASS')">GLASS</button>
+          <button type="button" class="status-btn" data-status="TI" role="radio" aria-checked="false" onclick="selectStatus('TI')">TI(TIRE)</button>
+          <button type="button" class="status-btn" data-status="CHECK_IN" role="radio" aria-checked="false" onclick="selectStatus('CHECK_IN')">CHECK IN</button>
+          <!-- Privileged buttons (CHECK_OUT, HOLD, DNR) are injected
+               by gateCxrStatusOption() in app.js for CXR/manager/admin. -->
+          <button type="button" class="status-btn" data-status="OTHER" role="radio" aria-checked="false" onclick="selectStatus('OTHER')">OTHER</button>
+        </div>
+      </div>
+    </details>
+    <input type="text" id="statusOther" class="other-input u-hidden" placeholder="Specify other status..." maxlength="40" autocomplete="off">
+    <input type="hidden" id="status" value="">
+  </div>
+
   <div class="entry-form-row">
     <label class="u-flex-1">
-      <span class="field-label is-required">Status</span>
-      <select id="status" onchange="handleStatusChange()">
-        <option value="">-- STATUS --</option>
-        <option value="CLEAN">CLEAN</option>
-        <option value="DIRTY">DIRTY</option>
-        <option value="REWASH">REWASH/FLUIDS</option>
-        <option value="BODY">BODY DAMAGE</option>
-        <option value="PM">PM (MAINT.)</option>
-        <option value="MK">MK (MECH.)</option>
-        <option value="MR">MR (RECALL)</option>
-        <option value="OM">OM (OVER MILES)</option>
-        <option value="AUDIT FAIL">AUDIT FAIL</option>
-        <option value="WI/DELETE">WI/DELETE</option>
-        <option value="GLASS">GLASS</option>
-        <option value="TI">TI(TIRE)</option>
-        <option value="CHECK_IN">CHECK IN</option>
-        <!-- Privileged options (CHECK_OUT, HOLD, DNR) are injected
-             by gateCxrStatusOption() in app.js for CXR/manager/admin. -->
-        <option value="OTHER">OTHER</option>
-      </select>
-      <input type="text" id="statusOther" class="other-input u-hidden" placeholder="Specify other status..." maxlength="40" autocomplete="off">
-    </label>
-    <label class="u-flex-1">
-      <span class="field-label">Location</span>
-      <select id="destination" onchange="toggleOtherField('destination')">
+      <span class="field-label-row">
+        <span class="field-label">Location</span>
+        <span class="badge-gps u-hidden" id="destinationAutoBadge">GPS</span>
+      </span>
+      <select id="destination" onchange="toggleOtherField('destination'); clearDestinationAutoBadge()">
         <option value="">-- LOCATION --</option>
         <!-- Options populated at runtime from parking_sections (see
              populateDestinationSelects in app.js). "OTHER" is always

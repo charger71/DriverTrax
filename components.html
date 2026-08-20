@@ -174,6 +174,7 @@
     <li><a href="#fields">Form fields</a></li>
     <li><a href="#badges">Badges</a></li>
     <li><a href="#status">Status chips</a></li>
+    <li><a href="#status-buttons">Status buttons</a></li>
     <li><a href="#stats">Stat cards</a></li>
     <li><a href="#compositions">Compositions</a></li>
     <li><a href="#vin-history">VIN history</a></li>
@@ -438,6 +439,21 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
   &lt;span class="badge-transport"&gt;TRANSPORT&lt;/span&gt;
 &lt;/div&gt;</pre>
   </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Field badge — marks a value as auto-filled (e.g. Location from GPS)</div>
+    <p class="cl-desc"><code>.field-label-row</code> lets a <code>.field-label</code> share its line with a badge without disturbing the label's own block spacing rules. <code>.badge-gps</code> is toggled via <code>.u-hidden</code> by <code>autoDetectLocation()</code> / <code>clearDestinationAutoBadge()</code> in <code>app.js</code> — shown only while the field's current value came from the GPS polygon lookup, hidden the instant the driver picks something manually.</p>
+    <div class="cl-preview">
+      <span class="field-label-row">
+        <span class="field-label">Location</span>
+        <span class="badge-gps">GPS</span>
+      </span>
+    </div>
+<pre class="cl-code">&lt;span class="field-label-row"&gt;
+  &lt;span class="field-label"&gt;Location&lt;/span&gt;
+  &lt;span class="badge-gps u-hidden" id="destinationAutoBadge"&gt;GPS&lt;/span&gt;
+&lt;/span&gt;</pre>
+  </div>
 </section>
 
 <!-- ===================== STATUS CHIPS ===================== -->
@@ -449,6 +465,39 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
 <pre class="cl-code">&lt;span class="record-status status-CLEAN"&gt;CLEAN&lt;/span&gt;
 &lt;span class="record-status status-DIRTY"&gt;DIRTY&lt;/span&gt;
 &lt;!-- Class is statusClass(code), label is statusLabel(code) --&gt;</pre>
+  </div>
+</section>
+
+<!-- ===================== STATUS BUTTONS ===================== -->
+<section class="cl-section" id="status-buttons">
+  <h2>Status buttons</h2>
+  <p class="cl-desc">Entry-form Status field: a single-select button radiogroup (mirrors the <code>.theme-toggle</code> pattern — <code>role="radio"</code> + <code>aria-checked</code>, no native <code>&lt;select&gt;</code>) plus a <code>.disclosure.entry-collapse</code> for the long tail. CLEAN/DIRTY get large primary buttons colored like their <code>.status-CLEAN</code>/<code>.status-DIRTY</code> chips; everything else is a compact neutral pill inside "More statuses" that just goes <code>--accent</code> when checked. Driven by <code>selectStatus(code)</code> / <code>syncStatusButtons()</code> in <code>app.js</code> — never set the hidden <code>#status</code> input's value directly.</p>
+  <div class="cl-block">
+    <div class="cl-preview cl-stack">
+      <div class="status-btn-group status-btn-group--primary" role="radiogroup" aria-label="Status">
+        <button type="button" class="status-btn" data-status="CLEAN" role="radio" aria-checked="true">CLEAN</button>
+        <button type="button" class="status-btn" data-status="DIRTY" role="radio" aria-checked="false">DIRTY</button>
+      </div>
+      <div class="status-btn-group status-btn-group--more" role="radiogroup" aria-label="More statuses">
+        <button type="button" class="status-btn" data-status="PM" role="radio" aria-checked="false">PM (MAINT.)</button>
+        <button type="button" class="status-btn" data-status="MK" role="radio" aria-checked="true">MK (MECH.)</button>
+        <button type="button" class="status-btn" data-status="OTHER" role="radio" aria-checked="false">OTHER</button>
+      </div>
+    </div>
+<pre class="cl-code">&lt;div class="status-btn-group status-btn-group--primary" role="radiogroup" aria-label="Status"&gt;
+  &lt;button type="button" class="status-btn" data-status="CLEAN"
+          role="radio" aria-checked="false" onclick="selectStatus('CLEAN')"&gt;CLEAN&lt;/button&gt;
+  &lt;button type="button" class="status-btn" data-status="DIRTY"
+          role="radio" aria-checked="false" onclick="selectStatus('DIRTY')"&gt;DIRTY&lt;/button&gt;
+&lt;/div&gt;
+
+&lt;!-- Rest of the codes live in #statusMoreGroup, inside
+     #entryStatusMoreCollapse (a .disclosure.entry-collapse) --&gt;
+&lt;div class="status-btn-group status-btn-group--more" id="statusMoreGroup" role="radiogroup"&gt;
+  &lt;button type="button" class="status-btn" data-status="PM"
+          role="radio" aria-checked="false" onclick="selectStatus('PM')"&gt;PM (MAINT.)&lt;/button&gt;
+  &lt;!-- ... --&gt;
+&lt;/div&gt;</pre>
   </div>
 </section>
 

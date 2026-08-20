@@ -1953,7 +1953,16 @@ function clearDestinationAutoBadge() {
 async function autoDetectLocation() {
   if (!("geolocation" in navigator) || !window.DT_DROPOFFS) return;
   const destSel = document.getElementById("destination");
-  if (!destSel || destSel.options.length <= 1) return; // sections haven't loaded yet
+  if (!destSel) return;
+  // populateDestinationSelects() and DT_DROPOFFS.getSections() share the same
+  // cached fetch, so awaiting it here doesn't cost an extra round trip — but
+  // it does close the race where dt-auth-change (this function's usual
+  // trigger) fires before the sections query lands: the old code just
+  // checked destSel.options.length and gave up for good when it lost that
+  // race, so GPS never got a chance to fill Location for the rest of the
+  // session. Now we make sure the real <option>s exist before deciding.
+  await populateDestinationSelects();
+  if (destSel.options.length <= 1) return; // sections view unreachable
   if (destSel.value && !destinationAutoDetected) return; // driver already chose one
 
   navigator.geolocation.getCurrentPosition(
@@ -1961,10 +1970,14 @@ async function autoDetectLocation() {
       const detected = await DT_DROPOFFS.detectSection(pos.coords.latitude, pos.coords.longitude);
       if (!detected) return;
       if (destSel.value && !destinationAutoDetected) return; // picked something while we were checking
-      const upperName = String(detected.name || "").trim().toUpperCase();
-      const opt = destSel.querySelector(`option[value="${CSS.escape(upperName)}"]`);
+      // Match against dropdown options the same normalized way drop-offs.js
+      // compares a detected polygon to a picked destination (case/spacing/
+      // punctuation-insensitive) — a straight uppercase-string match missed
+      // a polygon named e.g. "Back Lot" against the dropdown's "BACKLOT".
+      const norm = DT_DROPOFFS.normalizeName(detected.name);
+      const opt = Array.from(destSel.options).find(o => DT_DROPOFFS.normalizeName(o.value) === norm);
       if (!opt) return; // detected polygon's name isn't a dropdown option — skip silently
-      destSel.value = upperName;
+      destSel.value = opt.value;
       destinationAutoDetected = true;
       setDestinationAutoBadge(true);
     },

@@ -5947,7 +5947,7 @@ async function renderEntryCurrentState(vin) {
   setSelectPlaceholderHint("destination", "-- LOCATION --", curDest
     ? (curDest === "OTHER" && curDestOther ? `OTHER: ${curDestOther}` : curDest)
     : "");
-  setInputPlaceholderHint("mileage", "optional", Number.isFinite(latestMF?.mileage)
+  setInputPlaceholderHint("mileage", "000000", Number.isFinite(latestMF?.mileage)
     ? latestMF.mileage.toLocaleString()
     : "");
   setSelectPlaceholderHint("fuelLevel",   "-- FUEL --",     latestMF?.fuel || "");
@@ -5987,7 +5987,7 @@ function clearEntryCurrentState() {
   if (el) { el.style.display = "none"; el.innerHTML = ""; }
   setSelectPlaceholderHint("destination", "-- LOCATION --", "");
   setSelectPlaceholderHint("fuelLevel",   "-- FUEL --",     "");
-  setInputPlaceholderHint("mileage", "optional", "");
+  setInputPlaceholderHint("mileage", "000000", "");
   // Drop any carried-over conditions so the next VIN doesn't inherit them.
   selectedCxrConditions = [];
   if (typeof renderCxrConditions === "function") renderCxrConditions();

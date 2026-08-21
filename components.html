@@ -709,6 +709,49 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
       <div class="svc-waiting-row"><button type="button" class="btn btn-secondary btn--sm">Mark Waiting on Parts</button></div>
     </div>
   </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">"What's Being Done" chips — same <code>.svc-chip</code> shape as Job Type, but checkboxes (multi-select) since a visit often covers more than one basic action; OTHER reveals a freeform field</div>
+    <div class="cl-preview">
+      <div class="detail-conditions">
+        <label class="svc-chip checked"><input type="checkbox" checked><span>Oil Change</span></label>
+        <label class="svc-chip checked"><input type="checkbox" checked><span>Rotate Tires</span></label>
+        <label class="svc-chip"><input type="checkbox"><span>Battery Replacement</span></label>
+        <label class="svc-chip"><input type="checkbox"><span>Other</span></label>
+      </div>
+    </div>
+<pre class="cl-code">&lt;label class="svc-chip checked"&gt;
+  &lt;input type="checkbox" value="Oil Change" checked&gt;
+  &lt;span&gt;Oil Change&lt;/span&gt;
+&lt;/label&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Driver-note banner — read-only "latest note on file," reuses <code>.svc-state-banner</code>'s box but drops the bold/letter-spacing since it's running text, not a short status phrase</div>
+    <div class="cl-preview">
+      <div class="svc-state-banner svc-state-banner--driver-note"><b>Latest note</b> — Left rear tire low, flagged by driver this morning. <span class="svc-days-out">4h ago</span></div>
+    </div>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Job notes log — append-only, dated, no remove action; mirrors the parts list's add-row shape (see <code>maintenance.js</code> <code>onAddNote</code>)</div>
+    <div class="cl-preview cl-stack">
+      <div class="svc-notes-list">
+        <div class="svc-note-row">
+          <div class="svc-note-meta">10 min ago · J. Alvarez</div>
+          <div class="svc-note-text">Pulled the wheel, found a nail. Ordering a replacement tire.</div>
+        </div>
+        <div class="svc-note-row">
+          <div class="svc-note-meta">2 days ago · J. Alvarez</div>
+          <div class="svc-note-text">Started the job — waiting on a bay.</div>
+        </div>
+      </div>
+      <div class="svc-part-add">
+        <input type="text" placeholder="Add a note..." disabled>
+        <button type="button" class="btn btn-secondary btn--sm" aria-label="Add note">+</button>
+      </div>
+    </div>
+  </div>
 </section>
 
 <!-- ===================== VIN HISTORY ===================== -->

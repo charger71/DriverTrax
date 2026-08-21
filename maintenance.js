@@ -28,6 +28,13 @@
 
   const JOB_TYPES = ["PM", "MK", "MR", "OM", "TI", "LP", "BODY", "GLASS"];
   const VENDOR_DEFAULT = new Set(["BODY", "GLASS"]);
+  // "What's Being Done" quick-pick list — a structured alternative to
+  // freeform text for the common cases; OTHER reveals svcActionOther for
+  // anything more specific.
+  const SERVICE_ACTIONS = [
+    "Change Tire", "Rotate Tires", "Oil Change", "Battery Replacement",
+    "Transmission Fluid Change", "Brake Service", "Fluid Top-Off", "Inspection"
+  ];
 
   let started = false;
   let currentVin = null;
@@ -92,8 +99,8 @@
       const v = parseInt(e.target.value, 10);
       currentJob.mileage = Number.isFinite(v) && v >= 0 ? v : null;
     });
-    $("svcNotes")?.addEventListener("input", (e) => {
-      if (currentJob) currentJob.notes = e.target.value;
+    $("svcActionOther")?.addEventListener("input", (e) => {
+      if (currentJob) currentJob.serviceActionOther = e.target.value;
     });
     $("svcPartAddBtn")?.addEventListener("click", onAddPart);
     $("svcPartInput")?.addEventListener("keydown", (e) => {
@@ -105,6 +112,10 @@
       const idx = parseInt(btn.dataset.idx, 10);
       currentJob.parts.splice(idx, 1);
       renderParts();
+    });
+    $("svcNoteAddBtn")?.addEventListener("click", onAddNote);
+    $("svcNoteInput")?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); onAddNote(); }
     });
     $("svcSaveBtn")?.addEventListener("click", onSave);
     $("svcSendOutBtn")?.addEventListener("click", onSendOut);
@@ -189,12 +200,14 @@
   async function renderVehicleContext(vin) {
     const damageEl = $("svcDamageMount"), tireEl = $("svcTireMount");
     const damageCollapse = $("svcDamageCollapse"), tireCollapse = $("svcTireCollapse");
+    const noteEl = $("svcDriverNote");
     if (!damageEl || !tireEl) return;
     damageCollapse?.classList.add("u-hidden");
     tireCollapse?.classList.add("u-hidden");
+    noteEl?.classList.add("u-hidden");
 
     const { data, error } = await sb.from("records")
-      .select("damage_marks,tire_details,tires,claim_number,claim_notes")
+      .select("damage_marks,tire_details,tires,claim_number,claim_notes,destination,mileage,notes,ts")
       .eq("serial_id", vin).order("ts", { ascending: false });
     if (error) { console.warn("[Maint] renderVehicleContext", error); return; }
     const records = data || [];
@@ -216,23 +229,42 @@
     const marks = Array.from(markMap.values());
     const hasDamage = marks.length > 0 || !!claimNum;
     const hasTire = Object.keys(tireDetails).length > 0 || legacyTires.length > 0;
-    if (!window.DT_DAMAGE) return;
 
-    if (hasDamage) {
-      const countEl = $("svcDamageCount");
-      if (countEl) countEl.textContent = marks.length ? `${marks.length} mark${marks.length === 1 ? "" : "s"}` : "claim";
-      DT_DAMAGE.renderDamageViewer(damageEl, { damage_marks: marks, claim_number: claimNum, claim_notes: claimNotes });
-      damageCollapse?.classList.remove("u-hidden");
+    if (window.DT_DAMAGE) {
+      if (hasDamage) {
+        const countEl = $("svcDamageCount");
+        if (countEl) countEl.textContent = marks.length ? `${marks.length} mark${marks.length === 1 ? "" : "s"}` : "claim";
+        DT_DAMAGE.renderDamageViewer(damageEl, { damage_marks: marks, claim_number: claimNum, claim_notes: claimNotes });
+        damageCollapse?.classList.remove("u-hidden");
+      }
+      if (hasTire) {
+        const flagged = DT_DAMAGE.TIRE_POSITIONS.filter((pos) => {
+          const t = tireDetails[pos];
+          return (t && t.condition && t.condition !== "OK") || legacyTires.includes(pos);
+        }).length;
+        const countEl = $("svcTireCount");
+        if (countEl) countEl.textContent = flagged ? `${flagged} flagged` : "";
+        DT_DAMAGE.renderTireViewer(tireEl, { tire_details: tireDetails, tires: legacyTires });
+        tireCollapse?.classList.remove("u-hidden");
+      }
     }
-    if (hasTire) {
-      const flagged = DT_DAMAGE.TIRE_POSITIONS.filter((pos) => {
-        const t = tireDetails[pos];
-        return (t && t.condition && t.condition !== "OK") || legacyTires.includes(pos);
-      }).length;
-      const countEl = $("svcTireCount");
-      if (countEl) countEl.textContent = flagged ? `${flagged} flagged` : "";
-      DT_DAMAGE.renderTireViewer(tireEl, { tire_details: tireDetails, tires: legacyTires });
-      tireCollapse?.classList.remove("u-hidden");
+
+    // Most recent note on file, read-only — whatever role wrote it (driver
+    // flag, CXR note, an earlier mechanic touch).
+    const latest = records[0];
+    if (latest && latest.notes && noteEl) {
+      noteEl.innerHTML = `<b>Latest note</b> — ${esc(latest.notes)} <span class="svc-days-out">${esc(ago(latest.ts))}</span>`;
+      noteEl.classList.remove("u-hidden");
+    }
+
+    // Prefill location/mileage from the vehicle's last entry — only for a
+    // brand-new, not-yet-saved job whose fields are still empty, and only
+    // if the VIN hasn't changed underneath this fetch.
+    if (latest && currentVin === vin && currentJob && !currentJob.id) {
+      let changed = false;
+      if (!currentJob.destination && latest.destination) { currentJob.destination = latest.destination; changed = true; }
+      if (currentJob.mileage == null && Number.isFinite(latest.mileage)) { currentJob.mileage = latest.mileage; changed = true; }
+      if (changed) renderForm();
     }
   }
 
@@ -240,6 +272,7 @@
     return {
       id: null, jobType: null, performedBy: "in_house", performedByTouched: false,
       vendorId: null, destination: "", mileage: null, notes: "", parts: [],
+      serviceActions: [], serviceActionOther: "", notesLog: [],
       state: "OPEN", closeStatus: "CLEAN",
       waitingOnParts: false, partsNote: "", waitingSince: null
     };
@@ -345,7 +378,7 @@
 
   async function selectPickedJob(job) {
     hydrateJobFromRow(job);
-    await Promise.all([populateDestinationSelect(), ensureVendorOptions()]);
+    await Promise.all([populateDestinationSelect(), ensureVendorOptions(), fetchProfileNames(currentJob.notesLog.map((e) => e.author))]);
     $("svcJobPicker")?.classList.add("u-hidden");
     $("svcScanForm")?.classList.remove("u-hidden");
     renderForm();
@@ -376,6 +409,9 @@
       mileage: Number.isFinite(row.mileage) ? row.mileage : null,
       notes: row.notes || "",
       parts: Array.isArray(row.parts) ? row.parts.slice() : [],
+      serviceActions: Array.isArray(row.service_actions) ? row.service_actions.slice() : [],
+      serviceActionOther: row.service_action_other || "",
+      notesLog: Array.isArray(row.notes_log) ? row.notes_log.slice() : [],
       state: row.state,
       closeStatus: row.close_status || "CLEAN",
       openedAt: row.opened_at,
@@ -391,7 +427,7 @@
     const { data, error } = await sb.from("service_jobs").select("*").eq("id", jobId).maybeSingle();
     if (error || !data) { DT_TOAST.missing("job"); return; }
     hydrateJobFromRow(data);
-    await Promise.all([populateDestinationSelect(), ensureVendorOptions()]);
+    await Promise.all([populateDestinationSelect(), ensureVendorOptions(), fetchProfileNames(currentJob.notesLog.map((e) => e.author))]);
     $("svcScanEmpty")?.classList.add("u-hidden");
     $("svcJobPicker")?.classList.add("u-hidden");
     $("svcScanForm")?.classList.remove("u-hidden");
@@ -425,6 +461,37 @@
     }).join("");
   }
 
+  // Multi-select (unlike the single-select Job Type chips above — a visit
+  // commonly covers more than one basic action at once, e.g. an oil change
+  // *and* a tire rotation in the same PM stop).
+  function renderServiceActionChips() {
+    const el = $("svcActionChips");
+    if (!el) return;
+    const locked = isJobLocked();
+    const options = [...SERVICE_ACTIONS, "OTHER"];
+    el.innerHTML = options.map(a => {
+      const checked = currentJob.serviceActions.includes(a);
+      const label = a === "OTHER" ? "Other" : a;
+      return `
+        <label class="svc-chip ${checked ? "checked" : ""}">
+          <input type="checkbox" value="${esc(a)}" ${checked ? "checked" : ""} ${locked ? "disabled" : ""}>
+          <span>${esc(label)}</span>
+        </label>
+      `;
+    }).join("");
+    el.querySelectorAll("input").forEach((inp) => {
+      inp.addEventListener("change", () => {
+        if (inp.checked) {
+          if (!currentJob.serviceActions.includes(inp.value)) currentJob.serviceActions.push(inp.value);
+        } else {
+          currentJob.serviceActions = currentJob.serviceActions.filter((a) => a !== inp.value);
+        }
+        inp.closest(".svc-chip").classList.toggle("checked", inp.checked);
+        $("svcActionOtherRow")?.classList.toggle("u-hidden", !currentJob.serviceActions.includes("OTHER"));
+      });
+    });
+  }
+
   function renderParts() {
     const el = $("svcPartsList");
     if (!el) return;
@@ -451,6 +518,24 @@
     renderParts();
   }
 
+  // Append-only — newest first, no remove action (this is meant to be a
+  // running log of every touch, not an editable field).
+  function renderNotesLog() {
+    const el = $("svcNotesLogList");
+    if (!el) return;
+    const log = currentJob.notesLog || [];
+    if (!log.length) { el.innerHTML = `<div class="u-empty-sm">No notes yet.</div>`; return; }
+    el.innerHTML = log.slice().reverse().map((entry) => {
+      const who = nameFor(entry.author);
+      return `
+        <div class="svc-note-row">
+          <div class="svc-note-meta">${esc(ago(entry.ts))}${who ? " · " + esc(who) : ""}</div>
+          <div class="svc-note-text">${esc(entry.note)}</div>
+        </div>
+      `;
+    }).join("");
+  }
+
   function renderForm() {
     if (!currentJob) return;
     const vinEl = $("svcFormVin");
@@ -462,20 +547,27 @@
     }
 
     renderJobTypeChips();
+    renderServiceActionChips();
     renderParts();
+    renderNotesLog();
 
     const locked = isJobLocked();
     const destSel = $("svcDestination");
     if (destSel) { destSel.value = currentJob.destination || ""; destSel.disabled = locked; }
     const mEl = $("svcMileage");
     if (mEl) { mEl.value = Number.isFinite(currentJob.mileage) ? currentJob.mileage : ""; mEl.disabled = locked; }
-    const nEl = $("svcNotes");
-    if (nEl) { nEl.value = currentJob.notes || ""; nEl.disabled = locked; }
+    const actionOtherRow = $("svcActionOtherRow");
+    actionOtherRow?.classList.toggle("u-hidden", !currentJob.serviceActions.includes("OTHER"));
+    const actionOtherEl = $("svcActionOther");
+    if (actionOtherEl) { actionOtherEl.value = currentJob.serviceActionOther || ""; actionOtherEl.disabled = locked; }
     const vSel = $("svcVendorSelect");
     if (vSel) { vSel.value = currentJob.vendorId || ""; vSel.disabled = locked || currentJob.state === "SENT_OUT"; }
     const partInput = $("svcPartInput"), partAddBtn = $("svcPartAddBtn");
     if (partInput) partInput.disabled = locked;
     if (partAddBtn) partAddBtn.disabled = locked;
+    const noteInput = $("svcNoteInput"), noteAddBtn = $("svcNoteAddBtn");
+    if (noteInput) noteInput.disabled = locked;
+    if (noteAddBtn) noteAddBtn.disabled = locked;
 
     const toggle = $("svcPerformedToggle");
     if (toggle) {
@@ -606,6 +698,8 @@
       mileage: currentJob.mileage,
       notes: currentJob.notes || null,
       parts: currentJob.parts,
+      service_actions: currentJob.serviceActions,
+      service_action_other: currentJob.serviceActions.includes("OTHER") ? (currentJob.serviceActionOther || null) : null,
       updated_by: user?.id || null
     };
 
@@ -733,6 +827,40 @@
     currentJob.waitingSince = payload.waiting_since;
     DT_TOAST.show(waiting ? "Marked waiting on parts" : "Parts arrived", "success");
     renderForm();
+  }
+
+  // Append a dated note without requiring a Save/Send/Return/Close — "so
+  // they can add a note anytime they touch the car." Writes a records row
+  // too (unchanged status, same as the waiting-parts toggle above) so the
+  // touch shows up in VIN history and bumps the vehicle's last_seen_at,
+  // not just this job's own log.
+  async function onAddNote() {
+    if (isJobLocked()) return;
+    if (!currentJob.id) { await onSave(); if (!currentJob.id) return; }
+    const input = $("svcNoteInput");
+    const text = (input?.value || "").trim().slice(0, 500);
+    if (!text) return;
+    const btn = $("svcNoteAddBtn");
+    if (btn) btn.disabled = true;
+    const user = DT_AUTH.getUser();
+    const entry = { note: text, ts: new Date().toISOString(), author: user?.id || null };
+    const updatedLog = [...currentJob.notesLog, entry];
+    await commitTransitionRecord({
+      status: currentJob.jobType,
+      destination: currentJob.destination,
+      notes: text
+    });
+    const { error } = await sb.from("service_jobs").update({
+      notes_log: updatedLog, notes: text, updated_by: user?.id || null
+    }).eq("id", currentJob.id);
+    if (btn) btn.disabled = false;
+    if (error) { DT_TOAST.show(error.message || "Couldn't add the note", "error"); return; }
+    currentJob.notesLog = updatedLog;
+    currentJob.notes = text;
+    if (input) input.value = "";
+    await fetchProfileNames([user?.id]);
+    renderNotesLog();
+    DT_TOAST.show("Note added", "success");
   }
 
   // ---- landing lists ----

@@ -1953,6 +1953,14 @@
   .svc-state-banner--flagged {
     background: var(--warn-soft); border: var(--border-thin) solid var(--warn); color: var(--warn-text);
   }
+  /* Read-only "latest note on file" banner — running text, not a short
+     status phrase, so it drops the bold/letter-spacing the other
+     .svc-state-banner variants use. */
+  .svc-state-banner--driver-note {
+    background: var(--card-soft); border: var(--border-thin) solid var(--border); color: var(--text-soft);
+    font-weight: var(--weight-normal); letter-spacing: normal; text-transform: none;
+  }
+  .svc-state-banner--driver-note b { color: var(--text); font-weight: var(--weight-bold); }
   .svc-days-out {
     display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px;
     font-size: var(--font-xs); font-weight: var(--weight-bold);
@@ -1964,6 +1972,16 @@
     font-size: 13px; height: 44px; resize: vertical; font-family: inherit;
   }
   .svc-waiting-row { display: flex; gap: 8px; margin: var(--space-3) 0; }
+
+  /* Job notes log — append-only, no remove action (see .svc-part-row for
+     the removable-list counterpart this mirrors). */
+  .svc-notes-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .svc-note-row {
+    background: var(--panel); border: var(--border-thin) solid var(--divider); border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .svc-note-meta { font-size: var(--font-xs); color: var(--muted); margin-bottom: 2px; }
+  .svc-note-text { font-size: 14px; color: var(--text); white-space: pre-wrap; }
 
   /* Disabled option rows in the detailer Options disclosure — visible but not interactive. */
   .notag-row[aria-disabled="true"] {

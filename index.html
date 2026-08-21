@@ -1469,8 +1469,24 @@
 
     <div class="svc-state-banner u-hidden" id="svcStateBanner"></div>
 
+    <div class="entry-form-row">
+      <label class="field-row" id="svcDestinationRow">
+        <span class="field-label">Location</span>
+        <select id="svcDestination">
+          <option value="">-- LOCATION --</option>
+        </select>
+      </label>
+
+      <label class="field-row">
+        <span class="field-label">Mileage</span>
+        <input type="number" id="svcMileage" inputmode="numeric" min="0" step="1" placeholder="000000" autocomplete="off">
+      </label>
+    </div>
+
     <!-- Read-only — same DT_DAMAGE viewers the VIN LOOKUP timeline uses,
-         so a mechanic sees what's on file before working a BODY/TI job. -->
+         so a mechanic sees what's on file before working a BODY/TI job.
+         Opened by default (not just unhidden) when there's something to
+         show — see renderVehicleContext in maintenance.js. -->
     <details class="disclosure vin-tl-collapse u-hidden" id="svcDamageCollapse">
       <summary class="disclosure-summary">
         <span class="field-label">Body damage on file</span>
@@ -1485,12 +1501,6 @@
       </summary>
       <div class="disclosure-body"><div id="svcTireMount"></div></div>
     </details>
-
-    <div class="svc-waiting-row u-hidden" id="svcWaitingRow">
-      <button type="button" class="btn btn-secondary btn--sm" id="svcWaitingBtn">Mark Waiting on Parts</button>
-      <button type="button" class="btn btn-primary btn--sm u-hidden" id="svcPartsArrivedBtn">Parts Arrived</button>
-    </div>
-    <textarea class="svc-parts-note u-hidden" id="svcPartsNote" placeholder="What's on order / ETA..." maxlength="200"></textarea>
 
     <div class="detail-subhead">Job Type</div>
     <div class="detail-conditions" id="svcJobTypeChips"></div>
@@ -1507,20 +1517,6 @@
       </select>
     </label>
 
-    <div class="entry-form-row">
-      <label class="field-row" id="svcDestinationRow">
-        <span class="field-label">Location</span>
-        <select id="svcDestination">
-          <option value="">-- LOCATION --</option>
-        </select>
-      </label>
-
-      <label class="field-row">
-        <span class="field-label">Mileage</span>
-        <input type="number" id="svcMileage" inputmode="numeric" min="0" step="1" placeholder="000000" autocomplete="off">
-      </label>
-    </div>
-
     <div class="detail-subhead">What's Being Done</div>
     <div class="detail-conditions" id="svcActionChips"></div>
     <label class="field-row u-hidden" id="svcActionOtherRow">
@@ -1536,6 +1532,12 @@
         <svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg>
       </button>
     </div>
+
+    <div class="svc-waiting-row u-hidden" id="svcWaitingRow">
+      <button type="button" class="btn btn-secondary btn--sm" id="svcWaitingBtn">Mark Waiting on Parts</button>
+      <button type="button" class="btn btn-primary btn--sm u-hidden" id="svcPartsArrivedBtn">Parts Arrived</button>
+    </div>
+    <textarea class="svc-parts-note u-hidden" id="svcPartsNote" placeholder="What's on order / ETA..." maxlength="200"></textarea>
 
     <div class="detail-subhead">Job Notes</div>
     <div class="svc-notes-list" id="svcNotesLogList"></div>

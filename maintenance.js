@@ -33,6 +33,7 @@
   let currentVin = null;
   let currentJob = null; // { id, jobType, performedBy, performedByTouched, vendorId, destination, mileage, notes, parts, state, ... }
   let vendorCache = [];
+  let contextLoadedForVin = null; // guards renderVehicleContext to once per VIN, not once per renderForm() call
 
   // user_id -> display_name, resolved for "last touched by" attribution on
   // job rows (mirrors announcements.js's profileCache/fetchProfileNames).
@@ -128,6 +129,7 @@
     currentVin = null;
     currentJob = null;
     pickerJobs = [];
+    contextLoadedForVin = null;
     $("svcScanForm")?.classList.add("u-hidden");
     $("svcJobPicker")?.classList.add("u-hidden");
     $("svcScanEmpty")?.classList.remove("u-hidden");
@@ -178,6 +180,62 @@
   }
 
   // ---- loading a VIN ----
+  // Read-only body damage + tire panels for the VIN currently in svcScanForm.
+  // Same aggregation rule as the VIN LOOKUP timeline's "on file" panel in
+  // app.js (damage deduped by panel_id+damage_type keeping the most recent
+  // mark, tire state from whichever record most recently reported each
+  // position) — kept local here rather than shared since app.js computes it
+  // inline as part of a much larger render, not as a callable helper.
+  async function renderVehicleContext(vin) {
+    const damageEl = $("svcDamageMount"), tireEl = $("svcTireMount");
+    const damageCollapse = $("svcDamageCollapse"), tireCollapse = $("svcTireCollapse");
+    if (!damageEl || !tireEl) return;
+    damageCollapse?.classList.add("u-hidden");
+    tireCollapse?.classList.add("u-hidden");
+
+    const { data, error } = await sb.from("records")
+      .select("damage_marks,tire_details,tires,claim_number,claim_notes")
+      .eq("serial_id", vin).order("ts", { ascending: false });
+    if (error) { console.warn("[Maint] renderVehicleContext", error); return; }
+    const records = data || [];
+
+    const markMap = new Map();
+    const tireDetails = {};
+    let claimNum = "", claimNotes = "", legacyTires = [];
+    for (let i = records.length - 1; i >= 0; i--) {
+      const rec = records[i];
+      if (Array.isArray(rec.damage_marks)) {
+        rec.damage_marks.forEach((m) => markMap.set(`${m.panel_id}|${m.damage_type}`, m));
+      }
+      if (rec.tire_details && typeof rec.tire_details === "object") {
+        Object.entries(rec.tire_details).forEach(([pos, val]) => { tireDetails[pos] = val; });
+      }
+      if (rec.claim_number) { claimNum = rec.claim_number; claimNotes = rec.claim_notes || ""; }
+      if (Array.isArray(rec.tires) && rec.tires.length) legacyTires = rec.tires;
+    }
+    const marks = Array.from(markMap.values());
+    const hasDamage = marks.length > 0 || !!claimNum;
+    const hasTire = Object.keys(tireDetails).length > 0 || legacyTires.length > 0;
+    if (!window.DT_DAMAGE) return;
+
+    if (hasDamage) {
+      const countEl = $("svcDamageCount");
+      if (countEl) countEl.textContent = marks.length ? `${marks.length} mark${marks.length === 1 ? "" : "s"}` : "claim";
+      DT_DAMAGE.renderDamageViewer(damageEl, { damage_marks: marks, claim_number: claimNum, claim_notes: claimNotes });
+      damageCollapse?.classList.remove("u-hidden");
+    }
+    if (hasTire) {
+      const flagged = DT_DAMAGE.TIRE_POSITIONS.filter((pos) => {
+        const t = tireDetails[pos];
+        return (t && t.condition && t.condition !== "OK") || legacyTires.includes(pos);
+      }).length;
+      const countEl = $("svcTireCount");
+      if (countEl) countEl.textContent = flagged ? `${flagged} flagged` : "";
+      DT_DAMAGE.renderTireViewer(tireEl, { tire_details: tireDetails, tires: legacyTires });
+      tireCollapse?.classList.remove("u-hidden");
+    }
+  }
+
   function freshJob() {
     return {
       id: null, jobType: null, performedBy: "in_house", performedByTouched: false,
@@ -397,6 +455,11 @@
     if (!currentJob) return;
     const vinEl = $("svcFormVin");
     if (vinEl) vinEl.textContent = currentVin || "—";
+
+    if (currentVin && contextLoadedForVin !== currentVin) {
+      contextLoadedForVin = currentVin;
+      renderVehicleContext(currentVin);
+    }
 
     renderJobTypeChips();
     renderParts();

@@ -1463,6 +1463,23 @@
 
     <div class="svc-state-banner u-hidden" id="svcStateBanner"></div>
 
+    <!-- Read-only — same DT_DAMAGE viewers the VIN LOOKUP timeline uses,
+         so a mechanic sees what's on file before working a BODY/TI job. -->
+    <details class="disclosure vin-tl-collapse u-hidden" id="svcDamageCollapse">
+      <summary class="disclosure-summary">
+        <span class="field-label">Body damage on file</span>
+        <span class="disclosure-count" id="svcDamageCount"></span>
+      </summary>
+      <div class="disclosure-body"><div id="svcDamageMount"></div></div>
+    </details>
+    <details class="disclosure vin-tl-collapse u-hidden" id="svcTireCollapse">
+      <summary class="disclosure-summary">
+        <span class="field-label">Tires — latest</span>
+        <span class="disclosure-count" id="svcTireCount"></span>
+      </summary>
+      <div class="disclosure-body"><div id="svcTireMount"></div></div>
+    </details>
+
     <div class="svc-waiting-row u-hidden" id="svcWaitingRow">
       <button type="button" class="btn btn-secondary btn--sm" id="svcWaitingBtn">Mark Waiting on Parts</button>
       <button type="button" class="btn btn-primary btn--sm u-hidden" id="svcPartsArrivedBtn">Parts Arrived</button>

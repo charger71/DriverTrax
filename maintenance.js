@@ -236,6 +236,7 @@
         if (countEl) countEl.textContent = marks.length ? `${marks.length} mark${marks.length === 1 ? "" : "s"}` : "claim";
         DT_DAMAGE.renderDamageViewer(damageEl, { damage_marks: marks, claim_number: claimNum, claim_notes: claimNotes });
         damageCollapse?.classList.remove("u-hidden");
+        if (damageCollapse) damageCollapse.open = true;
       }
       if (hasTire) {
         const flagged = DT_DAMAGE.TIRE_POSITIONS.filter((pos) => {
@@ -246,6 +247,7 @@
         if (countEl) countEl.textContent = flagged ? `${flagged} flagged` : "";
         DT_DAMAGE.renderTireViewer(tireEl, { tire_details: tireDetails, tires: legacyTires });
         tireCollapse?.classList.remove("u-hidden");
+        if (tireCollapse) tireCollapse.open = true;
       }
     }
 

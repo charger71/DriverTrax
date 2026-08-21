@@ -276,6 +276,14 @@ function trimForStorage(r, keep) {
 
 function setRecords(r) {
   _recordsCache = r;
+  // getAllShifts()'s cache key is record count + first/last timestamp, so an
+  // in-place field patch (e.g. drop-offs.js patchLocalRecord attaching the
+  // GPS-detected section name after save) doesn't change the key and the
+  // stale grouping keeps getting served — the GIS location badge then only
+  // appears once the next save changes the count/timestamp. Clear it here so
+  // every write path (including sync.js's pull-and-merge) stays in sync.
+  _shiftsCache = null;
+  _shiftsCacheKey = null;
   try {
     localStorage.setItem(DB_KEY, JSON.stringify(r));
     return;

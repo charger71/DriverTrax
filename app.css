@@ -3168,6 +3168,14 @@
   #entryDamageSvg .panel-hit.has-damage.dp { fill: var(--muted); fill-opacity: 0.28; }
   #entryDamageSvg .damage-mark text { paint-order: stroke; }
 
+  /* Mechanic's own damage editor — an interactive clone of #entryDamageSvg
+     (DT_DAMAGE.cloneSilhouette), so it gets .damage-viewer-svg's base
+     shell/fill/has-damage styling for free; only the click affordance
+     needs re-declaring since it's id-scoped above, and the clone has no id. */
+  #svcDamageSvgWrap .panel-hit { cursor: pointer; }
+  #svcDamageSvgWrap .panel-hit:hover .dp,
+  #svcDamageSvgWrap .panel-hit.dp:hover { fill: var(--surface-hover); }
+
   /* picker */
   .damage-picker-row {
     display: grid;

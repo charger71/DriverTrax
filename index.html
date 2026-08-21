@@ -1412,12 +1412,6 @@
       <button class="btn btn-secondary btn-manual-toggle" id="svcScanManualBtn">Enter Manually</button>
     </div>
 
-    <!-- Vehicles a driver/CXR flagged (status = a job type) from the normal
-         entry form that no mechanic has opened a job for yet — surfaced here
-         so it doesn't take scanning that exact VIN to notice. -->
-    <div class="today-header"><span class="today-title">Flagged, Not Started</span><span class="today-count" id="svcFlaggedCount">0</span></div>
-    <div id="svcFlaggedList"><div class="u-empty">Loading…</div></div>
-
     <div class="today-header"><span class="today-title">Open Jobs</span><span class="today-count" id="svcOpenJobsCount">0</span></div>
     <div id="svcOpenJobsList"><div class="u-empty">Loading…</div></div>
 
@@ -1429,6 +1423,12 @@
 
     <div class="today-header"><span class="today-title">Closed This Week</span><span class="today-count" id="svcClosedJobsCount">0</span></div>
     <div id="svcClosedJobsList"><div class="u-empty">Loading…</div></div>
+
+    <!-- Vehicles a driver/CXR flagged (status = a job type) from the normal
+         entry form that no mechanic has opened a job for yet — surfaced here
+         so it doesn't take scanning that exact VIN to notice. -->
+    <div class="today-header"><span class="today-title">Flagged, Not Started</span><span class="today-count" id="svcFlaggedCount">0</span></div>
+    <div id="svcFlaggedList"><div class="u-empty">Loading…</div></div>
   </div>
 
   <!-- Shown instead of the form when a scanned VIN already has more than one
@@ -1451,17 +1451,40 @@
   </div>
 
   <div id="svcScanForm" class="u-hidden">
+    <div class="panel-back-row">
+      <button type="button" class="btn btn-secondary btn--sm" id="svcBackBtn">
+        <svg class="icon" aria-hidden="true"><use href="#icon-back"/></svg> Back
+      </button>
+    </div>
     <div class="detail-vin-header">
       <div>
         <div class="detail-vin-label">VIN</div>
         <div class="detail-vin-value" id="svcFormVin">—</div>
       </div>
-      <button type="button" class="btn btn-secondary btn--sm" id="svcBackBtn">
-        <svg class="icon" aria-hidden="true"><use href="#icon-back"/></svg> Back
-      </button>
     </div>
 
+    <!-- Most recent note on file for this VIN (driver flag, CXR note, an
+         earlier mechanic touch, ...) — read-only context, not an input. -->
+    <div class="svc-state-banner svc-state-banner--driver-note u-hidden" id="svcDriverNote"></div>
+
     <div class="svc-state-banner u-hidden" id="svcStateBanner"></div>
+
+    <!-- Read-only — same DT_DAMAGE viewers the VIN LOOKUP timeline uses,
+         so a mechanic sees what's on file before working a BODY/TI job. -->
+    <details class="disclosure vin-tl-collapse u-hidden" id="svcDamageCollapse">
+      <summary class="disclosure-summary">
+        <span class="field-label">Body damage on file</span>
+        <span class="disclosure-count" id="svcDamageCount"></span>
+      </summary>
+      <div class="disclosure-body"><div id="svcDamageMount"></div></div>
+    </details>
+    <details class="disclosure vin-tl-collapse u-hidden" id="svcTireCollapse">
+      <summary class="disclosure-summary">
+        <span class="field-label">Tires — latest</span>
+        <span class="disclosure-count" id="svcTireCount"></span>
+      </summary>
+      <div class="disclosure-body"><div id="svcTireMount"></div></div>
+    </details>
 
     <div class="svc-waiting-row u-hidden" id="svcWaitingRow">
       <button type="button" class="btn btn-secondary btn--sm" id="svcWaitingBtn">Mark Waiting on Parts</button>
@@ -1484,21 +1507,25 @@
       </select>
     </label>
 
-    <label class="field-row" id="svcDestinationRow">
-      <span class="field-label">Location</span>
-      <select id="svcDestination">
-        <option value="">-- LOCATION --</option>
-      </select>
-    </label>
+    <div class="entry-form-row">
+      <label class="field-row" id="svcDestinationRow">
+        <span class="field-label">Location</span>
+        <select id="svcDestination">
+          <option value="">-- LOCATION --</option>
+        </select>
+      </label>
 
-    <label class="field-row">
-      <span class="field-label">Mileage</span>
-      <input type="number" id="svcMileage" inputmode="numeric" min="0" step="1" placeholder="000000" autocomplete="off">
-    </label>
+      <label class="field-row">
+        <span class="field-label">Mileage</span>
+        <input type="number" id="svcMileage" inputmode="numeric" min="0" step="1" placeholder="000000" autocomplete="off">
+      </label>
+    </div>
 
-    <label class="field-row">
-      <span class="field-label">Notes</span>
-      <textarea id="svcNotes" placeholder="What's being done..."></textarea>
+    <div class="detail-subhead">What's Being Done</div>
+    <div class="detail-conditions" id="svcActionChips"></div>
+    <label class="field-row u-hidden" id="svcActionOtherRow">
+      <span class="field-label">Specify</span>
+      <input type="text" id="svcActionOther" placeholder="Describe the specialty issue..." maxlength="120">
     </label>
 
     <div class="detail-subhead">Parts</div>
@@ -1506,6 +1533,15 @@
     <div class="svc-part-add">
       <input type="text" id="svcPartInput" placeholder="Add a part..." maxlength="80">
       <button type="button" class="btn btn-secondary btn--sm" id="svcPartAddBtn" aria-label="Add part">
+        <svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg>
+      </button>
+    </div>
+
+    <div class="detail-subhead">Job Notes</div>
+    <div class="svc-notes-list" id="svcNotesLogList"></div>
+    <div class="svc-part-add">
+      <input type="text" id="svcNoteInput" placeholder="Add a note..." maxlength="500">
+      <button type="button" class="btn btn-secondary btn--sm" id="svcNoteAddBtn" aria-label="Add note">
         <svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg>
       </button>
     </div>

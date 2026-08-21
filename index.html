@@ -1412,6 +1412,12 @@
       <button class="btn btn-secondary btn-manual-toggle" id="svcScanManualBtn">Enter Manually</button>
     </div>
 
+    <!-- Vehicles a driver/CXR flagged (status = a job type) from the normal
+         entry form that no mechanic has opened a job for yet — surfaced here
+         so it doesn't take scanning that exact VIN to notice. -->
+    <div class="today-header"><span class="today-title">Flagged, Not Started</span><span class="today-count" id="svcFlaggedCount">0</span></div>
+    <div id="svcFlaggedList"><div class="u-empty">Loading…</div></div>
+
     <div class="today-header"><span class="today-title">Open Jobs</span><span class="today-count" id="svcOpenJobsCount">0</span></div>
     <div id="svcOpenJobsList"><div class="u-empty">Loading…</div></div>
 

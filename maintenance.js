@@ -34,6 +34,17 @@
   let currentJob = null; // { id, jobType, performedBy, performedByTouched, vendorId, destination, mileage, notes, parts, state, ... }
   let vendorCache = [];
 
+  // user_id -> display_name, resolved for "last touched by" attribution on
+  // job rows (mirrors announcements.js's profileCache/fetchProfileNames).
+  const profileCache = new Map();
+  async function fetchProfileNames(ids) {
+    const missing = [...new Set(ids)].filter(id => id && !profileCache.has(id));
+    if (!missing.length) return;
+    const { data } = await sb.from("profiles").select("id,display_name").in("id", missing);
+    (data || []).forEach(p => profileCache.set(p.id, p.display_name || "(no name)"));
+  }
+  function nameFor(id) { return id ? (profileCache.get(id) || "") : ""; }
+
   function start() {
     if (started) return;
     started = true;
@@ -120,6 +131,7 @@
     $("svcScanForm")?.classList.add("u-hidden");
     $("svcJobPicker")?.classList.add("u-hidden");
     $("svcScanEmpty")?.classList.remove("u-hidden");
+    loadFlaggedVehicles();
     loadOpenJobs();
     loadWaitingPartsJobs();
     loadVendorJobs();
@@ -216,6 +228,7 @@
       return;
     }
 
+    await fetchProfileNames(openJobs.flatMap((j) => [j.opened_by, j.updated_by]));
     showJobPicker(vin, openJobs, flaggedType ? { type: flaggedType, lastSeenAt: vehicle.last_seen_at } : null);
   }
 
@@ -243,12 +256,15 @@
     const list = $("svcJobPickerList");
     if (list) {
       list.innerHTML = jobs.length
-        ? jobs.map((j) => `
+        ? jobs.map((j) => {
+            const who = nameFor(j.updated_by || j.opened_by);
+            return `
             <div class="detail-history-row" data-job-id="${esc(j.id)}">
               <div class="detail-history-serial">${esc(statusLabel(j.job_type))}</div>
-              <div class="detail-history-meta">${esc(j.state)} · opened ${esc(ago(j.opened_at))}</div>
+              <div class="detail-history-meta">${esc(j.state)} · opened ${esc(ago(j.opened_at))}${who ? " · " + esc(who) : ""}</div>
             </div>
-          `).join("")
+          `;
+          }).join("")
         : `<div class="u-empty">No open jobs yet.</div>`;
       list.querySelectorAll(".detail-history-row").forEach((row) => {
         row.addEventListener("click", () => {
@@ -517,6 +533,7 @@
     const btn = $("svcSaveBtn");
     if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
 
+    const user = DT_AUTH.getUser();
     const payload = {
       serial_id: currentVin,
       job_type: currentJob.jobType,
@@ -525,11 +542,11 @@
       destination: currentJob.destination || null,
       mileage: currentJob.mileage,
       notes: currentJob.notes || null,
-      parts: currentJob.parts
+      parts: currentJob.parts,
+      updated_by: user?.id || null
     };
 
     if (!currentJob.id) {
-      const user = DT_AUTH.getUser();
       const recordId = await commitTransitionRecord({
         status: currentJob.jobType,
         destination: currentJob.destination,
@@ -568,7 +585,7 @@
     });
     const { error } = await sb.from("service_jobs").update({
       state: "SENT_OUT", sent_out_at: new Date().toISOString(), sent_out_record_id: recordId,
-      waiting_on_parts: false, waiting_since: null
+      waiting_on_parts: false, waiting_since: null, updated_by: DT_AUTH.getUser()?.id || null
     }).eq("id", currentJob.id);
     if (btn) btn.disabled = false;
     if (error) { DT_TOAST.show(error.message || "Couldn't send the job out", "error"); return; }
@@ -592,7 +609,7 @@
     });
     const { error } = await sb.from("service_jobs").update({
       state: "RETURNED", returned_at: new Date().toISOString(), returned_record_id: recordId,
-      destination: currentJob.destination
+      destination: currentJob.destination, updated_by: DT_AUTH.getUser()?.id || null
     }).eq("id", currentJob.id);
     if (btn) btn.disabled = false;
     if (error) { DT_TOAST.show(error.message || "Couldn't mark it returned", "error"); return; }
@@ -618,7 +635,8 @@
     const closedAt = new Date().toISOString();
     const { error } = await sb.from("service_jobs").update({
       state: "CLOSED", closed_at: closedAt, close_status: closeStatus, close_record_id: recordId,
-      destination: currentJob.destination, waiting_on_parts: false, waiting_since: null
+      destination: currentJob.destination, waiting_on_parts: false, waiting_since: null,
+      updated_by: DT_AUTH.getUser()?.id || null
     }).eq("id", currentJob.id);
     if (btn) btn.disabled = false;
     if (error) { DT_TOAST.show(error.message || "Couldn't close the job", "error"); return; }
@@ -643,6 +661,7 @@
     const payload = waiting
       ? { waiting_on_parts: true, parts_note: note || null, waiting_since: new Date().toISOString() }
       : { waiting_on_parts: false, waiting_since: null };
+    payload.updated_by = DT_AUTH.getUser()?.id || null;
     const { error } = await sb.from("service_jobs").update(payload).eq("id", currentJob.id);
     if (btn) btn.disabled = false;
     if (error) { DT_TOAST.show(error.message || "Couldn't update the job", "error"); return; }
@@ -654,9 +673,13 @@
   }
 
   // ---- landing lists ----
+  // "Last touched by" falls back to opened_by so a job saved before the
+  // updated_by column existed still shows an attribution instead of blank.
   function renderJobRow(j) {
     const metaBits = [statusLabel(j.job_type)];
     if (j.performed_by === "vendor") metaBits.push(j.state === "SENT_OUT" ? "at vendor" : "vendor job");
+    const who = nameFor(j.updated_by || j.opened_by);
+    if (who) metaBits.push(who);
     return `
       <div class="detail-history-row" data-job-id="${esc(j.id)}">
         <div class="detail-history-serial">${esc(j.serial_id)}</div>
@@ -671,14 +694,42 @@
     });
   }
 
+  // Vehicles a driver/CXR flagged (current_status = a job type) that no
+  // mechanic has opened a matching job for yet — see the loadVin comment
+  // above for why this can otherwise sit invisible until someone happens
+  // to scan that exact VIN.
+  async function loadFlaggedVehicles() {
+    const el = $("svcFlaggedList"), countEl = $("svcFlaggedCount");
+    if (!el) return;
+    const [vehRes, jobsRes] = await Promise.all([
+      sb.from("vehicles").select("serial_id,current_status,last_seen_at").in("current_status", JOB_TYPES),
+      sb.from("service_jobs").select("serial_id,job_type").neq("state", "CLOSED")
+    ]);
+    if (vehRes.error) { el.innerHTML = `<div class="u-empty">${esc(vehRes.error.message)}</div>`; if (countEl) countEl.textContent = "0"; return; }
+    if (jobsRes.error) console.warn("[Maint] loadFlaggedVehicles jobs", jobsRes.error);
+    const openPairs = new Set((jobsRes.data || []).map(j => `${j.serial_id}::${j.job_type}`));
+    const flagged = (vehRes.data || []).filter(v => !openPairs.has(`${v.serial_id}::${v.current_status}`));
+    if (countEl) countEl.textContent = String(flagged.length);
+    el.innerHTML = flagged.length ? flagged.map(v => `
+      <div class="detail-history-row" data-vin="${esc(v.serial_id)}">
+        <div class="detail-history-serial">${esc(v.serial_id)}</div>
+        <div class="detail-history-meta">${esc(statusLabel(v.current_status))} · flagged ${esc(ago(v.last_seen_at))}</div>
+      </div>
+    `).join("") : `<div class="u-empty">Nothing flagged.</div>`;
+    el.querySelectorAll(".detail-history-row").forEach(row => {
+      row.addEventListener("click", () => loadVin(row.dataset.vin));
+    });
+  }
+
   async function loadOpenJobs() {
     const el = $("svcOpenJobsList"), countEl = $("svcOpenJobsCount");
     if (!el) return;
     // Jobs waiting on parts have their own bucket below — don't list them twice.
     const { data, error } = await sb
-      .from("service_jobs").select("id,serial_id,job_type,performed_by,state,opened_at")
+      .from("service_jobs").select("id,serial_id,job_type,performed_by,state,opened_at,opened_by,updated_by")
       .eq("state", "OPEN").eq("waiting_on_parts", false).order("opened_at", { ascending: false }).limit(50);
     if (error) { el.innerHTML = `<div class="u-empty">${esc(error.message)}</div>`; if (countEl) countEl.textContent = "0"; return; }
+    await fetchProfileNames((data || []).flatMap(j => [j.opened_by, j.updated_by]));
     if (countEl) countEl.textContent = String((data || []).length);
     el.innerHTML = data && data.length ? data.map(renderJobRow).join("") : `<div class="u-empty">No open jobs.</div>`;
     wireJobRows(el);
@@ -688,16 +739,18 @@
     const el = $("svcWaitingJobsList"), countEl = $("svcWaitingJobsCount");
     if (!el) return;
     const { data, error } = await sb
-      .from("service_jobs").select("id,serial_id,job_type,performed_by,state,opened_at,waiting_since")
+      .from("service_jobs").select("id,serial_id,job_type,performed_by,state,opened_at,waiting_since,opened_by,updated_by")
       .eq("waiting_on_parts", true).neq("state", "CLOSED").order("waiting_since", { ascending: false }).limit(50);
     if (error) { el.innerHTML = `<div class="u-empty">${esc(error.message)}</div>`; if (countEl) countEl.textContent = "0"; return; }
+    await fetchProfileNames((data || []).flatMap(j => [j.opened_by, j.updated_by]));
     if (countEl) countEl.textContent = String((data || []).length);
     el.innerHTML = data && data.length ? data.map(j => {
       const days = j.waiting_since ? Math.floor((Date.now() - new Date(j.waiting_since).getTime()) / 86400000) : 0;
+      const who = nameFor(j.updated_by || j.opened_by);
       return `
         <div class="detail-history-row" data-job-id="${esc(j.id)}">
           <div class="detail-history-serial">${esc(j.serial_id)}</div>
-          <div class="detail-history-meta">${esc(statusLabel(j.job_type))} · waiting ${esc(ago(j.waiting_since))}
+          <div class="detail-history-meta">${esc(statusLabel(j.job_type))} · waiting ${esc(ago(j.waiting_since))}${who ? " · " + esc(who) : ""}
             ${days >= 1 ? `<span class="svc-days-out">${days} day${days === 1 ? "" : "s"}</span>` : ""}
           </div>
         </div>
@@ -710,16 +763,18 @@
     const el = $("svcVendorJobsList"), countEl = $("svcVendorJobsCount");
     if (!el) return;
     const { data, error } = await sb
-      .from("service_jobs").select("id,serial_id,job_type,performed_by,state,opened_at,sent_out_at,vendor_id")
+      .from("service_jobs").select("id,serial_id,job_type,performed_by,state,opened_at,sent_out_at,vendor_id,opened_by,updated_by")
       .eq("state", "SENT_OUT").order("sent_out_at", { ascending: false }).limit(50);
     if (error) { el.innerHTML = `<div class="u-empty">${esc(error.message)}</div>`; if (countEl) countEl.textContent = "0"; return; }
+    await fetchProfileNames((data || []).flatMap(j => [j.opened_by, j.updated_by]));
     if (countEl) countEl.textContent = String((data || []).length);
     el.innerHTML = data && data.length ? data.map(j => {
       const days = j.sent_out_at ? Math.floor((Date.now() - new Date(j.sent_out_at).getTime()) / 86400000) : 0;
+      const who = nameFor(j.updated_by || j.opened_by);
       return `
         <div class="detail-history-row" data-job-id="${esc(j.id)}">
           <div class="detail-history-serial">${esc(j.serial_id)}</div>
-          <div class="detail-history-meta">${esc(statusLabel(j.job_type))} · sent ${esc(ago(j.sent_out_at))}
+          <div class="detail-history-meta">${esc(statusLabel(j.job_type))} · sent ${esc(ago(j.sent_out_at))}${who ? " · " + esc(who) : ""}
             ${days >= 1 ? `<span class="svc-days-out">${days} day${days === 1 ? "" : "s"} out</span>` : ""}
           </div>
         </div>
@@ -733,23 +788,27 @@
     if (!el) return;
     const since = new Date(Date.now() - 7 * 86400000).toISOString();
     const { data, error } = await sb
-      .from("service_jobs").select("id,serial_id,job_type,close_status,closed_at")
+      .from("service_jobs").select("id,serial_id,job_type,close_status,closed_at,opened_by,updated_by")
       .eq("state", "CLOSED").gte("closed_at", since).order("closed_at", { ascending: false }).limit(50);
     if (error) { el.innerHTML = `<div class="u-empty">${esc(error.message)}</div>`; if (countEl) countEl.textContent = "0"; return; }
+    await fetchProfileNames((data || []).flatMap(j => [j.opened_by, j.updated_by]));
     if (countEl) countEl.textContent = String((data || []).length);
-    el.innerHTML = data && data.length ? data.map(j => `
+    el.innerHTML = data && data.length ? data.map(j => {
+      const who = nameFor(j.updated_by || j.opened_by);
+      return `
       <div class="detail-history-row done" data-job-id="${esc(j.id)}">
         <div class="detail-history-serial">${esc(j.serial_id)}</div>
-        <div class="detail-history-meta">${esc(statusLabel(j.job_type))} · closed ${esc(ago(j.closed_at))}</div>
+        <div class="detail-history-meta">${esc(statusLabel(j.job_type))} · closed ${esc(ago(j.closed_at))}${who ? " · " + esc(who) : ""}</div>
       </div>
-    `).join("") : `<div class="u-empty">Nothing closed in the last 7 days.</div>`;
+    `;
+    }).join("") : `<div class="u-empty">Nothing closed in the last 7 days.</div>`;
     wireJobRows(el);
   }
 
   // ---- personal dashboard ----
   async function renderDashboard() {
     const { data, error } = await sb
-      .from("service_jobs").select("id,serial_id,job_type,performed_by,state,opened_at,closed_at,waiting_on_parts")
+      .from("service_jobs").select("id,serial_id,job_type,performed_by,state,opened_at,closed_at,waiting_on_parts,opened_by,updated_by")
       .order("opened_at", { ascending: false }).limit(500);
     if (error) { console.warn("[Maint Dash]", error); return; }
     const jobs = data || [];
@@ -770,6 +829,7 @@
     const recentEl = $("svcRecentList");
     if (recentEl) {
       const recent = jobs.slice(0, 10);
+      await fetchProfileNames(recent.flatMap(j => [j.opened_by, j.updated_by]));
       recentEl.innerHTML = recent.length ? recent.map(renderJobRow).join("") : `<div class="u-empty">No jobs yet.</div>`;
       wireJobRows(recentEl);
     }
@@ -789,7 +849,7 @@
   // nothing was listening yet, so the landing lists never loaded and sat on
   // their static "Loading…" placeholders forever.
   document.addEventListener("dt-tab-shown", (e) => {
-    if (e.detail === "service-scan") { loadOpenJobs(); loadWaitingPartsJobs(); loadVendorJobs(); loadClosedJobs(); }
+    if (e.detail === "service-scan") { loadFlaggedVehicles(); loadOpenJobs(); loadWaitingPartsJobs(); loadVendorJobs(); loadClosedJobs(); }
   });
 
   window.DT_MAINT = { loadVin, showLandingScreen, renderDashboard };

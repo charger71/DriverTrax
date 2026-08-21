@@ -689,6 +689,7 @@
     if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
 
     const user = DT_AUTH.getUser();
+    const isUpdate = !!currentJob.id;
     const payload = {
       serial_id: currentVin,
       job_type: currentJob.jobType,
@@ -703,6 +704,7 @@
       updated_by: user?.id || null
     };
 
+    let saveError = null;
     if (!currentJob.id) {
       const recordId = await commitTransitionRecord({
         status: currentJob.jobType,
@@ -712,15 +714,21 @@
       payload.opened_by = user?.id || null;
       payload.open_record_id = recordId;
       const { data, error } = await sb.from("service_jobs").insert(payload).select("id").single();
+      saveError = error;
       if (error) { DT_TOAST.show(error.message || "Couldn't save the job", "error"); }
       else { currentJob.id = data.id; DT_TOAST.show("Job opened", "success"); }
     } else {
       const { error } = await sb.from("service_jobs").update(payload).eq("id", currentJob.id);
+      saveError = error;
       if (error) DT_TOAST.show(error.message || "Couldn't save the job", "error");
       else DT_TOAST.show("Saved", "success");
     }
 
     if (btn) btn.disabled = false;
+    // Updating an already-open job reads as "done editing" — head back to
+    // the landing list. A brand-new job (Save, not Update) stays on the
+    // form so Send to Vendor / Close Job etc. can immediately follow it.
+    if (isUpdate && !saveError) { showLandingScreen(); return; }
     renderForm();
   }
 

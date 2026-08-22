@@ -475,9 +475,14 @@
     loadFromRecord,
     renderDamageViewer,
     renderTireViewer,
-    // COLORS used to be exported here; nothing consumed it, and the palette
-    // now lives in app.css (--damage-*). Use DT_UI.cssVar if you need one.
-    LABELS, PANEL_NAMES,
-    TIRE_POSITIONS, TIRE_POS_LABEL, TIRE_CONDITION_LABEL
+    LABELS, PANEL_NAMES, PICKER_GROUPS,
+    TIRE_POSITIONS, TIRE_POS_LABEL, TIRE_CONDITIONS, TIRE_CONDITION_LABEL,
+    // Below: exported so maintenance.js can build its own independent,
+    // interactive damage/tire editor (a mechanic marking what a driver may
+    // have missed) without a second copy of the ~200-path vehicle SVG or a
+    // second color palette. damageColor/makeMarkNode/cloneSilhouette were
+    // already stateless — nothing here changes existing entry-form behavior.
+    damageColor, makeMarkNode,
+    cloneSilhouette: _cloneDamageSilhouette
   };
 })();

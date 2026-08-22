@@ -1483,23 +1483,49 @@
       </label>
     </div>
 
-    <!-- Read-only — same DT_DAMAGE viewers the VIN LOOKUP timeline uses,
-         so a mechanic sees what's on file before working a BODY/TI job.
-         Opened by default (not just unhidden) when there's something to
-         show — see renderVehicleContext in maintenance.js. -->
-    <details class="disclosure vin-tl-collapse u-hidden" id="svcDamageCollapse">
+    <!-- Editable, seeded from every records row on file for this VIN (driver
+         flags, CXR notes, an earlier mechanic's own marks) — a mechanic
+         inspecting the car in person can add what a driver may not have
+         seen, not just view what's already reported. Built from an
+         interactive clone of #entryDamageSvg (see DT_DAMAGE.cloneSilhouette
+         in damage.js) rather than a second copy of the diagram. Always
+         reachable (unlike the old read-only version, which hid itself when
+         empty) since there's now always something a mechanic might add;
+         opens by default only when there's existing data to review first —
+         see renderVehicleContext in maintenance.js. -->
+    <details class="disclosure vin-tl-collapse" id="svcDamageCollapse">
       <summary class="disclosure-summary">
-        <span class="field-label">Body damage on file</span>
+        <span class="field-label">Body Damage</span>
         <span class="disclosure-count" id="svcDamageCount"></span>
       </summary>
-      <div class="disclosure-body"><div id="svcDamageMount"></div></div>
+      <div class="disclosure-body">
+        <div class="damage-chips" id="svcDamageChips" role="radiogroup" aria-label="Damage type"></div>
+        <div class="damage-svg-wrap" id="svcDamageSvgWrap"></div>
+        <div class="damage-picker-row">
+          <select id="svcDamagePicker" class="damage-picker-select" aria-label="Pick a panel">
+            <option value="">Pick a panel…</option>
+          </select>
+          <button type="button" id="svcDamagePickerAdd" class="damage-picker-add" disabled>Add</button>
+        </div>
+        <div class="damage-log-card">
+          <div class="damage-log-header">
+            <span>Damage log</span>
+            <span id="svcDamageLogCount" class="damage-count-badge">00</span>
+          </div>
+          <div id="svcDamageList" class="damage-log-list">
+            <div class="damage-empty">— no damage recorded —</div>
+          </div>
+        </div>
+      </div>
     </details>
-    <details class="disclosure vin-tl-collapse u-hidden" id="svcTireCollapse">
+    <details class="disclosure vin-tl-collapse" id="svcTireCollapse">
       <summary class="disclosure-summary">
-        <span class="field-label">Tires — latest</span>
+        <span class="field-label">Tires</span>
         <span class="disclosure-count" id="svcTireCount"></span>
       </summary>
-      <div class="disclosure-body"><div id="svcTireMount"></div></div>
+      <div class="disclosure-body">
+        <div id="svcTireEditStrip" class="dt-tire-strip"></div>
+      </div>
     </details>
 
     <div class="detail-subhead">Job Type</div>

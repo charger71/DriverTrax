@@ -752,6 +752,35 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
       </div>
     </div>
   </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Damage/tire editor — a mechanic's own interactive diagram, seeded with everything already on file so additions build on the full picture instead of a blank one (a driver may not have caught everything). Built from an interactive clone of the driver form's <code>#entryDamageSvg</code> via <code>DT_DAMAGE.cloneSilhouette</code> rather than a second copy of the diagram — see <code>maintenance.js</code>'s damage/tire editor functions.</div>
+    <div class="cl-preview cl-stack">
+      <div class="damage-chips" role="radiogroup" aria-label="Damage type">
+        <button type="button" class="damage-chip active"><span class="damage-sw" style="background:#EF9F27"></span>Dent</button>
+        <button type="button" class="damage-chip"><span class="damage-sw" style="background:#D85A30"></span>Scratch</button>
+        <button type="button" class="damage-chip"><span class="damage-sw" style="background:#7F77DD"></span>Chip</button>
+      </div>
+      <div class="damage-log-card">
+        <div class="damage-log-header"><span>Damage log</span><span class="damage-count-badge">01</span></div>
+        <div class="damage-log-list">
+          <div class="damage-log-row">
+            <span class="damage-log-num" style="background:#EF9F27">1</span>
+            <span class="damage-log-name"><span class="damage-log-type">Dent</span><span class="damage-log-loc"> · Hood</span></span>
+            <button type="button" class="damage-log-del" aria-label="Remove">&times;</button>
+          </div>
+        </div>
+      </div>
+      <div class="dt-tire-strip" style="max-width:220px;">
+        <div class="dt-tire-card">
+          <div class="dt-tire-card-head"><span class="dt-tire-pos">FL</span><span class="dt-tire-cond dt-tire-cond--worn">Worn</span></div>
+          <div class="dt-tire-pos-label">Front left</div>
+          <label class="dt-tire-field"><span>Condition</span><select><option>Worn</option></select></label>
+          <label class="dt-tire-field"><span>PSI</span><input type="number" value="28"></label>
+        </div>
+      </div>
+    </div>
+  </div>
 </section>
 
 <!-- ===================== VIN HISTORY ===================== -->

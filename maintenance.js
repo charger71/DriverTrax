@@ -42,6 +42,19 @@
   let vendorCache = [];
   let contextLoadedForVin = null; // guards renderVehicleContext to once per VIN, not once per renderForm() call
 
+  // ---- damage/tire editor state ----
+  // A mechanic's own marks, seeded from every records row on file for the
+  // VIN (driver flags, CXR notes, an earlier mechanic's own marks) so
+  // additions build on the full picture instead of a blank one — see
+  // renderVehicleContext. Sent with every records row this module writes
+  // (commitTransitionRecord) so it round-trips through the same
+  // damage_marks/tire_details columns and aggregation the driver entry
+  // form and VIN LOOKUP already use.
+  let damageMarks = [];        // [{ panel_id, damage_type, x, y }]
+  let damageActiveType = "dent";
+  let mechTireDetails = {};    // { FL: { condition, psi }, ... }
+  let damageSvgClone = null;   // built once per VIN load, reused across re-renders
+
   // user_id -> display_name, resolved for "last touched by" attribution on
   // job rows (mirrors announcements.js's profileCache/fetchProfileNames).
   const profileCache = new Map();
@@ -81,6 +94,13 @@
       if (!chip || isJobLocked()) return;
       onJobTypeChosen(chip.dataset.type);
     });
+    $("svcDamageChips")?.addEventListener("click", (e) => {
+      const chip = e.target.closest(".damage-chip");
+      if (!chip) return;
+      damageActiveType = chip.dataset.type;
+      renderDamageChips();
+    });
+    initDamagePicker();
     $("svcPerformedToggle")?.addEventListener("click", (e) => {
       const btn = e.target.closest("button");
       if (!btn || isJobLocked()) return;
@@ -198,12 +218,8 @@
   // position) — kept local here rather than shared since app.js computes it
   // inline as part of a much larger render, not as a callable helper.
   async function renderVehicleContext(vin) {
-    const damageEl = $("svcDamageMount"), tireEl = $("svcTireMount");
     const damageCollapse = $("svcDamageCollapse"), tireCollapse = $("svcTireCollapse");
     const noteEl = $("svcDriverNote");
-    if (!damageEl || !tireEl) return;
-    damageCollapse?.classList.add("u-hidden");
-    tireCollapse?.classList.add("u-hidden");
     noteEl?.classList.add("u-hidden");
 
     const { data, error } = await sb.from("records")
@@ -214,7 +230,7 @@
 
     const markMap = new Map();
     const tireDetails = {};
-    let claimNum = "", claimNotes = "", legacyTires = [];
+    let claimNum = "", legacyTires = [];
     for (let i = records.length - 1; i >= 0; i--) {
       const rec = records[i];
       if (Array.isArray(rec.damage_marks)) {
@@ -223,33 +239,24 @@
       if (rec.tire_details && typeof rec.tire_details === "object") {
         Object.entries(rec.tire_details).forEach(([pos, val]) => { tireDetails[pos] = val; });
       }
-      if (rec.claim_number) { claimNum = rec.claim_number; claimNotes = rec.claim_notes || ""; }
+      if (rec.claim_number) { claimNum = rec.claim_number; }
       if (Array.isArray(rec.tires) && rec.tires.length) legacyTires = rec.tires;
     }
     const marks = Array.from(markMap.values());
-    const hasDamage = marks.length > 0 || !!claimNum;
-    const hasTire = Object.keys(tireDetails).length > 0 || legacyTires.length > 0;
 
-    if (window.DT_DAMAGE) {
-      if (hasDamage) {
-        const countEl = $("svcDamageCount");
-        if (countEl) countEl.textContent = marks.length ? `${marks.length} mark${marks.length === 1 ? "" : "s"}` : "claim";
-        DT_DAMAGE.renderDamageViewer(damageEl, { damage_marks: marks, claim_number: claimNum, claim_notes: claimNotes });
-        damageCollapse?.classList.remove("u-hidden");
-        if (damageCollapse) damageCollapse.open = true;
-      }
-      if (hasTire) {
-        const flagged = DT_DAMAGE.TIRE_POSITIONS.filter((pos) => {
-          const t = tireDetails[pos];
-          return (t && t.condition && t.condition !== "OK") || legacyTires.includes(pos);
-        }).length;
-        const countEl = $("svcTireCount");
-        if (countEl) countEl.textContent = flagged ? `${flagged} flagged` : "";
-        DT_DAMAGE.renderTireViewer(tireEl, { tire_details: tireDetails, tires: legacyTires });
-        tireCollapse?.classList.remove("u-hidden");
-        if (tireCollapse) tireCollapse.open = true;
-      }
-    }
+    // Seed the editor with everything on file (driver + any prior mechanic
+    // touch) so a mechanic's own additions build on the full picture
+    // instead of starting blank — see the module header comment.
+    damageMarks = marks;
+    mechTireDetails = tireDetails;
+    renderDamageChips();
+    renderDamageMarks();
+    renderTireEditor();
+    // Open by default only when there's something to review first; stays
+    // reachable-but-collapsed otherwise since it's an input now, not just a
+    // display — a mechanic may want to add damage to a car with none on file.
+    if (damageCollapse) damageCollapse.open = marks.length > 0 || !!claimNum;
+    if (tireCollapse) tireCollapse.open = Object.keys(tireDetails).length > 0 || legacyTires.length > 0;
 
     // Most recent note on file, read-only — whatever role wrote it (driver
     // flag, CXR note, an earlier mechanic touch).
@@ -268,6 +275,190 @@
       if (currentJob.mileage == null && Number.isFinite(latest.mileage)) { currentJob.mileage = latest.mileage; changed = true; }
       if (changed) renderForm();
     }
+  }
+
+  // ---- damage editor (mirrors damage.js's own driver-form UI, reusing its
+  // shared vocabulary/clone/mark-node helpers rather than duplicating the
+  // ~200-path vehicle SVG or the color palette; kept independent of its
+  // module state since window.selectedTires/updateTireLabel are
+  // driver-status-specific and don't apply here) ----
+  function renderDamageChips() {
+    const el = $("svcDamageChips");
+    if (!el || !window.DT_DAMAGE) return;
+    el.innerHTML = Object.entries(DT_DAMAGE.LABELS).map(([type, label]) => `
+      <button type="button" class="damage-chip ${type === damageActiveType ? "active" : ""}" data-type="${esc(type)}">
+        <span class="damage-sw" style="background:${DT_DAMAGE.damageColor(type)}"></span>${esc(label)}
+      </button>
+    `).join("");
+  }
+
+  function ensureDamageSvg() {
+    if (damageSvgClone) return damageSvgClone;
+    const wrap = $("svcDamageSvgWrap");
+    if (!wrap || !window.DT_DAMAGE) return null;
+    const svg = DT_DAMAGE.cloneSilhouette();
+    if (!svg) return null;
+    Object.keys(DT_DAMAGE.PANEL_NAMES).forEach((id) => {
+      const el = svg.querySelector(`[data-panel="${id}"]`);
+      if (!el) return;
+      el.classList.add("panel-hit");
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const pt = svg.createSVGPoint();
+        pt.x = e.clientX; pt.y = e.clientY;
+        const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
+        damageMarks.push({ panel_id: id, damage_type: damageActiveType, x: loc.x, y: loc.y });
+        renderDamageMarks();
+      });
+    });
+    wrap.appendChild(svg);
+    damageSvgClone = svg;
+    return svg;
+  }
+
+  function renderDamageMarks() {
+    const svg = ensureDamageSvg();
+    if (!svg) return;
+    const marksGroup = svg.querySelector(".entry-damage-marks");
+    if (marksGroup) { while (marksGroup.firstChild) marksGroup.removeChild(marksGroup.firstChild); }
+    svg.querySelectorAll(".panel-hit.has-damage").forEach((el) => el.classList.remove("has-damage"));
+    damageMarks.forEach((m, idx) => {
+      if (marksGroup) marksGroup.appendChild(DT_DAMAGE.makeMarkNode(m, idx));
+      const panel = svg.querySelector(`[data-panel="${m.panel_id}"]`);
+      if (panel) panel.classList.add("has-damage");
+    });
+    renderDamageLog();
+    updateDamageCounts();
+  }
+
+  function renderDamageLog() {
+    const list = $("svcDamageList");
+    if (!list || !window.DT_DAMAGE) return;
+    if (!damageMarks.length) { list.innerHTML = `<div class="damage-empty">— no damage recorded —</div>`; return; }
+    list.innerHTML = damageMarks.map((m, idx) => {
+      const color = DT_DAMAGE.damageColor(m.damage_type);
+      const label = DT_DAMAGE.LABELS[m.damage_type] || m.damage_type;
+      const location = DT_DAMAGE.PANEL_NAMES[m.panel_id] || m.panel_id;
+      return `
+        <div class="damage-log-row">
+          <span class="damage-log-num" style="background:${color}">${idx + 1}</span>
+          <span class="damage-log-name">
+            <span class="damage-log-type">${esc(label)}</span>
+            <span class="damage-log-loc"> · ${esc(location)}</span>
+          </span>
+          <button type="button" class="damage-log-del" data-idx="${idx}" aria-label="Remove">&times;</button>
+        </div>
+      `;
+    }).join("");
+    list.querySelectorAll(".damage-log-del").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const idx = parseInt(btn.dataset.idx, 10);
+        if (Number.isFinite(idx)) { damageMarks.splice(idx, 1); renderDamageMarks(); }
+      });
+    });
+  }
+
+  function updateDamageCounts() {
+    const badge = $("svcDamageLogCount");
+    if (badge) badge.textContent = String(damageMarks.length).padStart(2, "0");
+    const summary = $("svcDamageCount");
+    if (summary) summary.textContent = damageMarks.length ? `${damageMarks.length} mark${damageMarks.length === 1 ? "" : "s"}` : "";
+  }
+
+  // Wired once from start() — populates the panel-picker <select> (fallback
+  // for hard-to-tap panels, same reasoning as damage.js's own).
+  function initDamagePicker() {
+    const picker = $("svcDamagePicker");
+    const pickerAdd = $("svcDamagePickerAdd");
+    if (!picker || !pickerAdd || !window.DT_DAMAGE) return;
+    Object.entries(DT_DAMAGE.PICKER_GROUPS).forEach(([section, ids]) => {
+      const og = document.createElement("optgroup");
+      og.label = section;
+      ids.forEach((id) => {
+        const opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = DT_DAMAGE.PANEL_NAMES[id];
+        og.appendChild(opt);
+      });
+      picker.appendChild(og);
+    });
+    picker.addEventListener("change", () => { pickerAdd.disabled = !picker.value; });
+    pickerAdd.addEventListener("click", () => {
+      const id = picker.value;
+      const svg = ensureDamageSvg();
+      if (!id || !svg) return;
+      const el = svg.querySelector(`[data-panel="${id}"]`);
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const pt = svg.createSVGPoint();
+      pt.x = rect.left + rect.width / 2;
+      pt.y = rect.top + rect.height / 2;
+      const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
+      damageMarks.push({ panel_id: id, damage_type: damageActiveType, x: loc.x, y: loc.y });
+      renderDamageMarks();
+      picker.value = "";
+      pickerAdd.disabled = true;
+    });
+  }
+
+  // ---- tire editor (mirrors damage.js's renderTireStrip markup/behavior,
+  // minus the window.selectedTires/updateTireLabel sync — that's the
+  // driver form's own status="TI" display, unrelated to a mechanic's
+  // tire_details tracking here) ----
+  function renderTireEditor() {
+    const container = $("svcTireEditStrip");
+    if (!container || !window.DT_DAMAGE) return;
+    container.innerHTML = DT_DAMAGE.TIRE_POSITIONS.map((pos) => {
+      const t = mechTireDetails[pos] || {};
+      const cond = t.condition || "OK";
+      const psi = t.psi != null ? t.psi : "";
+      return `<div class="dt-tire-card" data-pos="${pos}">
+        <div class="dt-tire-card-head">
+          <span class="dt-tire-pos">${pos}</span>
+          <span class="dt-tire-cond dt-tire-cond--${cond}" data-cond-chip>${esc(DT_DAMAGE.TIRE_CONDITION_LABEL[cond])}</span>
+        </div>
+        <div class="dt-tire-pos-label">${esc(DT_DAMAGE.TIRE_POS_LABEL[pos])}</div>
+        <label class="dt-tire-field">
+          <span>Condition</span>
+          <select class="dt-tire-condition-select">
+            ${DT_DAMAGE.TIRE_CONDITIONS.map((c) => `<option value="${c}"${c === cond ? " selected" : ""}>${esc(DT_DAMAGE.TIRE_CONDITION_LABEL[c])}</option>`).join("")}
+          </select>
+        </label>
+        <label class="dt-tire-field">
+          <span>PSI</span>
+          <input type="number" class="dt-tire-psi-input" min="0" max="200" step="1" value="${esc(psi)}" placeholder="—" inputmode="numeric">
+        </label>
+      </div>`;
+    }).join("");
+
+    container.querySelectorAll(".dt-tire-card").forEach((card) => {
+      const pos = card.dataset.pos;
+      const sel = card.querySelector(".dt-tire-condition-select");
+      const psiInput = card.querySelector(".dt-tire-psi-input");
+      const chip = card.querySelector("[data-cond-chip]");
+      sel.addEventListener("change", () => {
+        const cond = sel.value;
+        chip.className = "dt-tire-cond dt-tire-cond--" + cond;
+        chip.textContent = DT_DAMAGE.TIRE_CONDITION_LABEL[cond];
+        mechTireDetails[pos] = { ...(mechTireDetails[pos] || {}), condition: cond };
+        updateTireEditorSummary();
+      });
+      psiInput.addEventListener("change", () => {
+        const raw = psiInput.value === "" ? null : Number(psiInput.value);
+        mechTireDetails[pos] = { ...(mechTireDetails[pos] || {}), psi: Number.isFinite(raw) ? raw : null };
+      });
+    });
+    updateTireEditorSummary();
+  }
+
+  function updateTireEditorSummary() {
+    const summary = $("svcTireCount");
+    if (!summary || !window.DT_DAMAGE) return;
+    const flagged = DT_DAMAGE.TIRE_POSITIONS.filter((pos) => {
+      const t = mechTireDetails[pos];
+      return t && t.condition && t.condition !== "OK";
+    }).length;
+    summary.textContent = flagged ? `${flagged} flagged` : "";
   }
 
   function freshJob() {
@@ -672,6 +863,8 @@
       notes: notes || "",
       mileage: Number.isFinite(currentJob.mileage) ? currentJob.mileage : null,
       fuel_level: null,
+      damage_marks: damageMarks,
+      tire_details: mechTireDetails,
       timestamp: Date.now()
     };
     if (loc) { recordData.lat = loc.lat; recordData.lng = loc.lng; }

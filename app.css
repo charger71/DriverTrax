@@ -351,6 +351,11 @@
   .entry-header-buttons .btn-manual-toggle {
     max-width: 50%;
   }
+  /* Driver entry form only — its header is a lone hero button, so it sits on
+     the same tightened rhythm as the fields below rather than the taller break
+     the detailer/service headers still use. */
+  #entryHeaderButtons { margin-bottom: var(--space-3); }
+  #manualEntrySection { margin-top: var(--space-3); }
 
   /* Entry-form row: side-by-side field groups (Mileage/Fuel, the hidden Location row). */
   .entry-form-row { display: flex; gap: var(--space-3); margin-top: var(--space-5); }
@@ -362,10 +367,11 @@
      here as "Status" does above its buttons — .field-label is inline, so its
      own margin-bottom never renders and the control has to supply the gap. */
   .entry-form-row input, .entry-form-row select {
-    margin-top: var(--space-4);
+    margin-top: var(--space-2);
     margin-bottom: 0;
   }
-  .entry-form-row + .field-row { margin-top: var(--space-5); }
+  .entry-form-row + .field-row { margin-top: var(--space-3); }
+  #entryFormBody .entry-form-row { margin-top: var(--space-3); }
 
   /* Checkbox row inside the entry-options collapse panel. */
   .checkbox-row { display: flex; gap: var(--space-3); }
@@ -466,7 +472,7 @@
   /* Input with clear button (X) */
   .input-with-clear { display: block; position: relative; margin-bottom: var(--space-6); }
   /* Entry form only: line the Serial ID group break up with the others. */
-  #manualEntrySection .input-with-clear { margin-bottom: var(--space-5); }
+  #manualEntrySection .input-with-clear { margin-bottom: var(--space-3); }
   .input-with-clear input[type=text] { padding-right: 88px; cursor: pointer; margin-bottom: 0; }
 
   .vin-charcount {
@@ -477,7 +483,7 @@
   .vin-charcount.valid { color: var(--accent); }
   /* Serial ID heading row: field name on the left, the live VIN counter pushed
      to the right, both sitting above the input rather than under it. */
-  .field-label-row--count { justify-content: space-between; margin-bottom: var(--space-4); }
+  .field-label-row--count { justify-content: space-between; margin-bottom: var(--space-3); }
   .field-label-row--count .field-label { margin-top: 0; margin-bottom: 0; }
   .field-label-row--count .vin-charcount { margin-top: 0; }
 
@@ -1335,7 +1341,7 @@
      distance above its buttons as those labels do above their inputs. The
      --more group keeps the tighter default; it sits inside a disclosure body
      that supplies its own padding. */
-  .status-btn-group--primary { margin-top: var(--space-4); gap: var(--space-3); }
+  .status-btn-group--primary { margin-top: var(--space-2); gap: var(--space-3); }
   .status-btn-group--primary .status-btn {
     flex: 1;
     min-height: 56px;

@@ -1,6 +1,6 @@
 // DriverTrax Service Worker
 // Provides offline support and caches app assets
-const CACHE_VERSION = "drivertrax-v9.61-entry-scan-margin";
+const CACHE_VERSION = "drivertrax-v9.62-dashboard-view-record-fix";
 // Every <script src> and <link href> in index.html must appear here. Anything
 // missing is unavailable on an offline cold start: cross-origin assets in
 // particular can't be backfilled at runtime by any reliable means, so a gap

@@ -172,6 +172,7 @@
     <li><a href="#tabs">Tabs</a></li>
     <li><a href="#side-menu">Side menu</a></li>
     <li><a href="#fields">Form fields</a></li>
+    <li><a href="#entry-form">Entry form layout</a></li>
     <li><a href="#badges">Badges</a></li>
     <li><a href="#status">Status chips</a></li>
     <li><a href="#status-buttons">Status buttons</a></li>
@@ -417,6 +418,93 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
     &lt;span class="field-label"&gt;Fuel&lt;/span&gt;
     &lt;select&gt;...&lt;/select&gt;
   &lt;/div&gt;
+&lt;/div&gt;</pre>
+  </div>
+</section>
+
+<!-- ===================== ENTRY FORM LAYOUT ===================== -->
+<section class="cl-section" id="entry-form">
+  <h2>Entry form layout</h2>
+  <p class="cl-desc">The New Entry screen&#39;s two spacing tiers. A label sits <code>--space-2</code> above its control; a break between field groups is <code>--space-3</code>. Keep the group break larger than the label gap &mdash; if they invert, a label reads as belonging to the field above it instead of to its own input. <code>.field-label</code> is <code>display:inline</code>, so its own <code>margin-bottom</code> never renders: the control supplies the gap.</p>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Header &mdash; hero only</div>
+    <div class="cl-preview cl-stack" style="max-width: 460px;">
+      <div class="entry-header-buttons entry-header-buttons--hero-only">
+        <button class="btn btn-primary btn--hero btn--full">SCAN BARCODE</button>
+      </div>
+      <span class="field-label">First field</span>
+      <input type="text" placeholder="…">
+    </div>
+<pre class="cl-code">&lt;!-- Only the hero button? Add --hero-only for the smaller break beneath.
+     Headers that also carry an "Enter Manually" secondary (detailer,
+     service) use the base class alone and keep the taller break. --&gt;
+&lt;div class="entry-header-buttons entry-header-buttons--hero-only"&gt;
+  &lt;button class="btn btn-primary btn--hero btn--full"&gt;SCAN BARCODE&lt;/button&gt;
+&lt;/div&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Labelled field with a character counter</div>
+    <div class="cl-preview cl-form" style="max-width: 460px;">
+      <label class="field-row">
+        <span class="field-label-row field-label-row--count">
+          <span class="field-label is-required">Serial ID</span>
+          <span class="vin-charcount">0 / 17</span>
+        </span>
+        <span class="input-with-clear">
+          <input type="text" placeholder="Type Serial ID">
+          <button type="button" class="btn btn-icon btn--sm btn-icon--input-clear" style="display:flex;" aria-label="Clear">&times;</button>
+        </span>
+      </label>
+    </div>
+<pre class="cl-code">&lt;!-- --count pushes the counter to the right of the label. Unlike the
+     inline .field-label, this row is a flex container, so its own
+     margin-bottom is what renders as the label gap.
+     .vin-charcount takes .valid (accent colour) at full length.
+     The clear button is display:none until the input has a value. --&gt;
+&lt;label class="field-row"&gt;
+  &lt;span class="field-label-row field-label-row--count"&gt;
+    &lt;span class="field-label is-required"&gt;Serial ID&lt;/span&gt;
+    &lt;span class="vin-charcount"&gt;0 / 17&lt;/span&gt;
+  &lt;/span&gt;
+  &lt;span class="input-with-clear"&gt;
+    &lt;input type="text" placeholder="Type Serial ID"&gt;
+    &lt;button type="button" class="btn btn-icon btn--sm btn-icon--input-clear"
+            aria-label="Clear"&gt;&amp;times;&lt;/button&gt;
+  &lt;/span&gt;
+&lt;/label&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Stacked groups &mdash; column edges must line up</div>
+    <div class="cl-preview cl-form" style="max-width: 460px;">
+      <div class="entry-form-row">
+        <div style="flex:1;">
+          <span class="field-label">Mileage</span>
+          <input type="number" placeholder="000000">
+        </div>
+        <div style="flex:1;">
+          <span class="field-label">Fuel</span>
+          <select><option>-- FUEL --</option></select>
+        </div>
+      </div>
+      <div class="field-row">
+        <span class="field-label is-required">Status</span>
+        <div class="status-btn-group status-btn-group--primary">
+          <button type="button" class="status-btn">CLEAN</button>
+          <button type="button" class="status-btn">DIRTY</button>
+        </div>
+      </div>
+    </div>
+<pre class="cl-code">&lt;!-- Two-column groups stacked on each other share a gap token so their
+     column edges align. .entry-form-row and .status-btn-group--primary
+     are both --space-3; changing one without the other puts the split
+     a couple of pixels out. --&gt;
+&lt;div class="entry-form-row"&gt;…&lt;/div&gt;
+&lt;div class="field-row"&gt;
+  &lt;span class="field-label is-required"&gt;Status&lt;/span&gt;
+  &lt;div class="status-btn-group status-btn-group--primary"&gt;…&lt;/div&gt;
 &lt;/div&gt;</pre>
   </div>
 </section>

@@ -939,9 +939,6 @@ function saveRecord() {
     toggleTransportStyle();
     const mEl = document.getElementById("mileage"); if (mEl) mEl.value = "";
     const fEl = document.getElementById("fuelLevel"); if (fEl) fEl.selectedIndex = 0;
-    const _mes = document.getElementById("manualEntrySection");
-    if (_mes) { _mes.classList.add("u-hidden"); _mes.style.display = ""; }
-    document.querySelector(".btn-manual-toggle").innerHTML = "Enter Manually";
     saveBtn.disabled = false;
     saveBtn.innerHTML = "Save";
     gpsEl.className = "gps-status";
@@ -2071,24 +2068,14 @@ function resetTires() {
     label.className = "tire-selected-label";
   }
 }
-function toggleManualEntry() {
-  const section = document.getElementById("manualEntrySection");
-  const btn = document.querySelector(".btn-manual-toggle");
-  if (!section || !btn) return;
-  const willShow = section.classList.contains("u-hidden");
-  section.classList.toggle("u-hidden", !willShow);
-  section.style.display = "";
-  btn.innerHTML = willShow ? "Hide Manual Entry" : "Enter Manually";
-  if (willShow) document.getElementById("serial")?.focus();
-}
-
+// The Serial ID field is part of the entry form at all times now — there's no
+// "Enter Manually" toggle to flip. Kept as a safety net for callers that reveal
+// the field after a scan or a keypad hand-off.
 function showManualEntry() {
   const section = document.getElementById("manualEntrySection");
-  const btn = document.querySelector(".btn-manual-toggle");
-  if (!section || !btn) return;
+  if (!section) return;
   section.classList.remove("u-hidden");
   section.style.display = "";
-  btn.innerHTML = "Hide Manual Entry";
 }
 
 function clearSerial() {
@@ -4308,14 +4295,13 @@ function openInlineNewEntry(vin) {
     slot.innerHTML = `<div class="vin-tl-entry-close-row"><button type="button" class="btn btn-destructive" onclick="restoreInlineNewEntry()">Close</button></div>`;
     slot.appendChild(body);
   }
-  // Prefill VIN and make sure the manual-entry section is visible so the
-  // serial field can be edited without forcing the user to tap "Enter Manually".
+  // Prefill VIN; the serial field is always visible so it can be edited in place.
   const serial = document.getElementById("serial");
   if (serial) serial.value = vin || "";
   const manualSection = document.getElementById("manualEntrySection");
   if (manualSection) manualSection.style.display = "";
-  // The scan + manual-toggle buttons aren't useful inline — VIN is already
-  // known. Hide them while the form lives in the VIN history view.
+  // The scan button isn't useful inline — VIN is already known. Hide it while
+  // the form lives in the VIN history view.
   const headerBtns = document.getElementById("entryHeaderButtons");
   if (headerBtns) headerBtns.style.display = "none";
   if (typeof toggleClearBtn === "function") toggleClearBtn();

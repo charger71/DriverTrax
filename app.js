@@ -4886,9 +4886,14 @@ let lastCandidate = null;       // for double-confirm on 1D reads
 let lastCandidateAt = 0;
 let hardModeTimer = null;       // delayed TRY_HARDER fallback (ZXing path)
 let hardModeOn = false;
+let scannerSession = 0;         // bumped per open; guards the deferred close
 
 // --- Tuning ---
-const DECODE_THROTTLE_MS = 80;         // min ms between native-path decode attempts
+// No artificial floor between native-path decode attempts. The loop is paced
+// by the camera itself (one tick per new frame, see scheduleFrame) and each
+// tick awaits detect(), so it self-throttles; the old 80ms floor just capped
+// us at ~12 attempts/sec when the device could comfortably do 30.
+const DECODE_THROTTLE_MS = 0;          // min ms between native-path decode attempts
 const CONFIRM_WINDOW_MS = 800;         // 1D codes must repeat within this window (default)
 const HARD_MODE_DELAY_MS = 700;        // wait this long before flipping ZXing to TRY_HARDER
 const TARGET_WIDTH = 1280;             // camera width (sweet spot for speed vs. distance)
@@ -4906,12 +4911,21 @@ const IS_IOS = isIOS();
 const IOS_TARGET_WIDTH = 1280;
 const IOS_TARGET_HEIGHT = 720;
 const IOS_CONFIRM_WINDOW_MS = 500;
-const ROI_DECODE_INTERVAL_MS = 90;     // ZXing ROI decode tick on iOS path
+// ZXing decode cost scales with pixel count, so the full-frame sweep runs on a
+// downscaled copy. 800px across still resolves the bar widths on a lot tag held
+// at arm's length, at ~40% of the work of a full 1280px frame.
+const DECODE_MAX_WIDTH = 800;
+// How long the overlay stays up after a successful read, showing the decoded
+// value. The green flash is a 0.4s animation and the beep/haptic fire on the
+// spot, so the confirmation has already registered well before this elapses.
+const SCAN_CONFIRM_HOLD_MS = 300;
 
 let confirmWindowMs = IS_IOS ? IOS_CONFIRM_WINDOW_MS : CONFIRM_WINDOW_MS;
-let zxingRoiLoopId = null;             // RAF id for the iOS ROI decode loop
-let zxingRoiCanvas = null;
-let zxingRoiCtx = null;
+let zxingRoiLoopId = null;             // frame handle for the iOS decode loop
+let zxingFullCanvas = null;            // downscaled whole-frame pass
+let zxingFullCtx = null;
+let zxingBandCanvas = null;            // native-resolution centre strip pass
+let zxingBandCtx = null;
 
 // Scanner escalation: when a scan is taking too long, progressively offer help
 // rather than auto-closing silently. Hard cap at the end protects battery.
@@ -4926,6 +4940,44 @@ const ROI = { xPct: 0.04, yPct: 0.33, wPct: 0.92, hPct: 0.34 };
 // Formats we accept. 1D = the actual lot tags. 2D = VIN-bearing codes.
 const ALLOWED_1D = new Set(["code_39", "code_128"]);
 const ALLOWED_2D = new Set(["qr_code", "data_matrix", "pdf417", "aztec"]);
+
+// ---------- Frame scheduling ----------
+
+// Decode loops want one tick per NEW camera frame. requestAnimationFrame fires
+// at display rate (60Hz+), so at a 30fps capture rate half its ticks decode a
+// frame we already looked at — pure waste on the expensive ZXing path.
+// requestVideoFrameCallback fires exactly once per delivered frame instead.
+// We still arm a slow timer alongside it: rVFC stops firing if the track
+// stalls, and the loop must not die silently when that happens.
+const FRAME_STALL_MS = 250;
+
+function scheduleFrame(video, fn) {
+  const handle = { done: false };
+  const run = (ts) => {
+    if (handle.done) return;
+    handle.done = true;
+    fn(typeof ts === "number" ? ts : performance.now());
+  };
+  if (video && typeof video.requestVideoFrameCallback === "function") {
+    try {
+      handle.rvfc = video.requestVideoFrameCallback(() => run());
+      handle.timer = setTimeout(run, FRAME_STALL_MS);
+      return handle;
+    } catch (e) { /* fall through to rAF */ }
+  }
+  handle.raf = requestAnimationFrame(run);
+  return handle;
+}
+
+function cancelFrame(video, handle) {
+  if (!handle) return;
+  handle.done = true;
+  if (handle.rvfc != null && video && typeof video.cancelVideoFrameCallback === "function") {
+    try { video.cancelVideoFrameCallback(handle.rvfc); } catch(e) {}
+  }
+  if (handle.timer != null) clearTimeout(handle.timer);
+  if (handle.raf != null) cancelAnimationFrame(handle.raf);
+}
 
 // Reuse a single AudioContext across scans. iOS Safari caps live contexts at
 // ~4-6; allocating one per beep silently kills audio (and slows the page) after
@@ -4994,6 +5046,20 @@ function acceptScanResult(rawText, is2D) {
     finalCode = cleaned;
   }
 
+  // Accepted. The close below is deferred, so pin it to this scanner session:
+  // reopening the overlay inside the confirmation window must not be torn down
+  // by the previous scan's timer.
+  const session = scannerSession;
+  const closeSoon = () => setTimeout(() => {
+    if (scannerSession === session) closeScanner();
+  }, SCAN_CONFIRM_HOLD_MS);
+
+  // Stop both decode loops and the escalation hints immediately —
+  // closeScanner() is still a few hundred ms out (the flash/beep confirmation),
+  // and there's no reason to keep decoding frames, or to let a 2D code fire a
+  // second time, during that window.
+  scannerActive = false;
+
   const flash = document.getElementById("scannerFlash");
   if (flash) {
     flash.classList.remove("flash");
@@ -5015,7 +5081,7 @@ function acceptScanResult(rawText, is2D) {
       fs.dispatchEvent(new Event("input", { bubbles: true }));
     }
     scanTarget = "entry"; // one-shot; reset for next time
-    setTimeout(() => closeScanner(), 600);
+    closeSoon();
     return true;
   }
 
@@ -5025,13 +5091,31 @@ function acceptScanResult(rawText, is2D) {
   showManualEntry();
   // Let other modules (detailer.js, etc.) react to a successful scan
   document.dispatchEvent(new CustomEvent("dt-vin-scanned", { detail: finalCode }));
-  setTimeout(() => closeScanner(), 600);
+  closeSoon();
   return true;
 }
 
 // ---------- Camera setup ----------
 
-async function pickIOSBackCameraDeviceId() {
+// Resolving the iPhone back camera is the single most expensive part of
+// opening the scanner: labels are blank until permission has been granted, so
+// it takes a throw-away getUserMedia to unlock enumerateDevices(), and then a
+// SECOND getUserMedia to actually open the camera we picked — roughly a second
+// of dead time before the first frame arrives. The camera list doesn't change
+// between scans, so resolve it once and cache the id.
+const IOS_CAM_KEY = "dt_scanner_cam_id";
+let iosCamDeviceId = null;
+try { iosCamDeviceId = localStorage.getItem(IOS_CAM_KEY) || null; } catch(e) {}
+
+function rememberIOSCamera(id) {
+  iosCamDeviceId = id || null;
+  try {
+    if (id) localStorage.setItem(IOS_CAM_KEY, id);
+    else localStorage.removeItem(IOS_CAM_KEY);
+  } catch(e) {}
+}
+
+async function pickIOSBackCamera() {
   // iPhone exposes labels like:
   //   "Back Camera"           (the standard 1× wide — what we want)
   //   "Back Dual Camera"      (wide + telephoto composite — also OK)
@@ -5039,27 +5123,51 @@ async function pickIOSBackCameraDeviceId() {
   //   "Back Ultra Wide Camera" (0.5× — softer, bad close-focus → avoid)
   //   "Back Telephoto Camera" (zoomed in — bad close-focus → avoid)
   // We pick the first plain/dual/triple, never the ultra-wide or telephoto.
+  //
+  // Returns { deviceId, stream }. `stream` is the priming stream when it
+  // already happens to be on the camera we picked, so the caller can skip the
+  // second acquisition entirely.
+  if (iosCamDeviceId) return { deviceId: iosCamDeviceId, stream: null };
   try {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return null;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+      return { deviceId: null, stream: null };
+    }
     // Labels are blank until permission is granted at least once. Trigger a
-    // throw-away getUserMedia first to unlock the labels.
+    // throw-away getUserMedia first to unlock the labels — asking for the
+    // resolution we actually want, so this stream is reusable as-is.
     let primed = null;
     try {
-      primed = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
+      primed = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: IOS_TARGET_WIDTH },
+          height: { ideal: IOS_TARGET_HEIGHT }
+        }
+      });
     } catch(e) {}
     const devices = await navigator.mediaDevices.enumerateDevices();
-    if (primed) { try { primed.getTracks().forEach(t => t.stop()); } catch(e) {} }
 
     const cams = devices.filter(d => d.kind === "videoinput");
     const isBad = (label) => /ultra ?wide|telephoto/i.test(label);
     const isPreferred = (label) => /back/i.test(label) && !isBad(label);
     const preferred = cams.find(c => isPreferred(c.label));
-    if (preferred) return preferred.deviceId;
     // Fallback: any non-bad back camera; else first back camera; else first.
     const anyBack = cams.find(c => /back|rear|environment/i.test(c.label) && !isBad(c.label));
-    return (anyBack || cams[0] || null)?.deviceId || null;
+    const chosen = (preferred || anyBack || cams[0] || null)?.deviceId || null;
+    if (chosen) rememberIOSCamera(chosen);
+
+    if (primed) {
+      let primedId = null;
+      try { primedId = primed.getVideoTracks()[0].getSettings().deviceId || null; } catch(e) {}
+      // Already pointed at the camera we want — keep it instead of paying for
+      // a stop + reopen round trip.
+      if (chosen && primedId === chosen) return { deviceId: chosen, stream: primed };
+      try { primed.getTracks().forEach(t => t.stop()); } catch(e) {}
+    }
+    return { deviceId: chosen, stream: null };
   } catch (e) {
-    return null;
+    return { deviceId: null, stream: null };
   }
 }
 
@@ -5070,7 +5178,11 @@ async function startCameraStream() {
   // On iOS, try to lock to the 1× wide back camera. iPhone's "facingMode: environment"
   // often picks the ultrawide which softens the image and ruins close-focus on barcodes.
   let deviceId = null;
-  if (IS_IOS) deviceId = await pickIOSBackCameraDeviceId();
+  if (IS_IOS) {
+    const picked = await pickIOSBackCamera();
+    if (picked.stream) return picked.stream; // already the camera we want
+    deviceId = picked.deviceId;
+  }
 
   const videoConstraints = deviceId
     ? { deviceId: { exact: deviceId }, width: { ideal: targetW }, height: { ideal: targetH }, focusMode: "continuous", advanced: [{ focusMode: "continuous" }] }
@@ -5079,6 +5191,10 @@ async function startCameraStream() {
   try {
     return await navigator.mediaDevices.getUserMedia({ audio: false, video: videoConstraints });
   } catch (e) {
+    // A cached id can go stale (external camera unplugged, iOS reshuffling
+    // ids across versions). Drop it so the next open re-resolves rather than
+    // failing into the slow path every single time.
+    if (deviceId) rememberIOSCamera(null);
     // Fallback 1: drop deviceId pinning (some iOS builds reject `exact`).
     try {
       return await navigator.mediaDevices.getUserMedia({
@@ -5130,26 +5246,23 @@ async function runNativeDetector(video) {
     return false; // signal caller to try fallback
   }
 
-  // Prepare offscreen canvas sized to the ROI of the video.
+  // Offscreen canvas for the ROI crop. NOT willReadFrequently: we never call
+  // getImageData on it, we hand the canvas straight to detect(). Asking for a
+  // read-optimised (CPU-backed) canvas would force a software readback on every
+  // drawImage from the video and cost more than the crop saves.
   roiCanvas = document.createElement("canvas");
-  roiCtx = roiCanvas.getContext("2d", { willReadFrequently: true });
+  roiCtx = roiCanvas.getContext("2d", { alpha: false, desynchronized: true });
 
-  const tick = async () => {
-    if (!scannerActive) return;
-    const now = performance.now();
-    if (now - lastDecodeTime < DECODE_THROTTLE_MS) {
-      detectionLoopId = requestAnimationFrame(tick);
-      return;
-    }
-    lastDecodeTime = now;
+  // Whether detect() accepts the <video> element directly. When it does, the
+  // whole-frame pass is zero-copy — no canvas, no pixel round trip.
+  let videoSourceOk = true;
+  // Alternate the two passes so neither blind spot costs us a scan:
+  //   pass 0 — whole frame, so a code held outside the strip still reads;
+  //   pass 1 — the strip at native resolution, which is what the user aimed at
+  //            and is a fraction of the pixels of a full frame.
+  let pass = 0;
 
-    const vw = video.videoWidth, vh = video.videoHeight;
-    if (!vw || !vh) {
-      detectionLoopId = requestAnimationFrame(tick);
-      return;
-    }
-
-    // Crop ROI from the video frame so the detector only sees the scan strip.
+  const cropROI = (vw, vh) => {
     const sx = Math.floor(vw * ROI.xPct);
     const sy = Math.floor(vh * ROI.yPct);
     const sw = Math.floor(vw * ROI.wPct);
@@ -5158,15 +5271,36 @@ async function runNativeDetector(video) {
       roiCanvas.width = sw;
       roiCanvas.height = sh;
     }
-    try {
-      roiCtx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
-    } catch (e) {
-      detectionLoopId = requestAnimationFrame(tick);
+    roiCtx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+    return roiCanvas;
+  };
+
+  const tick = async () => {
+    if (!scannerActive) return;
+    const now = performance.now();
+    if (DECODE_THROTTLE_MS && now - lastDecodeTime < DECODE_THROTTLE_MS) {
+      detectionLoopId = scheduleFrame(video, tick);
+      return;
+    }
+    lastDecodeTime = now;
+
+    const vw = video.videoWidth, vh = video.videoHeight;
+    if (!vw || !vh) {
+      detectionLoopId = scheduleFrame(video, tick);
       return;
     }
 
+    let source = null;
     try {
-      const results = await detector.detect(roiCanvas);
+      source = (pass === 0 && videoSourceOk) ? video : cropROI(vw, vh);
+    } catch (e) {
+      detectionLoopId = scheduleFrame(video, tick);
+      return;
+    }
+    pass ^= 1;
+
+    try {
+      const results = await detector.detect(source);
       if (results && results.length && scannerActive) {
         // Pick the largest detected code (most likely the one user is aiming at).
         let best = results[0];
@@ -5185,31 +5319,61 @@ async function runNativeDetector(video) {
         }
       }
     } catch (e) {
-      // Detector hiccuped on this frame; keep going.
+      // A detector that rejects HTMLVideoElement throws every time, so stop
+      // offering it rather than burning the whole-frame pass on each tick.
+      if (source === video) videoSourceOk = false;
+      // Otherwise: detector hiccuped on this frame; keep going.
     }
 
-    detectionLoopId = requestAnimationFrame(tick);
+    detectionLoopId = scheduleFrame(video, tick);
   };
 
-  detectionLoopId = requestAnimationFrame(tick);
+  detectionLoopId = scheduleFrame(video, tick);
   return true;
 }
 
 // ---------- ZXing fallback path ----------
 
-function buildZxingHints(tryHarder) {
-  const hints = new Map();
-  // Restrict formats — this is the single biggest ZXing speed win.
-  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-    ZXing.BarcodeFormat.CODE_39,
-    ZXing.BarcodeFormat.CODE_128,
+// Every extra format is another full pass over the frame, so keep these tight.
+function zxingFormats(oneDOnly) {
+  const f = [ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.CODE_128];
+  if (oneDOnly) return f;
+  return f.concat([
     ZXing.BarcodeFormat.QR_CODE,
     ZXing.BarcodeFormat.DATA_MATRIX,
     ZXing.BarcodeFormat.PDF_417,
     ZXing.BarcodeFormat.AZTEC
   ]);
+}
+
+function buildZxingHints(tryHarder, oneDOnly) {
+  const hints = new Map();
+  // Restrict formats — this is the single biggest ZXing speed win.
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, zxingFormats(oneDOnly));
   if (tryHarder) hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
   return hints;
+}
+
+// True when a ZXing format is one of the 2D symbologies (which we only accept
+// when they carry a VIN).
+function zxingIs2D(fmt) {
+  return fmt === ZXing.BarcodeFormat.QR_CODE ||
+         fmt === ZXing.BarcodeFormat.DATA_MATRIX ||
+         fmt === ZXing.BarcodeFormat.AZTEC ||
+         fmt === ZXing.BarcodeFormat.PDF_417;
+}
+
+// One decode attempt against a prepared canvas. Returns a ZXing Result or null
+// (NotFoundException is the expected outcome on most ticks).
+function zxingDecodeCanvas(reader, canvas) {
+  try {
+    const luminance = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+    return reader.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance)));
+  } catch (e) {
+    return null;
+  } finally {
+    try { reader.reset(); } catch (_) {}
+  }
 }
 
 function runZxingFallback() {
@@ -5237,12 +5401,7 @@ function runZxingFallback() {
       const video = document.getElementById("scannerVideo");
       if (video.srcObject && !activeStream) activeStream = video.srcObject;
       if (result) {
-        const fmt = result.getBarcodeFormat();
-        const is2D = fmt === ZXing.BarcodeFormat.QR_CODE ||
-                     fmt === ZXing.BarcodeFormat.DATA_MATRIX ||
-                     fmt === ZXing.BarcodeFormat.AZTEC ||
-                     fmt === ZXing.BarcodeFormat.PDF_417;
-        acceptScanResult(result.getText(), is2D);
+        acceptScanResult(result.getText(), zxingIs2D(result.getBarcodeFormat()));
       }
     });
   };
@@ -5256,11 +5415,26 @@ function runZxingFallback() {
   }, HARD_MODE_DELAY_MS);
 }
 
-// iOS-tuned ZXing loop: TRY_HARDER from the start, ROI-cropped frames.
+// iOS-tuned ZXing loop: TRY_HARDER from the start, two complementary passes.
 // Uses ZXing's low-level primitives (HTMLCanvasElementLuminanceSource +
 // HybridBinarizer + MultiFormatReader.decode) instead of the high-level
 // BrowserCodeReader.decodeFromCanvas, which is missing in @zxing/library
 // 0.18.x. Returns true if the loop started.
+//
+// This is the slow path (Safari has no BarcodeDetector), so the pixel budget is
+// what decides how many decode attempts a second the user gets. Decoding a full
+// 1280x720 frame against all six formats — what this used to do every tick —
+// spends the entire budget on one attempt. Instead we alternate:
+//
+//   pass 0  whole frame, downscaled to DECODE_MAX_WIDTH, all formats.
+//           Catches a code held anywhere in view, ~40% of the pixels.
+//   pass 1  the centre strip at native resolution, 1D formats only.
+//           That band is the shape of a lot tag and is where the user is
+//           aiming; full detail, ~30% of the pixels, and no 2D detectors to
+//           run (pass 0 covers those).
+//
+// Together the two passes cost less than one old full-frame tick, so the
+// effective attempt rate roughly doubles while covering more geometries.
 function tryRunZxingWithROI() {
   try {
     const video = document.getElementById("scannerVideo");
@@ -5272,58 +5446,67 @@ function tryRunZxingWithROI() {
     }
 
     hardModeOn = true; // try-harder from tick 0 on iOS
-    const reader = new ZXing.MultiFormatReader();
-    reader.setHints(buildZxingHints(true));
+    const fullReader = new ZXing.MultiFormatReader();
+    fullReader.setHints(buildZxingHints(true, false));
+    const bandReader = new ZXing.MultiFormatReader();
+    bandReader.setHints(buildZxingHints(true, true));
 
-    if (!zxingRoiCanvas) {
-      zxingRoiCanvas = document.createElement("canvas");
-      zxingRoiCtx = zxingRoiCanvas.getContext("2d", { willReadFrequently: true });
+    // These canvases DO get read back (HTMLCanvasElementLuminanceSource calls
+    // getImageData), so willReadFrequently is the right hint here.
+    if (!zxingFullCanvas) {
+      zxingFullCanvas = document.createElement("canvas");
+      zxingFullCtx = zxingFullCanvas.getContext("2d", { willReadFrequently: true, alpha: false });
+    }
+    if (!zxingBandCanvas) {
+      zxingBandCanvas = document.createElement("canvas");
+      zxingBandCtx = zxingBandCanvas.getContext("2d", { willReadFrequently: true, alpha: false });
     }
 
-    let lastTick = 0;
+    const sizeTo = (canvas, w, h) => {
+      if (canvas.width !== w) canvas.width = w;
+      if (canvas.height !== h) canvas.height = h;
+    };
+
+    let pass = 0;
     let logged = false;
-    const tick = (ts) => {
+    const tick = () => {
       if (!scannerActive) return;
-      if (ts - lastTick >= ROI_DECODE_INTERVAL_MS && video.readyState >= 2) {
-        lastTick = ts;
-        const vw = video.videoWidth, vh = video.videoHeight;
-        if (vw && vh) {
-          // Use the FULL frame on iOS rather than a narrow strip: 1D codes
-          // are often held outside the center band, and ZXing's
-          // GlobalHistogramBinarizer (under HybridBinarizer) handles the
-          // larger image fine in TRY_HARDER mode.
-          if (zxingRoiCanvas.width !== vw) zxingRoiCanvas.width = vw;
-          if (zxingRoiCanvas.height !== vh) zxingRoiCanvas.height = vh;
-          zxingRoiCtx.drawImage(video, 0, 0, vw, vh);
+      const vw = video.videoWidth, vh = video.videoHeight;
+      if (video.readyState >= 2 && vw && vh) {
+        if (!logged) {
+          console.log("[Scanner] iOS decode loop running", { vw, vh });
+          logged = true;
+        }
 
-          if (!logged) {
-            console.log("[Scanner] iOS decode loop running", { vw, vh });
-            logged = true;
-          }
-
-          try {
-            const luminance = new ZXing.HTMLCanvasElementLuminanceSource(zxingRoiCanvas);
-            const bitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
-            const result = reader.decode(bitmap);
-            if (result) {
-              const fmt = result.getBarcodeFormat();
-              console.log("[Scanner] decoded", { fmt, text: result.getText() });
-              const is2D = fmt === ZXing.BarcodeFormat.QR_CODE ||
-                           fmt === ZXing.BarcodeFormat.DATA_MATRIX ||
-                           fmt === ZXing.BarcodeFormat.AZTEC ||
-                           fmt === ZXing.BarcodeFormat.PDF_417;
-              acceptScanResult(result.getText(), is2D);
-            }
-          } catch (e) {
-            // NotFoundException is expected on most ticks — ignore quietly.
-          } finally {
-            try { reader.reset(); } catch (_) {}
+        let result = null;
+        if (pass === 0) {
+          const scale = Math.min(1, DECODE_MAX_WIDTH / vw);
+          const dw = Math.max(1, Math.round(vw * scale));
+          const dh = Math.max(1, Math.round(vh * scale));
+          sizeTo(zxingFullCanvas, dw, dh);
+          zxingFullCtx.drawImage(video, 0, 0, dw, dh);
+          result = zxingDecodeCanvas(fullReader, zxingFullCanvas);
+        } else {
+          const sx = Math.floor(vw * ROI.xPct);
+          const sy = Math.floor(vh * ROI.yPct);
+          const sw = Math.floor(vw * ROI.wPct);
+          const sh = Math.floor(vh * ROI.hPct);
+          if (sw > 0 && sh > 0) {
+            sizeTo(zxingBandCanvas, sw, sh);
+            zxingBandCtx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+            result = zxingDecodeCanvas(bandReader, zxingBandCanvas);
           }
         }
+        pass ^= 1;
+
+        if (result) {
+          acceptScanResult(result.getText(), zxingIs2D(result.getBarcodeFormat()));
+          if (!scannerActive) return; // accepted — closeScanner tears the loop down
+        }
       }
-      zxingRoiLoopId = requestAnimationFrame(tick);
+      zxingRoiLoopId = scheduleFrame(video, tick);
     };
-    zxingRoiLoopId = requestAnimationFrame(tick);
+    zxingRoiLoopId = scheduleFrame(video, tick);
     return true;
   } catch (e) {
     console.warn("ROI ZXing loop failed to start:", e && e.message);
@@ -5465,6 +5648,7 @@ async function openScanner() {
 
   torchOn = false;
   scannerActive = true;
+  scannerSession++;
   lastDecodeTime = 0;
   lastCandidate = null;
   lastCandidateAt = 0;
@@ -5513,12 +5697,13 @@ function closeScanner() {
   scannerActive = false;
   clearScannerEscalation();
 
+  const loopVideo = document.getElementById("scannerVideo");
   if (detectionLoopId) {
-    cancelAnimationFrame(detectionLoopId);
+    cancelFrame(loopVideo, detectionLoopId);
     detectionLoopId = null;
   }
   if (zxingRoiLoopId) {
-    cancelAnimationFrame(zxingRoiLoopId);
+    cancelFrame(loopVideo, zxingRoiLoopId);
     zxingRoiLoopId = null;
   }
   if (hardModeTimer) {

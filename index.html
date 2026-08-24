@@ -656,16 +656,19 @@
     <svg class="icon icon--xl" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-scan"/></svg>
     SCAN BARCODE
   </button>
-
-  <button class="btn btn-secondary btn-manual-toggle" onclick="toggleManualEntry()">Enter Manually</button>
   </div>
-  <label id="manualEntrySection" class="field-row u-hidden">
-    <span class="field-label is-required">Serial ID</span>
+  <!-- Always visible: manual VIN entry is also reachable from the keyboard
+       button inside the scanner overlay, so the old "Enter Manually" toggle
+       above was a second door to the same field. -->
+  <label id="manualEntrySection" class="field-row">
+    <span class="field-label-row field-label-row--count">
+      <span class="field-label is-required">Serial ID</span>
+      <span class="vin-charcount" id="vinCharCount">0 / 17</span>
+    </span>
     <span class="input-with-clear">
       <input type="text" id="serial" placeholder="Type Serial ID" autocomplete="off" autocorrect="off" spellcheck="false" readonly onfocus="openVinKeypad('serial')" onclick="openVinKeypad('serial')">
       <button type="button" class="btn btn-icon btn--sm btn-icon--input-clear input-clear-btn" id="serialClearBtn" onclick="clearSerial()" aria-label="Clear">&times;</button>
     </span>
-    <span class="vin-charcount" id="vinCharCount">0 / 17</span>
   </label>
 
   <div id="entryCurrentState" class="entry-current-state u-hidden"></div>

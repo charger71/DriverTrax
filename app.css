@@ -340,8 +340,9 @@
      LAYOUT COMPONENTS (replace spacing-utility classes)
      ============================ */
 
-  /* Entry-style header: SCAN BARCODE hero + "Enter Manually" secondary, stacked with breathing room.
-     Used on both the driver New Entry tab and the detailer New Entry tab. */
+  /* Entry-style header: SCAN BARCODE hero, plus an "Enter Manually" secondary on
+     the surfaces that still have one (detailer / service New Entry). The driver
+     entry form shows its Serial ID field outright instead. */
   .entry-header-buttons {
     display: flex; flex-direction: column; align-items: center;
     gap: var(--space-5);
@@ -354,6 +355,11 @@
   /* Entry-form row: side-by-side field groups (Mileage/Fuel, the hidden Location row). */
   .entry-form-row { display: flex; gap: var(--space-3); margin-top: var(--space-5); }
   .entry-form-row > .u-flex-1 > .field-label:first-child { margin-top: 0; }
+  /* Controls in a flex row don't need their own bottom margin — the row gap and
+     the next group's top margin already space things. Keeps Mileage/Fuel from
+     floating too far above the Status group below it. */
+  .entry-form-row input, .entry-form-row select { margin-bottom: 0; }
+  .entry-form-row + .field-row { margin-top: var(--space-3); }
 
   /* Checkbox row inside the entry-options collapse panel. */
   .checkbox-row { display: flex; gap: var(--space-3); }
@@ -461,6 +467,11 @@
     font-weight: 600; letter-spacing: 0.5px;
   }
   .vin-charcount.valid { color: var(--accent); }
+  /* Serial ID heading row: field name on the left, the live VIN counter pushed
+     to the right, both sitting above the input rather than under it. */
+  .field-label-row--count { justify-content: space-between; margin-bottom: var(--space-2); }
+  .field-label-row--count .field-label { margin-top: 0; margin-bottom: 0; }
+  .field-label-row--count .vin-charcount { margin-top: 0; }
 
   /* VIN KEYPAD */
   .vin-keypad-overlay {

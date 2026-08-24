@@ -10,10 +10,11 @@ Icon[
 node_modules/
 env
 *.sql
-# ...but the *-schema.sql files ARE the schema documentation for each
-# feature and belong in the repo. Without this negation `git add -A` skips
-# them silently and a feature ships with no way to create its tables.
-!*-schema.sql
+# ...but schema.sql (the full bootstrap) and the per-feature
+# *-schema.sql files ARE the schema documentation and belong in the repo.
+# Without this negation `git add -A` skips them silently and a feature
+# ships with no way to create its tables. Data dumps stay ignored.
+!*schema.sql
 
 # Resource forks
 ._*

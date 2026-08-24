@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+<!--
+  PLATE OCR SPIKE — standalone, not part of the app.
+
+  index.html does not load this page and sw.js does not precache it, so
+  nothing here can affect the driver app. It exists to measure whether
+  in-browser plate OCR is accurate and fast enough to be worth building.
+
+  Origins it touches (all already allowed by index.html's CSP, which is why
+  this is worth knowing before it graduates): cdn.jsdelivr.net serves
+  tesseract.js, its worker, the wasm core, and the eng traineddata. The
+  worker itself is instantiated from a blob: URL.
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' blob: data: https://cdn.jsdelivr.net; font-src 'self' data:; object-src 'none'; base-uri 'self'; worker-src 'self' blob:">
+
+<title>DriverTrax — Plate OCR Test</title>
+
+<!-- Pre-paint theme init (mirrors index.html) -->
+<script>
+  (function(){
+    try {
+      var pref = localStorage.getItem("dt_theme") || "system";
+      if (pref !== "light" && pref !== "dark" && pref !== "system") pref = "system";
+      var resolved = pref === "system"
+        ? (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
+        : pref;
+      document.documentElement.setAttribute("data-theme", resolved);
+    } catch (e) {}
+  })();
+</script>
+
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="stylesheet" href="app.css">
+
+<style>
+  /* Spike-page styles only. Nothing here belongs in app.css until the
+     feature is real — at which point the scan surface should reuse the
+     existing .scanner-overlay instead of any of this. */
+  body { padding: var(--space-4); max-width: 640px; margin: 0 auto; font-size: var(--font-base); }
+
+  .pt-header { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
+  .pt-header h1 { color: var(--accent); font-size: var(--font-lg); font-weight: var(--weight-black); letter-spacing: 1px; }
+  .pt-header a { color: var(--muted); font-size: var(--font-sm); }
+
+  .pt-status { font-size: var(--font-sm); color: var(--muted); margin-bottom: var(--space-2); min-height: 1.2em; }
+  .pt-status--ok { color: var(--success); }
+  .pt-status--warn { color: var(--warn); }
+  .pt-status--error { color: var(--danger); }
+
+  .pt-stage {
+    position: relative; width: 100%; aspect-ratio: 4 / 3; background: #000;
+    border: var(--border-thin) solid var(--border); border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .pt-stage video { width: 100%; height: 100%; display: block; }
+
+  /* Mirrors ROI in plate-test.js: 86% wide, 2:1. Keep both in sync. */
+  .pt-roi {
+    position: absolute; left: 7%; width: 86%; aspect-ratio: 2 / 1; top: 50%;
+    transform: translateY(-50%);
+    border: 2px solid var(--accent); border-radius: var(--radius);
+    box-shadow: 0 0 0 100vmax rgba(0,0,0,0.35);
+    pointer-events: none;
+  }
+  .pt-roi-label {
+    position: absolute; left: 0; right: 0; bottom: -1.6em; text-align: center;
+    color: #fff; font-size: var(--font-xs); text-shadow: 0 1px 3px #000;
+  }
+  .pt-flash { position: absolute; inset: 0; background: var(--success); opacity: 0; pointer-events: none; }
+  .pt-flash.on { animation: ptFlash 0.4s ease-out; }
+  @keyframes ptFlash { 0% { opacity: 0.55; } 100% { opacity: 0; } }
+
+  .pt-live {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: var(--font-sm); color: var(--text);
+    padding: var(--space-2) 0; min-height: 2em;
+  }
+  .pt-live--dim { color: var(--muted); }
+  .pt-live--ok { color: var(--success); font-weight: var(--weight-bold); }
+
+  .pt-controls { display: flex; gap: var(--space-2); align-items: stretch; }
+  .pt-controls .btn { flex: 1; }
+  .pt-controls .btn-icon { flex: 0 0 var(--dt-input-h); }
+  .pt-controls .btn-icon.on { background: var(--warn); color: #1a1a1a; }
+
+  .pt-tuning { margin: var(--space-4) 0; border: var(--border-thin) solid var(--divider); border-radius: var(--radius); padding: var(--space-2) var(--space-3); }
+  .pt-tuning summary { cursor: pointer; font-size: var(--font-sm); color: var(--text-soft); }
+  .pt-tuning-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-top: var(--space-3); }
+  .pt-tuning-grid label { display: block; }
+  .pt-tuning-grid .field-label { margin-bottom: var(--space-1); }
+  .pt-tuning-note { margin-top: var(--space-3); font-size: var(--font-xs); color: var(--muted); }
+
+  .pt-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); margin: var(--space-4) 0 var(--space-3); }
+  .pt-stat { background: var(--card); border: var(--border-thin) solid var(--border); border-radius: var(--radius); padding: var(--space-2); text-align: center; }
+  .pt-stat-num { font-size: var(--font-lg); font-weight: var(--weight-heavy); color: var(--text); }
+  .pt-stat-label { font-size: var(--font-xs); color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .pt-results-head { display: flex; gap: var(--space-2); align-items: center; justify-content: space-between; margin-bottom: var(--space-2); }
+  .pt-results-head h2 { font-size: var(--font-base); font-weight: var(--weight-heavy); }
+  .pt-results-head .btn { flex: 0 0 auto; }
+
+  .pt-list { list-style: none; display: flex; flex-direction: column; gap: var(--space-2); }
+  .pt-empty { color: var(--muted); font-size: var(--font-sm); padding: var(--space-4); text-align: center; border: 1px dashed var(--divider); border-radius: var(--radius); }
+  .pt-row { display: flex; gap: var(--space-3); align-items: flex-start; background: var(--card); border: var(--border-thin) solid var(--border); border-radius: var(--radius); padding: var(--space-2); }
+  .pt-thumb { width: 96px; flex: 0 0 96px; border-radius: 4px; background: var(--card-soft); }
+  .pt-thumb--none { height: 48px; }
+  .pt-row-main { flex: 1; min-width: 0; }
+  .pt-plate { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--font-lg); font-weight: var(--weight-heavy); letter-spacing: 1px; color: var(--text); }
+  .pt-meta { font-size: var(--font-xs); color: var(--muted); margin-top: 2px; }
+  .pt-tag { display: inline-block; margin-top: var(--space-2); font-size: var(--font-xs); padding: 2px var(--space-2); border-radius: 999px; }
+  .pt-tag--ok { background: var(--success-soft); color: var(--success-text); }
+  .pt-tag--bad { background: var(--danger-soft); color: var(--danger); }
+  .pt-fix { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+  .pt-fix-input { flex: 1; min-width: 0; text-transform: uppercase; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .pt-row-actions { display: flex; flex-direction: column; gap: var(--space-1); align-self: flex-start; }
+  .pt-row-actions .btn { flex: 0 0 auto; }
+
+  .pt-how { margin-top: var(--space-6); font-size: var(--font-sm); color: var(--text-soft); }
+  .pt-how h2 { font-size: var(--font-base); font-weight: var(--weight-heavy); color: var(--text); margin-bottom: var(--space-2); }
+  .pt-how li { margin-left: var(--space-4); margin-bottom: var(--space-1); list-style: disc; }
+  .pt-how code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--font-xs); background: var(--card-soft); padding: 1px 4px; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header class="pt-header">
+  <h1>PLATE OCR TEST</h1>
+  <a href="index.html">&larr; App</a>
+</header>
+
+<div class="pt-status" id="ptStatus" role="status" aria-live="polite">Idle</div>
+
+<div class="pt-stage" id="ptStage">
+  <video id="ptVideo" playsinline muted></video>
+  <div class="pt-roi"><div class="pt-roi-label">Fill the box with the plate</div></div>
+  <div class="pt-flash" id="ptFlash"></div>
+</div>
+
+<div class="pt-live pt-live--dim" id="ptLive">&mdash;</div>
+
+<div class="pt-controls">
+  <button class="btn btn-primary" id="ptStartBtn">Start scanning</button>
+  <button class="btn btn-secondary" id="ptShotBtn" disabled>Capture</button>
+  <button class="btn btn-icon" id="ptTorchBtn" disabled aria-label="Flashlight">&#9728;</button>
+</div>
+
+<details class="pt-tuning">
+  <summary>Tuning</summary>
+  <div class="pt-tuning-grid">
+    <label>
+      <span class="field-label">Preprocess</span>
+      <select id="ptPrep">
+        <option value="gray" selected>Grey + contrast</option>
+        <option value="binary">Black &amp; white</option>
+        <option value="binary-invert">B&amp;W inverted</option>
+        <option value="none">Raw frame</option>
+      </select>
+    </label>
+    <label>
+      <span class="field-label">Page segmentation</span>
+      <select id="ptPsm">
+        <option value="7" selected>7 — single line</option>
+        <option value="8">8 — single word</option>
+        <option value="6">6 — block</option>
+        <option value="13">13 — raw line</option>
+      </select>
+    </label>
+    <label>
+      <span class="field-label">Min confidence</span>
+      <select id="ptMinConf">
+        <option value="0">0% — log everything</option>
+        <option value="40">40%</option>
+        <option value="55" selected>55%</option>
+        <option value="70">70%</option>
+        <option value="85">85%</option>
+      </select>
+    </label>
+    <label>
+      <span class="field-label">Frames to agree</span>
+      <select id="ptVotes">
+        <option value="1">1 — first read wins</option>
+        <option value="2" selected>2 — confirm once</option>
+        <option value="3">3 — confirm twice</option>
+      </select>
+    </label>
+  </div>
+  <p class="pt-tuning-note">
+    Settings are recorded with every read, so changing them mid-session is the point:
+    scan the same plates under two settings and compare the accuracy line.
+  </p>
+</details>
+
+<div class="pt-stats" id="ptStats"></div>
+
+<div class="pt-results-head">
+  <h2>Reads</h2>
+  <button class="btn btn-secondary btn--sm" id="ptCopyBtn">Copy JSON</button>
+  <button class="btn btn-ghost btn--sm" id="ptClearBtn">Clear all</button>
+</div>
+
+<ul class="pt-list" id="ptList"></ul>
+
+<section class="pt-how">
+  <h2>How to run the test</h2>
+  <ul>
+    <li>Open on the phone that does lot work, outdoors, in the lighting you actually work in.</li>
+    <li>Tap <strong>Start scanning</strong> and fill the box with a plate. A read beeps and lands in the list.</li>
+    <li>Judge every read: <strong>&#10003;</strong> if the plate is right, <strong>&#9998;</strong> to type what it actually was. That is what produces the accuracy number.</li>
+    <li>Aim for 30&ndash;40 plates across bright sun, shade, dusk, and dirty or angled plates. Include a paper temp tag if the lot has one.</li>
+    <li>Hit <strong>Copy JSON</strong> and paste it back to me. Median ms and accuracy decide whether this ships in-browser, moves server-side, or gets dropped.</li>
+  </ul>
+  <p class="pt-tuning-note">
+    First run downloads ~4&nbsp;MB of OCR engine and needs a connection; after that the
+    browser cache serves it. Results are stored only on this device
+    (<code>localStorage</code>) &mdash; nothing is written to the fleet.
+    This page is served through the app's service worker, so after a redeploy
+    a hard refresh may be needed to pick up changes.
+  </p>
+</section>
+
+<script src="utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js"></script>
+<script src="plate-test.js"></script>
+</body>
+</html>

@@ -16,7 +16,7 @@ The whole app lives in the repo root (no `src/`).
 - `idb.js` — `window.DT_IDB`, a tiny IndexedDB key/value wrapper. Fails closed (private mode, locked storage) so callers never crash.
 - `a11y.js` — keyboard + ARIA retrofit for `<div onclick>` elements and overlays. See the Accessibility section below.
 - `sync.js` — local ⇄ Supabase record sync: diffs every `setRecords()`, queues to IDB, flushes with retry backoff.
-- Feature modules — `announcements.js`, `damage.js`, `detailer.js`, `drop-offs.js`, `elearning.js`, `fleet-counts.js`, `locations.js`, `notifications.js`, `pull-refresh.js`, `pwa.js`, `requests.js`, `users.js`. Each is an IIFE wrapping its own state.
+- Feature modules — `announcements.js`, `damage.js`, `detailer.js`, `drop-offs.js`, `elearning.js`, `fleet-counts.js`, `locations.js`, `notifications.js`, `pull-refresh.js`, `pwa.js`, `requests.js`, `users.js`, `vehicle-info.js`. Each is an IIFE wrapping its own state.
 - `backlot.js` / `backlot.html` and `backlot/` — the separate manager dashboard. Not a pattern source; see the note at the top.
 - `elearning-admin.js` / `elearning-admin.html` — quiz authoring, its own page (not loaded by `index.html`).
 - `eslint.config.mjs` — CI lint config. Its `appGlobals` list is the app's cross-file surface; add to it when a module starts exposing something new, or `no-undef` will fail the build.

@@ -1350,6 +1350,41 @@
   </div>
 </div>
 
+<!-- Plate / state / SIPP editor for a VIN (vehicle-info.js). Opened from the
+     chip row in the VIN HISTORY header. -->
+<div class="users-modal" id="vehicleInfoModal" aria-hidden="true"
+     role="dialog" aria-modal="true" aria-label="Plate and class">
+  <div class="users-modal-card">
+    <div class="users-modal-header">
+      <span>Plate &amp; class</span>
+      <button type="button" class="btn btn-destructive btn-icon users-modal-close" id="vehicleInfoModalClose" aria-label="Close">&times;</button>
+    </div>
+    <form id="vehicleInfoForm">
+      <div class="vehicle-info-vin" id="vehicleInfoVin"></div>
+      <div class="vehicle-info-row">
+        <label class="vehicle-info-plate">Plate
+          <input type="text" name="plate" maxlength="10" placeholder="ABC1234"
+                 autocomplete="off" autocorrect="off" spellcheck="false">
+        </label>
+        <label class="vehicle-info-state">State
+          <!-- Options filled from DT_VEHICLE_INFO.US_STATES at first open. -->
+          <select name="plateState"></select>
+        </label>
+      </div>
+      <label>SIPP code
+        <!-- Options filled from DT_VEHICLE_INFO.SIPP_CODES at first open. -->
+        <select name="sipp"></select>
+      </label>
+      <p class="vehicle-info-hint">Leave a field blank to clear it. Codes match the Car SIPP Codes table under Training.</p>
+      <div class="users-modal-msg" id="vehicleInfoModalMsg"></div>
+      <div class="users-modal-actions">
+        <button type="button" class="btn btn-secondary" id="vehicleInfoModalCancel">Cancel</button>
+        <button type="submit" class="btn btn-primary btn--block" id="vehicleInfoModalSubmit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- ===================================================== -->
 <!-- DETAILER — scan VIN, see notes, run todo -->
 <!-- ===================================================== -->
@@ -1987,6 +2022,7 @@
 <script src="damage.js"></script>
 <script src="users.js"></script>
 <script src="locations.js"></script>
+<script src="vehicle-info.js"></script>
 <script src="detailer.js"></script>
 <script src="vendors.js"></script>
 <script src="maintenance.js"></script>

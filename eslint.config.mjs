@@ -43,7 +43,7 @@ const appGlobals = [
   "DT_ESC", "DT_FLEET_COUNTS", "DT_FORMAT", "DT_IDB", "DT_LIFECYCLE",
   "DT_LOCATIONS", "DT_MEDIA", "DT_NOTIFS", "DT_OPTIONS", "DT_PWA",
   "DT_REQUESTS", "DT_SYNC", "DT_TOAST", "DT_UI", "DT_USERS", "dtTimeAgo",
-  "DT_BACKLOT", "DT_DETAIL", "DT_MAINT", "DT_VENDORS",
+  "DT_BACKLOT", "DT_DETAIL", "DT_MAINT", "DT_VEHICLE_INFO", "DT_VENDORS",
   // app.js — records + rendering
   "getRecords", "setRecords", "invalidateRecordsCache", "getEffectiveRecords",
   "renderRecords", "renderTodayEntries", "renderDashboard", "renderRecordsMap",

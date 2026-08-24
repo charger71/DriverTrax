@@ -1,6 +1,6 @@
 // DriverTrax Service Worker
 // Provides offline support and caches app assets
-const CACHE_VERSION = "drivertrax-v9.66-scanner-warm-camera";
+const CACHE_VERSION = "drivertrax-v9.67-vin-plate-state-sipp";
 // Every <script src> and <link href> in index.html must appear here. Anything
 // missing is unavailable on an offline cold start: cross-origin assets in
 // particular can't be backfilled at runtime by any reliable means, so a gap
@@ -26,6 +26,7 @@ const APP_SHELL = [
   "./damage.js",
   "./users.js",
   "./locations.js",
+  "./vehicle-info.js",
   "./detailer.js",
   "./vendors.js",
   "./maintenance.js",

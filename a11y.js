@@ -113,6 +113,11 @@
       document.getElementById("counterCatCancel")?.click();
       return;
     }
+    // Plate / state / SIPP editor (vehicle-info.js). Escape = cancel.
+    if (document.getElementById("vehicleInfoModal")?.classList.contains("show")) {
+      document.getElementById("vehicleInfoModalCancel")?.click();
+      return;
+    }
   });
 
   // Tag the four overlay roots so AT announces them as dialogs.

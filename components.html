@@ -181,6 +181,7 @@
     <li><a href="#compositions">Compositions</a></li>
     <li><a href="#mechanic">Mechanic / service jobs</a></li>
     <li><a href="#vin-history">VIN history</a></li>
+    <li><a href="#plate-sipp">Plate &amp; SIPP</a></li>
     <li><a href="#states">States</a></li>
     <li><a href="#modal">Modal</a></li>
     <li><a href="#toast">Toast</a></li>
@@ -1049,6 +1050,72 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
 </section>
 
 <!-- ===================== STATES ===================== -->
+<!-- ===================== PLATE & SIPP ===================== -->
+<section class="cl-section" id="plate-sipp">
+  <h2>Plate &amp; SIPP</h2>
+  <p class="cl-desc">Per-VIN identifiers stored on <code>vehicles</code> (plate, plate state, SIPP class code) and rendered by <code>vehicle-info.js</code>. The <code>.vin-id-*</code> row mounts into the VIN&nbsp;history header; the smaller <code>.vin-detail-*</code> tags ride along on VIN&nbsp;lookup rows.</p>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Header row — filled</div>
+    <div class="cl-preview cl-stack">
+      <div class="vin-id-row">
+        <div class="vin-id-cell">
+          <span class="vin-id-label">PLATE</span>
+          <span class="vin-id-value"><span class="vin-id-plate">KDX4471</span><span class="vin-id-state">NY</span></span>
+        </div>
+        <div class="vin-id-cell">
+          <span class="vin-id-label">SIPP</span>
+          <span class="vin-id-value"><span class="vin-id-sipp">ICAR</span><span class="vin-id-sipp-desc">Intermediate / Midsize</span></span>
+        </div>
+        <button type="button" class="btn btn-ghost btn--sm vin-id-edit">Edit</button>
+      </div>
+    </div>
+<pre class="cl-code">&lt;div class="vin-id-row"&gt;
+  &lt;div class="vin-id-cell"&gt;
+    &lt;span class="vin-id-label"&gt;PLATE&lt;/span&gt;
+    &lt;span class="vin-id-value"&gt;
+      &lt;span class="vin-id-plate"&gt;${plate}&lt;/span&gt;&lt;span class="vin-id-state"&gt;${state}&lt;/span&gt;
+    &lt;/span&gt;
+  &lt;/div&gt;
+  &lt;div class="vin-id-cell"&gt;
+    &lt;span class="vin-id-label"&gt;SIPP&lt;/span&gt;
+    &lt;span class="vin-id-value"&gt;
+      &lt;span class="vin-id-sipp"&gt;${code}&lt;/span&gt;&lt;span class="vin-id-sipp-desc"&gt;${label}&lt;/span&gt;
+    &lt;/span&gt;
+  &lt;/div&gt;
+  &lt;button type="button" class="btn btn-ghost btn--sm vin-id-edit"&gt;Edit&lt;/button&gt;
+&lt;/div&gt;
+
+&lt;!-- Don't hand-render this. DT_VEHICLE_INFO.mount(hostEl, vin) fetches
+     the vehicles row, renders the row (or the empty prompt below) and
+     wires the editor modal. --&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Header row — nothing on file</div>
+    <div class="cl-preview cl-stack" style="max-width: 420px;">
+      <button type="button" class="btn btn-secondary btn--sm btn--block btn--dashed vin-id-add">+ Add plate &amp; class</button>
+    </div>
+<pre class="cl-code">&lt;button type="button" class="btn btn-secondary btn--sm btn--block btn--dashed vin-id-add"&gt;
+  + Add plate &amp;amp; class
+&lt;/button&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Lookup-row tags</div>
+    <div class="cl-preview cl-stack">
+      <div class="vin-detail-tags">
+        <span class="vin-detail-plate">KDX4471<span class="vin-detail-plate-state">NY</span></span>
+        <span class="vin-detail-sipp">ICAR</span>
+      </div>
+    </div>
+<pre class="cl-code">&lt;div class="vin-detail-tags"&gt;
+  &lt;span class="vin-detail-plate"&gt;${plate}&lt;span class="vin-detail-plate-state"&gt;${state}&lt;/span&gt;&lt;/span&gt;
+  &lt;span class="vin-detail-sipp"&gt;${sipp}&lt;/span&gt;
+&lt;/div&gt;</pre>
+  </div>
+</section>
+
 <section class="cl-section" id="states">
   <h2>States</h2>
   <p class="cl-desc">Every list/panel should handle empty, loading, error, and (where role-gated) no-permission. Use these blocks instead of inventing copy on the spot.</p>

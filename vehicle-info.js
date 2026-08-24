@@ -101,23 +101,33 @@
     else _cache.clear();
   }
 
-  // Read-only badge row. Each value is a badge on the app's standard
-  // .record-status/.badge-* base (see app.css), so radius, padding and casing
-  // match every other badge in the app. The SIPP code carries no label — the
-  // code identifies itself and its expansion sits beside it.
-  // Returns "" when there's nothing to show.
-  function chipsHtml(info) {
-    const badges = [];
-    if (info?.plate) {
-      badges.push(`<span class="vin-id-plate">${esc(info.plate)}</span>`);
-      if (info.plateState) badges.push(`<span class="vin-id-state">${esc(info.plateState)}</span>`);
-    }
-    if (info?.sipp) {
-      badges.push(`<span class="vin-id-sipp">${esc(info.sipp)}</span>`);
-      const desc = sippLabel(info.sipp);
-      if (desc) badges.push(`<span class="vin-id-sipp-desc">${esc(desc)}</span>`);
-    }
-    return badges.join("");
+  // One eyebrow (.field-label — the app's own label component) over one
+  // badge, each a column in .vin-id-row. Plate folds its state into the same
+  // badge as a colored "NY-" prefix rather than a second badge; SIPP folds
+  // its expansion into the same badge as "ICAR — Intermediate / Midsize"
+  // rather than trailing text, since a second free-floating span isn't a
+  // component this app has anywhere else. Returns "" when there's nothing to
+  // show, so the caller can omit an empty group entirely.
+  function plateGroupHtml(info) {
+    if (!info?.plate) return "";
+    const statePrefix = info.plateState
+      ? `<span class="vin-id-plate-state">${esc(info.plateState)}</span>-`
+      : "";
+    return `
+      <div class="vin-id-group">
+        <span class="field-label vin-id-eyebrow">Plate</span>
+        <span class="vin-id-plate">${statePrefix}${esc(info.plate)}</span>
+      </div>`;
+  }
+  function sippGroupHtml(info) {
+    if (!info?.sipp) return "";
+    const desc = sippLabel(info.sipp);
+    const text = desc ? `${esc(info.sipp)} — ${esc(desc)}` : esc(info.sipp);
+    return `
+      <div class="vin-id-group">
+        <span class="field-label vin-id-eyebrow">SIPP Code</span>
+        <span class="vin-id-sipp">${text}</span>
+      </div>`;
   }
 
   // Render into a host element and wire its edit affordance. Re-entrant:
@@ -129,15 +139,15 @@
           + Add plate &amp; class
         </button>`;
     } else {
-      // "Plate" is an eyebrow over the badges, so it only shows when there is
-      // a plate. Edit shares that line rather than trailing the badges, where
-      // it orphaned to the right whenever they wrapped.
+      // Plate, SIPP and Edit are the row's three items, spaced evenly by
+      // .vin-id-row (see app.css) — Edit sits at the badges' baseline rather
+      // than up on an eyebrow line, since it isn't labeling a value.
       host.innerHTML = `
         <div class="vin-id-row">
-          <span class="field-label vin-id-eyebrow">${info.plate ? "Plate" : ""}</span>
+          ${plateGroupHtml(info)}
+          ${sippGroupHtml(info)}
           <button type="button" class="btn btn-secondary btn--sm vin-id-edit" aria-label="Edit plate and class">Edit</button>
-        </div>
-        <div class="vin-id-badges">${chipsHtml(info)}</div>`;
+        </div>`;
     }
     host.querySelector(".vin-id-add, .vin-id-edit")?.addEventListener("click", () => {
       openEditor(vin, () => mount(host, vin, { force: true }));
@@ -267,7 +277,7 @@
 
   window.DT_VEHICLE_INFO = {
     load, mount, invalidate, openEditor, closeEditor,
-    chipsHtml, sippLabel, normalizePlate,
+    plateGroupHtml, sippGroupHtml, sippLabel, normalizePlate,
     SIPP_CODES, US_STATES
   };
 })();

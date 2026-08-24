@@ -357,8 +357,14 @@
   .entry-form-row > .u-flex-1 > .field-label:first-child { margin-top: 0; }
   /* Controls in a flex row don't need their own bottom margin — the row gap and
      the next group's top margin already space things. Keeps Mileage/Fuel from
-     floating too far above the Status group below it. */
-  .entry-form-row input, .entry-form-row select { margin-bottom: 0; }
+     floating too far above the Status group below it. The top margin matches
+     .status-btn-group's, so a label sits the same distance above its control
+     here as "Status" does above its buttons — .field-label is inline, so its
+     own margin-bottom never renders and the control has to supply the gap. */
+  .entry-form-row input, .entry-form-row select {
+    margin-top: var(--space-2);
+    margin-bottom: 0;
+  }
   .entry-form-row + .field-row { margin-top: var(--space-3); }
 
   /* Checkbox row inside the entry-options collapse panel. */

@@ -3526,8 +3526,12 @@ async function renderVinTimeline(vin, opts) {
   const hasAggDamage = aggDamageMarks.length > 0 || aggClaimNum;
   const hasAggTire = Object.keys(aggTireDetails).length > 0 || aggLegacyTires.length > 0;
   const aggDamageCount = aggDamageMarks.length;
-  const aggTireFlagged = DT_DAMAGE
-    ? DT_DAMAGE.TIRE_POSITIONS.filter(pos => {
+  // window.-qualified on purpose: damage.js early-returns when DT_AUTH is
+  // missing, so the global may never be declared — a bare DT_DAMAGE would be a
+  // ReferenceError here, not a falsy check. eslint can't catch it either, since
+  // DT_DAMAGE is in the appGlobals list.
+  const aggTireFlagged = window.DT_DAMAGE
+    ? window.DT_DAMAGE.TIRE_POSITIONS.filter(pos => {
         const t = aggTireDetails[pos];
         return (t && t.condition && t.condition !== "OK") || aggLegacyTires.includes(pos);
       }).length

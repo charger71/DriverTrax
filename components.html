@@ -1054,7 +1054,7 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
 <section class="cl-section" id="plate-sipp">
   <h2>Plate &amp; SIPP</h2>
   <p class="cl-desc">Per-VIN identifiers stored on <code>vehicles</code> (plate, plate state, SIPP class code) and rendered by <code>vehicle-info.js</code>. The <code>.vin-id-row</code> mounts into the VIN&nbsp;history header and the New&nbsp;Entry form; the smaller <code>.vin-detail-*</code> tags ride along on VIN&nbsp;lookup rows.</p>
-  <p class="cl-desc"><code>.vin-id-plate</code> and <code>.vin-id-sipp</code> are on the shared <code>.record-status, .badge-*</code> base rule, so they carry the standard badge radius, padding and casing — see <a href="#badges">Badges</a>. They override only size and fill, stepping up to <code>--font-md</code> so a plate read off a bumper, or a class code across the lot, stays legible. Both fold their second value into the same badge rather than a trailing span: the plate's issuing state becomes a colored <code>NY-</code> prefix (<code>--plate-accent</code> — fixed in both themes, since the plate badge itself is a fixed light surface, same reasoning as <code>--overlay-*</code>), and the SIPP code's expansion follows an em dash inside the badge, wrapping onto a second line rather than trailing off in plain text.</p>
+  <p class="cl-desc"><code>.vin-id-plate</code> and <code>.vin-id-sipp</code> are on the shared <code>.record-status, .badge-*</code> base rule, so they carry the standard badge radius, padding and casing — see <a href="#badges">Badges</a>. They override only size and fill, stepping up to <code>--font-md</code> so a plate read off a bumper, or a class code across the lot, stays legible. Both fold their second value into the same badge rather than a trailing span: the plate's issuing state becomes a colored <code>NY-</code> prefix (<code>--plate-accent</code> — fixed in both themes, since the plate badge itself is a fixed light surface, same reasoning as <code>--overlay-*</code>), and the SIPP code's expansion follows inside the badge as a <code>.vin-id-sipp-desc</code> span — smaller, regular weight, and off the monospace/tracking treatment, since it's prose rather than a code, and wraps onto a second line rather than trailing off in plain text.</p>
   <p class="cl-desc">Plate, SIPP and Edit are <code>.vin-id-row</code>'s three items — spaced evenly by <code>justify-content: space-between</code> plus <code>flex: 1 1 auto</code> on the two value groups, not forced into equal-width columns (a short plate and a long SIPP expansion shouldn't fight for the same column width). Edit has no eyebrow of its own, so it sits at <code>flex-end</code> — level with the badges' baseline, not stranded up on the label line.</p>
 
   <div class="cl-block">
@@ -1067,7 +1067,7 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
         </div>
         <div class="vin-id-group">
           <span class="field-label vin-id-eyebrow">SIPP Code</span>
-          <span class="vin-id-sipp">ICAR — Intermediate / Midsize</span>
+          <span class="vin-id-sipp">ICAR <span class="vin-id-sipp-desc">— Intermediate / Midsize</span></span>
         </div>
         <button type="button" class="btn btn-secondary btn--sm vin-id-edit">Edit</button>
       </div>
@@ -1082,7 +1082,7 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
   &lt;/div&gt;
   &lt;div class="vin-id-group"&gt;
     &lt;span class="field-label vin-id-eyebrow"&gt;SIPP Code&lt;/span&gt;
-    &lt;span class="vin-id-sipp"&gt;${code} — ${label}&lt;/span&gt;
+    &lt;span class="vin-id-sipp"&gt;${code} &lt;span class="vin-id-sipp-desc"&gt;— ${label}&lt;/span&gt;&lt;/span&gt;
   &lt;/div&gt;
   &lt;button type="button" class="btn btn-secondary btn--sm vin-id-edit"&gt;Edit&lt;/button&gt;
 &lt;/div&gt;

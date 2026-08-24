@@ -996,6 +996,13 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: var(--font-md); letter-spacing: 1px; align-self: flex-start;
   }
+  /* The code's expansion, e.g. "Intermediate / Midsize" — prose, not a code,
+     so it drops the monospace/tracking/bold treatment .vin-id-sipp otherwise
+     applies to everything inside it and steps down a size from the code. */
+  .vin-id-sipp-desc {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    font-size: var(--font-sm); font-weight: var(--weight-normal); letter-spacing: normal;
+  }
   .vin-tl-mileage{ font-size: var(--font-base); color: var(--info-text); margin-top: var(--space-1); font-weight: var(--weight-medium); }
   .vin-tl-cond-row { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); margin-top: var(--space-4); }
   .vin-tl-cond-chip {

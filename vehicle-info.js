@@ -122,11 +122,11 @@
   function sippGroupHtml(info) {
     if (!info?.sipp) return "";
     const desc = sippLabel(info.sipp);
-    const text = desc ? `${esc(info.sipp)} — ${esc(desc)}` : esc(info.sipp);
+    const descHtml = desc ? ` <span class="vin-id-sipp-desc">— ${esc(desc)}</span>` : "";
     return `
       <div class="vin-id-group">
         <span class="field-label vin-id-eyebrow">SIPP Code</span>
-        <span class="vin-id-sipp">${text}</span>
+        <span class="vin-id-sipp">${esc(info.sipp)}${descHtml}</span>
       </div>`;
   }
 

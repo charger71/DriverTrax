@@ -2801,8 +2801,9 @@ function renderRecords() {
     return;
   }
 
-  // Search results render into #vinDetailList, so put the range list away.
-  if (container) container.classList.add("u-hidden");
+  // Both search paths render into #records — the fuzzy list and the inline VIN
+  // timeline. It ships hidden and the empty path puts it back, so show it here.
+  if (container) container.classList.remove("u-hidden");
 
   // Full VIN → timeline view
   if (isFullVin(searchVal)) {
@@ -2861,6 +2862,16 @@ function renderRangeRecords() {
   })));
 }
 
+// Cloud rows behind the current fuzzy result cards, keyed by id.
+const _fuzzyRowsById = new Map();
+
+// Click target for a fuzzy result card. The row may belong to another driver's
+// device, so it opens the cloud record sheet rather than openDetail().
+function openFuzzyRecord(id) {
+  const row = _fuzzyRowsById.get(String(id));
+  if (row) openVinRecordDetail(row, _vinProfileCache);
+}
+
 // Fuzzy search: matches against records.serial_id + records.notes (plus
 // vehicles vin_data make/model/year) across every signed-in user.
 async function renderFuzzyResults(term) {
@@ -2884,7 +2895,7 @@ async function renderFuzzyResults(term) {
   const upTerm = safe.toUpperCase();
 
   let recsQ = sb.from("records")
-    .select("id,user_id,serial_id,status,status_other,destination,destination_other,section_id,section_name,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,tires,gps_error,shift_num,mileage,fuel_level,photo_url,photo_urls")
+    .select("id,user_id,serial_id,status,status_other,destination,destination_other,section_id,section_name,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,tires,gps_error,shift_num,mileage,fuel_level,photo_url,photo_urls,conditions,damage_marks,tire_details,claim_number,claim_notes")
     .or(`serial_id.ilike.%${upTerm}%,notes.ilike.%${safe}%,vin_data->>make.ilike.%${safe}%,vin_data->>model.ilike.%${safe}%`)
     .order("ts", { ascending: false })
     .limit(200);
@@ -2912,12 +2923,18 @@ async function renderFuzzyResults(term) {
   if (fDest)   vehRows = vehRows.filter(v => v.current_destination === fDest);
 
   // Map driver names for record cards (manager-style augmentation)
+  // Share the VIN timeline's profile cache — openVinRecordDetail() reads role
+  // and avatar from it, not just the display name.
   const userIds = [...new Set(recRows.map(r => r.user_id))];
+  await _vinFetchProfiles(userIds);
   const names = {};
-  if (userIds.length) {
-    const { data: profs } = await sb.from("profiles").select("id,display_name").in("id", userIds);
-    (profs || []).forEach(p => { names[p.id] = p.display_name || "Driver"; });
-  }
+  userIds.forEach(id => { names[id] = _vinProfileCache.get(id)?.display_name || "Driver"; });
+
+  // Keep the cloud rows behind the cards. They render in the local-record shape
+  // for recordCard(), but openDetail() only ever looks in local storage, so a
+  // result from another device would open nothing — these go to the cloud sheet.
+  _fuzzyRowsById.clear();
+  recRows.forEach(row => _fuzzyRowsById.set(String(row.id), row));
   // Convert records to the local-record shape so recordCard() can render them
   const cards = recRows.map(row => ({
     id: row.id,
@@ -2954,53 +2971,14 @@ async function renderFuzzyResults(term) {
   }
 
   const esc = (s) => sanitizeText(s);
-  const ago = (d) => DT_FORMAT.timeAgo(d);
 
-  const vehHtml = vehRows.length ? `
-    <div class="records-search-section">
-      <div class="records-section-label">${vehRows.length} VIN${vehRows.length === 1 ? "" : "s"} in inventory</div>
-      ${vehRows.map(v => {
-        const statusDisp = v.current_status === "OTHER" && v.current_status_other
-          ? `OTHER: ${v.current_status_other}`
-          : statusLabel(v.current_status);
-        const destDisp = locationLabel(v.current_destination, v.current_destination_other, v.section_name);
-        const vd = v.vin_data || {};
-        const vehName = [vd.year, vd.make, vd.model].filter(Boolean).join(" ");
-        const pin = (Number.isFinite(v.last_lat) && Number.isFinite(v.last_lng))
-          ? ` · <a href="https://www.google.com/maps?q=${v.last_lat},${v.last_lng}" target="_blank" rel="noopener" class="vin-tl-gps" onclick="event.stopPropagation()"><svg class="ico-pin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12 22s-7-7.58-7-13a7 7 0 0 1 14 0c0 5.42-7 13-7 13zM12 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg></a>` : "";
-        const statusPill = v.current_status
-          ? `<span class="record-status ${statusClass(v.current_status)}">${esc(statusDisp)}</span>`
-          : "";
-        return `
-          <div class="vin-detail-row vin-inv-row" data-vin="${esc(v.serial_id)}">
-            <div>
-              <div class="vin-detail-vin">${esc(v.serial_id)}</div>
-              <div class="vin-detail-sub">
-                ${statusPill}${destDisp ? ` · ${esc(destDisp)}` : ""}
-                ${vehName ? ` · ${esc(vehName)}` : ""}
-                · ${esc(ago(v.last_seen_at || v.entered_inventory_at))}${pin}
-              </div>
-            </div>
-          </div>`;
-      }).join("")}
-    </div>` : "";
-
-  const recHtml = cards.length
-    ? `<div class="records-search-section"><div class="records-section-label">${cards.length} record${cards.length === 1 ? "" : "s"}</div>${cards.map(r => recordCard(r, "deleteRecord")).join("")}</div>`
-    : "";
-
-  container.innerHTML = vehHtml + recHtml;
-  const totalResults = vehRows.length + cards.length;
-  if (countEl) countEl.textContent = `${totalResults} result${totalResults === 1 ? "" : "s"}`;
-
-  // Tap an inventory row → open that VIN's full timeline
-  container.querySelectorAll(".vin-inv-row").forEach(row => {
-    row.style.cursor = "pointer";
-    row.addEventListener("click", () => {
-      document.getElementById("fSearch").value = row.dataset.vin;
-      renderVinTimeline(row.dataset.vin.toUpperCase());
-    });
-  });
+  // #records carries the matching entries only. The inventory VINs are already
+  // listed — deduped across vehicles + records, with the same tap-through — by
+  // renderVinDetailList below, so repeating them here just showed the same VIN
+  // list twice on one screen.
+  container.innerHTML = cards.length
+    ? `<div class="records-search-section"><div class="records-section-label">${cards.length} entr${cards.length === 1 ? "y" : "ies"}</div>${cards.map(r => recordCard(r, "deleteRecord", `openFuzzyRecord('${r.id}')`)).join("")}</div>`
+    : `<p class="records-prompt">No entries match &ldquo;${esc(term)}&rdquo;.</p>`;
 
   // Map: latest GPS per VIN, capped to 25 by recency
   const pins = [];
@@ -3037,6 +3015,12 @@ async function renderFuzzyResults(term) {
     });
   });
   renderVinDetailList(vinItems);
+
+  const vinCount = new Set(vinItems.map(i => String(i.vin || "").toUpperCase())).size;
+  if (countEl) {
+    countEl.textContent =
+      `${vinCount} VIN${vinCount === 1 ? "" : "s"} · ${cards.length} entr${cards.length === 1 ? "y" : "ies"}`;
+  }
 }
 
 // Drop markers on the records map for an arbitrary list. Used by the

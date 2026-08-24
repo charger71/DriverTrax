@@ -2893,6 +2893,12 @@ async function renderFuzzyResults(term) {
   // Quote-safe — Supabase .or() expects a comma-separated filter string
   const safe = term.replace(/[%,]/g, " ").replace(/'/g, "''");
   const upTerm = safe.toUpperCase();
+  // Plates are stored without spaces or punctuation, so "ABC 1234" has to lose
+  // those before it can match. Falls back to upTerm when the term is all
+  // punctuation, which would otherwise become an empty (match-everything) LIKE.
+  // SIPP matches by prefix, not contains: "ICAR" and "IC" should find the
+  // class, but a search for "car" shouldn't return every CCAR/FCAR on the lot.
+  const plateTerm = upTerm.replace(/[^A-Z0-9-]/g, "") || upTerm;
 
   let recsQ = sb.from("records")
     .select("id,user_id,serial_id,status,status_other,destination,destination_other,section_id,section_name,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,tires,gps_error,shift_num,mileage,fuel_level,photo_url,photo_urls,conditions,damage_marks,tire_details,claim_number,claim_notes")
@@ -2909,8 +2915,8 @@ async function renderFuzzyResults(term) {
   const [recRes, vehRes] = await Promise.all([
     recsQ,
     sb.from("vehicles")
-      .select("serial_id,current_status,current_status_other,current_destination,current_destination_other,section_id,section_name,last_lat,last_lng,last_seen_at,vin_data,entered_inventory_at")
-      .or(`serial_id.ilike.%${upTerm}%,vin_data->>make.ilike.%${safe}%,vin_data->>model.ilike.%${safe}%,vin_data->>year.ilike.%${safe}%`)
+      .select("serial_id,current_status,current_status_other,current_destination,current_destination_other,section_id,section_name,last_lat,last_lng,last_seen_at,vin_data,entered_inventory_at,plate,plate_state,sipp")
+      .or(`serial_id.ilike.%${upTerm}%,plate.ilike.%${plateTerm}%,sipp.ilike.${upTerm}%,vin_data->>make.ilike.%${safe}%,vin_data->>model.ilike.%${safe}%,vin_data->>year.ilike.%${safe}%`)
       .order("last_seen_at", { ascending: false, nullsFirst: false })
       .limit(100)
   ]);
@@ -3002,7 +3008,8 @@ async function renderFuzzyResults(term) {
       vin: v.serial_id, ts: v.last_seen_at || null, vehicle: vehName,
       status: v.current_status, statusOther: v.current_status_other,
       destination: v.current_destination, destinationOther: v.current_destination_other,
-      lat: v.last_lat, lng: v.last_lng
+      lat: v.last_lat, lng: v.last_lng,
+      plate: v.plate || "", plateState: v.plate_state || "", sipp: v.sipp || ""
     });
   });
   cards.forEach(c => {
@@ -3561,6 +3568,9 @@ async function renderVinTimeline(vin, opts) {
       </div>
       <div class="vin-tl-vin">${esc(vin)}</div>
       ${headerVehicle}
+      <!-- Plate / state / SIPP. Filled in by vehicle-info.js after render;
+           stays empty when the VIN has none on file and the module is absent. -->
+      <div id="vinTlVehicleInfo" class="vin-id-mount"></div>
       <div class="vin-tl-count">${events.length} event${events.length === 1 ? "" : "s"}</div>
       ${fuelGauge}
       <div id="vinTlRecalls" class="vin-tl-recalls" hidden></div>
@@ -3574,6 +3584,9 @@ async function renderVinTimeline(vin, opts) {
     <div class="vin-tl-list">${html}</div>
     ${pagerHtml}
   `;
+  // Plate / state / SIPP live on `vehicles`, not on any record — fetched and
+  // mounted separately so a slow round-trip doesn't hold up the timeline.
+  window.DT_VEHICLE_INFO?.mount(container.querySelector("#vinTlVehicleInfo"), vin);
   if (window.DT_DAMAGE) {
     if (hasAggDamage) {
       DT_DAMAGE.renderDamageViewer(document.getElementById("vinTlDamageMount"), {
@@ -4305,6 +4318,10 @@ function renderVinDetailList(items) {
       }
     }
     if (!cur.vehicle && it.vehicle) cur.vehicle = it.vehicle;
+    // Plate / SIPP come off the vehicles row, so only some events carry them.
+    // Whichever event has them wins regardless of recency — they're per-VIN.
+    if (it.plate) { cur.plate = it.plate; cur.plateState = it.plateState || ""; }
+    if (it.sipp) cur.sipp = it.sipp;
     seen.set(key, cur);
   });
   const rows = Array.from(seen.values()).sort((a, b) => b.last - a.last);
@@ -4330,10 +4347,17 @@ function renderVinDetailList(items) {
       destDisp ? esc(destDisp) : "",
       r.last ? esc(ago(r.last)) : ""
     ].filter(Boolean).join(" · ");
+    const plateTag = r.plate
+      ? `<span class="vin-detail-plate">${esc(r.plate)}${r.plateState ? `<span class="vin-detail-plate-state">${esc(r.plateState)}</span>` : ""}</span>`
+      : "";
+    const sippTag = r.sipp ? `<span class="vin-detail-sipp">${esc(r.sipp)}</span>` : "";
+    const idTags = (plateTag || sippTag)
+      ? `<div class="vin-detail-tags">${plateTag}${sippTag}</div>` : "";
     return `
       <div class="vin-detail-row" data-vin="${esc(r.vin)}">
         <div class="vin-detail-main">
           <div class="vin-detail-vin">${esc(r.vin)}</div>
+          ${idTags}
           ${subParts ? `<div class="vin-detail-sub">${subParts}</div>` : ""}
         </div>
         <div class="vin-detail-side">

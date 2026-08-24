@@ -351,10 +351,9 @@
   .entry-header-buttons .btn-manual-toggle {
     max-width: 50%;
   }
-  /* Driver entry form only — its header is a lone hero button, so it sits on
-     the same tightened rhythm as the fields below rather than the taller break
-     the detailer/service headers still use. */
-  #entryHeaderButtons { margin-bottom: var(--space-3); }
+  /* A header holding only the hero button — no secondary beneath it — needs a
+     smaller break before the first field than the two-button headers do. */
+  .entry-header-buttons--hero-only { margin-bottom: var(--space-4); }
   #manualEntrySection { margin-top: var(--space-3); }
 
   /* Entry-form row: side-by-side field groups (Mileage/Fuel, the hidden Location row). */

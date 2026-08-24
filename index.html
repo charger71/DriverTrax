@@ -673,6 +673,11 @@
 
   <div id="entryCurrentState" class="entry-current-state u-hidden"></div>
 
+  <!-- Plate / state / SIPP for the scanned VIN. Same component as the VIN
+       HISTORY header — mounted by vehicle-info.js from the dt-vin-scanned
+       listener in app.js, cleared by clearEntryCurrentState(). -->
+  <div id="entryVehicleInfo" class="vin-id-mount vin-id-mount--entry"></div>
+
   <!-- Body damage + Tire collapsibles were moved to sit under the
        Conditions panel further down. Kept #tireSelectorSection here as a
        no-op so `document.getElementById("tireSelectorSection").style.display`

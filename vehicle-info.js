@@ -101,30 +101,21 @@
     else _cache.clear();
   }
 
-  // Read-only chip row for the VIN HISTORY header. Returns "" when there's
-  // nothing to show and the caller doesn't want the add prompt.
+  // Read-only badge row for the VIN HISTORY header. One .vin-id-chip per value,
+  // styled to match the .vin-tl-chip decoded-spec badges directly above it.
+  // Returns "" when there's nothing to show.
   function chipsHtml(info) {
-    const cells = [];
-    if (info?.plate) {
-      const state = info.plateState
-        ? `<span class="vin-id-state">${esc(info.plateState)}</span>` : "";
-      cells.push(`
-        <div class="vin-id-cell">
-          <span class="vin-id-label">PLATE</span>
-          <span class="vin-id-value"><span class="vin-id-plate">${esc(info.plate)}</span>${state}</span>
-        </div>`);
-    }
-    if (info?.sipp) {
-      const desc = sippLabel(info.sipp);
-      cells.push(`
-        <div class="vin-id-cell">
-          <span class="vin-id-label">SIPP</span>
-          <span class="vin-id-value"><span class="vin-id-sipp">${esc(info.sipp)}</span>${
-            desc ? `<span class="vin-id-sipp-desc">${esc(desc)}</span>` : ""
-          }</span>
-        </div>`);
-    }
-    return cells.join("");
+    const chip = (label, value, sub) => `
+        <span class="vin-id-chip">
+          <span class="vin-id-chip-label">${esc(label)}</span>
+          <span class="vin-id-chip-val">${esc(value)}</span>${
+            sub ? `<span class="vin-id-chip-sub">${esc(sub)}</span>` : ""
+          }
+        </span>`;
+    const chips = [];
+    if (info?.plate) chips.push(chip("Plate", info.plate, info.plateState));
+    if (info?.sipp)  chips.push(chip("SIPP",  info.sipp,  sippLabel(info.sipp)));
+    return chips.join("");
   }
 
   // Render into a host element and wire its edit affordance. Re-entrant:
@@ -139,7 +130,7 @@
       host.innerHTML = `
         <div class="vin-id-row">
           ${chipsHtml(info)}
-          <button type="button" class="btn btn-ghost btn--sm vin-id-edit" aria-label="Edit plate and class">Edit</button>
+          <button type="button" class="btn btn-secondary btn--sm btn--pill vin-id-edit" aria-label="Edit plate and class">Edit</button>
         </div>`;
     }
     host.querySelector(".vin-id-add, .vin-id-edit")?.addEventListener("click", () => {

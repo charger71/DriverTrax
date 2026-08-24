@@ -931,42 +931,40 @@
   /* Plate / state / SIPP row in the VIN HISTORY header (vehicle-info.js).
      Distinct from .vin-tl-chip on purpose: those are decoded NHTSA specs,
      these are the two identifiers a lot attendant reads off the car. */
-  .vin-id-mount { margin-top: var(--space-3); }
+  /* margin-bottom separates the row from the "N events" count that follows it
+     in the header; margin-top matches the .vin-tl-chips rhythm above. */
+  .vin-id-mount { margin-top: var(--space-2); margin-bottom: var(--space-4); }
   .vin-id-mount:empty { display: none; }
+  /* Same row on the NEW ENTRY form, where it sits between field groups rather
+     than inside the header card: take the form's own top rhythm, and drop the
+     bottom margin because .entry-form-row (Mileage/Fuel) brings its own. */
+  .vin-id-mount--entry { margin-top: var(--space-4); margin-bottom: 0; }
   .vin-id-row {
     display: flex; align-items: center; flex-wrap: wrap;
-    gap: var(--space-2) var(--space-4);
+    gap: var(--space-1) var(--space-2);
   }
-  .vin-id-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .vin-id-label {
+  /* Same pill as .vin-tl-chip, so plate and SIPP read as part of the decoded-
+     spec badge row above rather than a separate widget. Only the inner label /
+     value emphasis is unique. */
+  .vin-id-chip {
+    display: inline-flex; align-items: baseline; gap: var(--space-2);
+    background: var(--panel); color: var(--text-soft);
+    border: var(--border-thin) solid var(--divider); border-radius: 999px;
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-sm); font-weight: var(--weight-medium); letter-spacing: 0.2px;
+    white-space: nowrap; min-width: 0; max-width: 100%;
+  }
+  .vin-id-chip-label {
     font-size: var(--font-xs); color: var(--muted);
     letter-spacing: 0.08em; text-transform: uppercase; font-weight: var(--weight-bold);
   }
-  .vin-id-value { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
-  .vin-id-plate {
+  .vin-id-chip-val {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: var(--font-lg); font-weight: var(--weight-heavy);
-    letter-spacing: 0.06em; color: var(--text);
-    background: var(--card-soft); border: var(--border-thin) solid var(--divider);
-    border-radius: var(--radius); padding: 2px var(--space-2);
-    white-space: nowrap;
+    font-weight: var(--weight-heavy); letter-spacing: 0.06em; color: var(--text);
   }
-  .vin-id-state {
-    font-size: var(--font-xs); font-weight: var(--weight-heavy); letter-spacing: 0.06em;
-    color: var(--text-on-accent); background: var(--accent);
-    border-radius: var(--radius); padding: 2px var(--space-2);
-  }
-  .vin-id-sipp {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: var(--font-base); font-weight: var(--weight-heavy); letter-spacing: 0.06em;
-    color: var(--info-text); background: var(--info-soft);
-    border: var(--border-thin) solid var(--info-strong);
-    border-radius: var(--radius); padding: 2px var(--space-2);
-    white-space: nowrap;
-  }
-  .vin-id-sipp-desc {
-    font-size: var(--font-sm); color: var(--text-soft);
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  .vin-id-chip-sub {
+    color: var(--text-soft); min-width: 0;
+    overflow: hidden; text-overflow: ellipsis;
   }
   .vin-id-row .vin-id-edit { margin-left: auto; flex-shrink: 0; }
   .vin-tl-mileage{ font-size: var(--font-base); color: var(--info-text); margin-top: var(--space-1); font-weight: var(--weight-medium); }

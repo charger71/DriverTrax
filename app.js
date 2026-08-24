@@ -6247,6 +6247,14 @@ document.addEventListener("dt-vin-scanned", (e) => {
   }
   renderEntryCurrentState(vin);
 
+  // Plate / state / SIPP for this VIN — the same component the VIN HISTORY
+  // header mounts, so the driver can set them from the form they're already in.
+  const infoEl = document.getElementById("entryVehicleInfo");
+  if (infoEl) {
+    if (vin) window.DT_VEHICLE_INFO?.mount(infoEl, vin);
+    else infoEl.innerHTML = "";
+  }
+
   // Body damage + Tires collapsibles are now purely local form fields
   // driven by damage.js — no VIN-scoped side effects to run here.
 });
@@ -6379,6 +6387,8 @@ function setInputPlaceholderHint(id, defaultPlaceholder, lastVal) {
 function clearEntryCurrentState() {
   const el = document.getElementById("entryCurrentState");
   if (el) { el.style.display = "none"; el.innerHTML = ""; }
+  const infoEl = document.getElementById("entryVehicleInfo");
+  if (infoEl) infoEl.innerHTML = "";
   setSelectPlaceholderHint("destination", "-- LOCATION --", "");
   setSelectPlaceholderHint("fuelLevel",   "-- FUEL --",     "");
   setInputPlaceholderHint("mileage", "000000", "");

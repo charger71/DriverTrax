@@ -101,21 +101,23 @@
     else _cache.clear();
   }
 
-  // Read-only badge row for the VIN HISTORY header. One .vin-id-chip per value,
-  // styled to match the .vin-tl-chip decoded-spec badges directly above it.
+  // Read-only badge row. Each value is a badge on the app's standard
+  // .record-status/.badge-* base (see app.css), so radius, padding and casing
+  // match every other badge in the app. The SIPP code carries no label — the
+  // code identifies itself and its expansion sits beside it.
   // Returns "" when there's nothing to show.
   function chipsHtml(info) {
-    const chip = (label, value, sub) => `
-        <span class="vin-id-chip">
-          <span class="vin-id-chip-label">${esc(label)}</span>
-          <span class="vin-id-chip-val">${esc(value)}</span>${
-            sub ? `<span class="vin-id-chip-sub">${esc(sub)}</span>` : ""
-          }
-        </span>`;
-    const chips = [];
-    if (info?.plate) chips.push(chip("Plate", info.plate, info.plateState));
-    if (info?.sipp)  chips.push(chip("SIPP",  info.sipp,  sippLabel(info.sipp)));
-    return chips.join("");
+    const badges = [];
+    if (info?.plate) {
+      badges.push(`<span class="vin-id-plate">${esc(info.plate)}</span>`);
+      if (info.plateState) badges.push(`<span class="vin-id-state">${esc(info.plateState)}</span>`);
+    }
+    if (info?.sipp) {
+      badges.push(`<span class="vin-id-sipp">${esc(info.sipp)}</span>`);
+      const desc = sippLabel(info.sipp);
+      if (desc) badges.push(`<span class="vin-id-sipp-desc">${esc(desc)}</span>`);
+    }
+    return badges.join("");
   }
 
   // Render into a host element and wire its edit affordance. Re-entrant:
@@ -127,11 +129,15 @@
           + Add plate &amp; class
         </button>`;
     } else {
+      // "Plate" is an eyebrow over the badges, so it only shows when there is
+      // a plate. Edit shares that line rather than trailing the badges, where
+      // it orphaned to the right whenever they wrapped.
       host.innerHTML = `
         <div class="vin-id-row">
-          ${chipsHtml(info)}
-          <button type="button" class="btn btn-secondary btn--sm btn--pill vin-id-edit" aria-label="Edit plate and class">Edit</button>
-        </div>`;
+          <span class="field-label vin-id-eyebrow">${info.plate ? "Plate" : ""}</span>
+          <button type="button" class="btn btn-secondary btn--sm vin-id-edit" aria-label="Edit plate and class">Edit</button>
+        </div>
+        <div class="vin-id-badges">${chipsHtml(info)}</div>`;
     }
     host.querySelector(".vin-id-add, .vin-id-edit")?.addEventListener("click", () => {
       openEditor(vin, () => mount(host, vin, { force: true }));

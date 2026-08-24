@@ -1053,34 +1053,31 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
 <!-- ===================== PLATE & SIPP ===================== -->
 <section class="cl-section" id="plate-sipp">
   <h2>Plate &amp; SIPP</h2>
-  <p class="cl-desc">Per-VIN identifiers stored on <code>vehicles</code> (plate, plate state, SIPP class code) and rendered by <code>vehicle-info.js</code>. The <code>.vin-id-*</code> row mounts into the VIN&nbsp;history header; the smaller <code>.vin-detail-*</code> tags ride along on VIN&nbsp;lookup rows.</p>
+  <p class="cl-desc">Per-VIN identifiers stored on <code>vehicles</code> (plate, plate state, SIPP class code) and rendered by <code>vehicle-info.js</code>. The <code>.vin-id-*</code> row mounts into the VIN&nbsp;history header and the New&nbsp;Entry form; the smaller <code>.vin-detail-*</code> tags ride along on VIN&nbsp;lookup rows.</p>
+  <p class="cl-desc"><code>.vin-id-plate</code>, <code>.vin-id-state</code> and <code>.vin-id-sipp</code> are on the shared <code>.record-status, .badge-*</code> base rule, so they carry the standard badge radius, padding and casing — see <a href="#badges">Badges</a>. They override only size and fill: both value badges step up to <code>--font-md</code> so a plate read off a bumper stays legible. The plate uses the theme-independent <code>--plate-bg</code> / <code>--plate-text</code> pair (a plate is a physical object, so it keeps plate colors in both themes — same reasoning as <code>--overlay-*</code>).</p>
 
   <div class="cl-block">
     <div class="cl-block-label">Header row — filled</div>
     <div class="cl-preview cl-stack">
       <div class="vin-id-row">
-        <span class="vin-id-chip">
-          <span class="vin-id-chip-label">Plate</span>
-          <span class="vin-id-chip-val">KDX4471</span><span class="vin-id-chip-sub">NY</span>
-        </span>
-        <span class="vin-id-chip">
-          <span class="vin-id-chip-label">SIPP</span>
-          <span class="vin-id-chip-val">ICAR</span><span class="vin-id-chip-sub">Intermediate / Midsize</span>
-        </span>
-        <button type="button" class="btn btn-secondary btn--sm btn--pill vin-id-edit">Edit</button>
+        <span class="field-label vin-id-eyebrow">Plate</span>
+        <button type="button" class="btn btn-secondary btn--sm vin-id-edit">Edit</button>
+      </div>
+      <div class="vin-id-badges">
+        <span class="vin-id-plate">KDX4471</span><span class="vin-id-state">NY</span>
+        <span class="vin-id-sipp">ICAR</span><span class="vin-id-sipp-desc">Intermediate / Midsize</span>
       </div>
     </div>
-<pre class="cl-code">&lt;!-- Same pill as .vin-tl-chip, so these sit in the decoded-spec badge row. --&gt;
+<pre class="cl-code">&lt;!-- "Plate" is an eyebrow (.field-label) over the badges; Edit shares that
+     line so it can't orphan to the right when the badges wrap. The SIPP code
+     carries no label — it identifies itself, and its expansion sits beside it. --&gt;
 &lt;div class="vin-id-row"&gt;
-  &lt;span class="vin-id-chip"&gt;
-    &lt;span class="vin-id-chip-label"&gt;Plate&lt;/span&gt;
-    &lt;span class="vin-id-chip-val"&gt;${plate}&lt;/span&gt;&lt;span class="vin-id-chip-sub"&gt;${state}&lt;/span&gt;
-  &lt;/span&gt;
-  &lt;span class="vin-id-chip"&gt;
-    &lt;span class="vin-id-chip-label"&gt;SIPP&lt;/span&gt;
-    &lt;span class="vin-id-chip-val"&gt;${code}&lt;/span&gt;&lt;span class="vin-id-chip-sub"&gt;${label}&lt;/span&gt;
-  &lt;/span&gt;
-  &lt;button type="button" class="btn btn-secondary btn--sm btn--pill vin-id-edit"&gt;Edit&lt;/button&gt;
+  &lt;span class="field-label vin-id-eyebrow"&gt;Plate&lt;/span&gt;
+  &lt;button type="button" class="btn btn-secondary btn--sm vin-id-edit"&gt;Edit&lt;/button&gt;
+&lt;/div&gt;
+&lt;div class="vin-id-badges"&gt;
+  &lt;span class="vin-id-plate"&gt;${plate}&lt;/span&gt;&lt;span class="vin-id-state"&gt;${state}&lt;/span&gt;
+  &lt;span class="vin-id-sipp"&gt;${code}&lt;/span&gt;&lt;span class="vin-id-sipp-desc"&gt;${label}&lt;/span&gt;
 &lt;/div&gt;
 
 &lt;!-- Don't hand-render this. DT_VEHICLE_INFO.mount(hostEl, vin) fetches

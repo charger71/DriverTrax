@@ -52,6 +52,11 @@
     --surface-selected:  rgba(0, 166, 81, 0.12);
     --overlay-bg:        #000000;   /* fullscreen camera overlay — fixed in both themes */
     --overlay-text:      #ffffff;
+    /* A license plate is a physical object, so it keeps plate colors in both
+       themes rather than following the surface palette — same reasoning as
+       --overlay-* above. */
+    --plate-bg:          #f4f2ec;
+    --plate-text:        #1c1a17;
 
     /* Lines */
     --border:            #333b45;
@@ -193,6 +198,8 @@
     --surface-selected:  rgba(0, 122, 61, 0.12);
     --overlay-bg:        #000000;
     --overlay-text:      #ffffff;
+    --plate-bg:          #f4f2ec;
+    --plate-text:        #1c1a17;
 
     --border:            #c2bcb0;
     --divider:           #d8d3c6;
@@ -809,7 +816,8 @@
   .record-serial { font-size: var(--font-lg); font-weight: 700; letter-spacing: 1px; color: var(--text); }
   .record-badges { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
   /* Shared base for all record/status badges — variants below override color only. */
-  .record-status, .badge-dest, .badge-notag, .badge-shuttle, .badge-transport, .badge-damage, .badge-gps {
+  .record-status, .badge-dest, .badge-notag, .badge-shuttle, .badge-transport, .badge-damage, .badge-gps,
+  .vin-id-plate, .vin-id-state, .vin-id-sipp {
     font-size: var(--font-xs); font-weight: 700;
     padding: var(--space-1) var(--space-2); border-radius: 6px;
     text-transform: uppercase; letter-spacing: 0.5px;
@@ -939,34 +947,47 @@
      than inside the header card: take the form's own top rhythm, and drop the
      bottom margin because .entry-form-row (Mileage/Fuel) brings its own. */
   .vin-id-mount--entry { margin-top: var(--space-4); margin-bottom: 0; }
+  /* Eyebrow line: the "Plate" label plus the Edit button, above the badges.
+     Giving Edit its own line stops it orphaning to the right when the badges
+     wrap. .field-label is the app's label component — the margin reset is the
+     only thing unique here, since the badge row below brings its own spacing. */
   .vin-id-row {
-    display: flex; align-items: center; flex-wrap: wrap;
-    gap: var(--space-1) var(--space-2);
+    display: flex; align-items: center; justify-content: space-between;
+    gap: var(--space-3);
   }
-  /* Same pill as .vin-tl-chip, so plate and SIPP read as part of the decoded-
-     spec badge row above rather than a separate widget. Only the inner label /
-     value emphasis is unique. */
-  .vin-id-chip {
-    display: inline-flex; align-items: baseline; gap: var(--space-2);
-    background: var(--panel); color: var(--text-soft);
-    border: var(--border-thin) solid var(--divider); border-radius: 999px;
-    padding: var(--space-1) var(--space-2);
-    font-size: var(--font-sm); font-weight: var(--weight-medium); letter-spacing: 0.2px;
-    white-space: nowrap; min-width: 0; max-width: 100%;
+  .vin-id-eyebrow { margin-bottom: 0; margin-top: 0; }
+  .vin-id-row .vin-id-edit { flex-shrink: 0; margin-left: auto; }
+  .vin-id-badges {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: var(--space-2); margin-top: var(--space-1);
   }
-  .vin-id-chip-label {
-    font-size: var(--font-xs); color: var(--muted);
-    letter-spacing: 0.08em; text-transform: uppercase; font-weight: var(--weight-bold);
-  }
-  .vin-id-chip-val {
+  /* plate / state / SIPP take the standard badge base above (6px radius,
+     padding, uppercase, weight) — only size and fill are set here. Both value
+     badges step up to --font-md so a plate read off a bumper is legible at
+     arm's length, which the badge default of --font-xs is not. */
+  .vin-id-plate {
+    background: var(--plate-bg); color: var(--plate-text);
+    border: var(--border-thin) solid var(--border);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-weight: var(--weight-heavy); letter-spacing: 0.06em; color: var(--text);
+    font-size: var(--font-md); letter-spacing: 1px;
   }
-  .vin-id-chip-sub {
-    color: var(--text-soft); min-width: 0;
-    overflow: hidden; text-overflow: ellipsis;
+  .vin-id-state {
+    background: var(--card-soft); color: var(--text-soft);
+    border: var(--border-thin) solid var(--border);
+    font-size: var(--font-base);
   }
-  .vin-id-row .vin-id-edit { margin-left: auto; flex-shrink: 0; }
+  /* Info fill, matching .badge-shuttle's recipe. No "SIPP" label — the code
+     is its own identifier, and the expansion sits beside it. */
+  .vin-id-sipp {
+    background: var(--info-soft); color: var(--info);
+    border: var(--border-thin) solid var(--info);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: var(--font-md); letter-spacing: 1px;
+  }
+  .vin-id-sipp-desc {
+    font-size: var(--font-base); color: var(--text-soft); min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   .vin-tl-mileage{ font-size: var(--font-base); color: var(--info-text); margin-top: var(--space-1); font-weight: var(--weight-medium); }
   .vin-tl-cond-row { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); margin-top: var(--space-4); }
   .vin-tl-cond-chip {

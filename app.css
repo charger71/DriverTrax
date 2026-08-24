@@ -935,6 +935,10 @@
      in the header; margin-top matches the .vin-tl-chips rhythm above. */
   .vin-id-mount { margin-top: var(--space-2); margin-bottom: var(--space-4); }
   .vin-id-mount:empty { display: none; }
+  /* Same row on the NEW ENTRY form, where it sits between field groups rather
+     than inside the header card: take the form's own top rhythm, and drop the
+     bottom margin because .entry-form-row (Mileage/Fuel) brings its own. */
+  .vin-id-mount--entry { margin-top: var(--space-4); margin-bottom: 0; }
   .vin-id-row {
     display: flex; align-items: center; flex-wrap: wrap;
     gap: var(--space-1) var(--space-2);

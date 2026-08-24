@@ -57,7 +57,7 @@ const appGlobals = [
   "openDetail", "closeDetail", "openEdit", "closeEdit", "saveEdit", "deleteRecord",
   "deleteTodayRecord", "openScanner", "closeScanner", "openVinKeypad", "closeVinKeypad",
   "closeRecordDetailOverlay", "openMenu", "closeMenu", "saveRecord",
-  "viewByDate", "viewByWeek", "clearFilters", "openVinDetailPanel",
+  "viewByDate", "viewByWeek", "clearFilters", "onDateFilterChange", "openVinDetailPanel",
   // assigned as window.X = ... , so ESLint can't see the declaration
   "closeContactCard", "loadKeyUp", "loadGarage", "loadBcounter"
 ];

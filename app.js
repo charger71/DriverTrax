@@ -668,10 +668,23 @@ function getFiltered() {
   });
 }
 
+// Caption for a date-range drill-down opened from the dashboard ("This Week",
+// "Entries for 2026-08-23", a month name). Shown in place of the result count,
+// and cleared whenever the range stops being the dashboard's.
+let _recordsRangeLabel = "";
+
 function clearFilters() {
   ["fSearch","fDateFrom","fDateTo"].forEach(id => document.getElementById(id).value = "");
   ["fStatus","fNoTag","fDest"].forEach(id => document.getElementById(id).selectedIndex = 0);
-  document.getElementById("recordsHeading").textContent = "Filter Records";
+  _recordsRangeLabel = "";
+  resetRecordsPage();
+  renderRecords();
+}
+
+// The date inputs are also editable by hand, which makes any dashboard caption
+// stale — drop it and re-render against whatever the user picked.
+function onDateFilterChange() {
+  _recordsRangeLabel = "";
   resetRecordsPage();
   renderRecords();
 }
@@ -683,7 +696,7 @@ function viewByDate(dateStr) {
   document.getElementById("fStatus").selectedIndex = 0;
   document.getElementById("fNoTag").selectedIndex = 0;
   document.getElementById("fDest").selectedIndex = 0;
-  document.getElementById("recordsHeading").textContent = "Entries for " + dateStr;
+  _recordsRangeLabel = "Entries for " + dateStr;
   resetRecordsPage();
   showTab("records");
 }
@@ -695,7 +708,7 @@ function viewByWeek(fromStr, toStr, label) {
   document.getElementById("fStatus").selectedIndex = 0;
   document.getElementById("fNoTag").selectedIndex = 0;
   document.getElementById("fDest").selectedIndex = 0;
-  document.getElementById("recordsHeading").textContent = label;
+  _recordsRangeLabel = label;
   resetRecordsPage();
   showTab("records");
 }
@@ -2770,14 +2783,26 @@ function renderRecords() {
   const countEl   = document.getElementById("resultsCount");
   const container = document.getElementById("records");
 
+  // No search, but a date range → the dashboard drilled in by date.
+  if (!searchVal) {
+    const from = document.getElementById("fDateFrom")?.value || "";
+    const to   = document.getElementById("fDateTo")?.value   || "";
+    if (from || to) return renderRangeRecords();
+  }
+
   // No search → empty state, no list, no markers.
   if (!searchVal) {
+    _recordsRangeLabel = "";
+    if (container) container.classList.add("u-hidden");
     if (countEl)   countEl.textContent = "";
     if (container) renderRecentVinEmptyState(container);
     _renderRecordsMapMarkers([]);
     renderVinDetailList([]);
     return;
   }
+
+  // Search results render into #vinDetailList, so put the range list away.
+  if (container) container.classList.add("u-hidden");
 
   // Full VIN → timeline view
   if (isFullVin(searchVal)) {
@@ -2787,6 +2812,53 @@ function renderRecords() {
 
   // Partial term → fuzzy search across the cloud
   return renderFuzzyResults(searchVal);
+}
+
+// The dashboard drills into this panel by date — a day row, a week or month
+// row, a stat card. Those set the date filters with no search term, so list the
+// records for that range instead of the "type a VIN" empty state.
+//
+// #records is the legacy list container: every search path renders into
+// #vinDetailList and leaves #records hidden, so it is shown only for this view.
+function renderRangeRecords() {
+  const container = document.getElementById("records");
+  const countEl   = document.getElementById("resultsCount");
+  if (!container) return;
+
+  const records = getFiltered().slice().sort((a, b) => b.timestamp - a.timestamp);
+
+  container.classList.remove("u-hidden");
+  container.innerHTML = records.length
+    ? records.map(r => recordCard(r, "deleteRecord")).join("")
+    : `<p class="records-prompt">No entries for this range.</p>`;
+
+  if (countEl) {
+    const count = `${records.length} record${records.length === 1 ? "" : "s"}`;
+    countEl.textContent = _recordsRangeLabel ? `${_recordsRangeLabel} · ${count}` : count;
+  }
+
+  _renderRecordsMapMarkers(
+    records
+      .filter(r => Number.isFinite(r.lat) && Number.isFinite(r.lng))
+      .map(r => ({ lat: r.lat, lng: r.lng, label: r.serialId, ts: r.timestamp || 0 }))
+  );
+
+  // The VIN Detail list mirrors whatever is in the records list, so feed it the
+  // same range rather than leaving it reading "No VINs in current results"
+  // above a list that plainly has some.
+  renderVinDetailList(records.map(r => ({
+    vin: r.serialId,
+    ts: r.timestamp,
+    status: r.status,
+    statusOther: r.statusOther,
+    destination: r.destination,
+    destinationOther: r.destinationOther,
+    lat: r.lat,
+    lng: r.lng,
+    vehicle: r.vinData
+      ? [r.vinData.year, r.vinData.make, r.vinData.model].filter(Boolean).join(" ")
+      : ""
+  })));
 }
 
 // Fuzzy search: matches against records.serial_id + records.notes (plus
@@ -3611,19 +3683,23 @@ function openDetail(id, onDelete) {
   `;
 
 
-  // Vehicle info
-  const vinSection = document.getElementById("detailVinSection");
+  // Vehicle info. The old #detailVinSection wrapper is gone — the block was
+  // restructured so the serial number lives inside it, which means hiding the
+  // whole thing would take the serial with it. Clear the decoded fields
+  // instead and leave the section standing.
+  const vinIcon = document.getElementById("detailVinIcon");
   if (r.vinData) {
     const name = [r.vinData.year, r.vinData.make, r.vinData.model].filter(Boolean).map(sanitizeText).join(" ");
     const trim = sanitizeText(r.vinData.trim || "");
     const specs = [r.vinData.bodyClass, r.vinData.engine, r.vinData.fuelType].filter(Boolean).map(sanitizeText).join("  ·  ");
     const icons = getVehicleSVG({...r.vinData, _size: 72});
-    document.getElementById("detailVinIcon").innerHTML = icons.vehicle + icons.fuel;
+    vinIcon.innerHTML = icons.vehicle + icons.fuel;
     document.getElementById("detailVinName").textContent = name + (trim ? "  " + trim : "");
     document.getElementById("detailVinSpecs").textContent = specs;
-    vinSection.style.display = "flex";
   } else {
-    vinSection.style.display = "none";
+    vinIcon.innerHTML = "";
+    document.getElementById("detailVinName").textContent = "";
+    document.getElementById("detailVinSpecs").textContent = "";
   }
 
   // Tires row

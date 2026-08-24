@@ -1062,8 +1062,8 @@
         </select>
       </div>
       <div class="filter-row">
-        <input type="date" id="fDateFrom" onchange="renderRecords()">
-        <input type="date" id="fDateTo" onchange="renderRecords()">
+        <input type="date" id="fDateFrom" onchange="onDateFilterChange()">
+        <input type="date" id="fDateTo" onchange="onDateFilterChange()">
       </div>
       <button class="btn btn-secondary btn--sm" onclick="clearFilters()">Clear Filters</button>
       <button class="btn btn-primary btn--sm" onclick="exportCSV()">EXPORT CSV</button>

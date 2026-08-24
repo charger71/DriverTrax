@@ -4888,6 +4888,102 @@ let hardModeTimer = null;       // delayed TRY_HARDER fallback (ZXing path)
 let hardModeOn = false;
 let scannerSession = 0;         // bumped per open; guards the deferred close
 
+// Opening the camera is the slowest part of starting a scan, and lot work is
+// bursty — you scan a car, close, walk two spaces, scan the next. These two
+// caches remove the acquisition from that second open.
+//
+//   warmStream    a still-live stream held briefly AFTER the scanner closes.
+//   prewarmPromise  an acquisition started on pointerdown of a scan button,
+//                   i.e. before the tap has even become a click.
+//
+// Both are strictly short-lived: the camera must never be running while the
+// user thinks the scanner is shut. Anything that isn't claimed in time is
+// stopped, and backgrounding the app drops both immediately.
+const WARM_STREAM_MS = 4000;    // how long a closed scanner's stream is held
+const PREWARM_MAX_MS = 3000;    // how long an unclaimed pointerdown warm-up lives
+let warmStream = null;
+let warmStreamTimer = null;
+let prewarmPromise = null;
+let prewarmTimer = null;
+
+function stopStream(stream) {
+  if (!stream) return;
+  try { stream.getTracks().forEach(t => t.stop()); } catch(e) {}
+}
+
+function streamIsLive(stream) {
+  if (!stream) return false;
+  const t = stream.getVideoTracks()[0];
+  return !!t && t.readyState === "live";
+}
+
+// Hold a just-closed stream for WARM_STREAM_MS, then let it go.
+function parkWarmStream(stream) {
+  releaseWarmStream();
+  if (!streamIsLive(stream)) { stopStream(stream); return; }
+  warmStream = stream;
+  warmStreamTimer = setTimeout(releaseWarmStream, WARM_STREAM_MS);
+}
+
+// Claim the parked stream if it's still good. Returns null if there isn't one.
+function takeWarmStream() {
+  const s = warmStream;
+  warmStream = null;
+  if (warmStreamTimer) { clearTimeout(warmStreamTimer); warmStreamTimer = null; }
+  if (!s) return null;
+  if (!streamIsLive(s)) { stopStream(s); return null; }
+  return s;
+}
+
+function releaseWarmStream() {
+  if (warmStreamTimer) { clearTimeout(warmStreamTimer); warmStreamTimer = null; }
+  if (warmStream) { stopStream(warmStream); warmStream = null; }
+}
+
+// Start acquiring on pointerdown, so the camera is already opening while the
+// tap resolves into a click and the overlay animates in. A tap that turns out
+// to be a scroll never opens the scanner, so an unclaimed warm-up is dropped.
+function prewarmCamera() {
+  if (scannerActive || prewarmPromise || warmStream) return;
+  prewarmPromise = startCameraStream().then(s => s, () => null);
+  const p = prewarmPromise;
+  prewarmTimer = setTimeout(() => {
+    prewarmTimer = null;
+    if (prewarmPromise !== p) return; // already claimed by openScanner
+    prewarmPromise = null;
+    p.then(s => stopStream(s));
+  }, PREWARM_MAX_MS);
+}
+
+function cancelPrewarm() {
+  if (prewarmTimer) { clearTimeout(prewarmTimer); prewarmTimer = null; }
+  const p = prewarmPromise;
+  prewarmPromise = null;
+  if (p) p.then(s => stopStream(s));
+}
+
+// The stream openScanner() actually uses: a pointerdown warm-up if one is in
+// flight, else a parked stream, else a fresh acquisition.
+async function claimCameraStream() {
+  if (prewarmPromise) {
+    const p = prewarmPromise;
+    prewarmPromise = null;
+    if (prewarmTimer) { clearTimeout(prewarmTimer); prewarmTimer = null; }
+    const s = await p;
+    if (streamIsLive(s)) return s;
+    stopStream(s);
+  }
+  return startCameraStream();
+}
+
+// Every scan entry point is an element whose onclick calls openScanner (or
+// openScannerForSearch), so one delegated listener covers all of them and any
+// added later — no markup changes, and none to forget.
+document.addEventListener("pointerdown", (e) => {
+  const t = e.target && e.target.closest && e.target.closest('[onclick*="openScanner"]');
+  if (t) prewarmCamera();
+}, { passive: true });
+
 // --- Tuning ---
 // No artificial floor between native-path decode attempts. The loop is paced
 // by the camera itself (one tick per new frame, see scheduleFrame) and each
@@ -5172,6 +5268,11 @@ async function pickIOSBackCamera() {
 }
 
 async function startCameraStream() {
+  // A stream parked by a recent close is already open and focused — by far the
+  // cheapest way to start a scan.
+  const warm = takeWarmStream();
+  if (warm) return warm;
+
   const targetW = IS_IOS ? IOS_TARGET_WIDTH : TARGET_WIDTH;
   const targetH = IS_IOS ? IOS_TARGET_HEIGHT : TARGET_HEIGHT;
 
@@ -5216,10 +5317,13 @@ function attachStreamToVideo(stream) {
   video.srcObject = stream;
   video.setAttribute("playsinline", "true");
   video.muted = true;
-  return new Promise((resolve) => {
-    if (video.readyState >= 2) return resolve(video);
-    video.onloadedmetadata = () => resolve(video);
-  });
+  // Deliberately synchronous. Waiting on loadedmetadata and then on play() put
+  // two more round trips between the tap and the first decode attempt, and
+  // bought nothing: both decode loops already skip ticks until videoWidth is
+  // non-zero, so they can start now and pick up frames the moment they exist.
+  const played = video.play();
+  if (played && typeof played.catch === "function") played.catch(() => {});
+  return video;
 }
 
 // ---------- Native BarcodeDetector path ----------
@@ -5585,7 +5689,9 @@ function openScannerManualEntry() {
   // If the scanner was opened from records search, return the user to that
   // input rather than the entry-tab serial field.
   const wasSearch = scanTarget === "search";
-  closeScanner(); // resets scanTarget
+  // Bailing to the keypad: the user is done with the camera, so release it
+  // rather than leaving it running behind the keyboard they're now typing on.
+  closeScanner({ keepWarm: false }); // resets scanTarget
   if (wasSearch) {
     const fs = document.getElementById("fSearch");
     if (fs) {
@@ -5655,12 +5761,9 @@ async function openScanner() {
   document.getElementById("torchBtn").classList.remove("on");
 
   try {
-    const stream = await startCameraStream();
+    const stream = await claimCameraStream();
     activeStream = stream;
-    const video = await attachStreamToVideo(stream);
-
-    // Some Androids need an explicit play() after metadata loads.
-    try { await video.play(); } catch(e) {}
+    const video = attachStreamToVideo(stream);
 
     hint.innerHTML = dotSvg + " Scanning...";
     startScannerEscalation();
@@ -5692,7 +5795,14 @@ async function openScanner() {
   }
 }
 
-function closeScanner() {
+// keepWarm:false tears the camera down outright. Used when the app is being
+// backgrounded, where holding the stream would leave the camera running behind
+// a screen the user has walked away from.
+function closeScanner(opts) {
+  const keepWarm = !(opts && opts.keepWarm === false);
+  // Read before the reset below clears it: a stream whose torch is lit must
+  // never be parked, or the flashlight stays on after the scanner disappears.
+  const torchWasOn = torchOn;
   scanTarget = "entry"; // never leak a one-shot search mode into the next session
   scannerActive = false;
   clearScannerEscalation();
@@ -5718,7 +5828,11 @@ function closeScanner() {
     codeReader = null;
   }
   if (activeStream) {
-    activeStream.getTracks().forEach(t => t.stop());
+    // parkWarmStream stops anything that isn't still live, which also covers
+    // the non-iOS path where ZXing owns the stream and codeReader.reset()
+    // above has already ended its tracks.
+    if (keepWarm && !torchWasOn) parkWarmStream(activeStream);
+    else stopStream(activeStream);
     activeStream = null;
   }
   const video = document.getElementById("scannerVideo");
@@ -5739,13 +5853,20 @@ function closeScanner() {
 // a dead stream and the user would have to force-close the app to recover.
 // Tear down on hide so the next openScanner() acquires a fresh stream.
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "hidden" && scannerActive) {
-    try { closeScanner(); } catch(e) {}
+  if (document.visibilityState !== "hidden") return;
+  // Drop the warm/prewarm caches too — neither may outlive the app going to
+  // the background, whether or not the scanner itself was open.
+  try { releaseWarmStream(); } catch(e) {}
+  try { cancelPrewarm(); } catch(e) {}
+  if (scannerActive) {
+    try { closeScanner({ keepWarm: false }); } catch(e) {}
   }
 });
 window.addEventListener("pagehide", () => {
+  try { releaseWarmStream(); } catch(e) {}
+  try { cancelPrewarm(); } catch(e) {}
   if (scannerActive) {
-    try { closeScanner(); } catch(e) {}
+    try { closeScanner({ keepWarm: false }); } catch(e) {}
   }
 });
 

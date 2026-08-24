@@ -362,7 +362,7 @@
      here as "Status" does above its buttons — .field-label is inline, so its
      own margin-bottom never renders and the control has to supply the gap. */
   .entry-form-row input, .entry-form-row select {
-    margin-top: var(--space-2);
+    margin-top: var(--space-4);
     margin-bottom: 0;
   }
   .entry-form-row + .field-row { margin-top: var(--space-3); }
@@ -1329,6 +1329,11 @@
 
   /* Primary tier — CLEAN / DIRTY, half-width hero buttons colored the same
      as their .record-status.status-CLEAN/DIRTY chips elsewhere in the app. */
+  /* Matches the Mileage/Fuel controls' top margin so "Status" sits the same
+     distance above its buttons as those labels do above their inputs. The
+     --more group keeps the tighter default; it sits inside a disclosure body
+     that supplies its own padding. */
+  .status-btn-group--primary { margin-top: var(--space-4); }
   .status-btn-group--primary .status-btn {
     flex: 1;
     min-height: 56px;

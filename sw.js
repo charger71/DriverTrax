@@ -1,6 +1,6 @@
 // DriverTrax Service Worker
 // Provides offline support and caches app assets
-const CACHE_VERSION = "drivertrax-v9.69-plate-sipp-entry-form";
+const CACHE_VERSION = "drivertrax-v9.70-plate-sipp-badge-base";
 // Every <script src> and <link href> in index.html must appear here. Anything
 // missing is unavailable on an offline cold start: cross-origin assets in
 // particular can't be backfilled at runtime by any reliable means, so a gap

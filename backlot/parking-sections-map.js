@@ -159,13 +159,23 @@
 
   function toSQL(s) {
     const wkt = closedRing(s.coords).map(([lng, lat]) => `${lng} ${lat}`).join(", ");
+    // Upsert, not a plain insert: parking_sections has a unique index on
+    // lower(name) (one row per section), so re-exporting a section that's
+    // already in the table — the normal case when redrawing a boundary,
+    // not just a first-time add — must update that row rather than collide
+    // with it. ON CONFLICT's target has to name the same expression the
+    // index is built on, hence the double parens around lower(name).
     return `insert into parking_sections (fleet_id, name, status, boundary)
 values (
   :fleet_id,
   '${s.name.replace(/'/g, "''")}',
   '${s.status}',
   ST_GeogFromText('POLYGON((${wkt}))')
-);`;
+)
+on conflict ((lower(name))) do update set
+  fleet_id = excluded.fleet_id,
+  status   = excluded.status,
+  boundary = excluded.boundary;`;
   }
 
   function renderExport() {

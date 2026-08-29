@@ -792,6 +792,12 @@ async function getRecalls(year, make, model) {
 // Photos attached to the current NEW ENTRY form (array of resized blobs, pre-upload).
 // Wired by initEntryPhotoInput() at boot.
 let pendingEntryPhotos = [];
+// True from the moment saveRecord() disables the Save button until the save
+// settles (doSave() resets the form, or the GPS-conflict prompt is cancelled).
+// updateSaveBtnState() checks this first so a status/serial change mid-save
+// (e.g. while "Getting location..." is showing) can't re-enable the button
+// and let a driver double-submit.
+let entrySaveInFlight = false;
 
 function renderEntryPhotoStrip() {
   const strip = document.getElementById("entryPhotoStrip");
@@ -859,6 +865,20 @@ function resetEntryPhotoUI() {
   if (strip) { strip.style.display = "none"; strip.innerHTML = ""; }
 }
 
+// Keeps the primary Save button disabled until the required fields (Serial ID
+// + Status) are filled in, so a blank entry can't be submitted. Wired into
+// every place those two fields change: the VIN keypad, the barcode scanner,
+// clearSerial() (via toggleClearBtn()), and selectStatus() (via
+// handleStatusChange()).
+function updateSaveBtnState() {
+  const saveBtn = document.getElementById("saveBtn");
+  if (!saveBtn) return;
+  if (entrySaveInFlight) { saveBtn.disabled = true; return; }
+  const serial = document.getElementById("serial").value.trim();
+  const statusVal = document.getElementById("status").value;
+  saveBtn.disabled = !serial || !statusVal;
+}
+
 function saveRecord() {
   let serial = sanitizeSerial(document.getElementById("serial").value.trim().toUpperCase());
   if (!serial) {
@@ -870,6 +890,7 @@ function saveRecord() {
 
   const saveBtn = document.getElementById("saveBtn");
   const gpsEl = document.getElementById("gpsStatus");
+  entrySaveInFlight = true;
   saveBtn.disabled = true;
   saveBtn.innerHTML = pendingEntryPhotos.length ? "Uploading photos..." : "Getting location...";
   gpsEl.className = "gps-status acquiring";
@@ -952,7 +973,8 @@ function saveRecord() {
     toggleTransportStyle();
     const mEl = document.getElementById("mileage"); if (mEl) mEl.value = "";
     const fEl = document.getElementById("fuelLevel"); if (fEl) fEl.selectedIndex = 0;
-    saveBtn.disabled = false;
+    entrySaveInFlight = false;
+    updateSaveBtnState();
     saveBtn.innerHTML = "Save";
     gpsEl.className = "gps-status";
     gpsEl.textContent = "";
@@ -1045,7 +1067,8 @@ function saveRecord() {
             if (!proceed) {
               // Driver picked "Fix destination" — restore the Save button and bail.
               // They'll fix the dropdown and hit Save again.
-              saveBtn.disabled = false;
+              entrySaveInFlight = false;
+              updateSaveBtnState();
               saveBtn.innerHTML = "Save";
               gpsEl.className = "gps-status";
               gpsEl.textContent = "";
@@ -1682,6 +1705,7 @@ function handleStatusChange() {
   toggleOtherField("status");
   syncStatusButtons();
   syncStatusDependentSections();
+  updateSaveBtnState();
 }
 
 // Status is a hidden input (#status) driven by a button grid instead of a
@@ -2111,6 +2135,7 @@ function toggleClearBtn() {
   const input = document.getElementById("serial");
   const btn = document.getElementById("serialClearBtn");
   if (btn) btn.style.display = input.value.length > 0 ? "flex" : "none";
+  updateSaveBtnState();
 }
 
 function toggleEditClearBtn() {

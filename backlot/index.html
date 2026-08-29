@@ -665,6 +665,11 @@
           <div class="bl-vin-row">
             <input name="serial_id" id="blRecFormSerial" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Type or scan VIN">
             <button type="button" class="bl-btn bl-btn--icon bl-btn--secondary" id="blRecFormScan" aria-label="Scan VIN"><svg class="bl-icon" aria-hidden="true"><use href="#icon-camera"/></svg></button>
+            <!-- Autocomplete against existing vehicles as the user types (see
+                 record-form.js runVinSuggest). Reuses the topbar search's own
+                 dropdown shell/row classes (search.js / styles.css) rather
+                 than introducing new ones. -->
+            <div class="bl-search-dropdown" id="blRecFormSerialDropdown" role="listbox" aria-label="Matching vehicles" hidden></div>
           </div>
         </label>
         <div class="bl-vin-block is-hidden" id="blRecFormVinInfo"></div>

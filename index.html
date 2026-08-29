@@ -2004,10 +2004,11 @@
       <div class="vin-keypad-display" id="vinKeypadDisplay"></div>
       <div class="vin-keypad-count" id="vinKeypadCount">0 / 17</div>
     </div>
-    <!-- Autocomplete while typing a VIN into #serial (New Entry only — see
-         scheduleVinSuggest() in app.js). Horizontally-scrolling chips rather
-         than a vertical list: the keypad is already full-height, so a tall
-         list would eat into the key grid. Hidden until there's a match. -->
+    <!-- Autocomplete while typing a VIN into #serial or #editSerial (see
+         VIN_SUGGEST_TARGETS / scheduleVinSuggest() in app.js). Horizontally-
+         scrolling chips rather than a vertical list: the keypad is already
+         full-height, so a tall list would eat into the key grid. Hidden
+         until there's a match. -->
     <div class="vin-suggest-bar u-hidden" id="vinSuggestBar"></div>
     <div class="vin-keypad-funcs">
       <button class="vin-key vin-key-func" type="button" onclick="vinKeypadPaste()" aria-label="Paste">PASTE</button>

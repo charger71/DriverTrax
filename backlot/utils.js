@@ -8,6 +8,7 @@
 //   BL_FORMAT — time/date/timeAgo (America/New_York)
 //   BL_TOAST  — transient toast feedback
 //   BL_UI     — inline message lines, $ helper
+//   BL_MAP    — shared Leaflet tile layer (CARTO dark basemap + API key)
 // ============================================================
 (function () {
   const TZ = "America/New_York";
@@ -386,6 +387,20 @@
       if (error && (error.code === "PGRST116" || /no rows/i.test(error.message || ""))) return true;
       if (!error && (data == null || (Array.isArray(data) && data.length === 0))) return true;
       return false;
+    },
+  };
+
+  // ---- shared map tile layer ------------------------------------------
+  // CARTO's basemap tiles require a free API key now (config.js's
+  // BL_CARTO_API_KEY) — unkeyed requests still load but get watermarked
+  // "API KEY REQUIRED". Every Leaflet map using the dark basemap goes
+  // through here so there's one place to update if that ever changes.
+  window.BL_MAP = {
+    addCartoDarkTiles(map) {
+      const key = window.BL_CARTO_API_KEY;
+      const url = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" +
+        (key ? `?key=${encodeURIComponent(key)}` : "");
+      return L.tileLayer(url, { maxZoom: 20, attribution: "© OpenStreetMap, © CARTO" }).addTo(map);
     },
   };
 })();

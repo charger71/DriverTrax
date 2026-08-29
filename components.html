@@ -263,6 +263,7 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
       <button class="btn btn-secondary">Secondary</button>
       <button class="btn btn-ghost">Ghost</button>
       <button class="btn btn-destructive">Destructive</button>
+      <button class="btn btn-info">Info</button>
       <button class="btn btn-icon" aria-label="Icon">×</button>
       <button class="btn btn-primary" disabled>Disabled</button>
     </div>
@@ -270,6 +271,7 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
 &lt;button class="btn btn-secondary"&gt;Secondary&lt;/button&gt;
 &lt;button class="btn btn-ghost"&gt;Ghost&lt;/button&gt;
 &lt;button class="btn btn-destructive"&gt;Destructive&lt;/button&gt;
+&lt;button class="btn btn-info"&gt;Info&lt;/button&gt;
 &lt;button class="btn btn-icon" aria-label="Close"&gt;×&lt;/button&gt;</pre>
   </div>
 
@@ -442,6 +444,32 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
      service) use the base class alone and keep the taller break. --&gt;
 &lt;div class="entry-header-buttons entry-header-buttons--hero-only"&gt;
   &lt;button class="btn btn-primary btn--hero btn--full"&gt;SCAN BARCODE&lt;/button&gt;
+&lt;/div&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Header &mdash; split (two heroes side by side)</div>
+    <div class="cl-preview cl-stack" style="max-width: 460px;">
+      <div class="entry-header-buttons entry-header-buttons--hero-only entry-header-buttons--split">
+        <button class="btn btn-primary btn--hero btn--pulse">
+          <svg class="icon icon--lg" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-scan"/></svg>
+          SCAN BARCODE
+        </button>
+        <button type="button" class="btn btn-info btn--hero">
+          <svg class="icon icon--lg" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-search"/></svg>
+          LOOKUP PLATE
+        </button>
+      </div>
+      <span class="field-label">First field</span>
+      <input type="text" placeholder="…">
+    </div>
+<pre class="cl-code">&lt;!-- Add --split to lay the header's buttons out in a row instead of
+     stacked, each taking half the width. Drop --full/--block from the
+     buttons themselves — --split sizes them. Used on the driver New Entry
+     form to pair SCAN BARCODE with LOOKUP PLATE (app.js openPlateLookup). --&gt;
+&lt;div class="entry-header-buttons entry-header-buttons--hero-only entry-header-buttons--split"&gt;
+  &lt;button class="btn btn-primary btn--hero"&gt;SCAN BARCODE&lt;/button&gt;
+  &lt;button class="btn btn-info btn--hero"&gt;LOOKUP PLATE&lt;/button&gt;
 &lt;/div&gt;</pre>
   </div>
 

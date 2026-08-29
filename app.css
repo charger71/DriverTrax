@@ -365,6 +365,18 @@
   .entry-header-buttons--hero-only { margin-bottom: var(--space-4); }
   #manualEntrySection { margin-top: var(--space-3); }
 
+  /* SCAN BARCODE + LOOKUP PLATE side by side instead of stacked, each taking
+     half the row. Text/icon shrink from the stacked hero recipe (.btn--hero's
+     22px/32px) since two labels now share the width a single one used to have. */
+  .entry-header-buttons--split { flex-direction: row; gap: var(--space-3); }
+  .entry-header-buttons--split .btn {
+    flex: 1; min-width: 0;
+    padding: 0 var(--space-2);
+    font-size: var(--font-sm);
+    gap: var(--space-1);
+  }
+  .entry-header-buttons--split .btn .icon { width: 22px; height: 22px; }
+
   /* Entry-form row: side-by-side field groups (Mileage/Fuel, the hidden Location row). */
   .entry-form-row { display: flex; gap: var(--space-3); margin-top: var(--space-5); }
   .entry-form-row > .u-flex-1 > .field-label:first-child { margin-top: 0; }
@@ -730,6 +742,18 @@
   }
   .btn-icon:hover  { background: var(--surface-hover); color: var(--text); }
   .btn-icon:active { background: var(--card-soft); }
+
+  /* 6. INFO — blue, for an alternate action paired with a primary one
+     (e.g. LOOKUP PLATE beside SCAN BARCODE). Same translucent-fill recipe as
+     PRIMARY, swapping --accent for --info so it reads as "blue" in both themes. */
+  .btn-info {
+    background: color-mix(in srgb, var(--info) 20%, transparent);
+    color: var(--text);
+    border-color: var(--info);
+    font-weight: var(--weight-bold);
+  }
+  .btn-info:hover  { background: color-mix(in srgb, var(--info) 35%, transparent); }
+  .btn-info:active { background: color-mix(in srgb, var(--info-strong) 50%, transparent); border-color: var(--info-strong); }
 
   /* Size modifiers */
   .btn--sm   { height: 36px; min-width: 36px; padding: 0 var(--space-3); font-size: var(--font-sm); }
@@ -2247,6 +2271,33 @@
     letter-spacing: 0.08em; text-transform: uppercase;
   }
   .vehicle-info-hint { margin: 0; font-size: var(--font-xs); color: var(--muted); line-height: 1.4; }
+
+  /* Plate lookup (New Entry form, app.js openPlateLookup). #plateLookupInput
+     reuses the same monospace-uppercase treatment as #vehicleInfoForm's plate
+     field above. Results list only renders when more than one vehicle
+     matches — a single match applies immediately without ever showing it. */
+  #plateLookupInput {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .plate-lookup-results {
+    display: flex; flex-direction: column; gap: var(--space-2);
+    margin-top: var(--space-3); max-height: 40vh; overflow-y: auto;
+  }
+  .plate-lookup-row {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+    width: 100%; text-align: left;
+    background: var(--card-soft); border: var(--border-thin) solid var(--border);
+    border-radius: var(--radius); padding: var(--space-2) var(--space-3);
+    cursor: pointer;
+  }
+  .plate-lookup-row:hover { background: var(--surface-hover); }
+  .plate-lookup-row-plate {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-weight: var(--weight-heavy); font-size: var(--font-base);
+    color: var(--text); letter-spacing: 0.06em;
+  }
+  .plate-lookup-row-meta { font-size: var(--font-xs); color: var(--muted); }
 
   /* Shift-close counter category editor (openCategoryEditor in app.js). */
   .cat-editor-hint {

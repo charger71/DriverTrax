@@ -613,7 +613,9 @@ body.bl-is-admin .bl-admin-only { display: flex; }
   border: 0; cursor: pointer; display: grid; place-items: center; padding: 0;
 }
 .bl-photo-wrap .rm .bl-icon { width: var(--sp-4); height: var(--sp-4); }
-.bl-vin-row { display: flex; gap: var(--sp-2); }
+/* position: relative anchors #blRecFormSerialDropdown (.bl-search-dropdown,
+   absolutely positioned) under the row instead of under the whole modal. */
+.bl-vin-row { display: flex; gap: var(--sp-2); position: relative; }
 .bl-vin-row input { flex: 1; text-transform: uppercase; }
 
 /* camera scan overlay */

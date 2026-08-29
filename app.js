@@ -2371,13 +2371,16 @@ function syncKeypadDisplay() {
   scheduleVinSuggest();
 }
 
-// ---------- VIN autocomplete (New Entry Serial ID only) ----------
+// ---------- VIN autocomplete (New Entry + Edit Record Serial ID) ----------
 // As the driver types a partial VIN on the keypad, suggest existing vehicles
 // whose serial_id starts with what's typed so far, so a full 17 characters
 // don't have to be entered by hand for a vehicle already on file. Scoped to
-// the "serial" keypad target (not #editSerial) — the New Entry field is
-// where a driver is most often re-entering a known vehicle; editing an
-// existing record's VIN is a rarer, more deliberate action.
+// the "serial" and "editSerial" keypad targets — the two places a VIN is
+// typed by hand rather than scanned or looked up. #fSearch (RECORDS search)
+// is deliberately excluded: it already live-searches (fuzzy, debounced) as
+// you type and shows full results in the list below it, so chips there
+// would duplicate an existing, richer affordance rather than fill a gap.
+const VIN_SUGGEST_TARGETS = new Set(["serial", "editSerial"]);
 const VIN_SUGGEST_MIN_CHARS = 3;
 const VIN_SUGGEST_DEBOUNCE_MS = 250;
 const VIN_SUGGEST_LIMIT = 6;
@@ -2386,8 +2389,8 @@ let _vinSuggestToken = 0;
 let _vinSuggestLastVal = null;
 
 function scheduleVinSuggest() {
-  if (_vinKeypadTargetId !== "serial") { hideVinSuggestions(); return; }
-  const val = document.getElementById("serial")?.value || "";
+  if (!VIN_SUGGEST_TARGETS.has(_vinKeypadTargetId)) { hideVinSuggestions(); return; }
+  const val = document.getElementById(_vinKeypadTargetId)?.value || "";
   if (val === _vinSuggestLastVal) return; // unchanged (e.g. a cursor-only move)
   _vinSuggestLastVal = val;
 
@@ -2408,7 +2411,7 @@ async function runVinSuggest(val) {
   // A newer keystroke (or a closed/retargeted keypad) superseded this
   // response — drop it rather than let a slow early reply clobber a later one.
   if (token !== _vinSuggestToken) return;
-  if (_vinKeypadTargetId !== "serial" || !document.getElementById("vinKeypadOverlay")?.classList.contains("open")) return;
+  if (!VIN_SUGGEST_TARGETS.has(_vinKeypadTargetId) || !document.getElementById("vinKeypadOverlay")?.classList.contains("open")) return;
   if (error || !data || !data.length) { hideVinSuggestions(); return; }
   renderVinSuggestions(data);
 }

@@ -49,10 +49,21 @@
     $("blRecForm").addEventListener("submit", onSubmit);
     $("blRecFormPhotoBtn").addEventListener("click", () => $("blRecFormPhotoInput").click());
     $("blRecFormPhotoInput").addEventListener("change", onPhotoPick);
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("blRecFormModal").classList.contains("is-open")) hideModal(); });
+    // Escape closes the topmost thing open: the VIN suggestion dropdown
+    // first, the whole modal otherwise.
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if (!$("blRecFormSerialDropdown").hidden) { hideVinSuggest(); return; }
+      if ($("blRecFormModal").classList.contains("is-open")) hideModal();
+    });
 
     // VIN decode on blur (lights up once vin.js is loaded)
     $("blRecFormSerial").addEventListener("blur", maybeDecodeVin);
+    $("blRecFormSerial").addEventListener("input", onSerialInput);
+    document.addEventListener("click", (e) => {
+      if (e.target.closest(".bl-vin-row")) return;
+      hideVinSuggest();
+    });
     // Scan button — only useful once BL_VIN.scan exists
     const scanBtn = $("blRecFormScan");
     if (scanBtn) {
@@ -285,6 +296,74 @@
     BL_VIN.scan((code) => {
       if (code) { $("blRecFormSerial").value = String(code).toUpperCase(); maybeDecodeVin(); }
     });
+  }
+
+  // ---------- VIN autocomplete (existing vehicles) ----------
+  // As the user types a partial VIN, suggest vehicles already on file (the
+  // one-row-per-VIN `vehicles` table) so a car the fleet already knows about
+  // doesn't need all 17 characters typed by hand. Mirrors #blGlobalSearch's
+  // dropdown (search.js) — same .bl-search-dropdown shell and .bl-search-result
+  // row classes, reused as-is rather than duplicated.
+  const VIN_SUGGEST_MIN_CHARS = 3;
+  const VIN_SUGGEST_DEBOUNCE_MS = 250;
+  const VIN_SUGGEST_LIMIT = 6;
+  let vinSuggestTimer = null;
+  let vinSuggestSeq = 0;
+
+  function onSerialInput() {
+    const val = ($("blRecFormSerial").value || "").trim().toUpperCase();
+    clearTimeout(vinSuggestTimer);
+    // >=17 covers a fully-typed VIN — nothing left to autocomplete toward.
+    if (val.length < VIN_SUGGEST_MIN_CHARS || val.length >= 17) { hideVinSuggest(); return; }
+    vinSuggestTimer = setTimeout(() => runVinSuggest(val), VIN_SUGGEST_DEBOUNCE_MS);
+  }
+
+  async function runVinSuggest(val) {
+    const my = ++vinSuggestSeq;
+    const { data, error } = await sb.from("vehicles")
+      .select("serial_id,vin_data")
+      .ilike("serial_id", `${val}%`)
+      .limit(VIN_SUGGEST_LIMIT);
+    if (my !== vinSuggestSeq) return; // superseded by a newer keystroke
+    if (error || !data || !data.length) { hideVinSuggest(); return; }
+    renderVinSuggest(data);
+  }
+
+  function renderVinSuggest(rows) {
+    const dd = $("blRecFormSerialDropdown");
+    if (!dd) return;
+    dd.innerHTML = rows.map((v) => {
+      const vd = v.vin_data || {};
+      const vehicle = [vd.year, vd.make, vd.model].filter(Boolean).join(" ");
+      return `
+        <button type="button" class="bl-search-result" role="option" data-vin="${esc(v.serial_id)}">
+          <span class="bl-search-serial">${esc(v.serial_id)}</span>
+          ${vehicle ? `<span class="bl-search-vehicle">${esc(vehicle)}</span>` : ""}
+        </button>`;
+    }).join("");
+    dd.querySelectorAll("[data-vin]").forEach((btn) => {
+      // mousedown, not click: the input's own blur (which fires first on
+      // click, since focus moves before the click handler runs) is already
+      // a harmless no-op on a partial VIN, but firing on mousedown keeps the
+      // dropdown's own outside-click handler from racing it closed first.
+      btn.addEventListener("mousedown", (e) => { e.preventDefault(); selectVinSuggest(btn.dataset.vin, rows); });
+    });
+    dd.hidden = false;
+  }
+
+  function selectVinSuggest(vin, rows) {
+    hideVinSuggest();
+    $("blRecFormSerial").value = vin;
+    const row = rows.find((r) => r.serial_id === vin);
+    // Already have this vehicle's decoded info from the suggestion query —
+    // show it directly instead of an extra round-trip to NHTSA.
+    if (row?.vin_data) showVinInfo(row.vin_data);
+    else maybeDecodeVin();
+  }
+
+  function hideVinSuggest() {
+    const dd = $("blRecFormSerialDropdown");
+    if (dd && !dd.hidden) { dd.hidden = true; dd.innerHTML = ""; }
   }
 
   window.BL_RECORD_FORM = { open };

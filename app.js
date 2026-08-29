@@ -3813,6 +3813,10 @@ function openDetail(id, onDelete) {
     document.getElementById("detailVinSpecs").textContent = "";
   }
 
+  // Plate / state / SIPP — fetched and mounted separately from records data,
+  // same as the VIN HISTORY header and New Entry form (vehicle-info.js).
+  window.DT_VEHICLE_INFO?.mount(document.getElementById("detailVehicleInfo"), r.serialId);
+
   // Tires row
   const tiresRow = document.getElementById("detailTiresRow");
   if (r.tires && r.tires.length > 0) {
@@ -3891,6 +3895,12 @@ function closeDetail() {
     mapDiv._leaflet_map = null;
   }
   if (mapDiv) mapDiv.innerHTML = "";
+  // #detailVehicleInfo is a persistent node reused across every open() call
+  // (unlike the VIN timeline's mount, which is rebuilt fresh each render) —
+  // clear it so the next record's detail doesn't flash the previous
+  // vehicle's plate/SIPP while its own lookup is still in flight.
+  const vehicleInfoEl = document.getElementById("detailVehicleInfo");
+  if (vehicleInfoEl) vehicleInfoEl.innerHTML = "";
 }
 
 // ============================

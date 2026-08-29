@@ -50,6 +50,7 @@
     <symbol id="icon-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></symbol>
     <symbol id="icon-map-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></symbol>
     <symbol id="icon-wrench" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+    <symbol id="icon-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41L13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></symbol>
     <symbol id="icon-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></symbol>
   </svg>
 
@@ -106,6 +107,9 @@
       </button>
       <button class="bl-nav-item" data-section="vendors" aria-label="Service vendors">
         <svg class="bl-icon" aria-hidden="true"><use href="#icon-wrench"/></svg><span class="label-text">Vendors</span>
+      </button>
+      <button class="bl-nav-item" data-section="sipp-codes" aria-label="SIPP codes">
+        <svg class="bl-icon" aria-hidden="true"><use href="#icon-tag"/></svg><span class="label-text">SIPP codes</span>
       </button>
       <!-- Admin-only: in-app section manager (rename / delete / merge).
            The standalone Leaflet polygon designer is linked from inside. -->
@@ -403,6 +407,41 @@
             <div class="bl-modal-actions">
               <button type="button" class="bl-btn bl-btn--ghost" id="blVendorsCancel">Cancel</button>
               <button type="submit" class="bl-btn bl-btn--primary" id="blVendorsSubmit">Save</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <section class="bl-section" id="section-sipp-codes">
+        <div class="bl-page-head">
+          <div><h1>SIPP Codes</h1><div class="sub">Rental class vocabulary — the driver app's plate/class picker reads this list</div></div>
+          <div class="actions">
+            <button class="bl-btn bl-btn--primary bl-btn--sm" id="blSippAddBtn" data-shortcut="new" title="Add SIPP code (n)"><svg class="bl-icon bl-icon--sm" aria-hidden="true"><use href="#icon-plus"/></svg>Add code</button>
+          </div>
+        </div>
+        <div class="bl-card">
+          <div id="blSippList" class="bl-users-list"><div class="bl-empty">Loading…</div></div>
+        </div>
+      </section>
+
+      <!-- ===== SIPP code create/edit modal ===== -->
+      <div class="bl-modal" id="blSippModal" role="dialog" aria-modal="true" aria-label="SIPP code">
+        <div class="bl-modal-card">
+          <div class="bl-modal-head">
+            <h3 id="blSippModalTitle">Add SIPP code</h3>
+            <button class="bl-btn bl-btn--icon bl-btn--ghost" id="blSippModalClose" aria-label="Close"><svg class="bl-icon" aria-hidden="true"><use href="#icon-x"/></svg></button>
+          </div>
+          <form id="blSippForm" class="bl-modal-body">
+            <!-- code is the stable key referenced by vehicles.sipp — editable
+                 only when adding a new code; disabled (read-only) once a code
+                 exists, since renaming it wouldn't update vehicles already
+                 tagged with the old value. -->
+            <label class="bl-field"><span class="bl-field-label">Code</span><input name="code" required maxlength="10" placeholder="e.g. ECAR" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+            <label class="bl-field"><span class="bl-field-label">Label</span><input name="label" required maxlength="60" placeholder="e.g. Economy" autocomplete="off"></label>
+            <div class="bl-msg" id="blSippModalMsg" role="status" aria-live="polite"></div>
+            <div class="bl-modal-actions">
+              <button type="button" class="bl-btn bl-btn--ghost" id="blSippModalCancel">Cancel</button>
+              <button type="submit" class="bl-btn bl-btn--primary" id="blSippSubmit">Save</button>
             </div>
           </form>
         </div>
@@ -889,6 +928,7 @@
   <script src="users.js"></script>
   <script src="parking-sections.js"></script>
   <script src="vendors.js"></script>
+  <script src="sipp-codes.js"></script>
   <script src="comms.js"></script>
   <script src="reports.js"></script>
   <script src="counters.js"></script>

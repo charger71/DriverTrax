@@ -17,10 +17,15 @@
   const $   = (id) => document.getElementById(id);
   const esc = window.DT_ESC;
 
-  // SIPP / ACRISS class codes. Mirrors the "Car SIPP Codes" table in the
+  // SIPP / ACRISS class codes. Backed by the sipp_codes table — managers add
+  // / edit / delete them in Backlot (see sipp-codes-schema.sql,
+  // backlot/sipp-codes.js). This list is only the fallback: used until the
+  // live fetch below resolves, and kept as-is if the table doesn't exist yet
+  // or the fetch fails, so a fresh install or an outage never blocks the
+  // plate/class editor. Also mirrors the "Car SIPP Codes" table in the
   // Training panel (index.html) — keep the two in step. LCAR / LDAR ship as
   // one row there; a dropdown needs them apart.
-  const SIPP_CODES = [
+  const FALLBACK_SIPP_CODES = [
     { code: "ECAR",  label: "Economy" },
     { code: "CCAR",  label: "Compact" },
     { code: "ICAR",  label: "Intermediate / Midsize" },
@@ -39,10 +44,32 @@
     { code: "GCAR",  label: "Minivan (Grand Caravan)" },
     { code: "XVARP", label: "15 Person Van" }
   ];
-  const SIPP_BY_CODE = new Map(SIPP_CODES.map(s => [s.code, s]));
+  let SIPP_CODES = FALLBACK_SIPP_CODES;
+  let SIPP_BY_CODE = new Map(SIPP_CODES.map(s => [s.code, s]));
   function sippLabel(code) {
     return SIPP_BY_CODE.get(String(code || "").toUpperCase())?.label || "";
   }
+
+  // Kicked off once at load. fillSelects() below reads SIPP_CODES lazily (at
+  // first editor open) so it usually already sees the live list; if the
+  // editor was opened before this resolved, the success handler refreshes
+  // the already-filled <select> in place.
+  (async function loadSippCodes() {
+    try {
+      const { data, error } = await sb.from("sipp_codes").select("code,label").order("code");
+      if (error || !data || !data.length) return; // keep the fallback
+      SIPP_CODES = data;
+      SIPP_BY_CODE = new Map(SIPP_CODES.map(s => [s.code, s]));
+      const form = $("vehicleInfoForm");
+      if (form && form.dataset.filled) {
+        const current = form.elements.sipp.value;
+        form.elements.sipp.innerHTML = sippOptionsHtml();
+        form.elements.sipp.value = current;
+      }
+    } catch (e) {
+      console.warn("[vehicle-info] sipp_codes load failed, using built-in list", e);
+    }
+  })();
 
   // Issuing jurisdictions: 50 states + DC + PR. Stored as the two-letter code.
   const US_STATES = [
@@ -166,6 +193,11 @@
   let _editVin = "";
   let _onSaved = null;
 
+  function sippOptionsHtml() {
+    return `<option value="">-- SIPP --</option>` +
+      SIPP_CODES.map(s => `<option value="${s.code}">${esc(s.code)} — ${esc(s.label)}</option>`).join("");
+  }
+
   function fillSelects() {
     const form = $("vehicleInfoForm");
     if (!form || form.dataset.filled) return;
@@ -173,9 +205,7 @@
     form.elements.plateState.innerHTML =
       `<option value="">--</option>` +
       US_STATES.map(s => `<option value="${s}">${s}</option>`).join("");
-    form.elements.sipp.innerHTML =
-      `<option value="">-- SIPP --</option>` +
-      SIPP_CODES.map(s => `<option value="${s.code}">${esc(s.code)} — ${esc(s.label)}</option>`).join("");
+    form.elements.sipp.innerHTML = sippOptionsHtml();
   }
 
   function openEditor(vin, onSaved) {
@@ -278,6 +308,7 @@
   window.DT_VEHICLE_INFO = {
     load, mount, invalidate, openEditor, closeEditor,
     plateGroupHtml, sippGroupHtml, sippLabel, normalizePlate,
-    SIPP_CODES, US_STATES
+    get SIPP_CODES() { return SIPP_CODES; },
+    US_STATES
   };
 })();

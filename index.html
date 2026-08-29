@@ -1946,6 +1946,10 @@
         <div class="detail-vin-info"><div class="detail-vin-name" id="detailVinName"></div><div class="detail-vin-specs" id="detailVinSpecs"></div></div>
       </div>
     </div>
+    <!-- Plate / state / SIPP for this VIN — same component as the VIN HISTORY
+         header and New Entry form (vehicle-info.js), mounted here too so it's
+         visible (and editable) from the record detail sheet. -->
+    <div id="detailVehicleInfo" class="vin-id-mount"></div>
     <div class="detail-badges" id="detailBadges"></div>
     <div class="detail-body">
       <div class="detail-row u-hidden" id="detailTiresRow"><span class="detail-label">Tires</span><span class="detail-val" id="detailTires"></span></div>

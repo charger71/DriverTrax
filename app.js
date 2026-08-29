@@ -2368,7 +2368,89 @@ function syncKeypadDisplay() {
     count.textContent = `${len} / 17`;
     count.classList.toggle("valid", len === 17);
   }
+  scheduleVinSuggest();
 }
+
+// ---------- VIN autocomplete (New Entry Serial ID only) ----------
+// As the driver types a partial VIN on the keypad, suggest existing vehicles
+// whose serial_id starts with what's typed so far, so a full 17 characters
+// don't have to be entered by hand for a vehicle already on file. Scoped to
+// the "serial" keypad target (not #editSerial) — the New Entry field is
+// where a driver is most often re-entering a known vehicle; editing an
+// existing record's VIN is a rarer, more deliberate action.
+const VIN_SUGGEST_MIN_CHARS = 3;
+const VIN_SUGGEST_DEBOUNCE_MS = 250;
+const VIN_SUGGEST_LIMIT = 6;
+let _vinSuggestTimer = null;
+let _vinSuggestToken = 0;
+let _vinSuggestLastVal = null;
+
+function scheduleVinSuggest() {
+  if (_vinKeypadTargetId !== "serial") { hideVinSuggestions(); return; }
+  const val = document.getElementById("serial")?.value || "";
+  if (val === _vinSuggestLastVal) return; // unchanged (e.g. a cursor-only move)
+  _vinSuggestLastVal = val;
+
+  clearTimeout(_vinSuggestTimer);
+  // >=17 covers a fully-typed VIN — nothing left to autocomplete toward.
+  if (val.length < VIN_SUGGEST_MIN_CHARS || val.length >= 17) { hideVinSuggestions(); return; }
+  _vinSuggestTimer = setTimeout(() => runVinSuggest(val), VIN_SUGGEST_DEBOUNCE_MS);
+}
+
+async function runVinSuggest(val) {
+  const token = ++_vinSuggestToken;
+  if (!window.DT_AUTH?.client) return;
+  const { data, error } = await DT_AUTH.client
+    .from("vehicles")
+    .select("serial_id")
+    .ilike("serial_id", `${val}%`)
+    .limit(VIN_SUGGEST_LIMIT);
+  // A newer keystroke (or a closed/retargeted keypad) superseded this
+  // response — drop it rather than let a slow early reply clobber a later one.
+  if (token !== _vinSuggestToken) return;
+  if (_vinKeypadTargetId !== "serial" || !document.getElementById("vinKeypadOverlay")?.classList.contains("open")) return;
+  if (error || !data || !data.length) { hideVinSuggestions(); return; }
+  renderVinSuggestions(data);
+}
+
+function renderVinSuggestions(rows) {
+  const bar = document.getElementById("vinSuggestBar");
+  if (!bar) return;
+  bar.innerHTML = rows.map(v =>
+    `<button type="button" class="vin-suggest-chip" data-vin="${DT_ESC(v.serial_id)}">${DT_ESC(v.serial_id)}</button>`
+  ).join("");
+  bar.classList.remove("u-hidden");
+}
+
+function hideVinSuggestions() {
+  const bar = document.getElementById("vinSuggestBar");
+  if (!bar) return;
+  bar.classList.add("u-hidden");
+  bar.innerHTML = "";
+}
+
+// Same effect as finishing manual entry via the keypad + DONE: fills the
+// value, updates cursor/count/clear-btn state, and closes the keypad (whose
+// own close handler dispatches dt-vin-scanned once). Mirrors applyPastedVin().
+function onVinSuggestClick(e) {
+  const btn = e.target.closest(".vin-suggest-chip");
+  if (!btn) return;
+  const vin = btn.dataset.vin;
+  const input = document.getElementById(_vinKeypadTargetId);
+  if (!vin || !input) return;
+  input.value = vin;
+  _vinKeypadCursor = vin.length;
+  syncKeypadDisplay();
+  if (_vinKeypadTargetId === "serial") { toggleClearBtn(); updateVinCount(); }
+  else { toggleEditClearBtn(); updateEditVinCount(); }
+  if (navigator.vibrate) navigator.vibrate(8);
+  closeVinKeypad();
+}
+
+function initVinSuggest() {
+  document.getElementById("vinSuggestBar")?.addEventListener("click", onVinSuggestClick);
+}
+document.addEventListener("DOMContentLoaded", initVinSuggest);
 
 // ============================
 // BLUETOOTH / USB HID BARCODE SCANNER
@@ -5320,7 +5402,7 @@ async function onPlateLookupSubmit(e) {
   const { data, error } = await DT_AUTH.client
     .from("vehicles")
     .select("serial_id,plate,plate_state,vin_data")
-    .ilike("plate", plateVal)
+    .ilike("plate", `%${plateVal}%`)
     .limit(10);
 
   submitBtn.disabled = false;
@@ -5342,8 +5424,9 @@ async function onPlateLookupSubmit(e) {
     selectPlateLookupResult(data[0].serial_id);
     return;
   }
-  // Same plate string on more than one vehicle (different issuing states,
-  // usually) — let the driver pick instead of guessing.
+  // A substring match can legitimately hit more than one vehicle (the same
+  // plate on file in two states, or one plate's digits inside another's) —
+  // let the driver pick instead of guessing.
   DT_UI.setMessage(msg, `${data.length} vehicles match ${plateVal} — pick one:`, "ok");
   if (results) {
     results.innerHTML = data.map(plateLookupRowHtml).join("");

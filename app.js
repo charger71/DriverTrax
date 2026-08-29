@@ -5230,15 +5230,152 @@ function acceptScanResult(rawText, is2D) {
     return true;
   }
 
-  document.getElementById("serial").value = finalCode;
-  toggleClearBtn();
-  updateVinCount();
-  showManualEntry();
-  // Let other modules (detailer.js, etc.) react to a successful scan
-  document.dispatchEvent(new CustomEvent("dt-vin-scanned", { detail: finalCode }));
+  applyEntryVin(finalCode);
   closeSoon();
   return true;
 }
+
+// Populate the entry form's Serial ID field with a resolved VIN and run the
+// same follow-up a successful scan does (clear-btn state, VIN char count,
+// reveal manual entry, notify other modules). Shared by the barcode scanner
+// (acceptScanResult above) and the plate lookup modal (selectPlateLookupResult).
+function applyEntryVin(vin) {
+  document.getElementById("serial").value = vin;
+  toggleClearBtn();
+  updateVinCount();
+  showManualEntry();
+  // Let other modules (detailer.js, etc.) react to a successful scan/lookup
+  document.dispatchEvent(new CustomEvent("dt-vin-scanned", { detail: vin }));
+}
+
+// ============================
+// PLATE LOOKUP (New Entry form)
+// ============================
+// Alternative to SCAN BARCODE when the windshield tag is missing or
+// unreadable but the plate is visible. Queries vehicles.plate (see
+// vehicle-plate-sipp-schema.sql) the same way the RECORDS search box does
+// (app.js renderFuzzyResults), then feeds the resolved VIN through
+// applyEntryVin() exactly like a successful scan.
+
+function openPlateLookup() {
+  const modal = document.getElementById("plateLookupModal");
+  const input = document.getElementById("plateLookupInput");
+  const results = document.getElementById("plateLookupResults");
+  if (!modal || !input) return;
+  input.value = "";
+  if (results) { results.classList.add("u-hidden"); results.innerHTML = ""; }
+  DT_UI.setMessage(document.getElementById("plateLookupModalMsg"), "");
+  modal.classList.add("show");
+  modal.setAttribute("aria-hidden", "false");
+  setTimeout(() => input.focus(), 50);
+}
+
+function closePlateLookup() {
+  const modal = document.getElementById("plateLookupModal");
+  if (!modal) return;
+  modal.classList.remove("show");
+  modal.setAttribute("aria-hidden", "true");
+  DT_UI.setMessage(document.getElementById("plateLookupModalMsg"), "");
+}
+
+// One row per candidate when a plate matches more than one vehicle. Mirrors
+// vehicle-info.js's plateGroupHtml() state-prefix treatment for visual
+// consistency with the plate badge shown elsewhere.
+function plateLookupRowHtml(v) {
+  const statePrefix = v.plate_state ? `<span class="vin-id-plate-state">${DT_ESC(v.plate_state)}</span>-` : "";
+  const desc = [v.vin_data?.year, v.vin_data?.make, v.vin_data?.model].filter(Boolean).join(" ");
+  return `
+    <button type="button" class="plate-lookup-row" data-vin="${DT_ESC(v.serial_id)}">
+      <span class="plate-lookup-row-plate">${statePrefix}${DT_ESC(v.plate)}</span>
+      <span class="plate-lookup-row-meta">${DT_ESC(v.serial_id)}${desc ? ` · ${DT_ESC(desc)}` : ""}</span>
+    </button>`;
+}
+
+function selectPlateLookupResult(vin) {
+  applyEntryVin(vin);
+  closePlateLookup();
+  DT_TOAST.show(`Loaded ${vin} from plate lookup`, "success");
+}
+
+async function onPlateLookupSubmit(e) {
+  e.preventDefault();
+  const input = document.getElementById("plateLookupInput");
+  const msg = document.getElementById("plateLookupModalMsg");
+  const results = document.getElementById("plateLookupResults");
+  const submitBtn = document.getElementById("plateLookupModalSubmit");
+  if (!input) return;
+
+  const normalize = window.DT_VEHICLE_INFO?.normalizePlate
+    || ((s) => sanitizeSerial(String(s || "").toUpperCase().replace(/\s+/g, "")).slice(0, 10));
+  const plateVal = normalize(input.value);
+  if (!plateVal) {
+    DT_UI.setMessage(msg, "Enter a plate.", "err");
+    return;
+  }
+
+  submitBtn.disabled = true;
+  DT_UI.setMessage(msg, "Looking up…", "ok");
+  if (results) { results.classList.add("u-hidden"); results.innerHTML = ""; }
+
+  const { data, error } = await DT_AUTH.client
+    .from("vehicles")
+    .select("serial_id,plate,plate_state,vin_data")
+    .ilike("plate", plateVal)
+    .limit(10);
+
+  submitBtn.disabled = false;
+
+  if (error) {
+    // 42703 = undefined_column — vehicle-plate-sipp-schema.sql hasn't been run.
+    if (error.code === "42703") {
+      DT_UI.setMessage(msg, "Plate lookup isn't set up on this database yet.", "err");
+      return;
+    }
+    DT_UI.setMessage(msg, error.message || "Lookup failed", "err");
+    return;
+  }
+  if (!data || !data.length) {
+    DT_UI.setMessage(msg, `No vehicle found for plate ${plateVal}.`, "err");
+    return;
+  }
+  if (data.length === 1) {
+    selectPlateLookupResult(data[0].serial_id);
+    return;
+  }
+  // Same plate string on more than one vehicle (different issuing states,
+  // usually) — let the driver pick instead of guessing.
+  DT_UI.setMessage(msg, `${data.length} vehicles match ${plateVal} — pick one:`, "ok");
+  if (results) {
+    results.innerHTML = data.map(plateLookupRowHtml).join("");
+    results.classList.remove("u-hidden");
+  }
+}
+
+function onPlateLookupResultsClick(e) {
+  const btn = e.target.closest(".plate-lookup-row");
+  if (!btn) return;
+  const vin = btn.dataset.vin;
+  if (vin) selectPlateLookupResult(vin);
+}
+
+function initPlateLookup() {
+  document.getElementById("plateLookupModalClose")?.addEventListener("click", closePlateLookup);
+  document.getElementById("plateLookupModalCancel")?.addEventListener("click", closePlateLookup);
+  document.getElementById("plateLookupModal")?.addEventListener("click", (e) => {
+    if (e.target.id === "plateLookupModal") closePlateLookup();
+  });
+  document.getElementById("plateLookupForm")?.addEventListener("submit", onPlateLookupSubmit);
+  document.getElementById("plateLookupResults")?.addEventListener("click", onPlateLookupResultsClick);
+  // Uppercase as they type — plates are stored and matched uppercase (mirrors
+  // vehicle-info.js's #vehicleInfoForm plate input).
+  document.getElementById("plateLookupInput")?.addEventListener("input", (e) => {
+    const pos = e.target.selectionStart;
+    const normalize = window.DT_VEHICLE_INFO?.normalizePlate || ((s) => String(s || "").toUpperCase());
+    e.target.value = normalize(e.target.value);
+    try { e.target.setSelectionRange(pos, pos); } catch (_) {}
+  });
+}
+document.addEventListener("DOMContentLoaded", initPlateLookup);
 
 // ---------- Camera setup ----------
 

@@ -141,6 +141,7 @@
   <symbol id="icon-scan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 9v6"/><path d="M11 9v6"/><path d="M14 9v6"/><path d="M17 9v6"/>
   </symbol>
+  <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
   <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
   <symbol id="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
   <symbol id="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
@@ -651,10 +652,14 @@
 
 <div class="panel active" id="panel-entry" role="tabpanel" aria-label="New entry">
  <div id="entryFormHome"><div id="entryFormBody">
-  <div id="entryHeaderButtons" class="entry-header-buttons entry-header-buttons--hero-only">
-  <button class="btn btn-primary btn--hero btn--full btn--pulse" onclick="openScanner()">
-    <svg class="icon icon--xl" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-scan"/></svg>
+  <div id="entryHeaderButtons" class="entry-header-buttons entry-header-buttons--hero-only entry-header-buttons--split">
+  <button class="btn btn-primary btn--hero btn--pulse" onclick="openScanner()">
+    <svg class="icon icon--lg" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-scan"/></svg>
     SCAN BARCODE
+  </button>
+  <button type="button" class="btn btn-info btn--hero" onclick="openPlateLookup()">
+    <svg class="icon icon--lg" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-search"/></svg>
+    LOOKUP PLATE
   </button>
   </div>
   <!-- Always visible: manual VIN entry is also reachable from the keyboard
@@ -1385,6 +1390,34 @@
       <div class="users-modal-actions">
         <button type="button" class="btn btn-secondary" id="vehicleInfoModalCancel">Cancel</button>
         <button type="submit" class="btn btn-primary btn--block" id="vehicleInfoModalSubmit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Look up a vehicle by plate from the New Entry form (app.js) — an
+     alternative to SCAN BARCODE when the tag is missing or unreadable but the
+     plate is visible. Matches against the same vehicles.plate index the
+     RECORDS search box uses (see vehicle-plate-sipp-schema.sql). -->
+<div class="users-modal" id="plateLookupModal" aria-hidden="true"
+     role="dialog" aria-modal="true" aria-label="Look up by plate">
+  <div class="users-modal-card">
+    <div class="users-modal-header">
+      <span>Look up by plate</span>
+      <button type="button" class="btn btn-destructive btn-icon users-modal-close" id="plateLookupModalClose" aria-label="Close">&times;</button>
+    </div>
+    <form id="plateLookupForm">
+      <label class="field-row">
+        <span class="field-label">Plate</span>
+        <input type="text" id="plateLookupInput" maxlength="10" placeholder="ABC1234"
+               autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters">
+      </label>
+      <div class="users-modal-msg" id="plateLookupModalMsg"></div>
+      <!-- Populated when more than one vehicle matches the plate; hidden otherwise. -->
+      <div class="plate-lookup-results u-hidden" id="plateLookupResults"></div>
+      <div class="users-modal-actions">
+        <button type="button" class="btn btn-secondary" id="plateLookupModalCancel">Cancel</button>
+        <button type="submit" class="btn btn-info btn--block" id="plateLookupModalSubmit">Look Up</button>
       </div>
     </form>
   </div>

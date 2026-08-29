@@ -118,6 +118,11 @@
       document.getElementById("vehicleInfoModalCancel")?.click();
       return;
     }
+    // Plate lookup on the New Entry form (app.js: openPlateLookup). Escape = cancel.
+    if (document.getElementById("plateLookupModal")?.classList.contains("show")) {
+      document.getElementById("plateLookupModalCancel")?.click();
+      return;
+    }
   });
 
   // Tag the four overlay roots so AT announces them as dialogs.

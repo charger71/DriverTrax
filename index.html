@@ -707,6 +707,11 @@
     </label>
   </div>
 
+  <!-- "Belongs in X" nudge from mileage + SIPP class. Rendered by
+       renderEntryRouteHint() in app.js — recomputed on scan and on every
+       keystroke in #mileage above. -->
+  <div id="entryRouteHint" class="entry-route-hint u-hidden"></div>
+
   <div class="field-row" id="statusField">
     <span class="field-label is-required">Status</span>
     <div class="status-btn-group status-btn-group--primary" role="radiogroup" aria-label="Status">

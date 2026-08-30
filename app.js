@@ -37,6 +37,18 @@ function locationLabel(destination, destinationOther, sectionName) {
 }
 window.locationLabel = locationLabel;
 
+// Suggested drop lot for a freshly-scanned car, from mileage + SIPP class —
+// mirrors the Executive / Emerald / Enterprise-Alamo cutoffs in the Training
+// panel's Clean Car Notes (index.html, "Clean Car Notes" list). Compacts
+// (SIPP "CCAR") never qualify for Executive regardless of mileage.
+function mileageRouteDestination(mileage, sipp) {
+  if (!Number.isFinite(mileage) || mileage < 0) return null;
+  const isCompact = String(sipp || "").toUpperCase() === "CCAR";
+  if (mileage <= 10000 && !isCompact) return "Executive";
+  if (mileage <= 20000) return "Emerald";
+  return "Enterprise/Alamo";
+}
+
 // ============================================================
 // Single source of truth for status / destination / condition
 // catalogs. Referenced by app.js (entry form), detailer.js
@@ -6517,13 +6529,24 @@ document.addEventListener("dt-vin-scanned", (e) => {
   // driven by damage.js — no VIN-scoped side effects to run here.
 });
 
+// State backing the "Belongs in X" route hint (renderEntryRouteHint below) —
+// seeded from the scanned VIN's last known mileage / SIPP class, then
+// superseded the instant the driver types an actual mileage reading.
+let entryRouteMileageHint = null;
+let entryRouteSipp = "";
+
 // Render a read-only banner of the vehicle's current state (status, destination,
 // last mileage / fuel) under the scan area, and pre-fill the Destination select.
 // Status stays blank intentionally so the user has to make a deliberate pick.
 async function renderEntryCurrentState(vin) {
   const el = document.getElementById("entryCurrentState");
   if (!el || !window.DT_AUTH) return;
-  if (!vin) { el.style.display = "none"; el.innerHTML = ""; return; }
+  if (!vin) {
+    el.style.display = "none"; el.innerHTML = "";
+    entryRouteMileageHint = null; entryRouteSipp = "";
+    renderEntryRouteHint();
+    return;
+  }
   el.style.display = "";
   el.classList.remove("is-empty");
   el.classList.remove("is-priority");
@@ -6535,7 +6558,7 @@ async function renderEntryCurrentState(vin) {
   // RLS may deny the records query for drivers when the matching rows belong
   // to other users — we surface that as "no history yet" rather than letting
   // the rejection break the page or noise up the console.
-  const [vehRes, latestRecRes, latestMF] = await Promise.all([
+  const [vehRes, latestRecRes, latestMF, vehicleInfo] = await Promise.all([
     sb.from("vehicles")
       .select("current_status,current_status_other,current_destination,current_destination_other,last_seen_at,vin_data,current_conditions,needs_new_tag")
       .eq("serial_id", vin).maybeSingle()
@@ -6547,7 +6570,11 @@ async function renderEntryCurrentState(vin) {
       .limit(1).maybeSingle()
       .then(r => r, () => ({ data: null })),
     (window.DT_MEDIA ? DT_MEDIA.getLatestMileageAndFuel(vin) : Promise.resolve({ mileage: null, fuel: null }))
-      ?.catch?.(() => ({ mileage: null, fuel: null }))
+      ?.catch?.(() => ({ mileage: null, fuel: null })),
+    // Shares vehicle-info.js's own cache, so this doesn't add a second
+    // in-flight query for the SIPP the #entryVehicleInfo chip is already fetching.
+    (window.DT_VEHICLE_INFO ? DT_VEHICLE_INFO.load(vin) : Promise.resolve(null))
+      ?.catch?.(() => null)
   ]);
   const v = vehRes?.data;
   const r = latestRecRes?.data;
@@ -6555,6 +6582,8 @@ async function renderEntryCurrentState(vin) {
   if (!hasHistory) {
     el.classList.add("is-empty");
     el.innerHTML = `<div class="ecs-label">Current state</div><div>New to inventory — no history yet.</div>`;
+    entryRouteMileageHint = null; entryRouteSipp = "";
+    renderEntryRouteHint();
     return;
   }
   const esc = (s) => sanitizeText(s);
@@ -6623,7 +6652,34 @@ async function renderEntryCurrentState(vin) {
     const condCollapse = document.getElementById("entryConditionsCollapse");
     if (condCollapse) condCollapse.open = true;
   }
+
+  entryRouteMileageHint = Number.isFinite(latestMF?.mileage) ? latestMF.mileage : null;
+  entryRouteSipp = vehicleInfo?.sipp || "";
+  renderEntryRouteHint();
 }
+
+// "Belongs in X" nudge shown under the Mileage/Fuel row: mileage + SIPP class
+// routed against the Executive / Emerald / Enterprise-Alamo cutoffs (see
+// mileageRouteDestination). Uses whatever mileage the driver has actually
+// typed for this visit; falls back to the vehicle's last known mileage
+// (entryRouteMileageHint, seeded by renderEntryCurrentState) until they do,
+// flagged as such so it doesn't read as a live reading.
+function renderEntryRouteHint() {
+  const el = document.getElementById("entryRouteHint");
+  if (!el) return;
+  const typedRaw = (document.getElementById("mileage")?.value || "").trim();
+  const typedVal = typedRaw ? parseInt(typedRaw, 10) : NaN;
+  const usingTyped = Number.isFinite(typedVal) && typedVal >= 0;
+  const mileage = usingTyped ? typedVal : entryRouteMileageHint;
+  const dest = mileageRouteDestination(mileage, entryRouteSipp);
+  if (!dest) { el.classList.add("u-hidden"); el.innerHTML = ""; return; }
+  const note = usingTyped ? "" : ` <span class="ern-note">(last known mileage)</span>`;
+  el.classList.remove("u-hidden");
+  el.innerHTML = `Belongs in <span class="ern-dest">${dest}</span>${note}`;
+}
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("mileage")?.addEventListener("input", renderEntryRouteHint);
+});
 
 // Replace the first option's label with the prior value when one exists,
 // otherwise restore the original default label.
@@ -6650,6 +6706,10 @@ function clearEntryCurrentState() {
   setSelectPlaceholderHint("destination", "-- LOCATION --", "");
   setSelectPlaceholderHint("fuelLevel",   "-- FUEL --",     "");
   setInputPlaceholderHint("mileage", "000000", "");
+  entryRouteMileageHint = null;
+  entryRouteSipp = "";
+  const hintEl = document.getElementById("entryRouteHint");
+  if (hintEl) { hintEl.classList.add("u-hidden"); hintEl.innerHTML = ""; }
   // Drop any carried-over conditions so the next VIN doesn't inherit them.
   selectedCxrConditions = [];
   if (typeof renderCxrConditions === "function") renderCxrConditions();

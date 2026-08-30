@@ -52,6 +52,7 @@
     <symbol id="icon-wrench" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
     <symbol id="icon-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41L13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></symbol>
     <symbol id="icon-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></symbol>
+    <symbol id="icon-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
   </svg>
 
   <!-- boot splash until auth resolves -->
@@ -90,6 +91,9 @@
       </button>
       <button class="bl-nav-item" data-section="roster" aria-label="Roster &amp; leaderboard">
         <svg class="bl-icon" aria-hidden="true"><use href="#icon-award"/></svg><span class="label-text">Roster</span>
+      </button>
+      <button class="bl-nav-item" data-section="mechanics" aria-label="Mechanics service">
+        <svg class="bl-icon" aria-hidden="true"><use href="#icon-gear"/></svg><span class="label-text">Mechanics Service</span>
       </button>
 
       <div class="bl-nav-section">Admin</div>
@@ -271,6 +275,63 @@
               <div id="blLeaderboard"><div class="bl-empty">Loading…</div></div>
               <div class="bl-pager" id="blLbPager" hidden></div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="bl-section" id="section-mechanics">
+        <div class="bl-page-head">
+          <div><h1>Mechanics Service</h1><div class="sub">What mechanics are working on right now</div></div>
+          <div class="actions"><button class="bl-btn bl-btn--secondary bl-btn--sm" id="blMechRefresh">Refresh</button></div>
+        </div>
+
+        <div class="bl-card">
+          <div class="bl-card-head">Open jobs <span class="right" id="blMechOpenCount">—</span></div>
+          <div class="bl-table-wrap">
+            <table class="bl-table">
+              <thead><tr><th>VIN</th><th>Job Type</th><th>Performed By</th><th>Mechanic</th><th>Opened</th></tr></thead>
+              <tbody id="blMechOpenBody"><tr><td colspan="5"><div class="bl-empty">Loading…</div></td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="bl-card">
+          <div class="bl-card-head">Waiting on parts <span class="right" id="blMechWaitingCount">—</span></div>
+          <div class="bl-table-wrap">
+            <table class="bl-table">
+              <thead><tr><th>VIN</th><th>Job Type</th><th>Note</th><th>Waiting</th><th>Mechanic</th></tr></thead>
+              <tbody id="blMechWaitingBody"><tr><td colspan="5"><div class="bl-empty">Loading…</div></td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="bl-card">
+          <div class="bl-card-head">Out at vendor <span class="right" id="blMechVendorCount">—</span></div>
+          <div class="bl-table-wrap">
+            <table class="bl-table">
+              <thead><tr><th>VIN</th><th>Job Type</th><th>Vendor</th><th>Sent</th><th>Mechanic</th></tr></thead>
+              <tbody id="blMechVendorBody"><tr><td colspan="5"><div class="bl-empty">Loading…</div></td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="bl-card">
+          <div class="bl-card-head">Closed this week <span class="right" id="blMechClosedCount">—</span></div>
+          <div class="bl-table-wrap">
+            <table class="bl-table">
+              <thead><tr><th>VIN</th><th>Job Type</th><th>Result</th><th>Closed</th><th>Mechanic</th></tr></thead>
+              <tbody id="blMechClosedBody"><tr><td colspan="5"><div class="bl-empty">Loading…</div></td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="bl-card">
+          <div class="bl-card-head">Flagged — not started <span class="right" id="blMechFlaggedCount">—</span></div>
+          <div class="bl-table-wrap">
+            <table class="bl-table">
+              <thead><tr><th>VIN</th><th>Flagged Status</th><th>Flagged</th></tr></thead>
+              <tbody id="blMechFlaggedBody"><tr><td colspan="3"><div class="bl-empty">Loading…</div></td></tr></tbody>
+            </table>
           </div>
         </div>
       </section>
@@ -925,6 +986,7 @@
   <script src="nav.js"></script>
   <script src="dashboard.js"></script>
   <script src="roster.js"></script>
+  <script src="mechanics.js"></script>
   <script src="users.js"></script>
   <script src="parking-sections.js"></script>
   <script src="vendors.js"></script>

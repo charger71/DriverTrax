@@ -5,7 +5,7 @@
 // Backlot shell. BUMP CACHE_VERSION on ANY change to a precached
 // asset below, or installed PWAs keep serving the stale file.
 // ============================================================
-const CACHE_VERSION = "backlot-v4.16-carto-key-set";
+const CACHE_VERSION = "backlot-v4.17-mechanics-service-tab";
 
 // Same-origin shell only. CDN libs (supabase-js, leaflet) are runtime-cached.
 const SHELL = [
@@ -23,6 +23,7 @@ const SHELL = [
   "./map-tool.css",
   "./dashboard.js",
   "./roster.js",
+  "./mechanics.js",
   "./users.js",
   "./parking-sections.js",
   "./vendors.js",

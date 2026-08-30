@@ -9,7 +9,7 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   const SECTION_LABELS = {
-    dashboard: "Dashboard", records: "Records", roster: "Roster", users: "Users",
+    dashboard: "Dashboard", records: "Records", roster: "Roster", mechanics: "Mechanics Service", users: "Users",
     comms: "Comms", reports: "Reports", counters: "Counters", vin: "Vehicle history",
     "parking-sections": "Parking sections", vendors: "Vendors", "sipp-codes": "SIPP codes",
   };

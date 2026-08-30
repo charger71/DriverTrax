@@ -618,6 +618,10 @@
                  tagged with the old value. -->
             <label class="bl-field"><span class="bl-field-label">Code</span><input name="code" required maxlength="10" placeholder="e.g. ECAR" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
             <label class="bl-field"><span class="bl-field-label">Label</span><input name="label" required maxlength="60" placeholder="e.g. Economy" autocomplete="off"></label>
+            <!-- Luxury classes route to Premiere/Wall instead of the standard
+                 mileage-only Executive/Emerald/Enterprise-Alamo tiers — see
+                 mileageRouteDestination() in the driver app's app.js. -->
+            <label><input type="checkbox" name="luxury"> Luxury (routes to Premiere / Wall)</label>
             <div class="bl-msg" id="blSippModalMsg" role="status" aria-live="polite"></div>
             <div class="bl-modal-actions">
               <button type="button" class="bl-btn bl-btn--ghost" id="blSippModalCancel">Cancel</button>

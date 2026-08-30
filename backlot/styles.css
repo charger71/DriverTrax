@@ -496,6 +496,8 @@ body.bl-is-admin .bl-admin-only { display: flex; }
 .bl-role-pill--mechanic { background: var(--warn-soft);   color: var(--warn); }
 .bl-pending-pill  { background: var(--warn-soft);   color: var(--warn);   border-radius: var(--r-full); padding: var(--sp-0) var(--sp-2); font-size: var(--fs-xs); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: .5px; }
 .bl-disabled-pill { background: var(--danger-soft); color: var(--danger); border-radius: var(--r-full); padding: var(--sp-0) var(--sp-2); font-size: var(--fs-xs); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: .5px; }
+/* SIPP Codes list (sipp-codes.js) — flags a code that routes to Premiere/Wall. */
+.bl-luxury-pill   { background: var(--accent-soft); color: var(--accent); border-radius: var(--r-full); padding: var(--sp-0) var(--sp-2); font-size: var(--fs-xs); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: .5px; }
 .bl-users-row .actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
 
 /* ---- 8d. Comms: announcements + extra-driver requests ------------------ */

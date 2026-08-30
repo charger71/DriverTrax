@@ -38,11 +38,15 @@ function locationLabel(destination, destinationOther, sectionName) {
 window.locationLabel = locationLabel;
 
 // Suggested drop lot for a freshly-scanned car, from mileage + SIPP class —
-// mirrors the Executive / Emerald / Enterprise-Alamo cutoffs in the Training
-// panel's Clean Car Notes (index.html, "Clean Car Notes" list). Compacts
+// mirrors the Executive / Emerald / Enterprise-Alamo cutoffs, and the
+// separate Luxuries note, in the Training panel's Clean Car Notes
+// (index.html, "Clean Car Notes" list). Luxury classes (manager-flagged in
+// Backlot's SIPP Codes admin — see DT_VEHICLE_INFO.isLuxury) route to
+// Premiere/Wall instead, regardless of the Executive/Emerald split. Compacts
 // (SIPP "CCAR") never qualify for Executive regardless of mileage.
-function mileageRouteDestination(mileage, sipp) {
+function mileageRouteDestination(mileage, sipp, isLuxury) {
   if (!Number.isFinite(mileage) || mileage < 0) return null;
+  if (isLuxury) return mileage <= 20000 ? "Premiere" : "Wall or Enterprise/Alamo";
   const isCompact = String(sipp || "").toUpperCase() === "CCAR";
   if (mileage <= 10000 && !isCompact) return "Executive";
   if (mileage <= 20000) return "Emerald";
@@ -6659,11 +6663,12 @@ async function renderEntryCurrentState(vin) {
 }
 
 // "Belongs in X" nudge shown under the Mileage/Fuel row: mileage + SIPP class
-// routed against the Executive / Emerald / Enterprise-Alamo cutoffs (see
-// mileageRouteDestination). Uses whatever mileage the driver has actually
-// typed for this visit; falls back to the vehicle's last known mileage
-// (entryRouteMileageHint, seeded by renderEntryCurrentState) until they do,
-// flagged as such so it doesn't read as a live reading.
+// routed against the Executive / Emerald / Enterprise-Alamo cutoffs, or the
+// Premiere/Wall split for a luxury-flagged class (see mileageRouteDestination).
+// Uses whatever mileage the driver has actually typed for this visit; falls
+// back to the vehicle's last known mileage (entryRouteMileageHint, seeded by
+// renderEntryCurrentState) until they do, flagged as such so it doesn't read
+// as a live reading.
 function renderEntryRouteHint() {
   const el = document.getElementById("entryRouteHint");
   if (!el) return;
@@ -6671,7 +6676,8 @@ function renderEntryRouteHint() {
   const typedVal = typedRaw ? parseInt(typedRaw, 10) : NaN;
   const usingTyped = Number.isFinite(typedVal) && typedVal >= 0;
   const mileage = usingTyped ? typedVal : entryRouteMileageHint;
-  const dest = mileageRouteDestination(mileage, entryRouteSipp);
+  const isLuxury = window.DT_VEHICLE_INFO?.isLuxury?.(entryRouteSipp) || false;
+  const dest = mileageRouteDestination(mileage, entryRouteSipp, isLuxury);
   if (!dest) { el.classList.add("u-hidden"); el.innerHTML = ""; return; }
   const note = usingTyped ? "" : ` <span class="ern-note">(last known mileage)</span>`;
   el.classList.remove("u-hidden");

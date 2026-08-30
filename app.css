@@ -2172,6 +2172,17 @@
   .entry-current-state.is-priority .ecs-val,
   .entry-current-state.is-priority .ecs-sep { color: var(--bg); }
 
+  /* "Belongs in X" nudge (renderEntryRouteHint() in app.js), shown under the
+     Mileage/Fuel row. Success colors — vs. entry-current-state's neutral
+     info — mark it as actionable guidance rather than read-only history. */
+  .entry-route-hint {
+    margin-top: 10px; padding: 10px 12px; border-radius: 8px;
+    background: var(--success-soft); border: var(--border-thin) solid var(--success-soft);
+    color: var(--success-text); font-size: 13px; line-height: 1.45;
+  }
+  .entry-route-hint .ern-dest { font-weight: var(--weight-bold); }
+  .entry-route-hint .ern-note { color: var(--muted); font-weight: var(--weight-normal); }
+
   /* Fuel + mileage icons in the VIN timeline header. */
   .ico-mileage { width: 20px; height: 20px; flex: 0 0 20px; margin-right: 4px; }
   .ico-fuel { width: 20px; height: 20px; flex: 0 0 20px; margin-right: 4px; }

@@ -53,9 +53,7 @@
     if (map || !window.L || !$("blLotMap")) return;
     map = L.map("blLotMap", { zoomControl: true, scrollWheelZoom: false, attributionControl: true })
       .setView(SDF, 16);
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      maxZoom: 20, attribution: "© OpenStreetMap, © CARTO",
-    }).addTo(map);
+    BL_MAP.addCartoDarkTiles(map);
     // Sections go under the vehicle pins so a dense cluster of markers
     // stays readable on top of the boundary fills.
     sectionLayer = L.layerGroup().addTo(map);

@@ -782,9 +782,7 @@
     setTimeout(() => {
       _detailMap = L.map(mount, { zoomControl: true, scrollWheelZoom: false, attributionControl: true })
         .setView([r.lat, r.lng], 17);
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        maxZoom: 20, attribution: "© OpenStreetMap, © CARTO",
-      }).addTo(_detailMap);
+      BL_MAP.addCartoDarkTiles(_detailMap);
       const cat = statusCategory(r.status);
       const pinMod = cat === "clean" ? "" : ` bl-lot-pin--${cat === "shut" ? "other" : cat}`;
       const icon = L.divIcon({ className: "", html: `<div class="bl-lot-pin${pinMod}"></div>`, iconSize: [16, 16], iconAnchor: [8, 8] });

@@ -32,8 +32,8 @@
     { code: "SCAR",  label: "Standard" },
     { code: "FCAR",  label: "Full Size" },
     { code: "PCAR",  label: "Premium" },
-    { code: "LCAR",  label: "Luxury" },
-    { code: "LDAR",  label: "Luxury (4-door)" },
+    { code: "LCAR",  label: "Luxury", luxury: true },
+    { code: "LDAR",  label: "Luxury (4-door)", luxury: true },
     { code: "STAR",  label: "Convertible" },
     { code: "IFAR",  label: "Midsize SUV" },
     { code: "SFAR",  label: "SUV" },
@@ -49,6 +49,13 @@
   function sippLabel(code) {
     return SIPP_BY_CODE.get(String(code || "").toUpperCase())?.label || "";
   }
+  // Luxury classes route to Premiere/Wall instead of the mileage-only
+  // Executive/Emerald/Enterprise-Alamo tiers — see mileageRouteDestination
+  // in app.js. Manager-set per code (sipp-codes-luxury-schema.sql), not
+  // hardcoded, so the set can grow without a deploy.
+  function isLuxury(code) {
+    return !!SIPP_BY_CODE.get(String(code || "").toUpperCase())?.luxury;
+  }
 
   // Kicked off once at load. fillSelects() below reads SIPP_CODES lazily (at
   // first editor open) so it usually already sees the live list; if the
@@ -56,9 +63,9 @@
   // the already-filled <select> in place.
   (async function loadSippCodes() {
     try {
-      const { data, error } = await sb.from("sipp_codes").select("code,label").order("code");
+      const { data, error } = await sb.from("sipp_codes").select("code,label,is_luxury").order("code");
       if (error || !data || !data.length) return; // keep the fallback
-      SIPP_CODES = data;
+      SIPP_CODES = data.map(s => ({ code: s.code, label: s.label, luxury: !!s.is_luxury }));
       SIPP_BY_CODE = new Map(SIPP_CODES.map(s => [s.code, s]));
       const form = $("vehicleInfoForm");
       if (form && form.dataset.filled) {
@@ -307,7 +314,7 @@
 
   window.DT_VEHICLE_INFO = {
     load, mount, invalidate, openEditor, closeEditor,
-    plateGroupHtml, sippGroupHtml, sippLabel, normalizePlate,
+    plateGroupHtml, sippGroupHtml, sippLabel, isLuxury, normalizePlate,
     get SIPP_CODES() { return SIPP_CODES; },
     US_STATES
   };

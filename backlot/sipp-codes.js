@@ -24,7 +24,7 @@
   async function load() {
     const { data, error } = await sb
       .from("sipp_codes")
-      .select("code,label")
+      .select("code,label,is_luxury")
       .order("code", { ascending: true });
     const el = $("blSippList");
     if (error) { if (el) el.innerHTML = `<div class="bl-empty">${esc(error.message)}</div>`; return; }
@@ -43,7 +43,7 @@
       <div class="bl-users-row">
         <div class="info">
           <div class="name">${esc(c.code)}</div>
-          <div class="meta">${esc(c.label)}</div>
+          <div class="meta">${esc(c.label)}${c.is_luxury ? ` <span class="bl-luxury-pill">Luxury</span>` : ""}</div>
         </div>
         <div class="actions">
           <button class="bl-btn bl-btn--sm bl-btn--secondary" data-act="edit" data-code="${esc(c.code)}">Edit</button>
@@ -85,6 +85,7 @@
     f.elements.code.value = c.code;
     f.elements.code.disabled = true;
     f.elements.label.value = c.label || "";
+    f.elements.luxury.checked = !!c.is_luxury;
     showModal();
     setTimeout(() => f.elements.label.focus(), 50);
   }
@@ -94,15 +95,16 @@
     const f = e.target;
     const label = (f.elements.label.value || "").trim().slice(0, 60);
     if (!label) { setMsg("Enter a label.", "err"); return; }
+    const is_luxury = f.elements.luxury.checked;
 
     setMsg("Saving…");
     let error;
     if (editingCode) {
-      ({ error } = await sb.from("sipp_codes").update({ label }).eq("code", editingCode));
+      ({ error } = await sb.from("sipp_codes").update({ label, is_luxury }).eq("code", editingCode));
     } else {
       const code = (f.elements.code.value || "").trim().toUpperCase().slice(0, 10);
       if (!code) { setMsg("Enter a code.", "err"); return; }
-      ({ error } = await sb.from("sipp_codes").insert({ code, label }));
+      ({ error } = await sb.from("sipp_codes").insert({ code, label, is_luxury }));
     }
     if (error) {
       const dup = error.code === "23505" || /duplicate|unique/i.test(error.message || "");

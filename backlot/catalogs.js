@@ -41,6 +41,7 @@
     "MK": "MK (MECH.)",
     "MR": "MR (RECALL)",
     "OM": "OM (OVER MILES)",
+    "LP": "LP (LICENSE PLATE)",
     "TI": "TI (TIRE)",
     "CHECK_IN": "CHECK IN",
     "CHECK_OUT": "CHECK OUT",

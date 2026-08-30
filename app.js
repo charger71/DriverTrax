@@ -2519,11 +2519,23 @@ function focusHidScannerInput() {
     if (kp && kp.classList.contains("open")) return true;
     const edit = document.getElementById("editOverlay");
     if (edit && edit.classList.contains("open")) return true;
-    // Also capture when the entry panel is visible and no real text input is focused
+    // Otherwise: capture unless the user is actively typing somewhere else.
+    // Tapping a button/tab focuses it on Android/desktop (iOS doesn't focus
+    // buttons on tap at all), and that used to permanently strand scanner
+    // input on the document-level keydown fallback below for the rest of the
+    // session — that fallback resets its buffer on any >MAX_GAP_MS gap
+    // between keys, which a Bluetooth scanner occasionally blows past, so a
+    // trigger pull would silently do nothing and need a second pull. Mirror
+    // the fallback's own definition of "typing" so we reclaim in every other
+    // case instead.
     const el = document.activeElement;
     if (!el || el === document.body || el === hidScannerInput) return true;
-    if (el.tagName === "INPUT" && el.readOnly) return true;
-    return false;
+    if (el.tagName === "TEXTAREA" || el.isContentEditable) return false;
+    if (el.tagName === "INPUT" && !el.readOnly && !el.disabled) {
+      const t = (el.type || "text").toLowerCase();
+      if (["text","search","email","url","tel","password","number"].includes(t)) return false;
+    }
+    return true;
   }
 
   function applyToTarget(rawValue) {
@@ -2605,6 +2617,11 @@ function focusHidScannerInput() {
         }
       }, 50);
     });
+
+    // Claim focus from the start so a scanner trigger pull works before the
+    // on-screen VIN keypad has ever been opened this session, instead of
+    // relying on the document-level fallback for that first scan.
+    focusHidScannerInput();
   }
 
   if (document.body) createHidScannerInput();

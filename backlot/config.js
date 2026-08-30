@@ -16,4 +16,4 @@ window.BL_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJz
 // key (covers 5M tile requests/month) at https://carto.com/basemaps/apikey/
 // and paste it below. Safe to embed client-side — it's a rate-limited
 // usage key, not a secret. See utils.js's BL_MAP.addCartoDarkTiles.
-window.BL_CARTO_API_KEY = "";
+window.BL_CARTO_API_KEY = "cb1_2l0o_1_d074c47b952f1ef5fa418421";

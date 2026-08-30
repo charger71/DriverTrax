@@ -358,11 +358,10 @@
       <!-- ===== service job modal (create/edit) — full lifecycle editing,
            mirroring the driver app's Mechanic "New Entry" screen: job type,
            in-house/vendor routing, parts, "what's being done", notes log,
-           waiting-on-parts, and the open → sent-out → returned → closed
-           state machine. No damage/tire body-diagram marker here — that's
-           a large driver-app-only visual subsystem with no Backlot
-           equivalent; damage/tire state stays visible read-only via the
-           VIN-history drill-down (the VIN link on every row). -->
+           waiting-on-parts, the open → sent-out → returned → closed state
+           machine, and an interactive body-damage silhouette + tire strip
+           (reusing the read-only VIN-history damage/tire panel's own
+           #blCarSilhouette template, catalog, and CSS — see mechanics.js). -->
       <div class="bl-modal" id="blMechJobModal" role="dialog" aria-modal="true" aria-label="Service job">
         <div class="bl-modal-card bl-modal-card--wide">
           <div class="bl-modal-head">
@@ -372,6 +371,26 @@
           <form id="blMechJobForm" class="bl-modal-body">
             <div class="bl-field"><span class="bl-field-label">VIN</span><div class="bl-rec-vin" id="blMechJobVin">—</div></div>
             <div class="bl-msg is-hidden" id="blMechJobBanner"></div>
+
+            <details class="bl-disclosure" id="blMechJobDamageDetails">
+              <summary>Body Damage <span class="bl-shift-tag" id="blMechJobDamageCount">0</span></summary>
+              <div class="bl-seg" id="blMechJobDamageTypeSeg" role="group" aria-label="Damage type">
+                <button type="button" class="bl-seg-btn is-active" data-type="dent">Dent</button>
+                <button type="button" class="bl-seg-btn" data-type="scratch">Scratch</button>
+                <button type="button" class="bl-seg-btn" data-type="chip">Chip</button>
+                <button type="button" class="bl-seg-btn" data-type="crack">Crack</button>
+                <button type="button" class="bl-seg-btn" data-type="missing">Missing</button>
+              </div>
+              <div class="bl-vin-damage-layout">
+                <div class="bl-tag-list" id="blMechJobDamageList"></div>
+                <div class="bl-vin-damage-svg-wrap" id="blMechJobDamageSvgWrap"></div>
+              </div>
+            </details>
+
+            <details class="bl-disclosure" id="blMechJobTireDetails">
+              <summary>Tires <span class="bl-shift-tag" id="blMechJobTireCount">0</span></summary>
+              <div class="bl-vin-tires-grid" id="blMechJobTireGrid"></div>
+            </details>
 
             <div class="bl-field-row">
               <label class="bl-field"><span class="bl-field-label">Job Type</span><select id="blMechJobType"></select></label>

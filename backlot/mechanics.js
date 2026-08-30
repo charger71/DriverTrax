@@ -13,16 +13,22 @@
 //   "Manage" (or "Start Job" on a flagged row) opens a modal with the
 //   same fields and open → sent-out → returned → closed lifecycle the
 //   mechanic's own screen offers — job type, in-house/vendor routing,
-//   destination, mileage, "what's being done", parts, a notes log, and
-//   waiting-on-parts. State transitions write a `records` row the same
+//   destination, mileage, "what's being done", parts, a notes log,
+//   waiting-on-parts, and an interactive body-damage silhouette + tire
+//   condition strip. State transitions write a `records` row the same
 //   way maintenance.js's commitTransitionRecord does (minus GPS, which
 //   only makes sense from a mobile device), so the vehicle's
 //   current_status/last_seen_at and VIN history stay in sync — same
 //   direct-insert shape record-form.js already uses successfully.
-//   No damage/tire body-diagram marker — that's a large driver-app-only
-//   visual subsystem (SVG silhouette, panel hit-testing) with no
-//   Backlot equivalent; damage/tire state stays visible read-only via
-//   the VIN-history drill-down every row's VIN links to.
+//
+//   The damage/tire editor reuses records.js's own read-only VIN-history
+//   panel infrastructure (BL_RECORDS.cloneCarSilhouette + its PANEL_NAMES/
+//   DAMAGE_LABELS/TIRE_* catalogs) rather than a second copy of the
+//   ~200-path vehicle SVG — see loadDamageContext / ensureDamageSvg below.
+//   Like maintenance.js's own damageMarks/mechTireDetails, this state is
+//   per-VEHICLE (seeded from every `records` row on file for the VIN,
+//   since service_jobs itself has no damage columns), not per-job, so it
+//   lives in module state alongside currentJob rather than inside it.
 //
 //   Realtime + 30s poll. Self-contained (BL_* only).
 // ============================================================
@@ -290,6 +296,13 @@
   let currentJob = null;
   let modalMode = "edit"; // "edit" | "create"
 
+  // ---- damage/tire editor state (per-vehicle, seeded from records history
+  // — see loadDamageContext) ----
+  let damageActiveType = "dent";
+  let damageMarks = [];        // [{ panel_id, damage_type, x, y }]
+  let tireDetails = {};        // { FL: { condition, psi }, ... }
+  let damageSvgClone = null;   // built once per VIN, reused across re-renders
+
   function freshJob(serial, jobType) {
     return {
       id: null, serialId: serial, jobType: jobType || null,
@@ -403,6 +416,177 @@
     `).join("");
   }
 
+  // ---- damage editor (clones records.js's read-only VIN-history
+  // silhouette via BL_RECORDS.cloneCarSilhouette, then adds the click
+  // affordance + marks-group wiring that read-only viewer doesn't need) ----
+  function ensureDamageSvg() {
+    if (damageSvgClone) return damageSvgClone;
+    const wrap = $("blMechJobDamageSvgWrap");
+    if (!wrap || !window.BL_RECORDS || !BL_RECORDS.cloneCarSilhouette) return null;
+    const svg = BL_RECORDS.cloneCarSilhouette();
+    if (!svg) return null;
+    svg.classList.add("is-editable");
+    Object.keys(BL_RECORDS.PANEL_NAMES || {}).forEach((id) => {
+      const el = svg.querySelector(`[data-panel="${id}"]`);
+      if (!el) return;
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (isJobLocked()) return;
+        const pt = svg.createSVGPoint();
+        pt.x = e.clientX; pt.y = e.clientY;
+        const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
+        damageMarks.push({ panel_id: id, damage_type: damageActiveType, x: loc.x, y: loc.y });
+        renderDamageMarks();
+      });
+    });
+    wrap.appendChild(svg);
+    damageSvgClone = svg;
+    return svg;
+  }
+
+  function makeDamageMarkNode(m, idx) {
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    const labels = (window.BL_RECORDS && BL_RECORDS.DAMAGE_LABELS) || {};
+    const type = labels[m.damage_type] ? m.damage_type : "missing";
+    const g = document.createElementNS(SVG_NS, "g");
+    const halo = document.createElementNS(SVG_NS, "circle");
+    halo.setAttribute("cx", m.x); halo.setAttribute("cy", m.y); halo.setAttribute("r", 9);
+    halo.setAttribute("class", `bl-dmg-halo bl-dmg-halo--${type}`);
+    const dot = document.createElementNS(SVG_NS, "circle");
+    dot.setAttribute("cx", m.x); dot.setAttribute("cy", m.y); dot.setAttribute("r", 6);
+    dot.setAttribute("class", `bl-dmg-dot bl-dmg-dot--${type}`);
+    const text = document.createElementNS(SVG_NS, "text");
+    text.setAttribute("x", m.x); text.setAttribute("y", m.y + 2.5);
+    text.setAttribute("text-anchor", "middle");
+    text.setAttribute("class", "bl-dmg-num");
+    text.textContent = idx + 1;
+    g.appendChild(halo); g.appendChild(dot); g.appendChild(text);
+    return g;
+  }
+
+  function renderDamageMarks() {
+    const svg = ensureDamageSvg();
+    if (svg) {
+      const marksGroup = svg.querySelector(".bl-vin-damage-marks");
+      if (marksGroup) { while (marksGroup.firstChild) marksGroup.removeChild(marksGroup.firstChild); }
+      svg.querySelectorAll("[data-panel].has-damage").forEach((el) => el.classList.remove("has-damage"));
+      damageMarks.forEach((m, idx) => {
+        if (marksGroup) marksGroup.appendChild(makeDamageMarkNode(m, idx));
+        const panel = svg.querySelector(`[data-panel="${m.panel_id}"]`);
+        if (panel) panel.classList.add("has-damage");
+      });
+    }
+    renderDamageLog();
+    const badge = $("blMechJobDamageCount");
+    if (badge) badge.textContent = String(damageMarks.length);
+  }
+
+  function renderDamageLog() {
+    const el = $("blMechJobDamageList");
+    if (!el) return;
+    const labels = (window.BL_RECORDS && BL_RECORDS.DAMAGE_LABELS) || {};
+    const panelNames = (window.BL_RECORDS && BL_RECORDS.PANEL_NAMES) || {};
+    if (!damageMarks.length) { el.innerHTML = `<div class="bl-empty">No damage recorded.</div>`; return; }
+    const locked = isJobLocked();
+    el.innerHTML = damageMarks.map((m, idx) => {
+      const type = labels[m.damage_type] ? m.damage_type : "missing";
+      const typeLabel = labels[type] || type;
+      const location = panelNames[m.panel_id] || m.panel_id;
+      return `
+        <span class="bl-tag">
+          <span class="bl-vin-damage-num bl-vin-damage-num--${esc(type)}">${idx + 1}</span>
+          <span>${esc(typeLabel)} · ${esc(location)}</span>
+          ${locked ? "" : `<button type="button" data-idx="${idx}" aria-label="Remove ${esc(typeLabel)}">&times;</button>`}
+        </span>`;
+    }).join("");
+    el.querySelectorAll("button[data-idx]").forEach((btn) => {
+      btn.addEventListener("click", () => { damageMarks.splice(parseInt(btn.dataset.idx, 10), 1); renderDamageMarks(); });
+    });
+  }
+
+  // ---- tire strip (same card shape as records.js's read-only viewer,
+  // with an editable condition select + PSI input added per card) ----
+  function renderTireStrip() {
+    const el = $("blMechJobTireGrid");
+    if (!el) return;
+    const positions = (window.BL_RECORDS && BL_RECORDS.TIRE_POSITIONS) || [];
+    const posLabel = (window.BL_RECORDS && BL_RECORDS.TIRE_POS_LABEL) || {};
+    const condLabel = (window.BL_RECORDS && BL_RECORDS.TIRE_CONDITION_LABEL) || {};
+    const conditions = Object.keys(condLabel);
+    const locked = isJobLocked();
+    el.innerHTML = positions.map((pos) => {
+      const t = tireDetails[pos] || {};
+      const cond = t.condition || "OK";
+      const psi = t.psi != null ? t.psi : "";
+      return `<div class="bl-vin-tire" data-pos="${pos}">
+        <div class="bl-vin-tire-head">
+          <span class="bl-vin-tire-pos">${esc(pos)}</span>
+          <span class="bl-vin-tire-cond bl-vin-tire-cond--${cond}" data-cond-chip>${esc(condLabel[cond] || cond)}</span>
+        </div>
+        <span class="bl-vin-tire-pos-label">${esc(posLabel[pos] || pos)}</span>
+        <label class="bl-field"><span class="bl-field-label">Condition</span>
+          <select class="bl-tire-condition-select" ${locked ? "disabled" : ""}>
+            ${conditions.map((c) => `<option value="${c}"${c === cond ? " selected" : ""}>${esc(condLabel[c])}</option>`).join("")}
+          </select>
+        </label>
+        <label class="bl-field"><span class="bl-field-label">PSI</span>
+          <input type="number" class="bl-tire-psi-input" min="0" max="200" step="1" value="${esc(psi)}" placeholder="—" inputmode="numeric" ${locked ? "disabled" : ""}>
+        </label>
+      </div>`;
+    }).join("");
+    el.querySelectorAll(".bl-vin-tire").forEach((card) => {
+      const pos = card.dataset.pos;
+      const sel = card.querySelector(".bl-tire-condition-select");
+      const psiInput = card.querySelector(".bl-tire-psi-input");
+      const chip = card.querySelector("[data-cond-chip]");
+      sel.addEventListener("change", () => {
+        const cond = sel.value;
+        chip.className = `bl-vin-tire-cond bl-vin-tire-cond--${cond}`;
+        chip.textContent = condLabel[cond] || cond;
+        tireDetails[pos] = { ...(tireDetails[pos] || {}), condition: cond };
+        updateTireCount();
+      });
+      psiInput.addEventListener("change", () => {
+        const raw = psiInput.value === "" ? null : Number(psiInput.value);
+        tireDetails[pos] = { ...(tireDetails[pos] || {}), psi: Number.isFinite(raw) ? raw : null };
+      });
+    });
+    updateTireCount();
+  }
+  function updateTireCount() {
+    const badge = $("blMechJobTireCount");
+    if (!badge) return;
+    const positions = (window.BL_RECORDS && BL_RECORDS.TIRE_POSITIONS) || [];
+    const flagged = positions.filter((pos) => { const t = tireDetails[pos]; return t && t.condition && t.condition !== "OK"; }).length;
+    badge.textContent = flagged ? `${flagged} flagged` : "OK";
+  }
+
+  // Seeds damageMarks/tireDetails from every `records` row on file for the
+  // VIN — service_jobs has no damage columns of its own, so (like
+  // maintenance.js's renderVehicleContext) this is the only source of
+  // truth, deduped by keeping the most recent mark per panel+type and the
+  // most recent tire_details per position.
+  async function loadDamageContext(vin) {
+    const { data, error } = await sb.from("records").select("damage_marks,tire_details").eq("serial_id", vin).order("ts", { ascending: false });
+    if (error) console.warn("[Backlot] mechanics damage context", error);
+    const records = data || [];
+    const markMap = new Map();
+    const details = {};
+    for (let i = records.length - 1; i >= 0; i--) {
+      const rec = records[i];
+      if (Array.isArray(rec.damage_marks)) rec.damage_marks.forEach((m) => markMap.set(`${m.panel_id}|${m.damage_type}`, m));
+      if (rec.tire_details && typeof rec.tire_details === "object") Object.entries(rec.tire_details).forEach(([pos, val]) => { details[pos] = val; });
+    }
+    damageMarks = Array.from(markMap.values());
+    tireDetails = details;
+    const damageDetails = $("blMechJobDamageDetails");
+    if (damageDetails) damageDetails.open = damageMarks.length > 0;
+    const tireDetailsEl = $("blMechJobTireDetails");
+    if (tireDetailsEl) tireDetailsEl.open = Object.keys(tireDetails).length > 0;
+    renderDamageMarks();
+    renderTireStrip();
+  }
+
   function renderJobModal() {
     if (!currentJob) return;
     $("blMechJobTitle").textContent = modalMode === "create" ? "New Service Job" : "Service Job";
@@ -488,6 +672,9 @@
     }
     const closeSel = $("blMechJobCloseStatus");
     if (closeSel && currentJob.closeStatus) closeSel.value = currentJob.closeStatus;
+
+    renderDamageMarks();
+    renderTireStrip();
   }
 
   async function openJobModal(mode, job) {
@@ -497,7 +684,12 @@
       const names = await resolveNames(currentJob.notesLog.map((e) => e.author), "Unknown");
       currentJob.notesLog.forEach((e) => { e.authorName = names[e.author] || ""; });
     }
-    await ensureVendorOptions();
+    // Drop the previous VIN's silhouette clone (and its click listeners)
+    // before ensureDamageSvg rebuilds one for this VIN.
+    damageSvgClone = null;
+    const svgWrap = $("blMechJobDamageSvgWrap");
+    if (svgWrap) svgWrap.innerHTML = "";
+    await Promise.all([ensureVendorOptions(), loadDamageContext(currentJob.serialId)]);
     BL_UI.setMessage($("blMechJobMsg"), "");
     renderJobModal();
     $("blMechJobModal")?.classList.add("is-open");
@@ -505,6 +697,8 @@
   function hideJobModal() {
     $("blMechJobModal")?.classList.remove("is-open");
     currentJob = null;
+    damageMarks = [];
+    tireDetails = {};
   }
 
   async function openJobFromId(id) {
@@ -531,6 +725,7 @@
       no_tag: false, shuttle: false, transport: false,
       notes: notes ? S.notes(notes) : null,
       photo_urls: null, vin_data: null,
+      damage_marks: damageMarks, tire_details: tireDetails,
       user_id: BL_AUTH.getUser()?.id || null, ts: new Date().toISOString(),
     };
     const { error } = await sb.from("records").insert(payload);
@@ -570,6 +765,12 @@
       if (error) BL_UI.setMessage($("blMechJobMsg"), error.message || "Couldn't save the job.", "err");
       else { currentJob.id = data.id; BL_TOAST.success("Job opened."); }
     } else {
+      // Also write a records row here (unlike maintenance.js's own Update,
+      // which only does this for a brand-new job): damage marks and tire
+      // condition live only in records.damage_marks/tire_details, not on
+      // service_jobs itself, so without this an Update would silently
+      // discard any diagram/tire edits made on an already-open job.
+      await writeTransitionRecord({ status: currentJob.jobType, destination: currentJob.destination, notes: currentJob.notes, mileage: currentJob.mileage });
       const { error } = await sb.from("service_jobs").update(payload).eq("id", currentJob.id);
       saveError = error;
       if (error) BL_UI.setMessage($("blMechJobMsg"), error.message || "Couldn't save the job.", "err");
@@ -730,6 +931,12 @@
     $("blMechJobVendor")?.addEventListener("change", (e) => { if (currentJob) currentJob.vendorId = e.target.value || null; });
     $("blMechJobDest")?.addEventListener("change", (e) => { if (currentJob) currentJob.destination = e.target.value || ""; });
     $("blMechJobActionOther")?.addEventListener("input", (e) => { if (currentJob) currentJob.serviceActionOther = e.target.value; });
+    $("blMechJobDamageTypeSeg")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-type]");
+      if (!btn) return;
+      damageActiveType = btn.dataset.type;
+      $("blMechJobDamageTypeSeg").querySelectorAll("button").forEach((b) => b.classList.toggle("is-active", b === btn));
+    });
 
     $("blMechJobPartAdd")?.addEventListener("click", onAddJobPart);
     $("blMechJobPartInput")?.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); onAddJobPart(); } });

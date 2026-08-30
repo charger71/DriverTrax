@@ -987,6 +987,18 @@ body.bl-is-admin .bl-admin-only { display: flex; }
 .bl-vin-tire-psi   { color: var(--text-soft); font-size: var(--fs-sm); }
 .bl-vin-tire-psi b { color: var(--text); font-weight: var(--fw-heavy); }
 
+/* Mechanics Service job modal's damage/tire editor reuses every class
+   above (read-only VIN-history panel) plus .bl-disclosure, .bl-seg,
+   .bl-tag-list/.bl-tag, and .bl-field — this is the only styling that's
+   actually new: breathing room inside a disclosure body, and the
+   pointer/hover affordance a clickable (not just viewable) silhouette
+   needs on top of the read-only one's plain fill/stroke rules. */
+.bl-disclosure > .bl-seg,
+.bl-disclosure > .bl-vin-damage-layout,
+.bl-disclosure > .bl-vin-tires-grid { margin-top: var(--sp-3); }
+.bl-vin-damage-svg.is-editable [data-panel] { cursor: pointer; }
+.bl-vin-damage-svg.is-editable [data-panel]:hover .dp { fill: var(--hover); }
+
 /* ---- 9. Toast / inline msg ---------------------------------------------- */
 .bl-toast {
   position: fixed; left: 50%; bottom: var(--sp-5); transform: translate(-50%, 20px);

@@ -289,8 +289,12 @@
           <div class="bl-card-head">Open jobs <span class="right" id="blMechOpenCount">—</span></div>
           <div class="bl-table-wrap">
             <table class="bl-table">
-              <thead><tr><th>VIN</th><th>Job Type</th><th>Performed By</th><th>Mechanic</th><th>Opened</th></tr></thead>
-              <tbody id="blMechOpenBody"><tr><td colspan="5"><div class="bl-empty">Loading…</div></td></tr></tbody>
+              <thead id="blMechOpenThead"><tr>
+                <th data-sort-key="serial_id">VIN</th><th data-sort-key="job_type">Job Type</th>
+                <th data-sort-key="performed_by">Performed By</th><th data-sort-key="mechanic">Mechanic</th>
+                <th data-sort-key="opened_at">Opened</th><th></th>
+              </tr></thead>
+              <tbody id="blMechOpenBody"><tr><td colspan="6"><div class="bl-empty">Loading…</div></td></tr></tbody>
             </table>
           </div>
         </div>
@@ -299,8 +303,12 @@
           <div class="bl-card-head">Waiting on parts <span class="right" id="blMechWaitingCount">—</span></div>
           <div class="bl-table-wrap">
             <table class="bl-table">
-              <thead><tr><th>VIN</th><th>Job Type</th><th>Note</th><th>Waiting</th><th>Mechanic</th></tr></thead>
-              <tbody id="blMechWaitingBody"><tr><td colspan="5"><div class="bl-empty">Loading…</div></td></tr></tbody>
+              <thead id="blMechWaitingThead"><tr>
+                <th data-sort-key="serial_id">VIN</th><th data-sort-key="job_type">Job Type</th>
+                <th>Note</th><th data-sort-key="waiting_since">Waiting</th>
+                <th data-sort-key="mechanic">Mechanic</th><th></th>
+              </tr></thead>
+              <tbody id="blMechWaitingBody"><tr><td colspan="6"><div class="bl-empty">Loading…</div></td></tr></tbody>
             </table>
           </div>
         </div>
@@ -309,8 +317,12 @@
           <div class="bl-card-head">Out at vendor <span class="right" id="blMechVendorCount">—</span></div>
           <div class="bl-table-wrap">
             <table class="bl-table">
-              <thead><tr><th>VIN</th><th>Job Type</th><th>Vendor</th><th>Sent</th><th>Mechanic</th></tr></thead>
-              <tbody id="blMechVendorBody"><tr><td colspan="5"><div class="bl-empty">Loading…</div></td></tr></tbody>
+              <thead id="blMechVendorThead"><tr>
+                <th data-sort-key="serial_id">VIN</th><th data-sort-key="job_type">Job Type</th>
+                <th data-sort-key="vendor">Vendor</th><th data-sort-key="sent_out_at">Sent</th>
+                <th data-sort-key="mechanic">Mechanic</th><th></th>
+              </tr></thead>
+              <tbody id="blMechVendorBody"><tr><td colspan="6"><div class="bl-empty">Loading…</div></td></tr></tbody>
             </table>
           </div>
         </div>
@@ -319,8 +331,12 @@
           <div class="bl-card-head">Closed this week <span class="right" id="blMechClosedCount">—</span></div>
           <div class="bl-table-wrap">
             <table class="bl-table">
-              <thead><tr><th>VIN</th><th>Job Type</th><th>Result</th><th>Closed</th><th>Mechanic</th></tr></thead>
-              <tbody id="blMechClosedBody"><tr><td colspan="5"><div class="bl-empty">Loading…</div></td></tr></tbody>
+              <thead id="blMechClosedThead"><tr>
+                <th data-sort-key="serial_id">VIN</th><th data-sort-key="job_type">Job Type</th>
+                <th data-sort-key="close_status">Result</th><th data-sort-key="closed_at">Closed</th>
+                <th data-sort-key="mechanic">Mechanic</th><th></th>
+              </tr></thead>
+              <tbody id="blMechClosedBody"><tr><td colspan="6"><div class="bl-empty">Loading…</div></td></tr></tbody>
             </table>
           </div>
         </div>
@@ -329,12 +345,96 @@
           <div class="bl-card-head">Flagged — not started <span class="right" id="blMechFlaggedCount">—</span></div>
           <div class="bl-table-wrap">
             <table class="bl-table">
-              <thead><tr><th>VIN</th><th>Flagged Status</th><th>Flagged</th></tr></thead>
-              <tbody id="blMechFlaggedBody"><tr><td colspan="3"><div class="bl-empty">Loading…</div></td></tr></tbody>
+              <thead id="blMechFlaggedThead"><tr>
+                <th data-sort-key="serial_id">VIN</th><th data-sort-key="current_status">Flagged Status</th>
+                <th data-sort-key="last_seen_at">Flagged</th><th></th>
+              </tr></thead>
+              <tbody id="blMechFlaggedBody"><tr><td colspan="4"><div class="bl-empty">Loading…</div></td></tr></tbody>
             </table>
           </div>
         </div>
       </section>
+
+      <!-- ===== service job modal (create/edit) — full lifecycle editing,
+           mirroring the driver app's Mechanic "New Entry" screen: job type,
+           in-house/vendor routing, parts, "what's being done", notes log,
+           waiting-on-parts, and the open → sent-out → returned → closed
+           state machine. No damage/tire body-diagram marker here — that's
+           a large driver-app-only visual subsystem with no Backlot
+           equivalent; damage/tire state stays visible read-only via the
+           VIN-history drill-down (the VIN link on every row). -->
+      <div class="bl-modal" id="blMechJobModal" role="dialog" aria-modal="true" aria-label="Service job">
+        <div class="bl-modal-card bl-modal-card--wide">
+          <div class="bl-modal-head">
+            <h3 id="blMechJobTitle">Service job</h3>
+            <button class="bl-btn bl-btn--icon bl-btn--ghost" id="blMechJobClose" aria-label="Close"><svg class="bl-icon" aria-hidden="true"><use href="#icon-x"/></svg></button>
+          </div>
+          <form id="blMechJobForm" class="bl-modal-body">
+            <div class="bl-field"><span class="bl-field-label">VIN</span><div class="bl-rec-vin" id="blMechJobVin">—</div></div>
+            <div class="bl-msg is-hidden" id="blMechJobBanner"></div>
+
+            <div class="bl-field-row">
+              <label class="bl-field"><span class="bl-field-label">Job Type</span><select id="blMechJobType"></select></label>
+              <label class="bl-field"><span class="bl-field-label">Mileage</span><input type="number" id="blMechJobMileage" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="000000"></label>
+            </div>
+
+            <div class="bl-field">
+              <span class="bl-field-label">Performed By</span>
+              <div class="bl-seg" id="blMechJobPerformedBy" role="group" aria-label="Performed by">
+                <button type="button" class="bl-seg-btn is-active" data-val="in_house">In-house</button>
+                <button type="button" class="bl-seg-btn" data-val="vendor">Vendor</button>
+              </div>
+            </div>
+            <label class="bl-field is-hidden" id="blMechJobVendorRow"><span class="bl-field-label">Vendor</span><select id="blMechJobVendor"></select></label>
+
+            <label class="bl-field"><span class="bl-field-label">Destination</span><select id="blMechJobDest"></select></label>
+
+            <div class="bl-field">
+              <span class="bl-field-label">What's Being Done</span>
+              <div class="bl-checks" id="blMechJobActions"></div>
+            </div>
+            <label class="bl-field is-hidden" id="blMechJobActionOtherRow"><span class="bl-field-label">Other detail</span><input id="blMechJobActionOther" maxlength="80" autocomplete="off"></label>
+
+            <div class="bl-field">
+              <span class="bl-field-label">Parts</span>
+              <div class="bl-field-row">
+                <input type="text" id="blMechJobPartInput" maxlength="80" autocomplete="off" placeholder="Part description">
+                <button type="button" class="bl-btn bl-btn--secondary" id="blMechJobPartAdd">Add</button>
+              </div>
+              <div class="bl-tag-list" id="blMechJobPartsList"></div>
+            </div>
+
+            <div class="bl-field is-hidden" id="blMechJobWaitingRow">
+              <span class="bl-field-label">Waiting on Parts</span>
+              <textarea id="blMechJobPartsNote" maxlength="200" placeholder="What's it waiting on?"></textarea>
+              <div class="bl-modal-actions bl-modal-actions--center">
+                <button type="button" class="bl-btn bl-btn--secondary bl-btn--sm" id="blMechJobWaitingBtn">Mark Waiting on Parts</button>
+                <button type="button" class="bl-btn bl-btn--secondary bl-btn--sm is-hidden" id="blMechJobPartsArrivedBtn">Parts Arrived</button>
+              </div>
+            </div>
+
+            <div class="bl-field">
+              <span class="bl-field-label">Notes</span>
+              <div class="bl-field-row">
+                <input type="text" id="blMechJobNoteInput" maxlength="500" autocomplete="off" placeholder="Add a note…">
+                <button type="button" class="bl-btn bl-btn--secondary" id="blMechJobNoteAdd">Add</button>
+              </div>
+              <div id="blMechJobNotesList"></div>
+            </div>
+
+            <label class="bl-field is-hidden" id="blMechJobCloseStatusRow"><span class="bl-field-label">Close Status</span><select id="blMechJobCloseStatus"></select></label>
+
+            <div class="bl-msg" id="blMechJobMsg" role="status" aria-live="polite"></div>
+            <div class="bl-modal-actions">
+              <button type="button" class="bl-btn bl-btn--ghost" id="blMechJobCancel">Cancel</button>
+              <button type="button" class="bl-btn bl-btn--secondary is-hidden" id="blMechJobSendBtn">Send to Vendor</button>
+              <button type="button" class="bl-btn bl-btn--secondary is-hidden" id="blMechJobReturnBtn">Mark Returned</button>
+              <button type="button" class="bl-btn bl-btn--secondary is-hidden" id="blMechJobCloseBtn">Close Job</button>
+              <button type="submit" class="bl-btn bl-btn--primary is-hidden" id="blMechJobSaveBtn">Save</button>
+            </div>
+          </form>
+        </div>
+      </div>
 
       <section class="bl-section" id="section-users">
         <div class="bl-page-head">

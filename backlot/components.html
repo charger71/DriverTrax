@@ -196,6 +196,19 @@
         <label class="bl-field"><span class="bl-field-label">Needed</span><input type="number" min="1" max="20" value="1"></label>
       </div>
     </div>
+
+    <h2 style="margin-top:var(--sp-6)">Removable tags &amp; note log</h2>
+    <p class="lead"><code>.bl-tag-list</code>/<code>.bl-tag</code> for a short editable list (e.g. parts on a job) — each tag carries its own remove button. <code>.bl-note-row</code> for an append-only log of timestamped entries (e.g. job notes) — no remove action, newest first.</p>
+    <div class="demo" style="flex-direction:column;align-items:stretch;max-width:420px">
+      <div class="bl-tag-list">
+        <span class="bl-tag">Brake pads<button type="button" aria-label="Remove">&times;</button></span>
+        <span class="bl-tag">Air filter<button type="button" aria-label="Remove">&times;</button></span>
+      </div>
+      <div>
+        <div class="bl-note-row"><div class="bl-note-meta">2m ago · D. Hansen</div>Waiting on a part from the dealer.</div>
+        <div class="bl-note-row"><div class="bl-note-meta">1h ago · D. Hansen</div>Opened job for PM service.</div>
+      </div>
+    </div>
   </section>
 
   <!-- ============ LAYOUT: GRIDS + ROWS ============ -->

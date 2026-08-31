@@ -27,7 +27,8 @@
   // one row there; a dropdown needs them apart.
   const FALLBACK_SIPP_CODES = [
     { code: "ECAR",  label: "Economy" },
-    { code: "CCAR",  label: "Compact" },
+    { code: "CCAR",  label: "Compact", compact: true },
+    { code: "CFAR",  label: "Compact SUV", compact: true },
     { code: "ICAR",  label: "Intermediate / Midsize" },
     { code: "SCAR",  label: "Standard" },
     { code: "FCAR",  label: "Full Size" },
@@ -56,6 +57,13 @@
   function isLuxury(code) {
     return !!SIPP_BY_CODE.get(String(code || "").toUpperCase())?.luxury;
   }
+  // Compact classes (regular compacts and compact SUVs like the Trax) never
+  // qualify for Executive regardless of mileage — see mileageRouteDestination
+  // in app.js. Manager-set per code (sipp-codes-compact-schema.sql), not a
+  // single hardcoded code, so any compact-class body style is covered.
+  function isCompact(code) {
+    return !!SIPP_BY_CODE.get(String(code || "").toUpperCase())?.compact;
+  }
 
   // Kicked off once at load. fillSelects() below reads SIPP_CODES lazily (at
   // first editor open) so it usually already sees the live list; if the
@@ -63,9 +71,9 @@
   // the already-filled <select> in place.
   (async function loadSippCodes() {
     try {
-      const { data, error } = await sb.from("sipp_codes").select("code,label,is_luxury").order("code");
+      const { data, error } = await sb.from("sipp_codes").select("code,label,is_luxury,is_compact").order("code");
       if (error || !data || !data.length) return; // keep the fallback
-      SIPP_CODES = data.map(s => ({ code: s.code, label: s.label, luxury: !!s.is_luxury }));
+      SIPP_CODES = data.map(s => ({ code: s.code, label: s.label, luxury: !!s.is_luxury, compact: !!s.is_compact }));
       SIPP_BY_CODE = new Map(SIPP_CODES.map(s => [s.code, s]));
       const form = $("vehicleInfoForm");
       if (form && form.dataset.filled) {
@@ -314,7 +322,7 @@
 
   window.DT_VEHICLE_INFO = {
     load, mount, invalidate, openEditor, closeEditor,
-    plateGroupHtml, sippGroupHtml, sippLabel, isLuxury, normalizePlate,
+    plateGroupHtml, sippGroupHtml, sippLabel, isLuxury, isCompact, normalizePlate,
     get SIPP_CODES() { return SIPP_CODES; },
     US_STATES
   };

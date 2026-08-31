@@ -40,14 +40,15 @@ window.locationLabel = locationLabel;
 // Suggested drop lot for a freshly-scanned car, from mileage + SIPP class —
 // mirrors the Executive / Emerald / Enterprise-Alamo cutoffs, and the
 // separate Luxuries note, in the Training panel's Clean Car Notes
-// (index.html, "Clean Car Notes" list). Luxury classes (manager-flagged in
-// Backlot's SIPP Codes admin — see DT_VEHICLE_INFO.isLuxury) route to
-// Premiere/Wall instead, regardless of the Executive/Emerald split. Compacts
-// (SIPP "CCAR") never qualify for Executive regardless of mileage.
-function mileageRouteDestination(mileage, sipp, isLuxury) {
+// (index.html, "Clean Car Notes" list). Luxury classes route to Premiere/Wall
+// instead, regardless of the Executive/Emerald split; compact classes
+// (regular compacts and compact SUVs like the Trax) never qualify for
+// Executive regardless of mileage. Both are manager-flagged per SIPP code in
+// Backlot's SIPP Codes admin (DT_VEHICLE_INFO.isLuxury / .isCompact) rather
+// than hardcoded, so the caller resolves them from the scanned VIN's code.
+function mileageRouteDestination(mileage, isCompact, isLuxury) {
   if (!Number.isFinite(mileage) || mileage < 0) return null;
   if (isLuxury) return mileage <= 20000 ? "Premiere" : "Wall or Enterprise/Alamo";
-  const isCompact = String(sipp || "").toUpperCase() === "CCAR";
   if (mileage <= 10000 && !isCompact) return "Executive";
   if (mileage <= 20000) return "Emerald";
   return "Enterprise/Alamo";
@@ -6693,8 +6694,9 @@ function renderEntryRouteHint() {
   const typedVal = typedRaw ? parseInt(typedRaw, 10) : NaN;
   const usingTyped = Number.isFinite(typedVal) && typedVal >= 0;
   const mileage = usingTyped ? typedVal : entryRouteMileageHint;
+  const isCompact = window.DT_VEHICLE_INFO?.isCompact?.(entryRouteSipp) || false;
   const isLuxury = window.DT_VEHICLE_INFO?.isLuxury?.(entryRouteSipp) || false;
-  const dest = mileageRouteDestination(mileage, entryRouteSipp, isLuxury);
+  const dest = mileageRouteDestination(mileage, isCompact, isLuxury);
   if (!dest) { el.classList.add("u-hidden"); el.innerHTML = ""; return; }
   const note = usingTyped ? "" : ` <span class="ern-note">(last known mileage)</span>`;
   el.classList.remove("u-hidden");

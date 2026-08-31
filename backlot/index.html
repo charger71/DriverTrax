@@ -622,6 +622,9 @@
                  mileage-only Executive/Emerald/Enterprise-Alamo tiers — see
                  mileageRouteDestination() in the driver app's app.js. -->
             <label><input type="checkbox" name="luxury"> Luxury (routes to Premiere / Wall)</label>
+            <!-- Compact classes (regular compacts and compact SUVs like the
+                 Trax) never qualify for Executive, regardless of mileage. -->
+            <label><input type="checkbox" name="compact"> Compact (excluded from Executive)</label>
             <div class="bl-msg" id="blSippModalMsg" role="status" aria-live="polite"></div>
             <div class="bl-modal-actions">
               <button type="button" class="bl-btn bl-btn--ghost" id="blSippModalCancel">Cancel</button>

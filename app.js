@@ -4551,9 +4551,17 @@ function openInlineNewEntry(vin) {
   if (typeof toggleClearBtn === "function") toggleClearBtn();
   if (typeof updateVinCount === "function") updateVinCount();
   // Populate the current-state banner + placeholder hints on the form fields
-  // (status / destination / mileage / fuel). The scan flow does this via the
-  // dt-vin-scanned event; inline opening has to trigger it manually.
+  // (status / destination / mileage / fuel), and the plate/SIPP chip. The scan
+  // flow does this via the dt-vin-scanned event; inline opening has to trigger
+  // it manually (not by dispatching dt-vin-scanned itself — detailer.js/
+  // maintenance.js also listen for that and would switch tabs out from under
+  // this inline view).
   if (vin && typeof renderEntryCurrentState === "function") renderEntryCurrentState(vin);
+  const inlineInfoEl = document.getElementById("entryVehicleInfo");
+  if (inlineInfoEl) {
+    if (vin) window.DT_VEHICLE_INFO?.mount(inlineInfoEl, vin);
+    else inlineInfoEl.innerHTML = "";
+  }
   // Hide the New Entry trigger button while the form is open.
   const trigger = document.querySelector(".vin-tl-new-entry");
   if (trigger) trigger.style.display = "none";
@@ -6567,12 +6575,12 @@ async function renderEntryCurrentState(vin) {
   const el = document.getElementById("entryCurrentState");
   if (!el || !window.DT_AUTH) return;
   if (!vin) {
-    el.style.display = "none"; el.innerHTML = "";
+    el.classList.add("u-hidden"); el.innerHTML = "";
     entryRouteMileageHint = null; entryRouteSipp = "";
     renderEntryRouteHint();
     return;
   }
-  el.style.display = "";
+  el.classList.remove("u-hidden");
   el.classList.remove("is-empty");
   el.classList.remove("is-priority");
   el.innerHTML = `<div class="ecs-label">Current state</div><div>Loading…</div>`;
@@ -6728,7 +6736,7 @@ function setInputPlaceholderHint(id, defaultPlaceholder, lastVal) {
 // onto the next VIN's pre-fill.
 function clearEntryCurrentState() {
   const el = document.getElementById("entryCurrentState");
-  if (el) { el.style.display = "none"; el.innerHTML = ""; }
+  if (el) { el.classList.add("u-hidden"); el.innerHTML = ""; }
   const infoEl = document.getElementById("entryVehicleInfo");
   if (infoEl) infoEl.innerHTML = "";
   setSelectPlaceholderHint("destination", "-- LOCATION --", "");

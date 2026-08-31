@@ -24,7 +24,7 @@
   async function load() {
     const { data, error } = await sb
       .from("sipp_codes")
-      .select("code,label,is_luxury")
+      .select("code,label,is_luxury,is_compact")
       .order("code", { ascending: true });
     const el = $("blSippList");
     if (error) { if (el) el.innerHTML = `<div class="bl-empty">${esc(error.message)}</div>`; return; }
@@ -43,7 +43,7 @@
       <div class="bl-users-row">
         <div class="info">
           <div class="name">${esc(c.code)}</div>
-          <div class="meta">${esc(c.label)}${c.is_luxury ? ` <span class="bl-luxury-pill">Luxury</span>` : ""}</div>
+          <div class="meta">${esc(c.label)}${c.is_luxury ? ` <span class="bl-luxury-pill">Luxury</span>` : ""}${c.is_compact ? ` <span class="bl-compact-pill">Compact</span>` : ""}</div>
         </div>
         <div class="actions">
           <button class="bl-btn bl-btn--sm bl-btn--secondary" data-act="edit" data-code="${esc(c.code)}">Edit</button>
@@ -86,6 +86,7 @@
     f.elements.code.disabled = true;
     f.elements.label.value = c.label || "";
     f.elements.luxury.checked = !!c.is_luxury;
+    f.elements.compact.checked = !!c.is_compact;
     showModal();
     setTimeout(() => f.elements.label.focus(), 50);
   }
@@ -96,15 +97,16 @@
     const label = (f.elements.label.value || "").trim().slice(0, 60);
     if (!label) { setMsg("Enter a label.", "err"); return; }
     const is_luxury = f.elements.luxury.checked;
+    const is_compact = f.elements.compact.checked;
 
     setMsg("Saving…");
     let error;
     if (editingCode) {
-      ({ error } = await sb.from("sipp_codes").update({ label, is_luxury }).eq("code", editingCode));
+      ({ error } = await sb.from("sipp_codes").update({ label, is_luxury, is_compact }).eq("code", editingCode));
     } else {
       const code = (f.elements.code.value || "").trim().toUpperCase().slice(0, 10);
       if (!code) { setMsg("Enter a code.", "err"); return; }
-      ({ error } = await sb.from("sipp_codes").insert({ code, label, is_luxury }));
+      ({ error } = await sb.from("sipp_codes").insert({ code, label, is_luxury, is_compact }));
     }
     if (error) {
       const dup = error.code === "23505" || /duplicate|unique/i.test(error.message || "");

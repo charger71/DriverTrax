@@ -673,6 +673,37 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
   </div>
 </section>
 
+<!-- ===================== INVENTORY IMPORT ===================== -->
+<section class="cl-section" id="inventory-import">
+  <h2>Inventory import</h2>
+  <p class="cl-desc">Used on <code>#panel-inventory-import</code> (see <code>inventory-import.js</code>). Message line mirrors <code>.users-modal-msg</code>'s ok/err convention but isn't a modal, so it has its own <code>.import-msg</code> class.</p>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Paste area — monospace, taller than the default <code>textarea</code></div>
+    <div class="cl-preview">
+      <textarea class="import-paste-area" style="width:100%;" placeholder="Paste rows copied from Google Sheets, including the header row…"></textarea>
+    </div>
+<pre class="cl-code">&lt;textarea id="importPasteArea" class="import-paste-area"&gt;&lt;/textarea&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Preview summary — read-only counts computed before commit</div>
+    <div class="cl-preview cl-stack">
+      <div class="import-summary">
+        <div class="import-summary-row"><strong>14</strong> rows ready — sheet: Available</div>
+        <div class="import-summary-row">2 new vehicles, 12 updated</div>
+        <div class="import-summary-row import-summary-warn">Unlabeled status codes import as-is — add labels in STATUS_LABELS (app.js) when ready: TR</div>
+        <div class="import-summary-row import-summary-err">1 row skipped<ul><li>Row 9: missing/invalid VIN</li></ul></div>
+      </div>
+    </div>
+<pre class="cl-code">&lt;div class="import-summary"&gt;
+  &lt;div class="import-summary-row"&gt;...&lt;/div&gt;
+  &lt;div class="import-summary-row import-summary-warn"&gt;...&lt;/div&gt;
+  &lt;div class="import-summary-row import-summary-err"&gt;...&lt;/div&gt;
+&lt;/div&gt;</pre>
+  </div>
+</section>
+
 <!-- ===================== VIN HISTORY ===================== -->
 <section class="cl-section" id="vin-history">
   <h2>VIN history</h2>

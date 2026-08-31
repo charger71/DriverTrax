@@ -1684,6 +1684,27 @@
     margin: 0 0 var(--space-3);
   }
   .loc-help em { font-style: normal; color: var(--text); font-weight: var(--weight-medium); }
+
+  /* INVENTORY IMPORT PANEL — paste-from-Sheets bulk loader (see inventory-import.js).
+     Message line mirrors .users-modal-msg's ok/err convention but isn't a modal,
+     so it gets its own class rather than reusing DT_UI.setMessage's hardcoded one. */
+  .import-paste-area {
+    height: 220px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: var(--font-xs);
+  }
+  .import-msg { min-height: 18px; font-size: var(--font-sm); margin: var(--space-2) 0; }
+  .import-msg.err { color: var(--danger); }
+  .import-msg.ok  { color: var(--accent); }
+  .import-summary {
+    background: var(--card); border: var(--border-thin) solid var(--border); border-radius: 8px;
+    padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3);
+    font-size: var(--font-sm); color: var(--text);
+  }
+  .import-summary-row { margin-bottom: var(--space-2); }
+  .import-summary-row:last-child { margin-bottom: 0; }
+  .import-summary-row ul { margin: var(--space-1) 0 0 var(--space-4); padding: 0; }
+  .import-summary-warn { color: var(--warn-text); }
+  .import-summary-err  { color: var(--danger); }
+
   .loc-row {
     display: flex; align-items: center; gap: var(--space-3);
     padding: var(--space-3) var(--space-4); margin-bottom: var(--space-2);

@@ -340,6 +340,9 @@
     <a class="menu-item manager-only" onclick="showTab('vendors'); closeMenu()">
       <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span> Vendors
     </a>
+    <a class="menu-item manager-only" onclick="showTab('inventory-import'); closeMenu()">
+      <span class="menu-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span> Import Inventory
+    </a>
 
     <!-- Utility section — visible to everyone -->
     <div class="menu-section-label">Utility</div>
@@ -1615,6 +1618,38 @@
   </div>
 </div>
 
+<!-- ===================================================== -->
+<!-- INVENTORY IMPORT PANEL (manager-only) — bulk-loads fleet data pasted
+     from Google Sheets into vehicles / service_jobs / service_vendors.
+     See inventory-import.js. -->
+<!-- ===================================================== -->
+<div class="panel" id="panel-inventory-import" role="region" aria-label="Import Inventory">
+  <div class="dash-section">
+    <div class="dash-title">Import Inventory</div>
+    <p class="loc-help">Copy the header row and data rows from a Google Sheet (Available, Rented, or In-Maintenance) and paste below. Re-running an import is safe — it updates existing vehicles instead of duplicating them.</p>
+
+    <span class="field-label">Sheet type</span>
+    <select id="importSheetType">
+      <option value="auto" selected>Auto-detect</option>
+      <option value="available">Available</option>
+      <option value="rented">Rented</option>
+      <option value="maintenance">In Maintenance</option>
+    </select>
+
+    <span class="field-label">Paste data</span>
+    <textarea id="importPasteArea" class="import-paste-area" placeholder="Paste rows copied from Google Sheets, including the header row…"></textarea>
+
+    <div class="import-msg" id="importMsg"></div>
+
+    <div class="import-summary u-hidden" id="importSummary"></div>
+
+    <div class="users-modal-actions">
+      <button type="button" class="btn btn-secondary" id="importPreviewBtn">Preview</button>
+      <button type="button" class="btn btn-primary btn--block" id="importCommitBtn" disabled>Commit Import</button>
+    </div>
+  </div>
+</div>
+
 <!-- Users invite + edit modal -->
 <div class="users-modal" id="usersModal" aria-hidden="true">
   <div class="users-modal-card">
@@ -1922,6 +1957,7 @@
 <script src="detailer.js"></script>
 <script src="vendors.js"></script>
 <script src="maintenance.js"></script>
+<script src="inventory-import.js"></script>
 <script src="elearning.js"></script>
 <script src="notifications.js"></script>
 <script src="pull-refresh.js"></script>

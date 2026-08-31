@@ -52,6 +52,12 @@
     --surface-selected:  rgba(0, 166, 81, 0.12);
     --overlay-bg:        #000000;   /* fullscreen camera overlay — fixed in both themes */
     --overlay-text:      #ffffff;
+    /* A license plate is a physical object, so it keeps plate colors in both
+       themes rather than following the surface palette — same reasoning as
+       --overlay-* above. */
+    --plate-bg:          #f4f2ec;
+    --plate-text:        #1c1a17;
+    --plate-accent:      #1d4ed8;   /* issuing-state prefix inside the plate badge */
 
     /* Lines */
     --border:            #333b45;
@@ -193,6 +199,9 @@
     --surface-selected:  rgba(0, 122, 61, 0.12);
     --overlay-bg:        #000000;
     --overlay-text:      #ffffff;
+    --plate-bg:          #f4f2ec;
+    --plate-text:        #1c1a17;
+    --plate-accent:      #1d4ed8;   /* issuing-state prefix inside the plate badge */
 
     --border:            #c2bcb0;
     --divider:           #d8d3c6;
@@ -340,8 +349,9 @@
      LAYOUT COMPONENTS (replace spacing-utility classes)
      ============================ */
 
-  /* Entry-style header: SCAN BARCODE hero + "Enter Manually" secondary, stacked with breathing room.
-     Used on both the driver New Entry tab and the detailer New Entry tab. */
+  /* Entry-style header: SCAN BARCODE hero, plus an "Enter Manually" secondary on
+     the surfaces that still have one (detailer / service New Entry). The driver
+     entry form shows its Serial ID field outright instead. */
   .entry-header-buttons {
     display: flex; flex-direction: column; align-items: center;
     gap: var(--space-5);
@@ -350,11 +360,38 @@
   .entry-header-buttons .btn-manual-toggle {
     max-width: 50%;
   }
+  /* A header holding only the hero button — no secondary beneath it — needs a
+     smaller break before the first field than the two-button headers do. */
+  .entry-header-buttons--hero-only { margin-bottom: var(--space-4); }
+  #manualEntrySection { margin-top: var(--space-3); }
 
-  /* Entry-form row: side-by-side field groups (Status/Location, Mileage/Fuel). */
+  /* SCAN BARCODE + LOOKUP PLATE side by side instead of stacked, each taking
+     half the row. Text/icon shrink from the stacked hero recipe (.btn--hero's
+     22px/32px) since two labels now share the width a single one used to have. */
+  .entry-header-buttons--split { flex-direction: row; gap: var(--space-3); }
+  .entry-header-buttons--split .btn {
+    flex: 1; min-width: 0;
+    padding: 0 var(--space-2);
+    font-size: var(--font-sm);
+    gap: var(--space-1);
+  }
+  .entry-header-buttons--split .btn .icon { width: 22px; height: 22px; }
+
+  /* Entry-form row: side-by-side field groups (Mileage/Fuel, the hidden Location row). */
   .entry-form-row { display: flex; gap: var(--space-3); margin-top: var(--space-5); }
-  .entry-form-row + .entry-form-row { margin-top: var(--space-4); }
   .entry-form-row > .u-flex-1 > .field-label:first-child { margin-top: 0; }
+  /* Controls in a flex row don't need their own bottom margin — the row gap and
+     the next group's top margin already space things. Keeps Mileage/Fuel from
+     floating too far above the Status group below it. The top margin matches
+     .status-btn-group's, so a label sits the same distance above its control
+     here as "Status" does above its buttons — .field-label is inline, so its
+     own margin-bottom never renders and the control has to supply the gap. */
+  .entry-form-row input, .entry-form-row select {
+    margin-top: var(--space-2);
+    margin-bottom: 0;
+  }
+  .entry-form-row + .field-row { margin-top: var(--space-3); }
+  #entryFormBody .entry-form-row { margin-top: var(--space-3); }
 
   /* Checkbox row inside the entry-options collapse panel. */
   .checkbox-row { display: flex; gap: var(--space-3); }
@@ -454,6 +491,8 @@
 
   /* Input with clear button (X) */
   .input-with-clear { display: block; position: relative; margin-bottom: var(--space-6); }
+  /* Entry form only: line the Serial ID group break up with the others. */
+  #manualEntrySection .input-with-clear { margin-bottom: var(--space-3); }
   .input-with-clear input[type=text] { padding-right: 88px; cursor: pointer; margin-bottom: 0; }
 
   .vin-charcount {
@@ -462,6 +501,11 @@
     font-weight: 600; letter-spacing: 0.5px;
   }
   .vin-charcount.valid { color: var(--accent); }
+  /* Serial ID heading row: field name on the left, the live VIN counter pushed
+     to the right, both sitting above the input rather than under it. */
+  .field-label-row--count { justify-content: space-between; margin-bottom: var(--space-3); }
+  .field-label-row--count .field-label { margin-top: 0; margin-bottom: 0; }
+  .field-label-row--count .vin-charcount { margin-top: 0; }
 
   /* VIN KEYPAD */
   .vin-keypad-overlay {
@@ -504,6 +548,20 @@
     letter-spacing: 0.5px;
   }
   .vin-keypad-count.valid { color: var(--accent); }
+  .vin-suggest-bar {
+    flex-shrink: 0;
+    display: flex; gap: var(--space-2); overflow-x: auto;
+    margin-bottom: var(--space-3); padding-bottom: 2px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .vin-suggest-chip {
+    flex: 0 0 auto;
+    background: var(--card-soft); border: 1px solid var(--border); border-radius: 999px;
+    padding: var(--space-2) var(--space-3);
+    font-family: 'Courier New', monospace; font-size: var(--font-sm); font-weight: var(--weight-bold);
+    color: var(--text); white-space: nowrap; cursor: pointer;
+  }
+  .vin-suggest-chip:hover, .vin-suggest-chip:active { background: var(--surface-hover); border-color: var(--accent); }
   .vin-keypad-funcs {
     display: grid; grid-template-columns: repeat(4, 1fr);
     gap: var(--space-4);
@@ -699,6 +757,18 @@
   .btn-icon:hover  { background: var(--surface-hover); color: var(--text); }
   .btn-icon:active { background: var(--card-soft); }
 
+  /* 6. INFO — blue, for an alternate action paired with a primary one
+     (e.g. LOOKUP PLATE beside SCAN BARCODE). Same translucent-fill recipe as
+     PRIMARY, swapping --accent for --info so it reads as "blue" in both themes. */
+  .btn-info {
+    background: color-mix(in srgb, var(--info) 20%, transparent);
+    color: var(--text);
+    border-color: var(--info);
+    font-weight: var(--weight-bold);
+  }
+  .btn-info:hover  { background: color-mix(in srgb, var(--info) 35%, transparent); }
+  .btn-info:active { background: color-mix(in srgb, var(--info-strong) 50%, transparent); border-color: var(--info-strong); }
+
   /* Size modifiers */
   .btn--sm   { height: 36px; min-width: 36px; padding: 0 var(--space-3); font-size: var(--font-sm); }
   .btn--hero { height: 64px; padding: 0 var(--space-5); font-size: var(--font-xl); font-weight: var(--weight-bold); letter-spacing: 1px; }
@@ -786,7 +856,8 @@
   .record-serial { font-size: var(--font-lg); font-weight: 700; letter-spacing: 1px; color: var(--text); }
   .record-badges { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
   /* Shared base for all record/status badges — variants below override color only. */
-  .record-status, .badge-dest, .badge-notag, .badge-shuttle, .badge-transport, .badge-damage, .badge-gps {
+  .record-status, .badge-dest, .badge-notag, .badge-shuttle, .badge-transport, .badge-damage, .badge-gps,
+  .vin-id-plate, .vin-id-sipp {
     font-size: var(--font-xs); font-weight: 700;
     padding: var(--space-1) var(--space-2); border-radius: 6px;
     text-transform: uppercase; letter-spacing: 0.5px;
@@ -903,6 +974,72 @@
     margin-top: var(--space-2);
     font-size: var(--font-xs); color: var(--muted);
     letter-spacing: 0.5px; text-transform: uppercase;
+  }
+
+  /* Plate / state / SIPP row in the VIN HISTORY header (vehicle-info.js).
+     Distinct from .vin-tl-chip on purpose: those are decoded NHTSA specs,
+     these are the two identifiers a lot attendant reads off the car. */
+  /* margin-bottom separates the row from the "N events" count that follows it
+     in the header; margin-top matches the .vin-tl-chips rhythm above. */
+  .vin-id-mount { margin-top: var(--space-2); margin-bottom: var(--space-4); }
+  .vin-id-mount:empty { display: none; }
+  /* Same row on the NEW ENTRY form, where it sits between field groups rather
+     than inside the header card: take the form's own top rhythm, and drop the
+     bottom margin because .entry-form-row (Mileage/Fuel) brings its own. */
+  .vin-id-mount--entry { margin-top: var(--space-4); margin-bottom: 0; }
+  /* Plate, SIPP and Edit are the row's three items — each an eyebrow (or
+     nothing, for Edit) over a value, spaced evenly with justify-content
+     rather than forced into equal-width columns, so a short plate and a long
+     SIPP expansion don't fight for the same column width. Edit sits at
+     flex-end so it lands at the badges' baseline, not up on an eyebrow line
+     with nothing of its own to label. */
+  /* No flex-wrap: with it, Chromium prefers bumping Edit to a new line over
+     shrinking the two groups, which is backwards — a long SIPP expansion
+     should wrap its own text inside a narrowed column, not evict Edit. */
+  .vin-id-row {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: var(--space-3);
+  }
+  /* Plate never shrinks — "NY-KDX4471" always fits on one line. SIPP is the
+     one whose expansion can run long, so it alone absorbs the row's flexible
+     space and wraps its own badge text when that space gets tight, rather
+     than every column shrinking in lockstep and Plate wrapping needlessly. */
+  .vin-id-group { display: flex; flex-direction: column; gap: 2px; flex: 0 0 auto; }
+  .vin-id-group:has(.vin-id-sipp) { flex: 1 1 auto; min-width: 0; }
+
+  .vin-id-eyebrow { margin-bottom: 0; margin-top: 0; }
+  .vin-id-row .vin-id-edit { flex: 0 0 auto; }
+  /* plate / SIPP take the standard badge base above (6px radius, padding,
+     uppercase, weight) — only size and fill are set here. Both step up to
+     --font-md so a plate read off a bumper, or a class code across the lot,
+     is legible at arm's length, which the badge default of --font-xs is not.
+     white-space stays the base rule's default (normal) on purpose: the SIPP
+     badge now carries its full expansion and wraps rather than overflowing. */
+  .vin-id-plate {
+    background: var(--plate-bg); color: var(--plate-text);
+    border: var(--border-thin) solid var(--border);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: var(--font-md); letter-spacing: 1px; align-self: flex-start;
+  }
+  /* Issuing-state prefix inside the plate badge, e.g. "NY-KDX4471". Fixed
+     --plate-accent rather than --accent: --accent is retuned per theme for
+     contrast on that theme's own surfaces, but the plate badge itself is a
+     fixed light surface in both themes (see --plate-bg), so its accent has
+     to be fixed the same way. */
+  .vin-id-plate-state { color: var(--plate-accent); }
+  /* Info fill, matching .badge-shuttle's recipe. */
+  .vin-id-sipp {
+    background: var(--info-soft); color: var(--info);
+    border: var(--border-thin) solid var(--info);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: var(--font-md); letter-spacing: 1px; align-self: flex-start;
+  }
+  /* The code's expansion, e.g. "Intermediate / Midsize" — prose, not a code,
+     so it drops the monospace/tracking/bold treatment .vin-id-sipp otherwise
+     applies to everything inside it and steps down a size from the code. */
+  .vin-id-sipp-desc {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    font-size: var(--font-sm); font-weight: var(--weight-normal); letter-spacing: normal;
   }
   .vin-tl-mileage{ font-size: var(--font-base); color: var(--info-text); margin-top: var(--space-1); font-weight: var(--weight-medium); }
   .vin-tl-cond-row { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); margin-top: var(--space-4); }
@@ -1313,6 +1450,11 @@
 
   /* Primary tier — CLEAN / DIRTY, half-width hero buttons colored the same
      as their .record-status.status-CLEAN/DIRTY chips elsewhere in the app. */
+  /* Matches the Mileage/Fuel controls' top margin so "Status" sits the same
+     distance above its buttons as those labels do above their inputs. The
+     --more group keeps the tighter default; it sits inside a disclosure body
+     that supplies its own padding. */
+  .status-btn-group--primary { margin-top: var(--space-2); gap: var(--space-3); }
   .status-btn-group--primary .status-btn {
     flex: 1;
     min-height: 56px;
@@ -1325,13 +1467,16 @@
     background: var(--warn-soft); color: var(--warn-text); border-color: var(--warn-text);
   }
 
-  /* "More statuses" tier — compact buttons (same var(--radius) corners as
-     the base .status-btn, not a pill shape), one neutral accent treatment
-     when checked (not per-status colored — keeps the long tail calm/scannable). */
+  /* "More statuses" tier — same size as the base .status-btn (44px touch
+     target, font-sm), just one neutral accent treatment when checked instead
+     of per-status colors — keeps the long tail calm/scannable without
+     shrinking the buttons below the rest of the app's tap targets. Two-up,
+     stretched to fill each row evenly (same flex-basis technique as
+     .cond-chip in the Conditions panel) instead of wrapping at each
+     button's own natural width — a lone last button on its own row still
+     stretches to fill it via flex-grow, same as .cond-chip's last row. */
   .status-btn-group--more .status-btn {
-    min-height: 40px;
-    padding: 0 var(--space-3);
-    font-size: var(--font-xs);
+    flex: 1 1 calc((100% - var(--space-2)) / 2);
   }
   .status-btn-group--more .status-btn[aria-checked="true"] {
     background: var(--accent); color: var(--text-on-accent); border-color: var(--accent);
@@ -1468,6 +1613,23 @@
   .vin-detail-row:hover { background: var(--bg); }
   .vin-detail-vin { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: var(--weight-bold); font-size: 13px; color: var(--info-text); }
   .vin-detail-sub { font-size: 11px; color: var(--muted); }
+  .vin-detail-tags { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin: 2px 0; }
+  .vin-detail-plate {
+    display: inline-flex; align-items: center; gap: var(--space-1);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: var(--font-xs); font-weight: var(--weight-heavy); letter-spacing: 0.06em;
+    color: var(--text); background: var(--card-soft);
+    border: var(--border-thin) solid var(--divider);
+    border-radius: var(--radius); padding: 1px var(--space-2);
+  }
+  .vin-detail-plate-state { color: var(--muted); font-weight: var(--weight-bold); }
+  .vin-detail-sipp {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: var(--font-xs); font-weight: var(--weight-heavy); letter-spacing: 0.06em;
+    color: var(--info-text); background: var(--info-soft);
+    border: var(--border-thin) solid var(--info-strong);
+    border-radius: var(--radius); padding: 1px var(--space-2);
+  }
   .vin-detail-main { min-width: 0; flex: 1; }
   .vin-detail-side {
     display: flex; align-items: center; gap: 6px;
@@ -1972,6 +2134,14 @@
   .svc-state-banner--flagged {
     background: var(--warn-soft); border: var(--border-thin) solid var(--warn); color: var(--warn-text);
   }
+  /* Read-only "latest note on file" banner — running text, not a short
+     status phrase, so it drops the bold/letter-spacing the other
+     .svc-state-banner variants use. */
+  .svc-state-banner--driver-note {
+    background: var(--card-soft); border: var(--border-thin) solid var(--border); color: var(--text-soft);
+    font-weight: var(--weight-normal); letter-spacing: normal; text-transform: none;
+  }
+  .svc-state-banner--driver-note b { color: var(--text); font-weight: var(--weight-bold); }
   .svc-days-out {
     display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px;
     font-size: var(--font-xs); font-weight: var(--weight-bold);
@@ -1983,6 +2153,16 @@
     font-size: 13px; height: 44px; resize: vertical; font-family: inherit;
   }
   .svc-waiting-row { display: flex; gap: 8px; margin: var(--space-3) 0; }
+
+  /* Job notes log — append-only, no remove action (see .svc-part-row for
+     the removable-list counterpart this mirrors). */
+  .svc-notes-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .svc-note-row {
+    background: var(--panel); border: var(--border-thin) solid var(--divider); border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .svc-note-meta { font-size: var(--font-xs); color: var(--muted); margin-bottom: 2px; }
+  .svc-note-text { font-size: 14px; color: var(--text); white-space: pre-wrap; }
 
   /* Disabled option rows in the detailer Options disclosure — visible but not interactive. */
   .notag-row[aria-disabled="true"] {
@@ -2012,6 +2192,17 @@
   .entry-current-state.is-priority .ecs-label,
   .entry-current-state.is-priority .ecs-val,
   .entry-current-state.is-priority .ecs-sep { color: var(--bg); }
+
+  /* "Belongs in X" nudge (renderEntryRouteHint() in app.js), shown under the
+     Mileage/Fuel row. Success colors — vs. entry-current-state's neutral
+     info — mark it as actionable guidance rather than read-only history. */
+  .entry-route-hint {
+    margin-top: 10px; padding: 10px 12px; border-radius: 8px;
+    background: var(--success-soft); border: var(--border-thin) solid var(--success-soft);
+    color: var(--success-text); font-size: 13px; line-height: 1.45;
+  }
+  .entry-route-hint .ern-dest { font-weight: var(--weight-bold); }
+  .entry-route-hint .ern-note { color: var(--muted); font-weight: var(--weight-normal); }
 
   /* Fuel + mileage icons in the VIN timeline header. */
   .ico-mileage { width: 20px; height: 20px; flex: 0 0 20px; margin-right: 4px; }
@@ -2106,6 +2297,53 @@
   .users-modal-msg.ok  { color: var(--accent); }
   .users-modal-actions { display: flex; gap: 8px; margin-top: 6px; }
   .users-modal-actions button { flex: 1; }
+
+  /* Plate / state / SIPP editor (#vehicleInfoModal, vehicle-info.js). */
+  #vehicleInfoForm { display: flex; flex-direction: column; gap: var(--space-3); }
+  #vehicleInfoForm label {
+    display: flex; flex-direction: column; gap: var(--space-1);
+    font-size: var(--font-sm); color: var(--text-soft); font-weight: var(--weight-medium);
+  }
+  .vehicle-info-vin {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: var(--font-sm); font-weight: var(--weight-bold); letter-spacing: 0.06em;
+    color: var(--info-text); word-break: break-all;
+  }
+  .vehicle-info-row { display: flex; gap: var(--space-2); align-items: flex-end; }
+  .vehicle-info-row .vehicle-info-plate { flex: 1; min-width: 0; }
+  .vehicle-info-row .vehicle-info-state { flex: 0 0 92px; }
+  #vehicleInfoForm input[name="plate"] {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .vehicle-info-hint { margin: 0; font-size: var(--font-xs); color: var(--muted); line-height: 1.4; }
+
+  /* Plate lookup (New Entry form, app.js openPlateLookup). #plateLookupInput
+     reuses the same monospace-uppercase treatment as #vehicleInfoForm's plate
+     field above. Results list only renders when more than one vehicle
+     matches — a single match applies immediately without ever showing it. */
+  #plateLookupInput {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .plate-lookup-results {
+    display: flex; flex-direction: column; gap: var(--space-2);
+    margin-top: var(--space-3); max-height: 40vh; overflow-y: auto;
+  }
+  .plate-lookup-row {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+    width: 100%; text-align: left;
+    background: var(--card-soft); border: var(--border-thin) solid var(--border);
+    border-radius: var(--radius); padding: var(--space-2) var(--space-3);
+    cursor: pointer;
+  }
+  .plate-lookup-row:hover { background: var(--surface-hover); }
+  .plate-lookup-row-plate {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-weight: var(--weight-heavy); font-size: var(--font-base);
+    color: var(--text); letter-spacing: 0.06em;
+  }
+  .plate-lookup-row-meta { font-size: var(--font-xs); color: var(--muted); }
 
   /* Shift-close counter category editor (openCategoryEditor in app.js). */
   .cat-editor-hint {
@@ -3169,6 +3407,14 @@
   #entryDamageSvg .panel-hit.has-damage.dp { fill: var(--muted); fill-opacity: 0.28; }
   #entryDamageSvg .damage-mark text { paint-order: stroke; }
 
+  /* Mechanic's own damage editor — an interactive clone of #entryDamageSvg
+     (DT_DAMAGE.cloneSilhouette), so it gets .damage-viewer-svg's base
+     shell/fill/has-damage styling for free; only the click affordance
+     needs re-declaring since it's id-scoped above, and the clone has no id. */
+  #svcDamageSvgWrap .panel-hit { cursor: pointer; }
+  #svcDamageSvgWrap .panel-hit:hover .dp,
+  #svcDamageSvgWrap .panel-hit.dp:hover { fill: var(--surface-hover); }
+
   /* picker */
   .damage-picker-row {
     display: grid;
@@ -3532,6 +3778,10 @@
   }
   .field-row .field-label { margin-top: 0; }
   .entry-form-row .field-row { margin-top: 0; flex: 1; min-width: 0; }
+  /* .disclosure-body has padding-top:0, assuming a flush first child — trim
+     Notes' default 24px .field-row margin down to the compact gap the other
+     entry-collapse panels' first child uses (e.g. Tires' .dt-tire-strip). */
+  #entryAdditionalInfoCollapse .field-row { margin-top: var(--space-3); }
   .data-section-danger { border-color: var(--danger); }
   .data-section-title { font-size: var(--font-sm); font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--text); margin-bottom: var(--space-2); }
   .data-section-desc { font-size: var(--font-base); color: var(--muted); line-height: var(--leading-relaxed); margin-bottom: var(--space-4); }

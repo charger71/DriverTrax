@@ -141,6 +141,7 @@
   <symbol id="icon-scan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 9v6"/><path d="M11 9v6"/><path d="M14 9v6"/><path d="M17 9v6"/>
   </symbol>
+  <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
   <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
   <symbol id="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
   <symbol id="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
@@ -414,6 +415,7 @@
         </thead>
         <tbody>
           <tr><td class="code">CCAR</td><td>Compact</td><td class="example">Nissan Versa or similar</td><td class="seats">5</td></tr>
+          <tr><td class="code">CFAR</td><td>Compact SUV</td><td class="example">Chevrolet Trax or similar</td><td class="seats">5</td></tr>
           <tr><td class="code">ECAR</td><td>Economy</td><td class="example">Mitsubishi Mirage or similar</td><td class="seats">4</td></tr>
           <tr><td class="code">FCAR</td><td>Full Size</td><td class="example">Chevrolet Malibu or similar</td><td class="seats">5</td></tr>
           <tr><td class="code">FJAR</td><td>Full Size All-Terrain 4 Door</td><td class="example">Jeep Wrangler Unlimited or similar</td><td class="seats">5</td></tr>
@@ -654,24 +656,36 @@
 
 <div class="panel active" id="panel-entry" role="tabpanel" aria-label="New entry">
  <div id="entryFormHome"><div id="entryFormBody">
-  <div id="entryHeaderButtons" class="entry-header-buttons">
-  <button class="btn btn-primary btn--hero btn--full btn--pulse" onclick="openScanner()">
-    <svg class="icon icon--xl" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-scan"/></svg>
+  <div id="entryHeaderButtons" class="entry-header-buttons entry-header-buttons--hero-only entry-header-buttons--split">
+  <button class="btn btn-primary btn--hero btn--pulse" onclick="openScanner()">
+    <svg class="icon icon--lg" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-scan"/></svg>
     SCAN BARCODE
   </button>
-
-  <button class="btn btn-secondary btn-manual-toggle" onclick="toggleManualEntry()">Enter Manually</button>
+  <button type="button" class="btn btn-info btn--hero" onclick="openPlateLookup()">
+    <svg class="icon icon--lg" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-search"/></svg>
+    LOOKUP PLATE
+  </button>
   </div>
-  <label id="manualEntrySection" class="field-row u-hidden">
-    <span class="field-label is-required">Serial ID</span>
+  <!-- Always visible: manual VIN entry is also reachable from the keyboard
+       button inside the scanner overlay, so the old "Enter Manually" toggle
+       above was a second door to the same field. -->
+  <label id="manualEntrySection" class="field-row">
+    <span class="field-label-row field-label-row--count">
+      <span class="field-label is-required">Serial ID</span>
+      <span class="vin-charcount" id="vinCharCount">0 / 17</span>
+    </span>
     <span class="input-with-clear">
       <input type="text" id="serial" placeholder="Type Serial ID" autocomplete="off" autocorrect="off" spellcheck="false" readonly onfocus="openVinKeypad('serial')" onclick="openVinKeypad('serial')">
       <button type="button" class="btn btn-icon btn--sm btn-icon--input-clear input-clear-btn" id="serialClearBtn" onclick="clearSerial()" aria-label="Clear">&times;</button>
     </span>
-    <span class="vin-charcount" id="vinCharCount">0 / 17</span>
   </label>
 
   <div id="entryCurrentState" class="entry-current-state u-hidden"></div>
+
+  <!-- Plate / state / SIPP for the scanned VIN. Same component as the VIN
+       HISTORY header — mounted by vehicle-info.js from the dt-vin-scanned
+       listener in app.js, cleared by clearEntryCurrentState(). -->
+  <div id="entryVehicleInfo" class="vin-id-mount vin-id-mount--entry"></div>
 
   <!-- Body damage + Tire collapsibles were moved to sit under the
        Conditions panel further down. Kept #tireSelectorSection here as a
@@ -696,6 +710,11 @@
       </select>
     </label>
   </div>
+
+  <!-- "Belongs in X" nudge from mileage + SIPP class. Rendered by
+       renderEntryRouteHint() in app.js — recomputed on scan and on every
+       keystroke in #mileage above. -->
+  <div id="entryRouteHint" class="entry-route-hint u-hidden"></div>
 
   <div class="field-row" id="statusField">
     <span class="field-label is-required">Status</span>
@@ -742,23 +761,6 @@
       <input type="text" id="destinationOther" class="other-input u-hidden" placeholder="Specify other location..." maxlength="40" autocomplete="off">
     </label>
   </div>
-
-  <details class="disclosure entry-collapse" id="entryOptionsCollapse" data-collapse-key="options">
-    <summary class="disclosure-summary"><span class="field-label">Options</span></summary>
-    <div class="disclosure-body">
-      <div class="checkbox-row">
-        <label class="notag-row u-flex-1" id="noTagRow">
-          <input type="checkbox" id="noTag" class="visually-hidden" onchange="toggleNoTagStyle()"><span class="notag-label">Bad Tag</span>
-        </label>
-        <label class="notag-row shuttle-row u-flex-1" id="shuttleRow">
-          <input type="checkbox" id="shuttle" class="visually-hidden" onchange="toggleShuttleStyle()"><span class="notag-label">Shuttle</span>
-        </label>
-        <label class="notag-row transport-row u-flex-1" id="transportRow">
-          <input type="checkbox" id="transport" class="visually-hidden" onchange="toggleTransportStyle()"><span class="notag-label">Transport</span>
-        </label>
-      </div>
-    </div>
-  </details>
 
   <details class="disclosure entry-collapse" id="entryConditionsCollapse" data-collapse-key="conditions">
     <summary class="disclosure-summary"><span class="field-label">Conditions</span></summary>
@@ -1003,6 +1005,18 @@
   <details class="disclosure entry-collapse" id="entryAdditionalInfoCollapse" data-collapse-key="additionalInfo">
     <summary class="disclosure-summary"><span class="field-label">Additional Info</span></summary>
     <div class="disclosure-body">
+      <div class="checkbox-row">
+        <label class="notag-row u-flex-1" id="noTagRow">
+          <input type="checkbox" id="noTag" class="visually-hidden" onchange="toggleNoTagStyle()"><span class="notag-label">Bad Tag</span>
+        </label>
+        <label class="notag-row shuttle-row u-flex-1" id="shuttleRow">
+          <input type="checkbox" id="shuttle" class="visually-hidden" onchange="toggleShuttleStyle()"><span class="notag-label">Shuttle</span>
+        </label>
+        <label class="notag-row transport-row u-flex-1" id="transportRow">
+          <input type="checkbox" id="transport" class="visually-hidden" onchange="toggleTransportStyle()"><span class="notag-label">Transport</span>
+        </label>
+      </div>
+
       <label class="field-row">
         <span class="field-label">Notes</span>
         <textarea id="notes" placeholder="Optional notes..."></textarea>
@@ -1023,7 +1037,7 @@
   </details>
 
   <div class="u-row-end non-detailer">
-    <button id="saveBtn" class="btn btn-primary btn--block" onclick="saveRecord()">Save</button>
+    <button id="saveBtn" class="btn btn-primary btn--block" onclick="saveRecord()" disabled>Save</button>
   </div>
   <!-- Detailer save workflow: Save Job creates the standard entry + a
        detail_jobs row, then Complete Job appears to finalize. -->
@@ -1067,8 +1081,8 @@
         </select>
       </div>
       <div class="filter-row">
-        <input type="date" id="fDateFrom" onchange="renderRecords()">
-        <input type="date" id="fDateTo" onchange="renderRecords()">
+        <input type="date" id="fDateFrom" onchange="onDateFilterChange()">
+        <input type="date" id="fDateTo" onchange="onDateFilterChange()">
       </div>
       <button class="btn btn-secondary btn--sm" onclick="clearFilters()">Clear Filters</button>
       <button class="btn btn-primary btn--sm" onclick="exportCSV()">EXPORT CSV</button>
@@ -1355,6 +1369,69 @@
   </div>
 </div>
 
+<!-- Plate / state / SIPP editor for a VIN (vehicle-info.js). Opened from the
+     chip row in the VIN HISTORY header. -->
+<div class="users-modal" id="vehicleInfoModal" aria-hidden="true"
+     role="dialog" aria-modal="true" aria-label="Plate and class">
+  <div class="users-modal-card">
+    <div class="users-modal-header">
+      <span>Plate &amp; class</span>
+      <button type="button" class="btn btn-destructive btn-icon users-modal-close" id="vehicleInfoModalClose" aria-label="Close">&times;</button>
+    </div>
+    <form id="vehicleInfoForm">
+      <div class="vehicle-info-vin" id="vehicleInfoVin"></div>
+      <div class="vehicle-info-row">
+        <label class="vehicle-info-plate">Plate
+          <input type="text" name="plate" maxlength="10" placeholder="ABC1234"
+                 autocomplete="off" autocorrect="off" spellcheck="false">
+        </label>
+        <label class="vehicle-info-state">State
+          <!-- Options filled from DT_VEHICLE_INFO.US_STATES at first open. -->
+          <select name="plateState"></select>
+        </label>
+      </div>
+      <label>SIPP code
+        <!-- Options filled from DT_VEHICLE_INFO.SIPP_CODES at first open. -->
+        <select name="sipp"></select>
+      </label>
+      <p class="vehicle-info-hint">Leave a field blank to clear it. Codes match the Car SIPP Codes table under Training.</p>
+      <div class="users-modal-msg" id="vehicleInfoModalMsg"></div>
+      <div class="users-modal-actions">
+        <button type="button" class="btn btn-secondary" id="vehicleInfoModalCancel">Cancel</button>
+        <button type="submit" class="btn btn-primary btn--block" id="vehicleInfoModalSubmit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Look up a vehicle by plate from the New Entry form (app.js) — an
+     alternative to SCAN BARCODE when the tag is missing or unreadable but the
+     plate is visible. Matches against the same vehicles.plate index the
+     RECORDS search box uses (see vehicle-plate-sipp-schema.sql). -->
+<div class="users-modal" id="plateLookupModal" aria-hidden="true"
+     role="dialog" aria-modal="true" aria-label="Look up by plate">
+  <div class="users-modal-card">
+    <div class="users-modal-header">
+      <span>Look up by plate</span>
+      <button type="button" class="btn btn-destructive btn-icon users-modal-close" id="plateLookupModalClose" aria-label="Close">&times;</button>
+    </div>
+    <form id="plateLookupForm">
+      <label class="field-row">
+        <span class="field-label">Plate</span>
+        <input type="text" id="plateLookupInput" maxlength="10" placeholder="ABC1234"
+               autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters">
+      </label>
+      <div class="users-modal-msg" id="plateLookupModalMsg"></div>
+      <!-- Populated when more than one vehicle matches the plate; hidden otherwise. -->
+      <div class="plate-lookup-results u-hidden" id="plateLookupResults"></div>
+      <div class="users-modal-actions">
+        <button type="button" class="btn btn-secondary" id="plateLookupModalCancel">Cancel</button>
+        <button type="submit" class="btn btn-info btn--block" id="plateLookupModalSubmit">Look Up</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- ===================================================== -->
 <!-- DETAILER — scan VIN, see notes, run todo -->
 <!-- ===================================================== -->
@@ -1431,6 +1508,12 @@
 
     <div class="today-header"><span class="today-title">Closed This Week</span><span class="today-count" id="svcClosedJobsCount">0</span></div>
     <div id="svcClosedJobsList"><div class="u-empty">Loading…</div></div>
+
+    <!-- Vehicles a driver/CXR flagged (status = a job type) from the normal
+         entry form that no mechanic has opened a job for yet — surfaced here
+         so it doesn't take scanning that exact VIN to notice. -->
+    <div class="today-header"><span class="today-title">Flagged, Not Started</span><span class="today-count" id="svcFlaggedCount">0</span></div>
+    <div id="svcFlaggedList"><div class="u-empty">Loading…</div></div>
   </div>
 
   <!-- Shown instead of the form when a scanned VIN already has more than one
@@ -1453,23 +1536,82 @@
   </div>
 
   <div id="svcScanForm" class="u-hidden">
+    <div class="panel-back-row">
+      <button type="button" class="btn btn-secondary btn--sm" id="svcBackBtn">
+        <svg class="icon" aria-hidden="true"><use href="#icon-back"/></svg> Back
+      </button>
+    </div>
     <div class="detail-vin-header">
       <div>
         <div class="detail-vin-label">VIN</div>
         <div class="detail-vin-value" id="svcFormVin">—</div>
       </div>
-      <button type="button" class="btn btn-secondary btn--sm" id="svcBackBtn">
-        <svg class="icon" aria-hidden="true"><use href="#icon-back"/></svg> Back
-      </button>
     </div>
+
+    <!-- Most recent note on file for this VIN (driver flag, CXR note, an
+         earlier mechanic touch, ...) — read-only context, not an input. -->
+    <div class="svc-state-banner svc-state-banner--driver-note u-hidden" id="svcDriverNote"></div>
 
     <div class="svc-state-banner u-hidden" id="svcStateBanner"></div>
 
-    <div class="svc-waiting-row u-hidden" id="svcWaitingRow">
-      <button type="button" class="btn btn-secondary btn--sm" id="svcWaitingBtn">Mark Waiting on Parts</button>
-      <button type="button" class="btn btn-primary btn--sm u-hidden" id="svcPartsArrivedBtn">Parts Arrived</button>
+    <div class="entry-form-row">
+      <label class="field-row" id="svcDestinationRow">
+        <span class="field-label">Location</span>
+        <select id="svcDestination">
+          <option value="">-- LOCATION --</option>
+        </select>
+      </label>
+
+      <label class="field-row">
+        <span class="field-label">Mileage</span>
+        <input type="number" id="svcMileage" inputmode="numeric" min="0" step="1" placeholder="000000" autocomplete="off">
+      </label>
     </div>
-    <textarea class="svc-parts-note u-hidden" id="svcPartsNote" placeholder="What's on order / ETA..." maxlength="200"></textarea>
+
+    <!-- Editable, seeded from every records row on file for this VIN (driver
+         flags, CXR notes, an earlier mechanic's own marks) — a mechanic
+         inspecting the car in person can add what a driver may not have
+         seen, not just view what's already reported. Built from an
+         interactive clone of #entryDamageSvg (see DT_DAMAGE.cloneSilhouette
+         in damage.js) rather than a second copy of the diagram. Always
+         reachable (unlike the old read-only version, which hid itself when
+         empty) since there's now always something a mechanic might add;
+         opens by default only when there's existing data to review first —
+         see renderVehicleContext in maintenance.js. -->
+    <details class="disclosure vin-tl-collapse" id="svcDamageCollapse">
+      <summary class="disclosure-summary">
+        <span class="field-label">Body Damage</span>
+        <span class="disclosure-count" id="svcDamageCount"></span>
+      </summary>
+      <div class="disclosure-body">
+        <div class="damage-chips" id="svcDamageChips" role="radiogroup" aria-label="Damage type"></div>
+        <div class="damage-svg-wrap" id="svcDamageSvgWrap"></div>
+        <div class="damage-picker-row">
+          <select id="svcDamagePicker" class="damage-picker-select" aria-label="Pick a panel">
+            <option value="">Pick a panel…</option>
+          </select>
+          <button type="button" id="svcDamagePickerAdd" class="damage-picker-add" disabled>Add</button>
+        </div>
+        <div class="damage-log-card">
+          <div class="damage-log-header">
+            <span>Damage log</span>
+            <span id="svcDamageLogCount" class="damage-count-badge">00</span>
+          </div>
+          <div id="svcDamageList" class="damage-log-list">
+            <div class="damage-empty">— no damage recorded —</div>
+          </div>
+        </div>
+      </div>
+    </details>
+    <details class="disclosure vin-tl-collapse" id="svcTireCollapse">
+      <summary class="disclosure-summary">
+        <span class="field-label">Tires</span>
+        <span class="disclosure-count" id="svcTireCount"></span>
+      </summary>
+      <div class="disclosure-body">
+        <div id="svcTireEditStrip" class="dt-tire-strip"></div>
+      </div>
+    </details>
 
     <div class="detail-subhead">Job Type</div>
     <div class="detail-conditions" id="svcJobTypeChips"></div>
@@ -1486,21 +1628,11 @@
       </select>
     </label>
 
-    <label class="field-row" id="svcDestinationRow">
-      <span class="field-label">Location</span>
-      <select id="svcDestination">
-        <option value="">-- LOCATION --</option>
-      </select>
-    </label>
-
-    <label class="field-row">
-      <span class="field-label">Mileage</span>
-      <input type="number" id="svcMileage" inputmode="numeric" min="0" step="1" placeholder="000000" autocomplete="off">
-    </label>
-
-    <label class="field-row">
-      <span class="field-label">Notes</span>
-      <textarea id="svcNotes" placeholder="What's being done..."></textarea>
+    <div class="detail-subhead">What's Being Done</div>
+    <div class="detail-conditions" id="svcActionChips"></div>
+    <label class="field-row u-hidden" id="svcActionOtherRow">
+      <span class="field-label">Specify</span>
+      <input type="text" id="svcActionOther" placeholder="Describe the specialty issue..." maxlength="120">
     </label>
 
     <div class="detail-subhead">Parts</div>
@@ -1508,6 +1640,21 @@
     <div class="svc-part-add">
       <input type="text" id="svcPartInput" placeholder="Add a part..." maxlength="80">
       <button type="button" class="btn btn-secondary btn--sm" id="svcPartAddBtn" aria-label="Add part">
+        <svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg>
+      </button>
+    </div>
+
+    <div class="svc-waiting-row u-hidden" id="svcWaitingRow">
+      <button type="button" class="btn btn-secondary btn--sm" id="svcWaitingBtn">Mark Waiting on Parts</button>
+      <button type="button" class="btn btn-primary btn--sm u-hidden" id="svcPartsArrivedBtn">Parts Arrived</button>
+    </div>
+    <textarea class="svc-parts-note u-hidden" id="svcPartsNote" placeholder="What's on order / ETA..." maxlength="200"></textarea>
+
+    <div class="detail-subhead">Job Notes</div>
+    <div class="svc-notes-list" id="svcNotesLogList"></div>
+    <div class="svc-part-add">
+      <input type="text" id="svcNoteInput" placeholder="Add a note..." maxlength="500">
+      <button type="button" class="btn btn-secondary btn--sm" id="svcNoteAddBtn" aria-label="Add note">
         <svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg>
       </button>
     </div>
@@ -1840,6 +1987,10 @@
         <div class="detail-vin-info"><div class="detail-vin-name" id="detailVinName"></div><div class="detail-vin-specs" id="detailVinSpecs"></div></div>
       </div>
     </div>
+    <!-- Plate / state / SIPP for this VIN — same component as the VIN HISTORY
+         header and New Entry form (vehicle-info.js), mounted here too so it's
+         visible (and editable) from the record detail sheet. -->
+    <div id="detailVehicleInfo" class="vin-id-mount"></div>
     <div class="detail-badges" id="detailBadges"></div>
     <div class="detail-body">
       <div class="detail-row u-hidden" id="detailTiresRow"><span class="detail-label">Tires</span><span class="detail-val" id="detailTires"></span></div>
@@ -1898,6 +2049,12 @@
       <div class="vin-keypad-display" id="vinKeypadDisplay"></div>
       <div class="vin-keypad-count" id="vinKeypadCount">0 / 17</div>
     </div>
+    <!-- Autocomplete while typing a VIN into #serial or #editSerial (see
+         VIN_SUGGEST_TARGETS / scheduleVinSuggest() in app.js). Horizontally-
+         scrolling chips rather than a vertical list: the keypad is already
+         full-height, so a tall list would eat into the key grid. Hidden
+         until there's a match. -->
+    <div class="vin-suggest-bar u-hidden" id="vinSuggestBar"></div>
     <div class="vin-keypad-funcs">
       <button class="vin-key vin-key-func" type="button" onclick="vinKeypadPaste()" aria-label="Paste">PASTE</button>
       <button class="vin-key vin-key-func" type="button" onclick="vinKeypadClear()" aria-label="Clear">CLEAR</button>
@@ -1954,6 +2111,7 @@
 <script src="damage.js"></script>
 <script src="users.js"></script>
 <script src="locations.js"></script>
+<script src="vehicle-info.js"></script>
 <script src="detailer.js"></script>
 <script src="vendors.js"></script>
 <script src="maintenance.js"></script>

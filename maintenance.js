@@ -28,11 +28,43 @@
 
   const JOB_TYPES = ["PM", "MK", "MR", "OM", "TI", "LP", "BODY", "GLASS"];
   const VENDOR_DEFAULT = new Set(["BODY", "GLASS"]);
+  // "What's Being Done" quick-pick list — a structured alternative to
+  // freeform text for the common cases; OTHER reveals svcActionOther for
+  // anything more specific.
+  const SERVICE_ACTIONS = [
+    "Change Tire", "Rotate Tires", "Oil Change", "Battery Replacement",
+    "Transmission Fluid Change", "Brake Service", "Fluid Top-Off", "Inspection"
+  ];
 
   let started = false;
   let currentVin = null;
   let currentJob = null; // { id, jobType, performedBy, performedByTouched, vendorId, destination, mileage, notes, parts, state, ... }
   let vendorCache = [];
+  let contextLoadedForVin = null; // guards renderVehicleContext to once per VIN, not once per renderForm() call
+
+  // ---- damage/tire editor state ----
+  // A mechanic's own marks, seeded from every records row on file for the
+  // VIN (driver flags, CXR notes, an earlier mechanic's own marks) so
+  // additions build on the full picture instead of a blank one — see
+  // renderVehicleContext. Sent with every records row this module writes
+  // (commitTransitionRecord) so it round-trips through the same
+  // damage_marks/tire_details columns and aggregation the driver entry
+  // form and VIN LOOKUP already use.
+  let damageMarks = [];        // [{ panel_id, damage_type, x, y }]
+  let damageActiveType = "dent";
+  let mechTireDetails = {};    // { FL: { condition, psi }, ... }
+  let damageSvgClone = null;   // built once per VIN load, reused across re-renders
+
+  // user_id -> display_name, resolved for "last touched by" attribution on
+  // job rows (mirrors announcements.js's profileCache/fetchProfileNames).
+  const profileCache = new Map();
+  async function fetchProfileNames(ids) {
+    const missing = [...new Set(ids)].filter(id => id && !profileCache.has(id));
+    if (!missing.length) return;
+    const { data } = await sb.from("profiles").select("id,display_name").in("id", missing);
+    (data || []).forEach(p => profileCache.set(p.id, p.display_name || "(no name)"));
+  }
+  function nameFor(id) { return id ? (profileCache.get(id) || "") : ""; }
 
   function start() {
     if (started) return;
@@ -62,6 +94,13 @@
       if (!chip || isJobLocked()) return;
       onJobTypeChosen(chip.dataset.type);
     });
+    $("svcDamageChips")?.addEventListener("click", (e) => {
+      const chip = e.target.closest(".damage-chip");
+      if (!chip) return;
+      damageActiveType = chip.dataset.type;
+      renderDamageChips();
+    });
+    initDamagePicker();
     $("svcPerformedToggle")?.addEventListener("click", (e) => {
       const btn = e.target.closest("button");
       if (!btn || isJobLocked()) return;
@@ -80,8 +119,8 @@
       const v = parseInt(e.target.value, 10);
       currentJob.mileage = Number.isFinite(v) && v >= 0 ? v : null;
     });
-    $("svcNotes")?.addEventListener("input", (e) => {
-      if (currentJob) currentJob.notes = e.target.value;
+    $("svcActionOther")?.addEventListener("input", (e) => {
+      if (currentJob) currentJob.serviceActionOther = e.target.value;
     });
     $("svcPartAddBtn")?.addEventListener("click", onAddPart);
     $("svcPartInput")?.addEventListener("keydown", (e) => {
@@ -93,6 +132,10 @@
       const idx = parseInt(btn.dataset.idx, 10);
       currentJob.parts.splice(idx, 1);
       renderParts();
+    });
+    $("svcNoteAddBtn")?.addEventListener("click", onAddNote);
+    $("svcNoteInput")?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); onAddNote(); }
     });
     $("svcSaveBtn")?.addEventListener("click", onSave);
     $("svcSendOutBtn")?.addEventListener("click", onSendOut);
@@ -117,9 +160,11 @@
     currentVin = null;
     currentJob = null;
     pickerJobs = [];
+    contextLoadedForVin = null;
     $("svcScanForm")?.classList.add("u-hidden");
     $("svcJobPicker")?.classList.add("u-hidden");
     $("svcScanEmpty")?.classList.remove("u-hidden");
+    loadFlaggedVehicles();
     loadOpenJobs();
     loadWaitingPartsJobs();
     loadVendorJobs();
@@ -166,10 +211,261 @@
   }
 
   // ---- loading a VIN ----
+  // Read-only body damage + tire panels for the VIN currently in svcScanForm.
+  // Same aggregation rule as the VIN LOOKUP timeline's "on file" panel in
+  // app.js (damage deduped by panel_id+damage_type keeping the most recent
+  // mark, tire state from whichever record most recently reported each
+  // position) — kept local here rather than shared since app.js computes it
+  // inline as part of a much larger render, not as a callable helper.
+  async function renderVehicleContext(vin) {
+    const damageCollapse = $("svcDamageCollapse"), tireCollapse = $("svcTireCollapse");
+    const noteEl = $("svcDriverNote");
+    noteEl?.classList.add("u-hidden");
+
+    const { data, error } = await sb.from("records")
+      .select("damage_marks,tire_details,tires,claim_number,claim_notes,destination,mileage,notes,ts")
+      .eq("serial_id", vin).order("ts", { ascending: false });
+    if (error) { console.warn("[Maint] renderVehicleContext", error); return; }
+    const records = data || [];
+
+    const markMap = new Map();
+    const tireDetails = {};
+    let claimNum = "", legacyTires = [];
+    for (let i = records.length - 1; i >= 0; i--) {
+      const rec = records[i];
+      if (Array.isArray(rec.damage_marks)) {
+        rec.damage_marks.forEach((m) => markMap.set(`${m.panel_id}|${m.damage_type}`, m));
+      }
+      if (rec.tire_details && typeof rec.tire_details === "object") {
+        Object.entries(rec.tire_details).forEach(([pos, val]) => { tireDetails[pos] = val; });
+      }
+      if (rec.claim_number) { claimNum = rec.claim_number; }
+      if (Array.isArray(rec.tires) && rec.tires.length) legacyTires = rec.tires;
+    }
+    const marks = Array.from(markMap.values());
+
+    // Seed the editor with everything on file (driver + any prior mechanic
+    // touch) so a mechanic's own additions build on the full picture
+    // instead of starting blank — see the module header comment.
+    damageMarks = marks;
+    mechTireDetails = tireDetails;
+    renderDamageChips();
+    renderDamageMarks();
+    renderTireEditor();
+    // Open by default only when there's something to review first; stays
+    // reachable-but-collapsed otherwise since it's an input now, not just a
+    // display — a mechanic may want to add damage to a car with none on file.
+    if (damageCollapse) damageCollapse.open = marks.length > 0 || !!claimNum;
+    if (tireCollapse) tireCollapse.open = Object.keys(tireDetails).length > 0 || legacyTires.length > 0;
+
+    // Most recent note on file, read-only — whatever role wrote it (driver
+    // flag, CXR note, an earlier mechanic touch).
+    const latest = records[0];
+    if (latest && latest.notes && noteEl) {
+      noteEl.innerHTML = `<b>Latest note</b> — ${esc(latest.notes)} <span class="svc-days-out">${esc(ago(latest.ts))}</span>`;
+      noteEl.classList.remove("u-hidden");
+    }
+
+    // Prefill location/mileage from the vehicle's last entry — only for a
+    // brand-new, not-yet-saved job whose fields are still empty, and only
+    // if the VIN hasn't changed underneath this fetch.
+    if (latest && currentVin === vin && currentJob && !currentJob.id) {
+      let changed = false;
+      if (!currentJob.destination && latest.destination) { currentJob.destination = latest.destination; changed = true; }
+      if (currentJob.mileage == null && Number.isFinite(latest.mileage)) { currentJob.mileage = latest.mileage; changed = true; }
+      if (changed) renderForm();
+    }
+  }
+
+  // ---- damage editor (mirrors damage.js's own driver-form UI, reusing its
+  // shared vocabulary/clone/mark-node helpers rather than duplicating the
+  // ~200-path vehicle SVG or the color palette; kept independent of its
+  // module state since window.selectedTires/updateTireLabel are
+  // driver-status-specific and don't apply here) ----
+  function renderDamageChips() {
+    const el = $("svcDamageChips");
+    if (!el || !window.DT_DAMAGE) return;
+    el.innerHTML = Object.entries(DT_DAMAGE.LABELS).map(([type, label]) => `
+      <button type="button" class="damage-chip ${type === damageActiveType ? "active" : ""}" data-type="${esc(type)}">
+        <span class="damage-sw" style="background:${DT_DAMAGE.damageColor(type)}"></span>${esc(label)}
+      </button>
+    `).join("");
+  }
+
+  function ensureDamageSvg() {
+    if (damageSvgClone) return damageSvgClone;
+    const wrap = $("svcDamageSvgWrap");
+    if (!wrap || !window.DT_DAMAGE) return null;
+    const svg = DT_DAMAGE.cloneSilhouette();
+    if (!svg) return null;
+    Object.keys(DT_DAMAGE.PANEL_NAMES).forEach((id) => {
+      const el = svg.querySelector(`[data-panel="${id}"]`);
+      if (!el) return;
+      el.classList.add("panel-hit");
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const pt = svg.createSVGPoint();
+        pt.x = e.clientX; pt.y = e.clientY;
+        const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
+        damageMarks.push({ panel_id: id, damage_type: damageActiveType, x: loc.x, y: loc.y });
+        renderDamageMarks();
+      });
+    });
+    wrap.appendChild(svg);
+    damageSvgClone = svg;
+    return svg;
+  }
+
+  function renderDamageMarks() {
+    const svg = ensureDamageSvg();
+    if (!svg) return;
+    const marksGroup = svg.querySelector(".entry-damage-marks");
+    if (marksGroup) { while (marksGroup.firstChild) marksGroup.removeChild(marksGroup.firstChild); }
+    svg.querySelectorAll(".panel-hit.has-damage").forEach((el) => el.classList.remove("has-damage"));
+    damageMarks.forEach((m, idx) => {
+      if (marksGroup) marksGroup.appendChild(DT_DAMAGE.makeMarkNode(m, idx));
+      const panel = svg.querySelector(`[data-panel="${m.panel_id}"]`);
+      if (panel) panel.classList.add("has-damage");
+    });
+    renderDamageLog();
+    updateDamageCounts();
+  }
+
+  function renderDamageLog() {
+    const list = $("svcDamageList");
+    if (!list || !window.DT_DAMAGE) return;
+    if (!damageMarks.length) { list.innerHTML = `<div class="damage-empty">— no damage recorded —</div>`; return; }
+    list.innerHTML = damageMarks.map((m, idx) => {
+      const color = DT_DAMAGE.damageColor(m.damage_type);
+      const label = DT_DAMAGE.LABELS[m.damage_type] || m.damage_type;
+      const location = DT_DAMAGE.PANEL_NAMES[m.panel_id] || m.panel_id;
+      return `
+        <div class="damage-log-row">
+          <span class="damage-log-num" style="background:${color}">${idx + 1}</span>
+          <span class="damage-log-name">
+            <span class="damage-log-type">${esc(label)}</span>
+            <span class="damage-log-loc"> · ${esc(location)}</span>
+          </span>
+          <button type="button" class="damage-log-del" data-idx="${idx}" aria-label="Remove">&times;</button>
+        </div>
+      `;
+    }).join("");
+    list.querySelectorAll(".damage-log-del").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const idx = parseInt(btn.dataset.idx, 10);
+        if (Number.isFinite(idx)) { damageMarks.splice(idx, 1); renderDamageMarks(); }
+      });
+    });
+  }
+
+  function updateDamageCounts() {
+    const badge = $("svcDamageLogCount");
+    if (badge) badge.textContent = String(damageMarks.length).padStart(2, "0");
+    const summary = $("svcDamageCount");
+    if (summary) summary.textContent = damageMarks.length ? `${damageMarks.length} mark${damageMarks.length === 1 ? "" : "s"}` : "";
+  }
+
+  // Wired once from start() — populates the panel-picker <select> (fallback
+  // for hard-to-tap panels, same reasoning as damage.js's own).
+  function initDamagePicker() {
+    const picker = $("svcDamagePicker");
+    const pickerAdd = $("svcDamagePickerAdd");
+    if (!picker || !pickerAdd || !window.DT_DAMAGE) return;
+    Object.entries(DT_DAMAGE.PICKER_GROUPS).forEach(([section, ids]) => {
+      const og = document.createElement("optgroup");
+      og.label = section;
+      ids.forEach((id) => {
+        const opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = DT_DAMAGE.PANEL_NAMES[id];
+        og.appendChild(opt);
+      });
+      picker.appendChild(og);
+    });
+    picker.addEventListener("change", () => { pickerAdd.disabled = !picker.value; });
+    pickerAdd.addEventListener("click", () => {
+      const id = picker.value;
+      const svg = ensureDamageSvg();
+      if (!id || !svg) return;
+      const el = svg.querySelector(`[data-panel="${id}"]`);
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const pt = svg.createSVGPoint();
+      pt.x = rect.left + rect.width / 2;
+      pt.y = rect.top + rect.height / 2;
+      const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
+      damageMarks.push({ panel_id: id, damage_type: damageActiveType, x: loc.x, y: loc.y });
+      renderDamageMarks();
+      picker.value = "";
+      pickerAdd.disabled = true;
+    });
+  }
+
+  // ---- tire editor (mirrors damage.js's renderTireStrip markup/behavior,
+  // minus the window.selectedTires/updateTireLabel sync — that's the
+  // driver form's own status="TI" display, unrelated to a mechanic's
+  // tire_details tracking here) ----
+  function renderTireEditor() {
+    const container = $("svcTireEditStrip");
+    if (!container || !window.DT_DAMAGE) return;
+    container.innerHTML = DT_DAMAGE.TIRE_POSITIONS.map((pos) => {
+      const t = mechTireDetails[pos] || {};
+      const cond = t.condition || "OK";
+      const psi = t.psi != null ? t.psi : "";
+      return `<div class="dt-tire-card" data-pos="${pos}">
+        <div class="dt-tire-card-head">
+          <span class="dt-tire-pos">${pos}</span>
+          <span class="dt-tire-cond dt-tire-cond--${cond}" data-cond-chip>${esc(DT_DAMAGE.TIRE_CONDITION_LABEL[cond])}</span>
+        </div>
+        <div class="dt-tire-pos-label">${esc(DT_DAMAGE.TIRE_POS_LABEL[pos])}</div>
+        <label class="dt-tire-field">
+          <span>Condition</span>
+          <select class="dt-tire-condition-select">
+            ${DT_DAMAGE.TIRE_CONDITIONS.map((c) => `<option value="${c}"${c === cond ? " selected" : ""}>${esc(DT_DAMAGE.TIRE_CONDITION_LABEL[c])}</option>`).join("")}
+          </select>
+        </label>
+        <label class="dt-tire-field">
+          <span>PSI</span>
+          <input type="number" class="dt-tire-psi-input" min="0" max="200" step="1" value="${esc(psi)}" placeholder="—" inputmode="numeric">
+        </label>
+      </div>`;
+    }).join("");
+
+    container.querySelectorAll(".dt-tire-card").forEach((card) => {
+      const pos = card.dataset.pos;
+      const sel = card.querySelector(".dt-tire-condition-select");
+      const psiInput = card.querySelector(".dt-tire-psi-input");
+      const chip = card.querySelector("[data-cond-chip]");
+      sel.addEventListener("change", () => {
+        const cond = sel.value;
+        chip.className = "dt-tire-cond dt-tire-cond--" + cond;
+        chip.textContent = DT_DAMAGE.TIRE_CONDITION_LABEL[cond];
+        mechTireDetails[pos] = { ...(mechTireDetails[pos] || {}), condition: cond };
+        updateTireEditorSummary();
+      });
+      psiInput.addEventListener("change", () => {
+        const raw = psiInput.value === "" ? null : Number(psiInput.value);
+        mechTireDetails[pos] = { ...(mechTireDetails[pos] || {}), psi: Number.isFinite(raw) ? raw : null };
+      });
+    });
+    updateTireEditorSummary();
+  }
+
+  function updateTireEditorSummary() {
+    const summary = $("svcTireCount");
+    if (!summary || !window.DT_DAMAGE) return;
+    const flagged = DT_DAMAGE.TIRE_POSITIONS.filter((pos) => {
+      const t = mechTireDetails[pos];
+      return t && t.condition && t.condition !== "OK";
+    }).length;
+    summary.textContent = flagged ? `${flagged} flagged` : "";
+  }
+
   function freshJob() {
     return {
       id: null, jobType: null, performedBy: "in_house", performedByTouched: false,
       vendorId: null, destination: "", mileage: null, notes: "", parts: [],
+      serviceActions: [], serviceActionOther: "", notesLog: [],
       state: "OPEN", closeStatus: "CLEAN",
       waitingOnParts: false, partsNote: "", waitingSince: null
     };
@@ -216,6 +512,7 @@
       return;
     }
 
+    await fetchProfileNames(openJobs.flatMap((j) => [j.opened_by, j.updated_by]));
     showJobPicker(vin, openJobs, flaggedType ? { type: flaggedType, lastSeenAt: vehicle.last_seen_at } : null);
   }
 
@@ -243,12 +540,15 @@
     const list = $("svcJobPickerList");
     if (list) {
       list.innerHTML = jobs.length
-        ? jobs.map((j) => `
+        ? jobs.map((j) => {
+            const who = nameFor(j.updated_by || j.opened_by);
+            return `
             <div class="detail-history-row" data-job-id="${esc(j.id)}">
               <div class="detail-history-serial">${esc(statusLabel(j.job_type))}</div>
-              <div class="detail-history-meta">${esc(j.state)} · opened ${esc(ago(j.opened_at))}</div>
+              <div class="detail-history-meta">${esc(j.state)} · opened ${esc(ago(j.opened_at))}${who ? " · " + esc(who) : ""}</div>
             </div>
-          `).join("")
+          `;
+          }).join("")
         : `<div class="u-empty">No open jobs yet.</div>`;
       list.querySelectorAll(".detail-history-row").forEach((row) => {
         row.addEventListener("click", () => {
@@ -271,7 +571,7 @@
 
   async function selectPickedJob(job) {
     hydrateJobFromRow(job);
-    await Promise.all([populateDestinationSelect(), ensureVendorOptions()]);
+    await Promise.all([populateDestinationSelect(), ensureVendorOptions(), fetchProfileNames(currentJob.notesLog.map((e) => e.author))]);
     $("svcJobPicker")?.classList.add("u-hidden");
     $("svcScanForm")?.classList.remove("u-hidden");
     renderForm();
@@ -302,6 +602,9 @@
       mileage: Number.isFinite(row.mileage) ? row.mileage : null,
       notes: row.notes || "",
       parts: Array.isArray(row.parts) ? row.parts.slice() : [],
+      serviceActions: Array.isArray(row.service_actions) ? row.service_actions.slice() : [],
+      serviceActionOther: row.service_action_other || "",
+      notesLog: Array.isArray(row.notes_log) ? row.notes_log.slice() : [],
       state: row.state,
       closeStatus: row.close_status || "CLEAN",
       openedAt: row.opened_at,
@@ -317,7 +620,7 @@
     const { data, error } = await sb.from("service_jobs").select("*").eq("id", jobId).maybeSingle();
     if (error || !data) { DT_TOAST.missing("job"); return; }
     hydrateJobFromRow(data);
-    await Promise.all([populateDestinationSelect(), ensureVendorOptions()]);
+    await Promise.all([populateDestinationSelect(), ensureVendorOptions(), fetchProfileNames(currentJob.notesLog.map((e) => e.author))]);
     $("svcScanEmpty")?.classList.add("u-hidden");
     $("svcJobPicker")?.classList.add("u-hidden");
     $("svcScanForm")?.classList.remove("u-hidden");
@@ -351,6 +654,37 @@
     }).join("");
   }
 
+  // Multi-select (unlike the single-select Job Type chips above — a visit
+  // commonly covers more than one basic action at once, e.g. an oil change
+  // *and* a tire rotation in the same PM stop).
+  function renderServiceActionChips() {
+    const el = $("svcActionChips");
+    if (!el) return;
+    const locked = isJobLocked();
+    const options = [...SERVICE_ACTIONS, "OTHER"];
+    el.innerHTML = options.map(a => {
+      const checked = currentJob.serviceActions.includes(a);
+      const label = a === "OTHER" ? "Other" : a;
+      return `
+        <label class="svc-chip ${checked ? "checked" : ""}">
+          <input type="checkbox" value="${esc(a)}" ${checked ? "checked" : ""} ${locked ? "disabled" : ""}>
+          <span>${esc(label)}</span>
+        </label>
+      `;
+    }).join("");
+    el.querySelectorAll("input").forEach((inp) => {
+      inp.addEventListener("change", () => {
+        if (inp.checked) {
+          if (!currentJob.serviceActions.includes(inp.value)) currentJob.serviceActions.push(inp.value);
+        } else {
+          currentJob.serviceActions = currentJob.serviceActions.filter((a) => a !== inp.value);
+        }
+        inp.closest(".svc-chip").classList.toggle("checked", inp.checked);
+        $("svcActionOtherRow")?.classList.toggle("u-hidden", !currentJob.serviceActions.includes("OTHER"));
+      });
+    });
+  }
+
   function renderParts() {
     const el = $("svcPartsList");
     if (!el) return;
@@ -377,26 +711,56 @@
     renderParts();
   }
 
+  // Append-only — newest first, no remove action (this is meant to be a
+  // running log of every touch, not an editable field).
+  function renderNotesLog() {
+    const el = $("svcNotesLogList");
+    if (!el) return;
+    const log = currentJob.notesLog || [];
+    if (!log.length) { el.innerHTML = `<div class="u-empty-sm">No notes yet.</div>`; return; }
+    el.innerHTML = log.slice().reverse().map((entry) => {
+      const who = nameFor(entry.author);
+      return `
+        <div class="svc-note-row">
+          <div class="svc-note-meta">${esc(ago(entry.ts))}${who ? " · " + esc(who) : ""}</div>
+          <div class="svc-note-text">${esc(entry.note)}</div>
+        </div>
+      `;
+    }).join("");
+  }
+
   function renderForm() {
     if (!currentJob) return;
     const vinEl = $("svcFormVin");
     if (vinEl) vinEl.textContent = currentVin || "—";
 
+    if (currentVin && contextLoadedForVin !== currentVin) {
+      contextLoadedForVin = currentVin;
+      renderVehicleContext(currentVin);
+    }
+
     renderJobTypeChips();
+    renderServiceActionChips();
     renderParts();
+    renderNotesLog();
 
     const locked = isJobLocked();
     const destSel = $("svcDestination");
     if (destSel) { destSel.value = currentJob.destination || ""; destSel.disabled = locked; }
     const mEl = $("svcMileage");
     if (mEl) { mEl.value = Number.isFinite(currentJob.mileage) ? currentJob.mileage : ""; mEl.disabled = locked; }
-    const nEl = $("svcNotes");
-    if (nEl) { nEl.value = currentJob.notes || ""; nEl.disabled = locked; }
+    const actionOtherRow = $("svcActionOtherRow");
+    actionOtherRow?.classList.toggle("u-hidden", !currentJob.serviceActions.includes("OTHER"));
+    const actionOtherEl = $("svcActionOther");
+    if (actionOtherEl) { actionOtherEl.value = currentJob.serviceActionOther || ""; actionOtherEl.disabled = locked; }
     const vSel = $("svcVendorSelect");
     if (vSel) { vSel.value = currentJob.vendorId || ""; vSel.disabled = locked || currentJob.state === "SENT_OUT"; }
     const partInput = $("svcPartInput"), partAddBtn = $("svcPartAddBtn");
     if (partInput) partInput.disabled = locked;
     if (partAddBtn) partAddBtn.disabled = locked;
+    const noteInput = $("svcNoteInput"), noteAddBtn = $("svcNoteAddBtn");
+    if (noteInput) noteInput.disabled = locked;
+    if (noteAddBtn) noteAddBtn.disabled = locked;
 
     const toggle = $("svcPerformedToggle");
     if (toggle) {
@@ -499,6 +863,8 @@
       notes: notes || "",
       mileage: Number.isFinite(currentJob.mileage) ? currentJob.mileage : null,
       fuel_level: null,
+      damage_marks: damageMarks,
+      tire_details: mechTireDetails,
       timestamp: Date.now()
     };
     if (loc) { recordData.lat = loc.lat; recordData.lng = loc.lng; }
@@ -517,6 +883,8 @@
     const btn = $("svcSaveBtn");
     if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
 
+    const user = DT_AUTH.getUser();
+    const isUpdate = !!currentJob.id;
     const payload = {
       serial_id: currentVin,
       job_type: currentJob.jobType,
@@ -525,11 +893,14 @@
       destination: currentJob.destination || null,
       mileage: currentJob.mileage,
       notes: currentJob.notes || null,
-      parts: currentJob.parts
+      parts: currentJob.parts,
+      service_actions: currentJob.serviceActions,
+      service_action_other: currentJob.serviceActions.includes("OTHER") ? (currentJob.serviceActionOther || null) : null,
+      updated_by: user?.id || null
     };
 
+    let saveError = null;
     if (!currentJob.id) {
-      const user = DT_AUTH.getUser();
       const recordId = await commitTransitionRecord({
         status: currentJob.jobType,
         destination: currentJob.destination,
@@ -538,15 +909,21 @@
       payload.opened_by = user?.id || null;
       payload.open_record_id = recordId;
       const { data, error } = await sb.from("service_jobs").insert(payload).select("id").single();
+      saveError = error;
       if (error) { DT_TOAST.show(error.message || "Couldn't save the job", "error"); }
       else { currentJob.id = data.id; DT_TOAST.show("Job opened", "success"); }
     } else {
       const { error } = await sb.from("service_jobs").update(payload).eq("id", currentJob.id);
+      saveError = error;
       if (error) DT_TOAST.show(error.message || "Couldn't save the job", "error");
       else DT_TOAST.show("Saved", "success");
     }
 
     if (btn) btn.disabled = false;
+    // Updating an already-open job reads as "done editing" — head back to
+    // the landing list. A brand-new job (Save, not Update) stays on the
+    // form so Send to Vendor / Close Job etc. can immediately follow it.
+    if (isUpdate && !saveError) { showLandingScreen(); return; }
     renderForm();
   }
 
@@ -568,7 +945,7 @@
     });
     const { error } = await sb.from("service_jobs").update({
       state: "SENT_OUT", sent_out_at: new Date().toISOString(), sent_out_record_id: recordId,
-      waiting_on_parts: false, waiting_since: null
+      waiting_on_parts: false, waiting_since: null, updated_by: DT_AUTH.getUser()?.id || null
     }).eq("id", currentJob.id);
     if (btn) btn.disabled = false;
     if (error) { DT_TOAST.show(error.message || "Couldn't send the job out", "error"); return; }
@@ -592,7 +969,7 @@
     });
     const { error } = await sb.from("service_jobs").update({
       state: "RETURNED", returned_at: new Date().toISOString(), returned_record_id: recordId,
-      destination: currentJob.destination
+      destination: currentJob.destination, updated_by: DT_AUTH.getUser()?.id || null
     }).eq("id", currentJob.id);
     if (btn) btn.disabled = false;
     if (error) { DT_TOAST.show(error.message || "Couldn't mark it returned", "error"); return; }
@@ -618,7 +995,8 @@
     const closedAt = new Date().toISOString();
     const { error } = await sb.from("service_jobs").update({
       state: "CLOSED", closed_at: closedAt, close_status: closeStatus, close_record_id: recordId,
-      destination: currentJob.destination, waiting_on_parts: false, waiting_since: null
+      destination: currentJob.destination, waiting_on_parts: false, waiting_since: null,
+      updated_by: DT_AUTH.getUser()?.id || null
     }).eq("id", currentJob.id);
     if (btn) btn.disabled = false;
     if (error) { DT_TOAST.show(error.message || "Couldn't close the job", "error"); return; }
@@ -643,6 +1021,7 @@
     const payload = waiting
       ? { waiting_on_parts: true, parts_note: note || null, waiting_since: new Date().toISOString() }
       : { waiting_on_parts: false, waiting_since: null };
+    payload.updated_by = DT_AUTH.getUser()?.id || null;
     const { error } = await sb.from("service_jobs").update(payload).eq("id", currentJob.id);
     if (btn) btn.disabled = false;
     if (error) { DT_TOAST.show(error.message || "Couldn't update the job", "error"); return; }
@@ -653,10 +1032,48 @@
     renderForm();
   }
 
+  // Append a dated note without requiring a Save/Send/Return/Close — "so
+  // they can add a note anytime they touch the car." Writes a records row
+  // too (unchanged status, same as the waiting-parts toggle above) so the
+  // touch shows up in VIN history and bumps the vehicle's last_seen_at,
+  // not just this job's own log.
+  async function onAddNote() {
+    if (isJobLocked()) return;
+    if (!currentJob.id) { await onSave(); if (!currentJob.id) return; }
+    const input = $("svcNoteInput");
+    const text = (input?.value || "").trim().slice(0, 500);
+    if (!text) return;
+    const btn = $("svcNoteAddBtn");
+    if (btn) btn.disabled = true;
+    const user = DT_AUTH.getUser();
+    const entry = { note: text, ts: new Date().toISOString(), author: user?.id || null };
+    const updatedLog = [...currentJob.notesLog, entry];
+    await commitTransitionRecord({
+      status: currentJob.jobType,
+      destination: currentJob.destination,
+      notes: text
+    });
+    const { error } = await sb.from("service_jobs").update({
+      notes_log: updatedLog, notes: text, updated_by: user?.id || null
+    }).eq("id", currentJob.id);
+    if (btn) btn.disabled = false;
+    if (error) { DT_TOAST.show(error.message || "Couldn't add the note", "error"); return; }
+    currentJob.notesLog = updatedLog;
+    currentJob.notes = text;
+    if (input) input.value = "";
+    await fetchProfileNames([user?.id]);
+    renderNotesLog();
+    DT_TOAST.show("Note added", "success");
+  }
+
   // ---- landing lists ----
+  // "Last touched by" falls back to opened_by so a job saved before the
+  // updated_by column existed still shows an attribution instead of blank.
   function renderJobRow(j) {
     const metaBits = [statusLabel(j.job_type)];
     if (j.performed_by === "vendor") metaBits.push(j.state === "SENT_OUT" ? "at vendor" : "vendor job");
+    const who = nameFor(j.updated_by || j.opened_by);
+    if (who) metaBits.push(who);
     return `
       <div class="detail-history-row" data-job-id="${esc(j.id)}">
         <div class="detail-history-serial">${esc(j.serial_id)}</div>
@@ -671,14 +1088,42 @@
     });
   }
 
+  // Vehicles a driver/CXR flagged (current_status = a job type) that no
+  // mechanic has opened a matching job for yet — see the loadVin comment
+  // above for why this can otherwise sit invisible until someone happens
+  // to scan that exact VIN.
+  async function loadFlaggedVehicles() {
+    const el = $("svcFlaggedList"), countEl = $("svcFlaggedCount");
+    if (!el) return;
+    const [vehRes, jobsRes] = await Promise.all([
+      sb.from("vehicles").select("serial_id,current_status,last_seen_at").in("current_status", JOB_TYPES),
+      sb.from("service_jobs").select("serial_id,job_type").neq("state", "CLOSED")
+    ]);
+    if (vehRes.error) { el.innerHTML = `<div class="u-empty">${esc(vehRes.error.message)}</div>`; if (countEl) countEl.textContent = "0"; return; }
+    if (jobsRes.error) console.warn("[Maint] loadFlaggedVehicles jobs", jobsRes.error);
+    const openPairs = new Set((jobsRes.data || []).map(j => `${j.serial_id}::${j.job_type}`));
+    const flagged = (vehRes.data || []).filter(v => !openPairs.has(`${v.serial_id}::${v.current_status}`));
+    if (countEl) countEl.textContent = String(flagged.length);
+    el.innerHTML = flagged.length ? flagged.map(v => `
+      <div class="detail-history-row" data-vin="${esc(v.serial_id)}">
+        <div class="detail-history-serial">${esc(v.serial_id)}</div>
+        <div class="detail-history-meta">${esc(statusLabel(v.current_status))} · flagged ${esc(ago(v.last_seen_at))}</div>
+      </div>
+    `).join("") : `<div class="u-empty">Nothing flagged.</div>`;
+    el.querySelectorAll(".detail-history-row").forEach(row => {
+      row.addEventListener("click", () => loadVin(row.dataset.vin));
+    });
+  }
+
   async function loadOpenJobs() {
     const el = $("svcOpenJobsList"), countEl = $("svcOpenJobsCount");
     if (!el) return;
     // Jobs waiting on parts have their own bucket below — don't list them twice.
     const { data, error } = await sb
-      .from("service_jobs").select("id,serial_id,job_type,performed_by,state,opened_at")
+      .from("service_jobs").select("id,serial_id,job_type,performed_by,state,opened_at,opened_by,updated_by")
       .eq("state", "OPEN").eq("waiting_on_parts", false).order("opened_at", { ascending: false }).limit(50);
     if (error) { el.innerHTML = `<div class="u-empty">${esc(error.message)}</div>`; if (countEl) countEl.textContent = "0"; return; }
+    await fetchProfileNames((data || []).flatMap(j => [j.opened_by, j.updated_by]));
     if (countEl) countEl.textContent = String((data || []).length);
     el.innerHTML = data && data.length ? data.map(renderJobRow).join("") : `<div class="u-empty">No open jobs.</div>`;
     wireJobRows(el);
@@ -688,16 +1133,18 @@
     const el = $("svcWaitingJobsList"), countEl = $("svcWaitingJobsCount");
     if (!el) return;
     const { data, error } = await sb
-      .from("service_jobs").select("id,serial_id,job_type,performed_by,state,opened_at,waiting_since")
+      .from("service_jobs").select("id,serial_id,job_type,performed_by,state,opened_at,waiting_since,opened_by,updated_by")
       .eq("waiting_on_parts", true).neq("state", "CLOSED").order("waiting_since", { ascending: false }).limit(50);
     if (error) { el.innerHTML = `<div class="u-empty">${esc(error.message)}</div>`; if (countEl) countEl.textContent = "0"; return; }
+    await fetchProfileNames((data || []).flatMap(j => [j.opened_by, j.updated_by]));
     if (countEl) countEl.textContent = String((data || []).length);
     el.innerHTML = data && data.length ? data.map(j => {
       const days = j.waiting_since ? Math.floor((Date.now() - new Date(j.waiting_since).getTime()) / 86400000) : 0;
+      const who = nameFor(j.updated_by || j.opened_by);
       return `
         <div class="detail-history-row" data-job-id="${esc(j.id)}">
           <div class="detail-history-serial">${esc(j.serial_id)}</div>
-          <div class="detail-history-meta">${esc(statusLabel(j.job_type))} · waiting ${esc(ago(j.waiting_since))}
+          <div class="detail-history-meta">${esc(statusLabel(j.job_type))} · waiting ${esc(ago(j.waiting_since))}${who ? " · " + esc(who) : ""}
             ${days >= 1 ? `<span class="svc-days-out">${days} day${days === 1 ? "" : "s"}</span>` : ""}
           </div>
         </div>
@@ -710,16 +1157,18 @@
     const el = $("svcVendorJobsList"), countEl = $("svcVendorJobsCount");
     if (!el) return;
     const { data, error } = await sb
-      .from("service_jobs").select("id,serial_id,job_type,performed_by,state,opened_at,sent_out_at,vendor_id")
+      .from("service_jobs").select("id,serial_id,job_type,performed_by,state,opened_at,sent_out_at,vendor_id,opened_by,updated_by")
       .eq("state", "SENT_OUT").order("sent_out_at", { ascending: false }).limit(50);
     if (error) { el.innerHTML = `<div class="u-empty">${esc(error.message)}</div>`; if (countEl) countEl.textContent = "0"; return; }
+    await fetchProfileNames((data || []).flatMap(j => [j.opened_by, j.updated_by]));
     if (countEl) countEl.textContent = String((data || []).length);
     el.innerHTML = data && data.length ? data.map(j => {
       const days = j.sent_out_at ? Math.floor((Date.now() - new Date(j.sent_out_at).getTime()) / 86400000) : 0;
+      const who = nameFor(j.updated_by || j.opened_by);
       return `
         <div class="detail-history-row" data-job-id="${esc(j.id)}">
           <div class="detail-history-serial">${esc(j.serial_id)}</div>
-          <div class="detail-history-meta">${esc(statusLabel(j.job_type))} · sent ${esc(ago(j.sent_out_at))}
+          <div class="detail-history-meta">${esc(statusLabel(j.job_type))} · sent ${esc(ago(j.sent_out_at))}${who ? " · " + esc(who) : ""}
             ${days >= 1 ? `<span class="svc-days-out">${days} day${days === 1 ? "" : "s"} out</span>` : ""}
           </div>
         </div>
@@ -733,23 +1182,27 @@
     if (!el) return;
     const since = new Date(Date.now() - 7 * 86400000).toISOString();
     const { data, error } = await sb
-      .from("service_jobs").select("id,serial_id,job_type,close_status,closed_at")
+      .from("service_jobs").select("id,serial_id,job_type,close_status,closed_at,opened_by,updated_by")
       .eq("state", "CLOSED").gte("closed_at", since).order("closed_at", { ascending: false }).limit(50);
     if (error) { el.innerHTML = `<div class="u-empty">${esc(error.message)}</div>`; if (countEl) countEl.textContent = "0"; return; }
+    await fetchProfileNames((data || []).flatMap(j => [j.opened_by, j.updated_by]));
     if (countEl) countEl.textContent = String((data || []).length);
-    el.innerHTML = data && data.length ? data.map(j => `
+    el.innerHTML = data && data.length ? data.map(j => {
+      const who = nameFor(j.updated_by || j.opened_by);
+      return `
       <div class="detail-history-row done" data-job-id="${esc(j.id)}">
         <div class="detail-history-serial">${esc(j.serial_id)}</div>
-        <div class="detail-history-meta">${esc(statusLabel(j.job_type))} · closed ${esc(ago(j.closed_at))}</div>
+        <div class="detail-history-meta">${esc(statusLabel(j.job_type))} · closed ${esc(ago(j.closed_at))}${who ? " · " + esc(who) : ""}</div>
       </div>
-    `).join("") : `<div class="u-empty">Nothing closed in the last 7 days.</div>`;
+    `;
+    }).join("") : `<div class="u-empty">Nothing closed in the last 7 days.</div>`;
     wireJobRows(el);
   }
 
   // ---- personal dashboard ----
   async function renderDashboard() {
     const { data, error } = await sb
-      .from("service_jobs").select("id,serial_id,job_type,performed_by,state,opened_at,closed_at,waiting_on_parts")
+      .from("service_jobs").select("id,serial_id,job_type,performed_by,state,opened_at,closed_at,waiting_on_parts,opened_by,updated_by")
       .order("opened_at", { ascending: false }).limit(500);
     if (error) { console.warn("[Maint Dash]", error); return; }
     const jobs = data || [];
@@ -770,6 +1223,7 @@
     const recentEl = $("svcRecentList");
     if (recentEl) {
       const recent = jobs.slice(0, 10);
+      await fetchProfileNames(recent.flatMap(j => [j.opened_by, j.updated_by]));
       recentEl.innerHTML = recent.length ? recent.map(renderJobRow).join("") : `<div class="u-empty">No jobs yet.</div>`;
       wireJobRows(recentEl);
     }
@@ -789,7 +1243,7 @@
   // nothing was listening yet, so the landing lists never loaded and sat on
   // their static "Loading…" placeholders forever.
   document.addEventListener("dt-tab-shown", (e) => {
-    if (e.detail === "service-scan") { loadOpenJobs(); loadWaitingPartsJobs(); loadVendorJobs(); loadClosedJobs(); }
+    if (e.detail === "service-scan") { loadFlaggedVehicles(); loadOpenJobs(); loadWaitingPartsJobs(); loadVendorJobs(); loadClosedJobs(); }
   });
 
   window.DT_MAINT = { loadVin, showLandingScreen, renderDashboard };

@@ -496,6 +496,10 @@ body.bl-is-admin .bl-admin-only { display: flex; }
 .bl-role-pill--mechanic { background: var(--warn-soft);   color: var(--warn); }
 .bl-pending-pill  { background: var(--warn-soft);   color: var(--warn);   border-radius: var(--r-full); padding: var(--sp-0) var(--sp-2); font-size: var(--fs-xs); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: .5px; }
 .bl-disabled-pill { background: var(--danger-soft); color: var(--danger); border-radius: var(--r-full); padding: var(--sp-0) var(--sp-2); font-size: var(--fs-xs); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: .5px; }
+/* SIPP Codes list (sipp-codes.js) — flags a code that routes to Premiere/Wall. */
+.bl-luxury-pill   { background: var(--accent-soft); color: var(--accent); border-radius: var(--r-full); padding: var(--sp-0) var(--sp-2); font-size: var(--fs-xs); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: .5px; }
+/* SIPP Codes list (sipp-codes.js) — flags a code excluded from Executive. */
+.bl-compact-pill  { background: var(--info-soft);   color: var(--info);   border-radius: var(--r-full); padding: var(--sp-0) var(--sp-2); font-size: var(--fs-xs); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: .5px; }
 .bl-users-row .actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
 
 /* ---- 8d. Comms: announcements + extra-driver requests ------------------ */
@@ -504,6 +508,16 @@ body.bl-is-admin .bl-admin-only { display: flex; }
 .bl-checks { display: flex; gap: var(--sp-3); flex-wrap: wrap; }
 .bl-checks label { display: inline-flex; align-items: center; gap: var(--sp-2); min-height: var(--touch); color: var(--text-soft); font-size: var(--fs-sm); cursor: pointer; }
 .bl-checks input { width: 18px; height: 18px; min-height: 0; accent-color: var(--accent); }
+
+/* ---- 8d-ii. Mechanics Service job modal: removable tags + append-only log --- */
+.bl-tag-list { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.bl-tag { display: inline-flex; align-items: center; gap: var(--sp-1); background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-full); padding: var(--sp-1) var(--sp-2) var(--sp-1) var(--sp-3); font-size: var(--fs-sm); color: var(--text-soft); }
+.bl-tag button { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 var(--sp-1); font: inherit; line-height: 1; }
+.bl-tag button:hover { color: var(--danger); }
+.bl-note-row { padding: var(--sp-2) 0; border-bottom: 1px solid var(--divider); font-size: var(--fs-sm); }
+.bl-note-row:last-child { border-bottom: 0; }
+.bl-note-meta { color: var(--muted); font-size: var(--fs-xs); margin-bottom: 2px; }
+
 .bl-edr-form { display: flex; flex-direction: column; gap: var(--sp-3); }
 
 .bl-comms-list { margin-top: var(--sp-4); border-top: 1px solid var(--divider); }
@@ -613,7 +627,9 @@ body.bl-is-admin .bl-admin-only { display: flex; }
   border: 0; cursor: pointer; display: grid; place-items: center; padding: 0;
 }
 .bl-photo-wrap .rm .bl-icon { width: var(--sp-4); height: var(--sp-4); }
-.bl-vin-row { display: flex; gap: var(--sp-2); }
+/* position: relative anchors #blRecFormSerialDropdown (.bl-search-dropdown,
+   absolutely positioned) under the row instead of under the whole modal. */
+.bl-vin-row { display: flex; gap: var(--sp-2); position: relative; }
 .bl-vin-row input { flex: 1; text-transform: uppercase; }
 
 /* camera scan overlay */
@@ -974,6 +990,18 @@ body.bl-is-admin .bl-admin-only { display: flex; }
 .bl-vin-tire-cond--replace { background: var(--danger-soft); color: var(--danger); }
 .bl-vin-tire-psi   { color: var(--text-soft); font-size: var(--fs-sm); }
 .bl-vin-tire-psi b { color: var(--text); font-weight: var(--fw-heavy); }
+
+/* Mechanics Service job modal's damage/tire editor reuses every class
+   above (read-only VIN-history panel) plus .bl-disclosure, .bl-seg,
+   .bl-tag-list/.bl-tag, and .bl-field — this is the only styling that's
+   actually new: breathing room inside a disclosure body, and the
+   pointer/hover affordance a clickable (not just viewable) silhouette
+   needs on top of the read-only one's plain fill/stroke rules. */
+.bl-disclosure > .bl-seg,
+.bl-disclosure > .bl-vin-damage-layout,
+.bl-disclosure > .bl-vin-tires-grid { margin-top: var(--sp-3); }
+.bl-vin-damage-svg.is-editable [data-panel] { cursor: pointer; }
+.bl-vin-damage-svg.is-editable [data-panel]:hover .dp { fill: var(--hover); }
 
 /* ---- 9. Toast / inline msg ---------------------------------------------- */
 .bl-toast {

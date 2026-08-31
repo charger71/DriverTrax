@@ -782,9 +782,7 @@
     setTimeout(() => {
       _detailMap = L.map(mount, { zoomControl: true, scrollWheelZoom: false, attributionControl: true })
         .setView([r.lat, r.lng], 17);
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        maxZoom: 20, attribution: "© OpenStreetMap, © CARTO",
-      }).addTo(_detailMap);
+      BL_MAP.addCartoDarkTiles(_detailMap);
       const cat = statusCategory(r.status);
       const pinMod = cat === "clean" ? "" : ` bl-lot-pin--${cat === "shut" ? "other" : cat}`;
       const icon = L.divIcon({ className: "", html: `<div class="bl-lot-pin${pinMod}"></div>`, iconSize: [16, 16], iconAnchor: [8, 8] });
@@ -1148,5 +1146,14 @@
   if (BL_AUTH.canEnter()) start();
   document.addEventListener("bl-section-shown", (e) => { if (e.detail === "records" && started) reload(); });
 
-  window.BL_RECORDS = { reload, profilesMap, openDetail, openVinHistory };
+  // PANEL_NAMES/DAMAGE_LABELS/TIRE_* and cloneCarSilhouette are exposed so
+  // mechanics.js can build its own independent, interactive damage/tire
+  // editor (a manager marking what a driver/mechanic may have missed)
+  // without a second copy of the ~200-path vehicle SVG or a second catalog.
+  // All were already stateless — nothing here changes existing behavior.
+  window.BL_RECORDS = {
+    reload, profilesMap, openDetail, openVinHistory,
+    PANEL_NAMES, DAMAGE_LABELS, TIRE_POSITIONS, TIRE_POS_LABEL, TIRE_CONDITION_LABEL,
+    cloneCarSilhouette,
+  };
 })();

@@ -172,13 +172,16 @@
     <li><a href="#tabs">Tabs</a></li>
     <li><a href="#side-menu">Side menu</a></li>
     <li><a href="#fields">Form fields</a></li>
+    <li><a href="#entry-form">Entry form layout</a></li>
     <li><a href="#badges">Badges</a></li>
     <li><a href="#status">Status chips</a></li>
     <li><a href="#status-buttons">Status buttons</a></li>
+    <li><a href="#disclosure">Disclosure</a></li>
     <li><a href="#stats">Stat cards</a></li>
     <li><a href="#compositions">Compositions</a></li>
     <li><a href="#mechanic">Mechanic / service jobs</a></li>
     <li><a href="#vin-history">VIN history</a></li>
+    <li><a href="#plate-sipp">Plate &amp; SIPP</a></li>
     <li><a href="#states">States</a></li>
     <li><a href="#modal">Modal</a></li>
     <li><a href="#toast">Toast</a></li>
@@ -260,6 +263,7 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
       <button class="btn btn-secondary">Secondary</button>
       <button class="btn btn-ghost">Ghost</button>
       <button class="btn btn-destructive">Destructive</button>
+      <button class="btn btn-info">Info</button>
       <button class="btn btn-icon" aria-label="Icon">×</button>
       <button class="btn btn-primary" disabled>Disabled</button>
     </div>
@@ -267,6 +271,7 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
 &lt;button class="btn btn-secondary"&gt;Secondary&lt;/button&gt;
 &lt;button class="btn btn-ghost"&gt;Ghost&lt;/button&gt;
 &lt;button class="btn btn-destructive"&gt;Destructive&lt;/button&gt;
+&lt;button class="btn btn-info"&gt;Info&lt;/button&gt;
 &lt;button class="btn btn-icon" aria-label="Close"&gt;×&lt;/button&gt;</pre>
   </div>
 
@@ -420,6 +425,119 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
   </div>
 </section>
 
+<!-- ===================== ENTRY FORM LAYOUT ===================== -->
+<section class="cl-section" id="entry-form">
+  <h2>Entry form layout</h2>
+  <p class="cl-desc">The New Entry screen&#39;s two spacing tiers. A label sits <code>--space-2</code> above its control; a break between field groups is <code>--space-3</code>. Keep the group break larger than the label gap &mdash; if they invert, a label reads as belonging to the field above it instead of to its own input. <code>.field-label</code> is <code>display:inline</code>, so its own <code>margin-bottom</code> never renders: the control supplies the gap.</p>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Header &mdash; hero only</div>
+    <div class="cl-preview cl-stack" style="max-width: 460px;">
+      <div class="entry-header-buttons entry-header-buttons--hero-only">
+        <button class="btn btn-primary btn--hero btn--full">SCAN BARCODE</button>
+      </div>
+      <span class="field-label">First field</span>
+      <input type="text" placeholder="…">
+    </div>
+<pre class="cl-code">&lt;!-- Only the hero button? Add --hero-only for the smaller break beneath.
+     Headers that also carry an "Enter Manually" secondary (detailer,
+     service) use the base class alone and keep the taller break. --&gt;
+&lt;div class="entry-header-buttons entry-header-buttons--hero-only"&gt;
+  &lt;button class="btn btn-primary btn--hero btn--full"&gt;SCAN BARCODE&lt;/button&gt;
+&lt;/div&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Header &mdash; split (two heroes side by side)</div>
+    <div class="cl-preview cl-stack" style="max-width: 460px;">
+      <div class="entry-header-buttons entry-header-buttons--hero-only entry-header-buttons--split">
+        <button class="btn btn-primary btn--hero btn--pulse">
+          <svg class="icon icon--lg" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-scan"/></svg>
+          SCAN BARCODE
+        </button>
+        <button type="button" class="btn btn-info btn--hero">
+          <svg class="icon icon--lg" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-search"/></svg>
+          LOOKUP PLATE
+        </button>
+      </div>
+      <span class="field-label">First field</span>
+      <input type="text" placeholder="…">
+    </div>
+<pre class="cl-code">&lt;!-- Add --split to lay the header's buttons out in a row instead of
+     stacked, each taking half the width. Drop --full/--block from the
+     buttons themselves — --split sizes them. Used on the driver New Entry
+     form to pair SCAN BARCODE with LOOKUP PLATE (app.js openPlateLookup). --&gt;
+&lt;div class="entry-header-buttons entry-header-buttons--hero-only entry-header-buttons--split"&gt;
+  &lt;button class="btn btn-primary btn--hero"&gt;SCAN BARCODE&lt;/button&gt;
+  &lt;button class="btn btn-info btn--hero"&gt;LOOKUP PLATE&lt;/button&gt;
+&lt;/div&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Labelled field with a character counter</div>
+    <div class="cl-preview cl-form" style="max-width: 460px;">
+      <label class="field-row">
+        <span class="field-label-row field-label-row--count">
+          <span class="field-label is-required">Serial ID</span>
+          <span class="vin-charcount">0 / 17</span>
+        </span>
+        <span class="input-with-clear">
+          <input type="text" placeholder="Type Serial ID">
+          <button type="button" class="btn btn-icon btn--sm btn-icon--input-clear" style="display:flex;" aria-label="Clear">&times;</button>
+        </span>
+      </label>
+    </div>
+<pre class="cl-code">&lt;!-- --count pushes the counter to the right of the label. Unlike the
+     inline .field-label, this row is a flex container, so its own
+     margin-bottom is what renders as the label gap.
+     .vin-charcount takes .valid (accent colour) at full length.
+     The clear button is display:none until the input has a value. --&gt;
+&lt;label class="field-row"&gt;
+  &lt;span class="field-label-row field-label-row--count"&gt;
+    &lt;span class="field-label is-required"&gt;Serial ID&lt;/span&gt;
+    &lt;span class="vin-charcount"&gt;0 / 17&lt;/span&gt;
+  &lt;/span&gt;
+  &lt;span class="input-with-clear"&gt;
+    &lt;input type="text" placeholder="Type Serial ID"&gt;
+    &lt;button type="button" class="btn btn-icon btn--sm btn-icon--input-clear"
+            aria-label="Clear"&gt;&amp;times;&lt;/button&gt;
+  &lt;/span&gt;
+&lt;/label&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Stacked groups &mdash; column edges must line up</div>
+    <div class="cl-preview cl-form" style="max-width: 460px;">
+      <div class="entry-form-row">
+        <div style="flex:1;">
+          <span class="field-label">Mileage</span>
+          <input type="number" placeholder="000000">
+        </div>
+        <div style="flex:1;">
+          <span class="field-label">Fuel</span>
+          <select><option>-- FUEL --</option></select>
+        </div>
+      </div>
+      <div class="field-row">
+        <span class="field-label is-required">Status</span>
+        <div class="status-btn-group status-btn-group--primary">
+          <button type="button" class="status-btn">CLEAN</button>
+          <button type="button" class="status-btn">DIRTY</button>
+        </div>
+      </div>
+    </div>
+<pre class="cl-code">&lt;!-- Two-column groups stacked on each other share a gap token so their
+     column edges align. .entry-form-row and .status-btn-group--primary
+     are both --space-3; changing one without the other puts the split
+     a couple of pixels out. --&gt;
+&lt;div class="entry-form-row"&gt;…&lt;/div&gt;
+&lt;div class="field-row"&gt;
+  &lt;span class="field-label is-required"&gt;Status&lt;/span&gt;
+  &lt;div class="status-btn-group status-btn-group--primary"&gt;…&lt;/div&gt;
+&lt;/div&gt;</pre>
+  </div>
+</section>
+
 <!-- ===================== BADGES ===================== -->
 <section class="cl-section" id="badges">
   <h2>Badges</h2>
@@ -472,7 +590,7 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
 <!-- ===================== STATUS BUTTONS ===================== -->
 <section class="cl-section" id="status-buttons">
   <h2>Status buttons</h2>
-  <p class="cl-desc">Entry-form Status field: a single-select button radiogroup (mirrors the <code>.theme-toggle</code> pattern — <code>role="radio"</code> + <code>aria-checked</code>, no native <code>&lt;select&gt;</code>) plus a <code>.disclosure.entry-collapse</code> for the long tail. CLEAN/DIRTY get large primary buttons colored like their <code>.status-CLEAN</code>/<code>.status-DIRTY</code> chips; everything else is a compact neutral button (same corner radius, not a pill) inside "More statuses" that just goes <code>--accent</code> when checked. Driven by <code>selectStatus(code)</code> / <code>syncStatusButtons()</code> in <code>app.js</code> — never set the hidden <code>#status</code> input's value directly.</p>
+  <p class="cl-desc">Entry-form Status field: a single-select button radiogroup (mirrors the <code>.theme-toggle</code> pattern — <code>role="radio"</code> + <code>aria-checked</code>, no native <code>&lt;select&gt;</code>) plus a <code>.disclosure.entry-collapse</code> for the long tail. CLEAN/DIRTY get large primary buttons colored like their <code>.status-CLEAN</code>/<code>.status-DIRTY</code> chips; everything else is a full-size neutral button (same 44px touch target as the base <code>.status-btn</code>) inside "More statuses" that just goes <code>--accent</code> when checked. Driven by <code>selectStatus(code)</code> / <code>syncStatusButtons()</code> in <code>app.js</code> — never set the hidden <code>#status</code> input's value directly.</p>
   <div class="cl-block">
     <div class="cl-preview cl-stack">
       <div class="status-btn-group status-btn-group--primary" role="radiogroup" aria-label="Status">
@@ -499,6 +617,43 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
           role="radio" aria-checked="false" onclick="selectStatus('PM')"&gt;PM (MAINT.)&lt;/button&gt;
   &lt;!-- ... --&gt;
 &lt;/div&gt;</pre>
+  </div>
+</section>
+
+<!-- ===================== DISCLOSURE ===================== -->
+<section class="cl-section" id="disclosure">
+  <h2>Disclosure</h2>
+  <p class="cl-desc">The one accordion pattern — <code>&lt;details class="disclosure entry-collapse"&gt;</code>, no JS needed for open/close itself. Backs every collapsible section in the New Entry form (Conditions, Body damage, Tires, Additional Info) plus the Records filters panel. Give it a unique <code>data-collapse-key</code> and <code>applyEntryCollapseState()</code> in <code>app.js</code> auto-wires per-user open/closed persistence — no extra JS per instance. To hide a whole panel rather than just collapse it (e.g. Body damage / Tires, shown only for their matching Status), toggle <code>.u-hidden</code> on the <code>&lt;details&gt;</code> itself from JS instead of removing it.</p>
+  <div class="cl-block">
+    <div class="cl-preview cl-stack">
+      <details class="disclosure entry-collapse">
+        <summary class="disclosure-summary"><span class="field-label">Conditions</span></summary>
+        <div class="disclosure-body">
+          <div class="u-empty">Panel content goes here.</div>
+        </div>
+      </details>
+      <details class="disclosure entry-collapse" open>
+        <summary class="disclosure-summary">
+          <span class="field-label">Body damage</span>
+          <span class="disclosure-count">3 marks</span>
+        </summary>
+        <div class="disclosure-body">
+          <div class="u-empty">Optional .disclosure-count badge in the summary — Body damage / Tires use it for a "N marks" / "N selected" hint.</div>
+        </div>
+      </details>
+    </div>
+<pre class="cl-code">&lt;details class="disclosure entry-collapse" data-collapse-key="conditions"&gt;
+  &lt;summary class="disclosure-summary"&gt;&lt;span class="field-label"&gt;Conditions&lt;/span&gt;&lt;/summary&gt;
+  &lt;div class="disclosure-body"&gt;
+    ...panel content...
+  &lt;/div&gt;
+&lt;/details&gt;
+
+&lt;!-- Optional count badge in the summary (Body damage / Tires) --&gt;
+&lt;summary class="disclosure-summary"&gt;
+  &lt;span class="field-label"&gt;Body damage&lt;/span&gt;
+  &lt;span class="disclosure-count" id="entryDamageSummaryCount"&gt;3 marks&lt;/span&gt;
+&lt;/summary&gt;</pre>
   </div>
 </section>
 
@@ -669,6 +824,78 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
     <div class="cl-block-label">Waiting on parts toggle — a flag alongside job state, not a fifth state value (see <code>maintenance.js</code>)</div>
     <div class="cl-preview">
       <div class="svc-waiting-row"><button type="button" class="btn btn-secondary btn--sm">Mark Waiting on Parts</button></div>
+    </div>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">"What's Being Done" chips — same <code>.svc-chip</code> shape as Job Type, but checkboxes (multi-select) since a visit often covers more than one basic action; OTHER reveals a freeform field</div>
+    <div class="cl-preview">
+      <div class="detail-conditions">
+        <label class="svc-chip checked"><input type="checkbox" checked><span>Oil Change</span></label>
+        <label class="svc-chip checked"><input type="checkbox" checked><span>Rotate Tires</span></label>
+        <label class="svc-chip"><input type="checkbox"><span>Battery Replacement</span></label>
+        <label class="svc-chip"><input type="checkbox"><span>Other</span></label>
+      </div>
+    </div>
+<pre class="cl-code">&lt;label class="svc-chip checked"&gt;
+  &lt;input type="checkbox" value="Oil Change" checked&gt;
+  &lt;span&gt;Oil Change&lt;/span&gt;
+&lt;/label&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Driver-note banner — read-only "latest note on file," reuses <code>.svc-state-banner</code>'s box but drops the bold/letter-spacing since it's running text, not a short status phrase</div>
+    <div class="cl-preview">
+      <div class="svc-state-banner svc-state-banner--driver-note"><b>Latest note</b> — Left rear tire low, flagged by driver this morning. <span class="svc-days-out">4h ago</span></div>
+    </div>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Job notes log — append-only, dated, no remove action; mirrors the parts list's add-row shape (see <code>maintenance.js</code> <code>onAddNote</code>)</div>
+    <div class="cl-preview cl-stack">
+      <div class="svc-notes-list">
+        <div class="svc-note-row">
+          <div class="svc-note-meta">10 min ago · J. Alvarez</div>
+          <div class="svc-note-text">Pulled the wheel, found a nail. Ordering a replacement tire.</div>
+        </div>
+        <div class="svc-note-row">
+          <div class="svc-note-meta">2 days ago · J. Alvarez</div>
+          <div class="svc-note-text">Started the job — waiting on a bay.</div>
+        </div>
+      </div>
+      <div class="svc-part-add">
+        <input type="text" placeholder="Add a note..." disabled>
+        <button type="button" class="btn btn-secondary btn--sm" aria-label="Add note">+</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Damage/tire editor — a mechanic's own interactive diagram, seeded with everything already on file so additions build on the full picture instead of a blank one (a driver may not have caught everything). Built from an interactive clone of the driver form's <code>#entryDamageSvg</code> via <code>DT_DAMAGE.cloneSilhouette</code> rather than a second copy of the diagram — see <code>maintenance.js</code>'s damage/tire editor functions.</div>
+    <div class="cl-preview cl-stack">
+      <div class="damage-chips" role="radiogroup" aria-label="Damage type">
+        <button type="button" class="damage-chip active"><span class="damage-sw" style="background:#EF9F27"></span>Dent</button>
+        <button type="button" class="damage-chip"><span class="damage-sw" style="background:#D85A30"></span>Scratch</button>
+        <button type="button" class="damage-chip"><span class="damage-sw" style="background:#7F77DD"></span>Chip</button>
+      </div>
+      <div class="damage-log-card">
+        <div class="damage-log-header"><span>Damage log</span><span class="damage-count-badge">01</span></div>
+        <div class="damage-log-list">
+          <div class="damage-log-row">
+            <span class="damage-log-num" style="background:#EF9F27">1</span>
+            <span class="damage-log-name"><span class="damage-log-type">Dent</span><span class="damage-log-loc"> · Hood</span></span>
+            <button type="button" class="damage-log-del" aria-label="Remove">&times;</button>
+          </div>
+        </div>
+      </div>
+      <div class="dt-tire-strip" style="max-width:220px;">
+        <div class="dt-tire-card">
+          <div class="dt-tire-card-head"><span class="dt-tire-pos">FL</span><span class="dt-tire-cond dt-tire-cond--worn">Worn</span></div>
+          <div class="dt-tire-pos-label">Front left</div>
+          <label class="dt-tire-field"><span>Condition</span><select><option>Worn</option></select></label>
+          <label class="dt-tire-field"><span>PSI</span><input type="number" value="28"></label>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -882,6 +1109,74 @@ transition: opacity var(--duration-slow) var(--ease-out);</pre>
 </section>
 
 <!-- ===================== STATES ===================== -->
+<!-- ===================== PLATE & SIPP ===================== -->
+<section class="cl-section" id="plate-sipp">
+  <h2>Plate &amp; SIPP</h2>
+  <p class="cl-desc">Per-VIN identifiers stored on <code>vehicles</code> (plate, plate state, SIPP class code) and rendered by <code>vehicle-info.js</code>. The <code>.vin-id-row</code> mounts into the VIN&nbsp;history header and the New&nbsp;Entry form; the smaller <code>.vin-detail-*</code> tags ride along on VIN&nbsp;lookup rows.</p>
+  <p class="cl-desc"><code>.vin-id-plate</code> and <code>.vin-id-sipp</code> are on the shared <code>.record-status, .badge-*</code> base rule, so they carry the standard badge radius, padding and casing — see <a href="#badges">Badges</a>. They override only size and fill, stepping up to <code>--font-md</code> so a plate read off a bumper, or a class code across the lot, stays legible. Both fold their second value into the same badge rather than a trailing span: the plate's issuing state becomes a colored <code>NY-</code> prefix (<code>--plate-accent</code> — fixed in both themes, since the plate badge itself is a fixed light surface, same reasoning as <code>--overlay-*</code>), and the SIPP code's expansion follows inside the badge as a <code>.vin-id-sipp-desc</code> span — smaller, regular weight, and off the monospace/tracking treatment, since it's prose rather than a code, and wraps onto a second line rather than trailing off in plain text.</p>
+  <p class="cl-desc">Plate, SIPP and Edit are <code>.vin-id-row</code>'s three items — spaced evenly by <code>justify-content: space-between</code> plus <code>flex: 1 1 auto</code> on the two value groups, not forced into equal-width columns (a short plate and a long SIPP expansion shouldn't fight for the same column width). Edit has no eyebrow of its own, so it sits at <code>flex-end</code> — level with the badges' baseline, not stranded up on the label line.</p>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Header row — filled</div>
+    <div class="cl-preview cl-stack">
+      <div class="vin-id-row">
+        <div class="vin-id-group">
+          <span class="field-label vin-id-eyebrow">Plate</span>
+          <span class="vin-id-plate"><span class="vin-id-plate-state">NY</span>-KDX4471</span>
+        </div>
+        <div class="vin-id-group">
+          <span class="field-label vin-id-eyebrow">SIPP Code</span>
+          <span class="vin-id-sipp">ICAR <span class="vin-id-sipp-desc">— Intermediate / Midsize</span></span>
+        </div>
+        <button type="button" class="btn btn-secondary btn--sm vin-id-edit">Edit</button>
+      </div>
+    </div>
+<pre class="cl-code">&lt;!-- One eyebrow (.field-label) over one badge per group; Edit gets neither,
+     so it aligns to the badges' baseline instead. All three are the row's
+     evenly-spaced items — see .vin-id-row in app.css. --&gt;
+&lt;div class="vin-id-row"&gt;
+  &lt;div class="vin-id-group"&gt;
+    &lt;span class="field-label vin-id-eyebrow"&gt;Plate&lt;/span&gt;
+    &lt;span class="vin-id-plate"&gt;&lt;span class="vin-id-plate-state"&gt;${state}&lt;/span&gt;-${plate}&lt;/span&gt;
+  &lt;/div&gt;
+  &lt;div class="vin-id-group"&gt;
+    &lt;span class="field-label vin-id-eyebrow"&gt;SIPP Code&lt;/span&gt;
+    &lt;span class="vin-id-sipp"&gt;${code} &lt;span class="vin-id-sipp-desc"&gt;— ${label}&lt;/span&gt;&lt;/span&gt;
+  &lt;/div&gt;
+  &lt;button type="button" class="btn btn-secondary btn--sm vin-id-edit"&gt;Edit&lt;/button&gt;
+&lt;/div&gt;
+
+&lt;!-- Don't hand-render this. DT_VEHICLE_INFO.mount(hostEl, vin) fetches
+     the vehicles row, renders the row (or the empty prompt below) and
+     wires the editor modal. Either group is omitted when its value is
+     unset — e.g. plate only, no group markup for SIPP at all. --&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Header row — nothing on file</div>
+    <div class="cl-preview cl-stack" style="max-width: 420px;">
+      <button type="button" class="btn btn-secondary btn--sm btn--block btn--dashed vin-id-add">+ Add plate &amp; class</button>
+    </div>
+<pre class="cl-code">&lt;button type="button" class="btn btn-secondary btn--sm btn--block btn--dashed vin-id-add"&gt;
+  + Add plate &amp;amp; class
+&lt;/button&gt;</pre>
+  </div>
+
+  <div class="cl-block">
+    <div class="cl-block-label">Lookup-row tags</div>
+    <div class="cl-preview cl-stack">
+      <div class="vin-detail-tags">
+        <span class="vin-detail-plate">KDX4471<span class="vin-detail-plate-state">NY</span></span>
+        <span class="vin-detail-sipp">ICAR</span>
+      </div>
+    </div>
+<pre class="cl-code">&lt;div class="vin-detail-tags"&gt;
+  &lt;span class="vin-detail-plate"&gt;${plate}&lt;span class="vin-detail-plate-state"&gt;${state}&lt;/span&gt;&lt;/span&gt;
+  &lt;span class="vin-detail-sipp"&gt;${sipp}&lt;/span&gt;
+&lt;/div&gt;</pre>
+  </div>
+</section>
+
 <section class="cl-section" id="states">
   <h2>States</h2>
   <p class="cl-desc">Every list/panel should handle empty, loading, error, and (where role-gated) no-permission. Use these blocks instead of inventing copy on the spot.</p>

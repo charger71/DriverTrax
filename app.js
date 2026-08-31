@@ -37,6 +37,23 @@ function locationLabel(destination, destinationOther, sectionName) {
 }
 window.locationLabel = locationLabel;
 
+// Suggested drop lot for a freshly-scanned car, from mileage + SIPP class —
+// mirrors the Executive / Emerald / Enterprise-Alamo cutoffs, and the
+// separate Luxuries note, in the Training panel's Clean Car Notes
+// (index.html, "Clean Car Notes" list). Luxury classes route to Premiere/Wall
+// instead, regardless of the Executive/Emerald split; compact classes
+// (regular compacts and compact SUVs like the Trax) never qualify for
+// Executive regardless of mileage. Both are manager-flagged per SIPP code in
+// Backlot's SIPP Codes admin (DT_VEHICLE_INFO.isLuxury / .isCompact) rather
+// than hardcoded, so the caller resolves them from the scanned VIN's code.
+function mileageRouteDestination(mileage, isCompact, isLuxury) {
+  if (!Number.isFinite(mileage) || mileage < 0) return null;
+  if (isLuxury) return mileage <= 20000 ? "Premiere" : "Wall or Enterprise/Alamo";
+  if (mileage <= 10000 && !isCompact) return "Executive";
+  if (mileage <= 20000) return "Emerald";
+  return "Enterprise/Alamo";
+}
+
 // ============================================================
 // Single source of truth for status / destination / condition
 // catalogs. Referenced by app.js (entry form), detailer.js
@@ -276,6 +293,14 @@ function trimForStorage(r, keep) {
 
 function setRecords(r) {
   _recordsCache = r;
+  // getAllShifts()'s cache key is record count + first/last timestamp, so an
+  // in-place field patch (e.g. drop-offs.js patchLocalRecord attaching the
+  // GPS-detected section name after save) doesn't change the key and the
+  // stale grouping keeps getting served — the GIS location badge then only
+  // appears once the next save changes the count/timestamp. Clear it here so
+  // every write path (including sync.js's pull-and-merge) stays in sync.
+  _shiftsCache = null;
+  _shiftsCacheKey = null;
   try {
     localStorage.setItem(DB_KEY, JSON.stringify(r));
     return;
@@ -660,10 +685,23 @@ function getFiltered() {
   });
 }
 
+// Caption for a date-range drill-down opened from the dashboard ("This Week",
+// "Entries for 2026-08-23", a month name). Shown in place of the result count,
+// and cleared whenever the range stops being the dashboard's.
+let _recordsRangeLabel = "";
+
 function clearFilters() {
   ["fSearch","fDateFrom","fDateTo"].forEach(id => document.getElementById(id).value = "");
   ["fStatus","fNoTag","fDest"].forEach(id => document.getElementById(id).selectedIndex = 0);
-  document.getElementById("recordsHeading").textContent = "Filter Records";
+  _recordsRangeLabel = "";
+  resetRecordsPage();
+  renderRecords();
+}
+
+// The date inputs are also editable by hand, which makes any dashboard caption
+// stale — drop it and re-render against whatever the user picked.
+function onDateFilterChange() {
+  _recordsRangeLabel = "";
   resetRecordsPage();
   renderRecords();
 }
@@ -675,7 +713,7 @@ function viewByDate(dateStr) {
   document.getElementById("fStatus").selectedIndex = 0;
   document.getElementById("fNoTag").selectedIndex = 0;
   document.getElementById("fDest").selectedIndex = 0;
-  document.getElementById("recordsHeading").textContent = "Entries for " + dateStr;
+  _recordsRangeLabel = "Entries for " + dateStr;
   resetRecordsPage();
   showTab("records");
 }
@@ -687,7 +725,7 @@ function viewByWeek(fromStr, toStr, label) {
   document.getElementById("fStatus").selectedIndex = 0;
   document.getElementById("fNoTag").selectedIndex = 0;
   document.getElementById("fDest").selectedIndex = 0;
-  document.getElementById("recordsHeading").textContent = label;
+  _recordsRangeLabel = label;
   resetRecordsPage();
   showTab("records");
 }
@@ -771,6 +809,12 @@ async function getRecalls(year, make, model) {
 // Photos attached to the current NEW ENTRY form (array of resized blobs, pre-upload).
 // Wired by initEntryPhotoInput() at boot.
 let pendingEntryPhotos = [];
+// True from the moment saveRecord() disables the Save button until the save
+// settles (doSave() resets the form, or the GPS-conflict prompt is cancelled).
+// updateSaveBtnState() checks this first so a status/serial change mid-save
+// (e.g. while "Getting location..." is showing) can't re-enable the button
+// and let a driver double-submit.
+let entrySaveInFlight = false;
 
 function renderEntryPhotoStrip() {
   const strip = document.getElementById("entryPhotoStrip");
@@ -838,6 +882,20 @@ function resetEntryPhotoUI() {
   if (strip) { strip.style.display = "none"; strip.innerHTML = ""; }
 }
 
+// Keeps the primary Save button disabled until the required fields (Serial ID
+// + Status) are filled in, so a blank entry can't be submitted. Wired into
+// every place those two fields change: the VIN keypad, the barcode scanner,
+// clearSerial() (via toggleClearBtn()), and selectStatus() (via
+// handleStatusChange()).
+function updateSaveBtnState() {
+  const saveBtn = document.getElementById("saveBtn");
+  if (!saveBtn) return;
+  if (entrySaveInFlight) { saveBtn.disabled = true; return; }
+  const serial = document.getElementById("serial").value.trim();
+  const statusVal = document.getElementById("status").value;
+  saveBtn.disabled = !serial || !statusVal;
+}
+
 function saveRecord() {
   let serial = sanitizeSerial(document.getElementById("serial").value.trim().toUpperCase());
   if (!serial) {
@@ -849,6 +907,7 @@ function saveRecord() {
 
   const saveBtn = document.getElementById("saveBtn");
   const gpsEl = document.getElementById("gpsStatus");
+  entrySaveInFlight = true;
   saveBtn.disabled = true;
   saveBtn.innerHTML = pendingEntryPhotos.length ? "Uploading photos..." : "Getting location...";
   gpsEl.className = "gps-status acquiring";
@@ -931,10 +990,8 @@ function saveRecord() {
     toggleTransportStyle();
     const mEl = document.getElementById("mileage"); if (mEl) mEl.value = "";
     const fEl = document.getElementById("fuelLevel"); if (fEl) fEl.selectedIndex = 0;
-    const _mes = document.getElementById("manualEntrySection");
-    if (_mes) { _mes.classList.add("u-hidden"); _mes.style.display = ""; }
-    document.querySelector(".btn-manual-toggle").innerHTML = "Enter Manually";
-    saveBtn.disabled = false;
+    entrySaveInFlight = false;
+    updateSaveBtnState();
     saveBtn.innerHTML = "Save";
     gpsEl.className = "gps-status";
     gpsEl.textContent = "";
@@ -1027,7 +1084,8 @@ function saveRecord() {
             if (!proceed) {
               // Driver picked "Fix destination" — restore the Save button and bail.
               // They'll fix the dropdown and hit Save again.
-              saveBtn.disabled = false;
+              entrySaveInFlight = false;
+              updateSaveBtnState();
               saveBtn.innerHTML = "Save";
               gpsEl.className = "gps-status";
               gpsEl.textContent = "";
@@ -1664,6 +1722,7 @@ function handleStatusChange() {
   toggleOtherField("status");
   syncStatusButtons();
   syncStatusDependentSections();
+  updateSaveBtnState();
 }
 
 // Status is a hidden input (#status) driven by a button grid instead of a
@@ -1713,6 +1772,12 @@ function syncStatusDependentSections() {
     }
     const condCollapse = document.getElementById("entryConditionsCollapse");
     if (condCollapse) condCollapse.open = true;
+  } else if (selectedCxrConditions.includes("REGULAR")) {
+    // Undo the DIRTY default the moment status moves elsewhere (e.g. a
+    // "More statuses" pick) — Regular is a Dirty-specific nudge, not a
+    // condition that should linger onto PM/MK/BODY/etc.
+    selectedCxrConditions = selectedCxrConditions.filter(c => c !== "REGULAR");
+    renderCxrConditions();
   }
 }
 
@@ -2057,24 +2122,14 @@ function resetTires() {
     label.className = "tire-selected-label";
   }
 }
-function toggleManualEntry() {
-  const section = document.getElementById("manualEntrySection");
-  const btn = document.querySelector(".btn-manual-toggle");
-  if (!section || !btn) return;
-  const willShow = section.classList.contains("u-hidden");
-  section.classList.toggle("u-hidden", !willShow);
-  section.style.display = "";
-  btn.innerHTML = willShow ? "Hide Manual Entry" : "Enter Manually";
-  if (willShow) document.getElementById("serial")?.focus();
-}
-
+// The Serial ID field is part of the entry form at all times now — there's no
+// "Enter Manually" toggle to flip. Kept as a safety net for callers that reveal
+// the field after a scan or a keypad hand-off.
 function showManualEntry() {
   const section = document.getElementById("manualEntrySection");
-  const btn = document.querySelector(".btn-manual-toggle");
-  if (!section || !btn) return;
+  if (!section) return;
   section.classList.remove("u-hidden");
   section.style.display = "";
-  btn.innerHTML = "Hide Manual Entry";
 }
 
 function clearSerial() {
@@ -2097,6 +2152,7 @@ function toggleClearBtn() {
   const input = document.getElementById("serial");
   const btn = document.getElementById("serialClearBtn");
   if (btn) btn.style.display = input.value.length > 0 ? "flex" : "none";
+  updateSaveBtnState();
 }
 
 function toggleEditClearBtn() {
@@ -2329,7 +2385,92 @@ function syncKeypadDisplay() {
     count.textContent = `${len} / 17`;
     count.classList.toggle("valid", len === 17);
   }
+  scheduleVinSuggest();
 }
+
+// ---------- VIN autocomplete (New Entry + Edit Record Serial ID) ----------
+// As the driver types a partial VIN on the keypad, suggest existing vehicles
+// whose serial_id starts with what's typed so far, so a full 17 characters
+// don't have to be entered by hand for a vehicle already on file. Scoped to
+// the "serial" and "editSerial" keypad targets — the two places a VIN is
+// typed by hand rather than scanned or looked up. #fSearch (RECORDS search)
+// is deliberately excluded: it already live-searches (fuzzy, debounced) as
+// you type and shows full results in the list below it, so chips there
+// would duplicate an existing, richer affordance rather than fill a gap.
+const VIN_SUGGEST_TARGETS = new Set(["serial", "editSerial"]);
+const VIN_SUGGEST_MIN_CHARS = 3;
+const VIN_SUGGEST_DEBOUNCE_MS = 250;
+const VIN_SUGGEST_LIMIT = 6;
+let _vinSuggestTimer = null;
+let _vinSuggestToken = 0;
+let _vinSuggestLastVal = null;
+
+function scheduleVinSuggest() {
+  if (!VIN_SUGGEST_TARGETS.has(_vinKeypadTargetId)) { hideVinSuggestions(); return; }
+  const val = document.getElementById(_vinKeypadTargetId)?.value || "";
+  if (val === _vinSuggestLastVal) return; // unchanged (e.g. a cursor-only move)
+  _vinSuggestLastVal = val;
+
+  clearTimeout(_vinSuggestTimer);
+  // >=17 covers a fully-typed VIN — nothing left to autocomplete toward.
+  if (val.length < VIN_SUGGEST_MIN_CHARS || val.length >= 17) { hideVinSuggestions(); return; }
+  _vinSuggestTimer = setTimeout(() => runVinSuggest(val), VIN_SUGGEST_DEBOUNCE_MS);
+}
+
+async function runVinSuggest(val) {
+  const token = ++_vinSuggestToken;
+  if (!window.DT_AUTH?.client) return;
+  const { data, error } = await DT_AUTH.client
+    .from("vehicles")
+    .select("serial_id")
+    .ilike("serial_id", `${val}%`)
+    .limit(VIN_SUGGEST_LIMIT);
+  // A newer keystroke (or a closed/retargeted keypad) superseded this
+  // response — drop it rather than let a slow early reply clobber a later one.
+  if (token !== _vinSuggestToken) return;
+  if (!VIN_SUGGEST_TARGETS.has(_vinKeypadTargetId) || !document.getElementById("vinKeypadOverlay")?.classList.contains("open")) return;
+  if (error || !data || !data.length) { hideVinSuggestions(); return; }
+  renderVinSuggestions(data);
+}
+
+function renderVinSuggestions(rows) {
+  const bar = document.getElementById("vinSuggestBar");
+  if (!bar) return;
+  bar.innerHTML = rows.map(v =>
+    `<button type="button" class="vin-suggest-chip" data-vin="${DT_ESC(v.serial_id)}">${DT_ESC(v.serial_id)}</button>`
+  ).join("");
+  bar.classList.remove("u-hidden");
+}
+
+function hideVinSuggestions() {
+  const bar = document.getElementById("vinSuggestBar");
+  if (!bar) return;
+  bar.classList.add("u-hidden");
+  bar.innerHTML = "";
+}
+
+// Same effect as finishing manual entry via the keypad + DONE: fills the
+// value, updates cursor/count/clear-btn state, and closes the keypad (whose
+// own close handler dispatches dt-vin-scanned once). Mirrors applyPastedVin().
+function onVinSuggestClick(e) {
+  const btn = e.target.closest(".vin-suggest-chip");
+  if (!btn) return;
+  const vin = btn.dataset.vin;
+  const input = document.getElementById(_vinKeypadTargetId);
+  if (!vin || !input) return;
+  input.value = vin;
+  _vinKeypadCursor = vin.length;
+  syncKeypadDisplay();
+  if (_vinKeypadTargetId === "serial") { toggleClearBtn(); updateVinCount(); }
+  else { toggleEditClearBtn(); updateEditVinCount(); }
+  if (navigator.vibrate) navigator.vibrate(8);
+  closeVinKeypad();
+}
+
+function initVinSuggest() {
+  document.getElementById("vinSuggestBar")?.addEventListener("click", onVinSuggestClick);
+}
+document.addEventListener("DOMContentLoaded", initVinSuggest);
 
 // ============================
 // BLUETOOTH / USB HID BARCODE SCANNER
@@ -2379,11 +2520,23 @@ function focusHidScannerInput() {
     if (kp && kp.classList.contains("open")) return true;
     const edit = document.getElementById("editOverlay");
     if (edit && edit.classList.contains("open")) return true;
-    // Also capture when the entry panel is visible and no real text input is focused
+    // Otherwise: capture unless the user is actively typing somewhere else.
+    // Tapping a button/tab focuses it on Android/desktop (iOS doesn't focus
+    // buttons on tap at all), and that used to permanently strand scanner
+    // input on the document-level keydown fallback below for the rest of the
+    // session — that fallback resets its buffer on any >MAX_GAP_MS gap
+    // between keys, which a Bluetooth scanner occasionally blows past, so a
+    // trigger pull would silently do nothing and need a second pull. Mirror
+    // the fallback's own definition of "typing" so we reclaim in every other
+    // case instead.
     const el = document.activeElement;
     if (!el || el === document.body || el === hidScannerInput) return true;
-    if (el.tagName === "INPUT" && el.readOnly) return true;
-    return false;
+    if (el.tagName === "TEXTAREA" || el.isContentEditable) return false;
+    if (el.tagName === "INPUT" && !el.readOnly && !el.disabled) {
+      const t = (el.type || "text").toLowerCase();
+      if (["text","search","email","url","tel","password","number"].includes(t)) return false;
+    }
+    return true;
   }
 
   function applyToTarget(rawValue) {
@@ -2465,6 +2618,11 @@ function focusHidScannerInput() {
         }
       }, 50);
     });
+
+    // Claim focus from the start so a scanner trigger pull works before the
+    // on-screen VIN keypad has ever been opened this session, instead of
+    // relying on the document-level fallback for that first scan.
+    focusHidScannerInput();
   }
 
   if (document.body) createHidScannerInput();
@@ -2769,14 +2927,27 @@ function renderRecords() {
   const countEl   = document.getElementById("resultsCount");
   const container = document.getElementById("records");
 
+  // No search, but a date range → the dashboard drilled in by date.
+  if (!searchVal) {
+    const from = document.getElementById("fDateFrom")?.value || "";
+    const to   = document.getElementById("fDateTo")?.value   || "";
+    if (from || to) return renderRangeRecords();
+  }
+
   // No search → empty state, no list, no markers.
   if (!searchVal) {
+    _recordsRangeLabel = "";
+    if (container) container.classList.add("u-hidden");
     if (countEl)   countEl.textContent = "";
     if (container) renderRecentVinEmptyState(container);
     _renderRecordsMapMarkers([]);
     renderVinDetailList([]);
     return;
   }
+
+  // Both search paths render into #records — the fuzzy list and the inline VIN
+  // timeline. It ships hidden and the empty path puts it back, so show it here.
+  if (container) container.classList.remove("u-hidden");
 
   // Full VIN → timeline view
   if (isFullVin(searchVal)) {
@@ -2786,6 +2957,63 @@ function renderRecords() {
 
   // Partial term → fuzzy search across the cloud
   return renderFuzzyResults(searchVal);
+}
+
+// The dashboard drills into this panel by date — a day row, a week or month
+// row, a stat card. Those set the date filters with no search term, so list the
+// records for that range instead of the "type a VIN" empty state.
+//
+// #records is the legacy list container: every search path renders into
+// #vinDetailList and leaves #records hidden, so it is shown only for this view.
+function renderRangeRecords() {
+  const container = document.getElementById("records");
+  const countEl   = document.getElementById("resultsCount");
+  if (!container) return;
+
+  const records = getFiltered().slice().sort((a, b) => b.timestamp - a.timestamp);
+
+  container.classList.remove("u-hidden");
+  container.innerHTML = records.length
+    ? records.map(r => recordCard(r, "deleteRecord")).join("")
+    : `<p class="records-prompt">No entries for this range.</p>`;
+
+  if (countEl) {
+    const count = `${records.length} record${records.length === 1 ? "" : "s"}`;
+    countEl.textContent = _recordsRangeLabel ? `${_recordsRangeLabel} · ${count}` : count;
+  }
+
+  _renderRecordsMapMarkers(
+    records
+      .filter(r => Number.isFinite(r.lat) && Number.isFinite(r.lng))
+      .map(r => ({ lat: r.lat, lng: r.lng, label: r.serialId, ts: r.timestamp || 0 }))
+  );
+
+  // The VIN Detail list mirrors whatever is in the records list, so feed it the
+  // same range rather than leaving it reading "No VINs in current results"
+  // above a list that plainly has some.
+  renderVinDetailList(records.map(r => ({
+    vin: r.serialId,
+    ts: r.timestamp,
+    status: r.status,
+    statusOther: r.statusOther,
+    destination: r.destination,
+    destinationOther: r.destinationOther,
+    lat: r.lat,
+    lng: r.lng,
+    vehicle: r.vinData
+      ? [r.vinData.year, r.vinData.make, r.vinData.model].filter(Boolean).join(" ")
+      : ""
+  })));
+}
+
+// Cloud rows behind the current fuzzy result cards, keyed by id.
+const _fuzzyRowsById = new Map();
+
+// Click target for a fuzzy result card. The row may belong to another driver's
+// device, so it opens the cloud record sheet rather than openDetail().
+function openFuzzyRecord(id) {
+  const row = _fuzzyRowsById.get(String(id));
+  if (row) openVinRecordDetail(row, _vinProfileCache);
 }
 
 // Fuzzy search: matches against records.serial_id + records.notes (plus
@@ -2809,9 +3037,15 @@ async function renderFuzzyResults(term) {
   // Quote-safe — Supabase .or() expects a comma-separated filter string
   const safe = term.replace(/[%,]/g, " ").replace(/'/g, "''");
   const upTerm = safe.toUpperCase();
+  // Plates are stored without spaces or punctuation, so "ABC 1234" has to lose
+  // those before it can match. Falls back to upTerm when the term is all
+  // punctuation, which would otherwise become an empty (match-everything) LIKE.
+  // SIPP matches by prefix, not contains: "ICAR" and "IC" should find the
+  // class, but a search for "car" shouldn't return every CCAR/FCAR on the lot.
+  const plateTerm = upTerm.replace(/[^A-Z0-9-]/g, "") || upTerm;
 
   let recsQ = sb.from("records")
-    .select("id,user_id,serial_id,status,status_other,destination,destination_other,section_id,section_name,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,tires,gps_error,shift_num,mileage,fuel_level,photo_url,photo_urls")
+    .select("id,user_id,serial_id,status,status_other,destination,destination_other,section_id,section_name,no_tag,shuttle,transport,ts,lat,lng,notes,vin_data,tires,gps_error,shift_num,mileage,fuel_level,photo_url,photo_urls,conditions,damage_marks,tire_details,claim_number,claim_notes")
     .or(`serial_id.ilike.%${upTerm}%,notes.ilike.%${safe}%,vin_data->>make.ilike.%${safe}%,vin_data->>model.ilike.%${safe}%`)
     .order("ts", { ascending: false })
     .limit(200);
@@ -2825,8 +3059,8 @@ async function renderFuzzyResults(term) {
   const [recRes, vehRes] = await Promise.all([
     recsQ,
     sb.from("vehicles")
-      .select("serial_id,current_status,current_status_other,current_destination,current_destination_other,section_id,section_name,last_lat,last_lng,last_seen_at,vin_data,entered_inventory_at")
-      .or(`serial_id.ilike.%${upTerm}%,vin_data->>make.ilike.%${safe}%,vin_data->>model.ilike.%${safe}%,vin_data->>year.ilike.%${safe}%`)
+      .select("serial_id,current_status,current_status_other,current_destination,current_destination_other,section_id,section_name,last_lat,last_lng,last_seen_at,vin_data,entered_inventory_at,plate,plate_state,sipp")
+      .or(`serial_id.ilike.%${upTerm}%,plate.ilike.%${plateTerm}%,sipp.ilike.${upTerm}%,vin_data->>make.ilike.%${safe}%,vin_data->>model.ilike.%${safe}%,vin_data->>year.ilike.%${safe}%`)
       .order("last_seen_at", { ascending: false, nullsFirst: false })
       .limit(100)
   ]);
@@ -2839,12 +3073,18 @@ async function renderFuzzyResults(term) {
   if (fDest)   vehRows = vehRows.filter(v => v.current_destination === fDest);
 
   // Map driver names for record cards (manager-style augmentation)
+  // Share the VIN timeline's profile cache — openVinRecordDetail() reads role
+  // and avatar from it, not just the display name.
   const userIds = [...new Set(recRows.map(r => r.user_id))];
+  await _vinFetchProfiles(userIds);
   const names = {};
-  if (userIds.length) {
-    const { data: profs } = await sb.from("profiles").select("id,display_name").in("id", userIds);
-    (profs || []).forEach(p => { names[p.id] = p.display_name || "Driver"; });
-  }
+  userIds.forEach(id => { names[id] = _vinProfileCache.get(id)?.display_name || "Driver"; });
+
+  // Keep the cloud rows behind the cards. They render in the local-record shape
+  // for recordCard(), but openDetail() only ever looks in local storage, so a
+  // result from another device would open nothing — these go to the cloud sheet.
+  _fuzzyRowsById.clear();
+  recRows.forEach(row => _fuzzyRowsById.set(String(row.id), row));
   // Convert records to the local-record shape so recordCard() can render them
   const cards = recRows.map(row => ({
     id: row.id,
@@ -2881,53 +3121,14 @@ async function renderFuzzyResults(term) {
   }
 
   const esc = (s) => sanitizeText(s);
-  const ago = (d) => DT_FORMAT.timeAgo(d);
 
-  const vehHtml = vehRows.length ? `
-    <div class="records-search-section">
-      <div class="records-section-label">${vehRows.length} VIN${vehRows.length === 1 ? "" : "s"} in inventory</div>
-      ${vehRows.map(v => {
-        const statusDisp = v.current_status === "OTHER" && v.current_status_other
-          ? `OTHER: ${v.current_status_other}`
-          : statusLabel(v.current_status);
-        const destDisp = locationLabel(v.current_destination, v.current_destination_other, v.section_name);
-        const vd = v.vin_data || {};
-        const vehName = [vd.year, vd.make, vd.model].filter(Boolean).join(" ");
-        const pin = (Number.isFinite(v.last_lat) && Number.isFinite(v.last_lng))
-          ? ` · <a href="https://www.google.com/maps?q=${v.last_lat},${v.last_lng}" target="_blank" rel="noopener" class="vin-tl-gps" onclick="event.stopPropagation()"><svg class="ico-pin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12 22s-7-7.58-7-13a7 7 0 0 1 14 0c0 5.42-7 13-7 13zM12 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg></a>` : "";
-        const statusPill = v.current_status
-          ? `<span class="record-status ${statusClass(v.current_status)}">${esc(statusDisp)}</span>`
-          : "";
-        return `
-          <div class="vin-detail-row vin-inv-row" data-vin="${esc(v.serial_id)}">
-            <div>
-              <div class="vin-detail-vin">${esc(v.serial_id)}</div>
-              <div class="vin-detail-sub">
-                ${statusPill}${destDisp ? ` · ${esc(destDisp)}` : ""}
-                ${vehName ? ` · ${esc(vehName)}` : ""}
-                · ${esc(ago(v.last_seen_at || v.entered_inventory_at))}${pin}
-              </div>
-            </div>
-          </div>`;
-      }).join("")}
-    </div>` : "";
-
-  const recHtml = cards.length
-    ? `<div class="records-search-section"><div class="records-section-label">${cards.length} record${cards.length === 1 ? "" : "s"}</div>${cards.map(r => recordCard(r, "deleteRecord")).join("")}</div>`
-    : "";
-
-  container.innerHTML = vehHtml + recHtml;
-  const totalResults = vehRows.length + cards.length;
-  if (countEl) countEl.textContent = `${totalResults} result${totalResults === 1 ? "" : "s"}`;
-
-  // Tap an inventory row → open that VIN's full timeline
-  container.querySelectorAll(".vin-inv-row").forEach(row => {
-    row.style.cursor = "pointer";
-    row.addEventListener("click", () => {
-      document.getElementById("fSearch").value = row.dataset.vin;
-      renderVinTimeline(row.dataset.vin.toUpperCase());
-    });
-  });
+  // #records carries the matching entries only. The inventory VINs are already
+  // listed — deduped across vehicles + records, with the same tap-through — by
+  // renderVinDetailList below, so repeating them here just showed the same VIN
+  // list twice on one screen.
+  container.innerHTML = cards.length
+    ? `<div class="records-search-section"><div class="records-section-label">${cards.length} entr${cards.length === 1 ? "y" : "ies"}</div>${cards.map(r => recordCard(r, "deleteRecord", `openFuzzyRecord('${r.id}')`)).join("")}</div>`
+    : `<p class="records-prompt">No entries match &ldquo;${esc(term)}&rdquo;.</p>`;
 
   // Map: latest GPS per VIN, capped to 25 by recency
   const pins = [];
@@ -2951,7 +3152,8 @@ async function renderFuzzyResults(term) {
       vin: v.serial_id, ts: v.last_seen_at || null, vehicle: vehName,
       status: v.current_status, statusOther: v.current_status_other,
       destination: v.current_destination, destinationOther: v.current_destination_other,
-      lat: v.last_lat, lng: v.last_lng
+      lat: v.last_lat, lng: v.last_lng,
+      plate: v.plate || "", plateState: v.plate_state || "", sipp: v.sipp || ""
     });
   });
   cards.forEach(c => {
@@ -2964,6 +3166,12 @@ async function renderFuzzyResults(term) {
     });
   });
   renderVinDetailList(vinItems);
+
+  const vinCount = new Set(vinItems.map(i => String(i.vin || "").toUpperCase())).size;
+  if (countEl) {
+    countEl.textContent =
+      `${vinCount} VIN${vinCount === 1 ? "" : "s"} · ${cards.length} entr${cards.length === 1 ? "y" : "ies"}`;
+  }
 }
 
 // Drop markers on the records map for an arbitrary list. Used by the
@@ -3469,8 +3677,12 @@ async function renderVinTimeline(vin, opts) {
   const hasAggDamage = aggDamageMarks.length > 0 || aggClaimNum;
   const hasAggTire = Object.keys(aggTireDetails).length > 0 || aggLegacyTires.length > 0;
   const aggDamageCount = aggDamageMarks.length;
-  const aggTireFlagged = DT_DAMAGE
-    ? DT_DAMAGE.TIRE_POSITIONS.filter(pos => {
+  // window.-qualified on purpose: damage.js early-returns when DT_AUTH is
+  // missing, so the global may never be declared — a bare DT_DAMAGE would be a
+  // ReferenceError here, not a falsy check. eslint can't catch it either, since
+  // DT_DAMAGE is in the appGlobals list.
+  const aggTireFlagged = window.DT_DAMAGE
+    ? window.DT_DAMAGE.TIRE_POSITIONS.filter(pos => {
         const t = aggTireDetails[pos];
         return (t && t.condition && t.condition !== "OK") || aggLegacyTires.includes(pos);
       }).length
@@ -3500,6 +3712,9 @@ async function renderVinTimeline(vin, opts) {
       </div>
       <div class="vin-tl-vin">${esc(vin)}</div>
       ${headerVehicle}
+      <!-- Plate / state / SIPP. Filled in by vehicle-info.js after render;
+           stays empty when the VIN has none on file and the module is absent. -->
+      <div id="vinTlVehicleInfo" class="vin-id-mount"></div>
       <div class="vin-tl-count">${events.length} event${events.length === 1 ? "" : "s"}</div>
       ${fuelGauge}
       <div id="vinTlRecalls" class="vin-tl-recalls" hidden></div>
@@ -3513,6 +3728,9 @@ async function renderVinTimeline(vin, opts) {
     <div class="vin-tl-list">${html}</div>
     ${pagerHtml}
   `;
+  // Plate / state / SIPP live on `vehicles`, not on any record — fetched and
+  // mounted separately so a slow round-trip doesn't hold up the timeline.
+  window.DT_VEHICLE_INFO?.mount(container.querySelector("#vinTlVehicleInfo"), vin);
   if (window.DT_DAMAGE) {
     if (hasAggDamage) {
       DT_DAMAGE.renderDamageViewer(document.getElementById("vinTlDamageMount"), {
@@ -3610,20 +3828,28 @@ function openDetail(id, onDelete) {
   `;
 
 
-  // Vehicle info
-  const vinSection = document.getElementById("detailVinSection");
+  // Vehicle info. The old #detailVinSection wrapper is gone — the block was
+  // restructured so the serial number lives inside it, which means hiding the
+  // whole thing would take the serial with it. Clear the decoded fields
+  // instead and leave the section standing.
+  const vinIcon = document.getElementById("detailVinIcon");
   if (r.vinData) {
     const name = [r.vinData.year, r.vinData.make, r.vinData.model].filter(Boolean).map(sanitizeText).join(" ");
     const trim = sanitizeText(r.vinData.trim || "");
     const specs = [r.vinData.bodyClass, r.vinData.engine, r.vinData.fuelType].filter(Boolean).map(sanitizeText).join("  ·  ");
     const icons = getVehicleSVG({...r.vinData, _size: 72});
-    document.getElementById("detailVinIcon").innerHTML = icons.vehicle + icons.fuel;
+    vinIcon.innerHTML = icons.vehicle + icons.fuel;
     document.getElementById("detailVinName").textContent = name + (trim ? "  " + trim : "");
     document.getElementById("detailVinSpecs").textContent = specs;
-    vinSection.style.display = "flex";
   } else {
-    vinSection.style.display = "none";
+    vinIcon.innerHTML = "";
+    document.getElementById("detailVinName").textContent = "";
+    document.getElementById("detailVinSpecs").textContent = "";
   }
+
+  // Plate / state / SIPP — fetched and mounted separately from records data,
+  // same as the VIN HISTORY header and New Entry form (vehicle-info.js).
+  window.DT_VEHICLE_INFO?.mount(document.getElementById("detailVehicleInfo"), r.serialId);
 
   // Tires row
   const tiresRow = document.getElementById("detailTiresRow");
@@ -3703,6 +3929,12 @@ function closeDetail() {
     mapDiv._leaflet_map = null;
   }
   if (mapDiv) mapDiv.innerHTML = "";
+  // #detailVehicleInfo is a persistent node reused across every open() call
+  // (unlike the VIN timeline's mount, which is rebuilt fresh each render) —
+  // clear it so the next record's detail doesn't flash the previous
+  // vehicle's plate/SIPP while its own lookup is still in flight.
+  const vehicleInfoEl = document.getElementById("detailVehicleInfo");
+  if (vehicleInfoEl) vehicleInfoEl.innerHTML = "";
 }
 
 // ============================
@@ -4240,6 +4472,10 @@ function renderVinDetailList(items) {
       }
     }
     if (!cur.vehicle && it.vehicle) cur.vehicle = it.vehicle;
+    // Plate / SIPP come off the vehicles row, so only some events carry them.
+    // Whichever event has them wins regardless of recency — they're per-VIN.
+    if (it.plate) { cur.plate = it.plate; cur.plateState = it.plateState || ""; }
+    if (it.sipp) cur.sipp = it.sipp;
     seen.set(key, cur);
   });
   const rows = Array.from(seen.values()).sort((a, b) => b.last - a.last);
@@ -4265,10 +4501,17 @@ function renderVinDetailList(items) {
       destDisp ? esc(destDisp) : "",
       r.last ? esc(ago(r.last)) : ""
     ].filter(Boolean).join(" · ");
+    const plateTag = r.plate
+      ? `<span class="vin-detail-plate">${esc(r.plate)}${r.plateState ? `<span class="vin-detail-plate-state">${esc(r.plateState)}</span>` : ""}</span>`
+      : "";
+    const sippTag = r.sipp ? `<span class="vin-detail-sipp">${esc(r.sipp)}</span>` : "";
+    const idTags = (plateTag || sippTag)
+      ? `<div class="vin-detail-tags">${plateTag}${sippTag}</div>` : "";
     return `
       <div class="vin-detail-row" data-vin="${esc(r.vin)}">
         <div class="vin-detail-main">
           <div class="vin-detail-vin">${esc(r.vin)}</div>
+          ${idTags}
           ${subParts ? `<div class="vin-detail-sub">${subParts}</div>` : ""}
         </div>
         <div class="vin-detail-side">
@@ -4294,14 +4537,13 @@ function openInlineNewEntry(vin) {
     slot.innerHTML = `<div class="vin-tl-entry-close-row"><button type="button" class="btn btn-destructive" onclick="restoreInlineNewEntry()">Close</button></div>`;
     slot.appendChild(body);
   }
-  // Prefill VIN and make sure the manual-entry section is visible so the
-  // serial field can be edited without forcing the user to tap "Enter Manually".
+  // Prefill VIN; the serial field is always visible so it can be edited in place.
   const serial = document.getElementById("serial");
   if (serial) serial.value = vin || "";
   const manualSection = document.getElementById("manualEntrySection");
   if (manualSection) manualSection.style.display = "";
-  // The scan + manual-toggle buttons aren't useful inline — VIN is already
-  // known. Hide them while the form lives in the VIN history view.
+  // The scan button isn't useful inline — VIN is already known. Hide it while
+  // the form lives in the VIN history view.
   const headerBtns = document.getElementById("entryHeaderButtons");
   if (headerBtns) headerBtns.style.display = "none";
   if (typeof toggleClearBtn === "function") toggleClearBtn();
@@ -4822,9 +5064,110 @@ let lastCandidate = null;       // for double-confirm on 1D reads
 let lastCandidateAt = 0;
 let hardModeTimer = null;       // delayed TRY_HARDER fallback (ZXing path)
 let hardModeOn = false;
+let scannerSession = 0;         // bumped per open; guards the deferred close
+
+// Opening the camera is the slowest part of starting a scan, and lot work is
+// bursty — you scan a car, close, walk two spaces, scan the next. These two
+// caches remove the acquisition from that second open.
+//
+//   warmStream    a still-live stream held briefly AFTER the scanner closes.
+//   prewarmPromise  an acquisition started on pointerdown of a scan button,
+//                   i.e. before the tap has even become a click.
+//
+// Both are strictly short-lived: the camera must never be running while the
+// user thinks the scanner is shut. Anything that isn't claimed in time is
+// stopped, and backgrounding the app drops both immediately.
+const WARM_STREAM_MS = 4000;    // how long a closed scanner's stream is held
+const PREWARM_MAX_MS = 3000;    // how long an unclaimed pointerdown warm-up lives
+let warmStream = null;
+let warmStreamTimer = null;
+let prewarmPromise = null;
+let prewarmTimer = null;
+
+function stopStream(stream) {
+  if (!stream) return;
+  try { stream.getTracks().forEach(t => t.stop()); } catch(e) {}
+}
+
+function streamIsLive(stream) {
+  if (!stream) return false;
+  const t = stream.getVideoTracks()[0];
+  return !!t && t.readyState === "live";
+}
+
+// Hold a just-closed stream for WARM_STREAM_MS, then let it go.
+function parkWarmStream(stream) {
+  releaseWarmStream();
+  if (!streamIsLive(stream)) { stopStream(stream); return; }
+  warmStream = stream;
+  warmStreamTimer = setTimeout(releaseWarmStream, WARM_STREAM_MS);
+}
+
+// Claim the parked stream if it's still good. Returns null if there isn't one.
+function takeWarmStream() {
+  const s = warmStream;
+  warmStream = null;
+  if (warmStreamTimer) { clearTimeout(warmStreamTimer); warmStreamTimer = null; }
+  if (!s) return null;
+  if (!streamIsLive(s)) { stopStream(s); return null; }
+  return s;
+}
+
+function releaseWarmStream() {
+  if (warmStreamTimer) { clearTimeout(warmStreamTimer); warmStreamTimer = null; }
+  if (warmStream) { stopStream(warmStream); warmStream = null; }
+}
+
+// Start acquiring on pointerdown, so the camera is already opening while the
+// tap resolves into a click and the overlay animates in. A tap that turns out
+// to be a scroll never opens the scanner, so an unclaimed warm-up is dropped.
+function prewarmCamera() {
+  if (scannerActive || prewarmPromise || warmStream) return;
+  prewarmPromise = startCameraStream().then(s => s, () => null);
+  const p = prewarmPromise;
+  prewarmTimer = setTimeout(() => {
+    prewarmTimer = null;
+    if (prewarmPromise !== p) return; // already claimed by openScanner
+    prewarmPromise = null;
+    p.then(s => stopStream(s));
+  }, PREWARM_MAX_MS);
+}
+
+function cancelPrewarm() {
+  if (prewarmTimer) { clearTimeout(prewarmTimer); prewarmTimer = null; }
+  const p = prewarmPromise;
+  prewarmPromise = null;
+  if (p) p.then(s => stopStream(s));
+}
+
+// The stream openScanner() actually uses: a pointerdown warm-up if one is in
+// flight, else a parked stream, else a fresh acquisition.
+async function claimCameraStream() {
+  if (prewarmPromise) {
+    const p = prewarmPromise;
+    prewarmPromise = null;
+    if (prewarmTimer) { clearTimeout(prewarmTimer); prewarmTimer = null; }
+    const s = await p;
+    if (streamIsLive(s)) return s;
+    stopStream(s);
+  }
+  return startCameraStream();
+}
+
+// Every scan entry point is an element whose onclick calls openScanner (or
+// openScannerForSearch), so one delegated listener covers all of them and any
+// added later — no markup changes, and none to forget.
+document.addEventListener("pointerdown", (e) => {
+  const t = e.target && e.target.closest && e.target.closest('[onclick*="openScanner"]');
+  if (t) prewarmCamera();
+}, { passive: true });
 
 // --- Tuning ---
-const DECODE_THROTTLE_MS = 80;         // min ms between native-path decode attempts
+// No artificial floor between native-path decode attempts. The loop is paced
+// by the camera itself (one tick per new frame, see scheduleFrame) and each
+// tick awaits detect(), so it self-throttles; the old 80ms floor just capped
+// us at ~12 attempts/sec when the device could comfortably do 30.
+const DECODE_THROTTLE_MS = 0;          // min ms between native-path decode attempts
 const CONFIRM_WINDOW_MS = 800;         // 1D codes must repeat within this window (default)
 const HARD_MODE_DELAY_MS = 700;        // wait this long before flipping ZXing to TRY_HARDER
 const TARGET_WIDTH = 1280;             // camera width (sweet spot for speed vs. distance)
@@ -4842,12 +5185,21 @@ const IS_IOS = isIOS();
 const IOS_TARGET_WIDTH = 1280;
 const IOS_TARGET_HEIGHT = 720;
 const IOS_CONFIRM_WINDOW_MS = 500;
-const ROI_DECODE_INTERVAL_MS = 90;     // ZXing ROI decode tick on iOS path
+// ZXing decode cost scales with pixel count, so the full-frame sweep runs on a
+// downscaled copy. 800px across still resolves the bar widths on a lot tag held
+// at arm's length, at ~40% of the work of a full 1280px frame.
+const DECODE_MAX_WIDTH = 800;
+// How long the overlay stays up after a successful read, showing the decoded
+// value. The green flash is a 0.4s animation and the beep/haptic fire on the
+// spot, so the confirmation has already registered well before this elapses.
+const SCAN_CONFIRM_HOLD_MS = 300;
 
 let confirmWindowMs = IS_IOS ? IOS_CONFIRM_WINDOW_MS : CONFIRM_WINDOW_MS;
-let zxingRoiLoopId = null;             // RAF id for the iOS ROI decode loop
-let zxingRoiCanvas = null;
-let zxingRoiCtx = null;
+let zxingRoiLoopId = null;             // frame handle for the iOS decode loop
+let zxingFullCanvas = null;            // downscaled whole-frame pass
+let zxingFullCtx = null;
+let zxingBandCanvas = null;            // native-resolution centre strip pass
+let zxingBandCtx = null;
 
 // Scanner escalation: when a scan is taking too long, progressively offer help
 // rather than auto-closing silently. Hard cap at the end protects battery.
@@ -4862,6 +5214,44 @@ const ROI = { xPct: 0.04, yPct: 0.33, wPct: 0.92, hPct: 0.34 };
 // Formats we accept. 1D = the actual lot tags. 2D = VIN-bearing codes.
 const ALLOWED_1D = new Set(["code_39", "code_128"]);
 const ALLOWED_2D = new Set(["qr_code", "data_matrix", "pdf417", "aztec"]);
+
+// ---------- Frame scheduling ----------
+
+// Decode loops want one tick per NEW camera frame. requestAnimationFrame fires
+// at display rate (60Hz+), so at a 30fps capture rate half its ticks decode a
+// frame we already looked at — pure waste on the expensive ZXing path.
+// requestVideoFrameCallback fires exactly once per delivered frame instead.
+// We still arm a slow timer alongside it: rVFC stops firing if the track
+// stalls, and the loop must not die silently when that happens.
+const FRAME_STALL_MS = 250;
+
+function scheduleFrame(video, fn) {
+  const handle = { done: false };
+  const run = (ts) => {
+    if (handle.done) return;
+    handle.done = true;
+    fn(typeof ts === "number" ? ts : performance.now());
+  };
+  if (video && typeof video.requestVideoFrameCallback === "function") {
+    try {
+      handle.rvfc = video.requestVideoFrameCallback(() => run());
+      handle.timer = setTimeout(run, FRAME_STALL_MS);
+      return handle;
+    } catch (e) { /* fall through to rAF */ }
+  }
+  handle.raf = requestAnimationFrame(run);
+  return handle;
+}
+
+function cancelFrame(video, handle) {
+  if (!handle) return;
+  handle.done = true;
+  if (handle.rvfc != null && video && typeof video.cancelVideoFrameCallback === "function") {
+    try { video.cancelVideoFrameCallback(handle.rvfc); } catch(e) {}
+  }
+  if (handle.timer != null) clearTimeout(handle.timer);
+  if (handle.raf != null) cancelAnimationFrame(handle.raf);
+}
 
 // Reuse a single AudioContext across scans. iOS Safari caps live contexts at
 // ~4-6; allocating one per beep silently kills audio (and slows the page) after
@@ -4930,6 +5320,20 @@ function acceptScanResult(rawText, is2D) {
     finalCode = cleaned;
   }
 
+  // Accepted. The close below is deferred, so pin it to this scanner session:
+  // reopening the overlay inside the confirmation window must not be torn down
+  // by the previous scan's timer.
+  const session = scannerSession;
+  const closeSoon = () => setTimeout(() => {
+    if (scannerSession === session) closeScanner();
+  }, SCAN_CONFIRM_HOLD_MS);
+
+  // Stop both decode loops and the escalation hints immediately —
+  // closeScanner() is still a few hundred ms out (the flash/beep confirmation),
+  // and there's no reason to keep decoding frames, or to let a 2D code fire a
+  // second time, during that window.
+  scannerActive = false;
+
   const flash = document.getElementById("scannerFlash");
   if (flash) {
     flash.classList.remove("flash");
@@ -4951,23 +5355,179 @@ function acceptScanResult(rawText, is2D) {
       fs.dispatchEvent(new Event("input", { bubbles: true }));
     }
     scanTarget = "entry"; // one-shot; reset for next time
-    setTimeout(() => closeScanner(), 600);
+    closeSoon();
     return true;
   }
 
-  document.getElementById("serial").value = finalCode;
-  toggleClearBtn();
-  updateVinCount();
-  showManualEntry();
-  // Let other modules (detailer.js, etc.) react to a successful scan
-  document.dispatchEvent(new CustomEvent("dt-vin-scanned", { detail: finalCode }));
-  setTimeout(() => closeScanner(), 600);
+  applyEntryVin(finalCode);
+  closeSoon();
   return true;
 }
 
+// Populate the entry form's Serial ID field with a resolved VIN and run the
+// same follow-up a successful scan does (clear-btn state, VIN char count,
+// reveal manual entry, notify other modules). Shared by the barcode scanner
+// (acceptScanResult above) and the plate lookup modal (selectPlateLookupResult).
+function applyEntryVin(vin) {
+  document.getElementById("serial").value = vin;
+  toggleClearBtn();
+  updateVinCount();
+  showManualEntry();
+  // Let other modules (detailer.js, etc.) react to a successful scan/lookup
+  document.dispatchEvent(new CustomEvent("dt-vin-scanned", { detail: vin }));
+}
+
+// ============================
+// PLATE LOOKUP (New Entry form)
+// ============================
+// Alternative to SCAN BARCODE when the windshield tag is missing or
+// unreadable but the plate is visible. Queries vehicles.plate (see
+// vehicle-plate-sipp-schema.sql) the same way the RECORDS search box does
+// (app.js renderFuzzyResults), then feeds the resolved VIN through
+// applyEntryVin() exactly like a successful scan.
+
+function openPlateLookup() {
+  const modal = document.getElementById("plateLookupModal");
+  const input = document.getElementById("plateLookupInput");
+  const results = document.getElementById("plateLookupResults");
+  if (!modal || !input) return;
+  input.value = "";
+  if (results) { results.classList.add("u-hidden"); results.innerHTML = ""; }
+  DT_UI.setMessage(document.getElementById("plateLookupModalMsg"), "");
+  modal.classList.add("show");
+  modal.setAttribute("aria-hidden", "false");
+  setTimeout(() => input.focus(), 50);
+}
+
+function closePlateLookup() {
+  const modal = document.getElementById("plateLookupModal");
+  if (!modal) return;
+  modal.classList.remove("show");
+  modal.setAttribute("aria-hidden", "true");
+  DT_UI.setMessage(document.getElementById("plateLookupModalMsg"), "");
+}
+
+// One row per candidate when a plate matches more than one vehicle. Mirrors
+// vehicle-info.js's plateGroupHtml() state-prefix treatment for visual
+// consistency with the plate badge shown elsewhere.
+function plateLookupRowHtml(v) {
+  const statePrefix = v.plate_state ? `<span class="vin-id-plate-state">${DT_ESC(v.plate_state)}</span>-` : "";
+  const desc = [v.vin_data?.year, v.vin_data?.make, v.vin_data?.model].filter(Boolean).join(" ");
+  return `
+    <button type="button" class="plate-lookup-row" data-vin="${DT_ESC(v.serial_id)}">
+      <span class="plate-lookup-row-plate">${statePrefix}${DT_ESC(v.plate)}</span>
+      <span class="plate-lookup-row-meta">${DT_ESC(v.serial_id)}${desc ? ` · ${DT_ESC(desc)}` : ""}</span>
+    </button>`;
+}
+
+function selectPlateLookupResult(vin) {
+  applyEntryVin(vin);
+  closePlateLookup();
+  DT_TOAST.show(`Loaded ${vin} from plate lookup`, "success");
+}
+
+async function onPlateLookupSubmit(e) {
+  e.preventDefault();
+  const input = document.getElementById("plateLookupInput");
+  const msg = document.getElementById("plateLookupModalMsg");
+  const results = document.getElementById("plateLookupResults");
+  const submitBtn = document.getElementById("plateLookupModalSubmit");
+  if (!input) return;
+
+  const normalize = window.DT_VEHICLE_INFO?.normalizePlate
+    || ((s) => sanitizeSerial(String(s || "").toUpperCase().replace(/\s+/g, "")).slice(0, 10));
+  const plateVal = normalize(input.value);
+  if (!plateVal) {
+    DT_UI.setMessage(msg, "Enter a plate.", "err");
+    return;
+  }
+
+  submitBtn.disabled = true;
+  DT_UI.setMessage(msg, "Looking up…", "ok");
+  if (results) { results.classList.add("u-hidden"); results.innerHTML = ""; }
+
+  const { data, error } = await DT_AUTH.client
+    .from("vehicles")
+    .select("serial_id,plate,plate_state,vin_data")
+    .ilike("plate", `%${plateVal}%`)
+    .limit(10);
+
+  submitBtn.disabled = false;
+
+  if (error) {
+    // 42703 = undefined_column — vehicle-plate-sipp-schema.sql hasn't been run.
+    if (error.code === "42703") {
+      DT_UI.setMessage(msg, "Plate lookup isn't set up on this database yet.", "err");
+      return;
+    }
+    DT_UI.setMessage(msg, error.message || "Lookup failed", "err");
+    return;
+  }
+  if (!data || !data.length) {
+    DT_UI.setMessage(msg, `No vehicle found for plate ${plateVal}.`, "err");
+    return;
+  }
+  if (data.length === 1) {
+    selectPlateLookupResult(data[0].serial_id);
+    return;
+  }
+  // A substring match can legitimately hit more than one vehicle (the same
+  // plate on file in two states, or one plate's digits inside another's) —
+  // let the driver pick instead of guessing.
+  DT_UI.setMessage(msg, `${data.length} vehicles match ${plateVal} — pick one:`, "ok");
+  if (results) {
+    results.innerHTML = data.map(plateLookupRowHtml).join("");
+    results.classList.remove("u-hidden");
+  }
+}
+
+function onPlateLookupResultsClick(e) {
+  const btn = e.target.closest(".plate-lookup-row");
+  if (!btn) return;
+  const vin = btn.dataset.vin;
+  if (vin) selectPlateLookupResult(vin);
+}
+
+function initPlateLookup() {
+  document.getElementById("plateLookupModalClose")?.addEventListener("click", closePlateLookup);
+  document.getElementById("plateLookupModalCancel")?.addEventListener("click", closePlateLookup);
+  document.getElementById("plateLookupModal")?.addEventListener("click", (e) => {
+    if (e.target.id === "plateLookupModal") closePlateLookup();
+  });
+  document.getElementById("plateLookupForm")?.addEventListener("submit", onPlateLookupSubmit);
+  document.getElementById("plateLookupResults")?.addEventListener("click", onPlateLookupResultsClick);
+  // Uppercase as they type — plates are stored and matched uppercase (mirrors
+  // vehicle-info.js's #vehicleInfoForm plate input).
+  document.getElementById("plateLookupInput")?.addEventListener("input", (e) => {
+    const pos = e.target.selectionStart;
+    const normalize = window.DT_VEHICLE_INFO?.normalizePlate || ((s) => String(s || "").toUpperCase());
+    e.target.value = normalize(e.target.value);
+    try { e.target.setSelectionRange(pos, pos); } catch (_) {}
+  });
+}
+document.addEventListener("DOMContentLoaded", initPlateLookup);
+
 // ---------- Camera setup ----------
 
-async function pickIOSBackCameraDeviceId() {
+// Resolving the iPhone back camera is the single most expensive part of
+// opening the scanner: labels are blank until permission has been granted, so
+// it takes a throw-away getUserMedia to unlock enumerateDevices(), and then a
+// SECOND getUserMedia to actually open the camera we picked — roughly a second
+// of dead time before the first frame arrives. The camera list doesn't change
+// between scans, so resolve it once and cache the id.
+const IOS_CAM_KEY = "dt_scanner_cam_id";
+let iosCamDeviceId = null;
+try { iosCamDeviceId = localStorage.getItem(IOS_CAM_KEY) || null; } catch(e) {}
+
+function rememberIOSCamera(id) {
+  iosCamDeviceId = id || null;
+  try {
+    if (id) localStorage.setItem(IOS_CAM_KEY, id);
+    else localStorage.removeItem(IOS_CAM_KEY);
+  } catch(e) {}
+}
+
+async function pickIOSBackCamera() {
   // iPhone exposes labels like:
   //   "Back Camera"           (the standard 1× wide — what we want)
   //   "Back Dual Camera"      (wide + telephoto composite — also OK)
@@ -4975,38 +5535,71 @@ async function pickIOSBackCameraDeviceId() {
   //   "Back Ultra Wide Camera" (0.5× — softer, bad close-focus → avoid)
   //   "Back Telephoto Camera" (zoomed in — bad close-focus → avoid)
   // We pick the first plain/dual/triple, never the ultra-wide or telephoto.
+  //
+  // Returns { deviceId, stream }. `stream` is the priming stream when it
+  // already happens to be on the camera we picked, so the caller can skip the
+  // second acquisition entirely.
+  if (iosCamDeviceId) return { deviceId: iosCamDeviceId, stream: null };
   try {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return null;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+      return { deviceId: null, stream: null };
+    }
     // Labels are blank until permission is granted at least once. Trigger a
-    // throw-away getUserMedia first to unlock the labels.
+    // throw-away getUserMedia first to unlock the labels — asking for the
+    // resolution we actually want, so this stream is reusable as-is.
     let primed = null;
     try {
-      primed = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
+      primed = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: IOS_TARGET_WIDTH },
+          height: { ideal: IOS_TARGET_HEIGHT }
+        }
+      });
     } catch(e) {}
     const devices = await navigator.mediaDevices.enumerateDevices();
-    if (primed) { try { primed.getTracks().forEach(t => t.stop()); } catch(e) {} }
 
     const cams = devices.filter(d => d.kind === "videoinput");
     const isBad = (label) => /ultra ?wide|telephoto/i.test(label);
     const isPreferred = (label) => /back/i.test(label) && !isBad(label);
     const preferred = cams.find(c => isPreferred(c.label));
-    if (preferred) return preferred.deviceId;
     // Fallback: any non-bad back camera; else first back camera; else first.
     const anyBack = cams.find(c => /back|rear|environment/i.test(c.label) && !isBad(c.label));
-    return (anyBack || cams[0] || null)?.deviceId || null;
+    const chosen = (preferred || anyBack || cams[0] || null)?.deviceId || null;
+    if (chosen) rememberIOSCamera(chosen);
+
+    if (primed) {
+      let primedId = null;
+      try { primedId = primed.getVideoTracks()[0].getSettings().deviceId || null; } catch(e) {}
+      // Already pointed at the camera we want — keep it instead of paying for
+      // a stop + reopen round trip.
+      if (chosen && primedId === chosen) return { deviceId: chosen, stream: primed };
+      try { primed.getTracks().forEach(t => t.stop()); } catch(e) {}
+    }
+    return { deviceId: chosen, stream: null };
   } catch (e) {
-    return null;
+    return { deviceId: null, stream: null };
   }
 }
 
 async function startCameraStream() {
+  // A stream parked by a recent close is already open and focused — by far the
+  // cheapest way to start a scan.
+  const warm = takeWarmStream();
+  if (warm) return warm;
+
   const targetW = IS_IOS ? IOS_TARGET_WIDTH : TARGET_WIDTH;
   const targetH = IS_IOS ? IOS_TARGET_HEIGHT : TARGET_HEIGHT;
 
   // On iOS, try to lock to the 1× wide back camera. iPhone's "facingMode: environment"
   // often picks the ultrawide which softens the image and ruins close-focus on barcodes.
   let deviceId = null;
-  if (IS_IOS) deviceId = await pickIOSBackCameraDeviceId();
+  if (IS_IOS) {
+    const picked = await pickIOSBackCamera();
+    if (picked.stream) return picked.stream; // already the camera we want
+    deviceId = picked.deviceId;
+  }
 
   const videoConstraints = deviceId
     ? { deviceId: { exact: deviceId }, width: { ideal: targetW }, height: { ideal: targetH }, focusMode: "continuous", advanced: [{ focusMode: "continuous" }] }
@@ -5015,6 +5608,10 @@ async function startCameraStream() {
   try {
     return await navigator.mediaDevices.getUserMedia({ audio: false, video: videoConstraints });
   } catch (e) {
+    // A cached id can go stale (external camera unplugged, iOS reshuffling
+    // ids across versions). Drop it so the next open re-resolves rather than
+    // failing into the slow path every single time.
+    if (deviceId) rememberIOSCamera(null);
     // Fallback 1: drop deviceId pinning (some iOS builds reject `exact`).
     try {
       return await navigator.mediaDevices.getUserMedia({
@@ -5036,10 +5633,13 @@ function attachStreamToVideo(stream) {
   video.srcObject = stream;
   video.setAttribute("playsinline", "true");
   video.muted = true;
-  return new Promise((resolve) => {
-    if (video.readyState >= 2) return resolve(video);
-    video.onloadedmetadata = () => resolve(video);
-  });
+  // Deliberately synchronous. Waiting on loadedmetadata and then on play() put
+  // two more round trips between the tap and the first decode attempt, and
+  // bought nothing: both decode loops already skip ticks until videoWidth is
+  // non-zero, so they can start now and pick up frames the moment they exist.
+  const played = video.play();
+  if (played && typeof played.catch === "function") played.catch(() => {});
+  return video;
 }
 
 // ---------- Native BarcodeDetector path ----------
@@ -5066,26 +5666,23 @@ async function runNativeDetector(video) {
     return false; // signal caller to try fallback
   }
 
-  // Prepare offscreen canvas sized to the ROI of the video.
+  // Offscreen canvas for the ROI crop. NOT willReadFrequently: we never call
+  // getImageData on it, we hand the canvas straight to detect(). Asking for a
+  // read-optimised (CPU-backed) canvas would force a software readback on every
+  // drawImage from the video and cost more than the crop saves.
   roiCanvas = document.createElement("canvas");
-  roiCtx = roiCanvas.getContext("2d", { willReadFrequently: true });
+  roiCtx = roiCanvas.getContext("2d", { alpha: false, desynchronized: true });
 
-  const tick = async () => {
-    if (!scannerActive) return;
-    const now = performance.now();
-    if (now - lastDecodeTime < DECODE_THROTTLE_MS) {
-      detectionLoopId = requestAnimationFrame(tick);
-      return;
-    }
-    lastDecodeTime = now;
+  // Whether detect() accepts the <video> element directly. When it does, the
+  // whole-frame pass is zero-copy — no canvas, no pixel round trip.
+  let videoSourceOk = true;
+  // Alternate the two passes so neither blind spot costs us a scan:
+  //   pass 0 — whole frame, so a code held outside the strip still reads;
+  //   pass 1 — the strip at native resolution, which is what the user aimed at
+  //            and is a fraction of the pixels of a full frame.
+  let pass = 0;
 
-    const vw = video.videoWidth, vh = video.videoHeight;
-    if (!vw || !vh) {
-      detectionLoopId = requestAnimationFrame(tick);
-      return;
-    }
-
-    // Crop ROI from the video frame so the detector only sees the scan strip.
+  const cropROI = (vw, vh) => {
     const sx = Math.floor(vw * ROI.xPct);
     const sy = Math.floor(vh * ROI.yPct);
     const sw = Math.floor(vw * ROI.wPct);
@@ -5094,15 +5691,36 @@ async function runNativeDetector(video) {
       roiCanvas.width = sw;
       roiCanvas.height = sh;
     }
-    try {
-      roiCtx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
-    } catch (e) {
-      detectionLoopId = requestAnimationFrame(tick);
+    roiCtx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+    return roiCanvas;
+  };
+
+  const tick = async () => {
+    if (!scannerActive) return;
+    const now = performance.now();
+    if (DECODE_THROTTLE_MS && now - lastDecodeTime < DECODE_THROTTLE_MS) {
+      detectionLoopId = scheduleFrame(video, tick);
+      return;
+    }
+    lastDecodeTime = now;
+
+    const vw = video.videoWidth, vh = video.videoHeight;
+    if (!vw || !vh) {
+      detectionLoopId = scheduleFrame(video, tick);
       return;
     }
 
+    let source = null;
     try {
-      const results = await detector.detect(roiCanvas);
+      source = (pass === 0 && videoSourceOk) ? video : cropROI(vw, vh);
+    } catch (e) {
+      detectionLoopId = scheduleFrame(video, tick);
+      return;
+    }
+    pass ^= 1;
+
+    try {
+      const results = await detector.detect(source);
       if (results && results.length && scannerActive) {
         // Pick the largest detected code (most likely the one user is aiming at).
         let best = results[0];
@@ -5121,31 +5739,61 @@ async function runNativeDetector(video) {
         }
       }
     } catch (e) {
-      // Detector hiccuped on this frame; keep going.
+      // A detector that rejects HTMLVideoElement throws every time, so stop
+      // offering it rather than burning the whole-frame pass on each tick.
+      if (source === video) videoSourceOk = false;
+      // Otherwise: detector hiccuped on this frame; keep going.
     }
 
-    detectionLoopId = requestAnimationFrame(tick);
+    detectionLoopId = scheduleFrame(video, tick);
   };
 
-  detectionLoopId = requestAnimationFrame(tick);
+  detectionLoopId = scheduleFrame(video, tick);
   return true;
 }
 
 // ---------- ZXing fallback path ----------
 
-function buildZxingHints(tryHarder) {
-  const hints = new Map();
-  // Restrict formats — this is the single biggest ZXing speed win.
-  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-    ZXing.BarcodeFormat.CODE_39,
-    ZXing.BarcodeFormat.CODE_128,
+// Every extra format is another full pass over the frame, so keep these tight.
+function zxingFormats(oneDOnly) {
+  const f = [ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.CODE_128];
+  if (oneDOnly) return f;
+  return f.concat([
     ZXing.BarcodeFormat.QR_CODE,
     ZXing.BarcodeFormat.DATA_MATRIX,
     ZXing.BarcodeFormat.PDF_417,
     ZXing.BarcodeFormat.AZTEC
   ]);
+}
+
+function buildZxingHints(tryHarder, oneDOnly) {
+  const hints = new Map();
+  // Restrict formats — this is the single biggest ZXing speed win.
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, zxingFormats(oneDOnly));
   if (tryHarder) hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
   return hints;
+}
+
+// True when a ZXing format is one of the 2D symbologies (which we only accept
+// when they carry a VIN).
+function zxingIs2D(fmt) {
+  return fmt === ZXing.BarcodeFormat.QR_CODE ||
+         fmt === ZXing.BarcodeFormat.DATA_MATRIX ||
+         fmt === ZXing.BarcodeFormat.AZTEC ||
+         fmt === ZXing.BarcodeFormat.PDF_417;
+}
+
+// One decode attempt against a prepared canvas. Returns a ZXing Result or null
+// (NotFoundException is the expected outcome on most ticks).
+function zxingDecodeCanvas(reader, canvas) {
+  try {
+    const luminance = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+    return reader.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance)));
+  } catch (e) {
+    return null;
+  } finally {
+    try { reader.reset(); } catch (_) {}
+  }
 }
 
 function runZxingFallback() {
@@ -5173,12 +5821,7 @@ function runZxingFallback() {
       const video = document.getElementById("scannerVideo");
       if (video.srcObject && !activeStream) activeStream = video.srcObject;
       if (result) {
-        const fmt = result.getBarcodeFormat();
-        const is2D = fmt === ZXing.BarcodeFormat.QR_CODE ||
-                     fmt === ZXing.BarcodeFormat.DATA_MATRIX ||
-                     fmt === ZXing.BarcodeFormat.AZTEC ||
-                     fmt === ZXing.BarcodeFormat.PDF_417;
-        acceptScanResult(result.getText(), is2D);
+        acceptScanResult(result.getText(), zxingIs2D(result.getBarcodeFormat()));
       }
     });
   };
@@ -5192,11 +5835,26 @@ function runZxingFallback() {
   }, HARD_MODE_DELAY_MS);
 }
 
-// iOS-tuned ZXing loop: TRY_HARDER from the start, ROI-cropped frames.
+// iOS-tuned ZXing loop: TRY_HARDER from the start, two complementary passes.
 // Uses ZXing's low-level primitives (HTMLCanvasElementLuminanceSource +
 // HybridBinarizer + MultiFormatReader.decode) instead of the high-level
 // BrowserCodeReader.decodeFromCanvas, which is missing in @zxing/library
 // 0.18.x. Returns true if the loop started.
+//
+// This is the slow path (Safari has no BarcodeDetector), so the pixel budget is
+// what decides how many decode attempts a second the user gets. Decoding a full
+// 1280x720 frame against all six formats — what this used to do every tick —
+// spends the entire budget on one attempt. Instead we alternate:
+//
+//   pass 0  whole frame, downscaled to DECODE_MAX_WIDTH, all formats.
+//           Catches a code held anywhere in view, ~40% of the pixels.
+//   pass 1  the centre strip at native resolution, 1D formats only.
+//           That band is the shape of a lot tag and is where the user is
+//           aiming; full detail, ~30% of the pixels, and no 2D detectors to
+//           run (pass 0 covers those).
+//
+// Together the two passes cost less than one old full-frame tick, so the
+// effective attempt rate roughly doubles while covering more geometries.
 function tryRunZxingWithROI() {
   try {
     const video = document.getElementById("scannerVideo");
@@ -5208,58 +5866,67 @@ function tryRunZxingWithROI() {
     }
 
     hardModeOn = true; // try-harder from tick 0 on iOS
-    const reader = new ZXing.MultiFormatReader();
-    reader.setHints(buildZxingHints(true));
+    const fullReader = new ZXing.MultiFormatReader();
+    fullReader.setHints(buildZxingHints(true, false));
+    const bandReader = new ZXing.MultiFormatReader();
+    bandReader.setHints(buildZxingHints(true, true));
 
-    if (!zxingRoiCanvas) {
-      zxingRoiCanvas = document.createElement("canvas");
-      zxingRoiCtx = zxingRoiCanvas.getContext("2d", { willReadFrequently: true });
+    // These canvases DO get read back (HTMLCanvasElementLuminanceSource calls
+    // getImageData), so willReadFrequently is the right hint here.
+    if (!zxingFullCanvas) {
+      zxingFullCanvas = document.createElement("canvas");
+      zxingFullCtx = zxingFullCanvas.getContext("2d", { willReadFrequently: true, alpha: false });
+    }
+    if (!zxingBandCanvas) {
+      zxingBandCanvas = document.createElement("canvas");
+      zxingBandCtx = zxingBandCanvas.getContext("2d", { willReadFrequently: true, alpha: false });
     }
 
-    let lastTick = 0;
+    const sizeTo = (canvas, w, h) => {
+      if (canvas.width !== w) canvas.width = w;
+      if (canvas.height !== h) canvas.height = h;
+    };
+
+    let pass = 0;
     let logged = false;
-    const tick = (ts) => {
+    const tick = () => {
       if (!scannerActive) return;
-      if (ts - lastTick >= ROI_DECODE_INTERVAL_MS && video.readyState >= 2) {
-        lastTick = ts;
-        const vw = video.videoWidth, vh = video.videoHeight;
-        if (vw && vh) {
-          // Use the FULL frame on iOS rather than a narrow strip: 1D codes
-          // are often held outside the center band, and ZXing's
-          // GlobalHistogramBinarizer (under HybridBinarizer) handles the
-          // larger image fine in TRY_HARDER mode.
-          if (zxingRoiCanvas.width !== vw) zxingRoiCanvas.width = vw;
-          if (zxingRoiCanvas.height !== vh) zxingRoiCanvas.height = vh;
-          zxingRoiCtx.drawImage(video, 0, 0, vw, vh);
+      const vw = video.videoWidth, vh = video.videoHeight;
+      if (video.readyState >= 2 && vw && vh) {
+        if (!logged) {
+          console.log("[Scanner] iOS decode loop running", { vw, vh });
+          logged = true;
+        }
 
-          if (!logged) {
-            console.log("[Scanner] iOS decode loop running", { vw, vh });
-            logged = true;
-          }
-
-          try {
-            const luminance = new ZXing.HTMLCanvasElementLuminanceSource(zxingRoiCanvas);
-            const bitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
-            const result = reader.decode(bitmap);
-            if (result) {
-              const fmt = result.getBarcodeFormat();
-              console.log("[Scanner] decoded", { fmt, text: result.getText() });
-              const is2D = fmt === ZXing.BarcodeFormat.QR_CODE ||
-                           fmt === ZXing.BarcodeFormat.DATA_MATRIX ||
-                           fmt === ZXing.BarcodeFormat.AZTEC ||
-                           fmt === ZXing.BarcodeFormat.PDF_417;
-              acceptScanResult(result.getText(), is2D);
-            }
-          } catch (e) {
-            // NotFoundException is expected on most ticks — ignore quietly.
-          } finally {
-            try { reader.reset(); } catch (_) {}
+        let result = null;
+        if (pass === 0) {
+          const scale = Math.min(1, DECODE_MAX_WIDTH / vw);
+          const dw = Math.max(1, Math.round(vw * scale));
+          const dh = Math.max(1, Math.round(vh * scale));
+          sizeTo(zxingFullCanvas, dw, dh);
+          zxingFullCtx.drawImage(video, 0, 0, dw, dh);
+          result = zxingDecodeCanvas(fullReader, zxingFullCanvas);
+        } else {
+          const sx = Math.floor(vw * ROI.xPct);
+          const sy = Math.floor(vh * ROI.yPct);
+          const sw = Math.floor(vw * ROI.wPct);
+          const sh = Math.floor(vh * ROI.hPct);
+          if (sw > 0 && sh > 0) {
+            sizeTo(zxingBandCanvas, sw, sh);
+            zxingBandCtx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+            result = zxingDecodeCanvas(bandReader, zxingBandCanvas);
           }
         }
+        pass ^= 1;
+
+        if (result) {
+          acceptScanResult(result.getText(), zxingIs2D(result.getBarcodeFormat()));
+          if (!scannerActive) return; // accepted — closeScanner tears the loop down
+        }
       }
-      zxingRoiLoopId = requestAnimationFrame(tick);
+      zxingRoiLoopId = scheduleFrame(video, tick);
     };
-    zxingRoiLoopId = requestAnimationFrame(tick);
+    zxingRoiLoopId = scheduleFrame(video, tick);
     return true;
   } catch (e) {
     console.warn("ROI ZXing loop failed to start:", e && e.message);
@@ -5338,7 +6005,9 @@ function openScannerManualEntry() {
   // If the scanner was opened from records search, return the user to that
   // input rather than the entry-tab serial field.
   const wasSearch = scanTarget === "search";
-  closeScanner(); // resets scanTarget
+  // Bailing to the keypad: the user is done with the camera, so release it
+  // rather than leaving it running behind the keyboard they're now typing on.
+  closeScanner({ keepWarm: false }); // resets scanTarget
   if (wasSearch) {
     const fs = document.getElementById("fSearch");
     if (fs) {
@@ -5401,18 +6070,16 @@ async function openScanner() {
 
   torchOn = false;
   scannerActive = true;
+  scannerSession++;
   lastDecodeTime = 0;
   lastCandidate = null;
   lastCandidateAt = 0;
   document.getElementById("torchBtn").classList.remove("on");
 
   try {
-    const stream = await startCameraStream();
+    const stream = await claimCameraStream();
     activeStream = stream;
-    const video = await attachStreamToVideo(stream);
-
-    // Some Androids need an explicit play() after metadata loads.
-    try { await video.play(); } catch(e) {}
+    const video = attachStreamToVideo(stream);
 
     hint.innerHTML = dotSvg + " Scanning...";
     startScannerEscalation();
@@ -5444,17 +6111,25 @@ async function openScanner() {
   }
 }
 
-function closeScanner() {
+// keepWarm:false tears the camera down outright. Used when the app is being
+// backgrounded, where holding the stream would leave the camera running behind
+// a screen the user has walked away from.
+function closeScanner(opts) {
+  const keepWarm = !(opts && opts.keepWarm === false);
+  // Read before the reset below clears it: a stream whose torch is lit must
+  // never be parked, or the flashlight stays on after the scanner disappears.
+  const torchWasOn = torchOn;
   scanTarget = "entry"; // never leak a one-shot search mode into the next session
   scannerActive = false;
   clearScannerEscalation();
 
+  const loopVideo = document.getElementById("scannerVideo");
   if (detectionLoopId) {
-    cancelAnimationFrame(detectionLoopId);
+    cancelFrame(loopVideo, detectionLoopId);
     detectionLoopId = null;
   }
   if (zxingRoiLoopId) {
-    cancelAnimationFrame(zxingRoiLoopId);
+    cancelFrame(loopVideo, zxingRoiLoopId);
     zxingRoiLoopId = null;
   }
   if (hardModeTimer) {
@@ -5469,7 +6144,11 @@ function closeScanner() {
     codeReader = null;
   }
   if (activeStream) {
-    activeStream.getTracks().forEach(t => t.stop());
+    // parkWarmStream stops anything that isn't still live, which also covers
+    // the non-iOS path where ZXing owns the stream and codeReader.reset()
+    // above has already ended its tracks.
+    if (keepWarm && !torchWasOn) parkWarmStream(activeStream);
+    else stopStream(activeStream);
     activeStream = null;
   }
   const video = document.getElementById("scannerVideo");
@@ -5490,13 +6169,20 @@ function closeScanner() {
 // a dead stream and the user would have to force-close the app to recover.
 // Tear down on hide so the next openScanner() acquires a fresh stream.
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "hidden" && scannerActive) {
-    try { closeScanner(); } catch(e) {}
+  if (document.visibilityState !== "hidden") return;
+  // Drop the warm/prewarm caches too — neither may outlive the app going to
+  // the background, whether or not the scanner itself was open.
+  try { releaseWarmStream(); } catch(e) {}
+  try { cancelPrewarm(); } catch(e) {}
+  if (scannerActive) {
+    try { closeScanner({ keepWarm: false }); } catch(e) {}
   }
 });
 window.addEventListener("pagehide", () => {
+  try { releaseWarmStream(); } catch(e) {}
+  try { cancelPrewarm(); } catch(e) {}
   if (scannerActive) {
-    try { closeScanner(); } catch(e) {}
+    try { closeScanner({ keepWarm: false }); } catch(e) {}
   }
 });
 
@@ -5853,9 +6539,23 @@ document.addEventListener("dt-vin-scanned", (e) => {
   }
   renderEntryCurrentState(vin);
 
+  // Plate / state / SIPP for this VIN — the same component the VIN HISTORY
+  // header mounts, so the driver can set them from the form they're already in.
+  const infoEl = document.getElementById("entryVehicleInfo");
+  if (infoEl) {
+    if (vin) window.DT_VEHICLE_INFO?.mount(infoEl, vin);
+    else infoEl.innerHTML = "";
+  }
+
   // Body damage + Tires collapsibles are now purely local form fields
   // driven by damage.js — no VIN-scoped side effects to run here.
 });
+
+// State backing the "Belongs in X" route hint (renderEntryRouteHint below) —
+// seeded from the scanned VIN's last known mileage / SIPP class, then
+// superseded the instant the driver types an actual mileage reading.
+let entryRouteMileageHint = null;
+let entryRouteSipp = "";
 
 // Render a read-only banner of the vehicle's current state (status, destination,
 // last mileage / fuel) under the scan area, and pre-fill the Destination select.
@@ -5863,7 +6563,12 @@ document.addEventListener("dt-vin-scanned", (e) => {
 async function renderEntryCurrentState(vin) {
   const el = document.getElementById("entryCurrentState");
   if (!el || !window.DT_AUTH) return;
-  if (!vin) { el.style.display = "none"; el.innerHTML = ""; return; }
+  if (!vin) {
+    el.style.display = "none"; el.innerHTML = "";
+    entryRouteMileageHint = null; entryRouteSipp = "";
+    renderEntryRouteHint();
+    return;
+  }
   el.style.display = "";
   el.classList.remove("is-empty");
   el.classList.remove("is-priority");
@@ -5875,7 +6580,7 @@ async function renderEntryCurrentState(vin) {
   // RLS may deny the records query for drivers when the matching rows belong
   // to other users — we surface that as "no history yet" rather than letting
   // the rejection break the page or noise up the console.
-  const [vehRes, latestRecRes, latestMF] = await Promise.all([
+  const [vehRes, latestRecRes, latestMF, vehicleInfo] = await Promise.all([
     sb.from("vehicles")
       .select("current_status,current_status_other,current_destination,current_destination_other,last_seen_at,vin_data,current_conditions,needs_new_tag")
       .eq("serial_id", vin).maybeSingle()
@@ -5887,7 +6592,11 @@ async function renderEntryCurrentState(vin) {
       .limit(1).maybeSingle()
       .then(r => r, () => ({ data: null })),
     (window.DT_MEDIA ? DT_MEDIA.getLatestMileageAndFuel(vin) : Promise.resolve({ mileage: null, fuel: null }))
-      ?.catch?.(() => ({ mileage: null, fuel: null }))
+      ?.catch?.(() => ({ mileage: null, fuel: null })),
+    // Shares vehicle-info.js's own cache, so this doesn't add a second
+    // in-flight query for the SIPP the #entryVehicleInfo chip is already fetching.
+    (window.DT_VEHICLE_INFO ? DT_VEHICLE_INFO.load(vin) : Promise.resolve(null))
+      ?.catch?.(() => null)
   ]);
   const v = vehRes?.data;
   const r = latestRecRes?.data;
@@ -5895,6 +6604,8 @@ async function renderEntryCurrentState(vin) {
   if (!hasHistory) {
     el.classList.add("is-empty");
     el.innerHTML = `<div class="ecs-label">Current state</div><div>New to inventory — no history yet.</div>`;
+    entryRouteMileageHint = null; entryRouteSipp = "";
+    renderEntryRouteHint();
     return;
   }
   const esc = (s) => sanitizeText(s);
@@ -5947,7 +6658,7 @@ async function renderEntryCurrentState(vin) {
   setSelectPlaceholderHint("destination", "-- LOCATION --", curDest
     ? (curDest === "OTHER" && curDestOther ? `OTHER: ${curDestOther}` : curDest)
     : "");
-  setInputPlaceholderHint("mileage", "optional", Number.isFinite(latestMF?.mileage)
+  setInputPlaceholderHint("mileage", "000000", Number.isFinite(latestMF?.mileage)
     ? latestMF.mileage.toLocaleString()
     : "");
   setSelectPlaceholderHint("fuelLevel",   "-- FUEL --",     latestMF?.fuel || "");
@@ -5963,7 +6674,37 @@ async function renderEntryCurrentState(vin) {
     const condCollapse = document.getElementById("entryConditionsCollapse");
     if (condCollapse) condCollapse.open = true;
   }
+
+  entryRouteMileageHint = Number.isFinite(latestMF?.mileage) ? latestMF.mileage : null;
+  entryRouteSipp = vehicleInfo?.sipp || "";
+  renderEntryRouteHint();
 }
+
+// "Belongs in X" nudge shown under the Mileage/Fuel row: mileage + SIPP class
+// routed against the Executive / Emerald / Enterprise-Alamo cutoffs, or the
+// Premiere/Wall split for a luxury-flagged class (see mileageRouteDestination).
+// Uses whatever mileage the driver has actually typed for this visit; falls
+// back to the vehicle's last known mileage (entryRouteMileageHint, seeded by
+// renderEntryCurrentState) until they do, flagged as such so it doesn't read
+// as a live reading.
+function renderEntryRouteHint() {
+  const el = document.getElementById("entryRouteHint");
+  if (!el) return;
+  const typedRaw = (document.getElementById("mileage")?.value || "").trim();
+  const typedVal = typedRaw ? parseInt(typedRaw, 10) : NaN;
+  const usingTyped = Number.isFinite(typedVal) && typedVal >= 0;
+  const mileage = usingTyped ? typedVal : entryRouteMileageHint;
+  const isCompact = window.DT_VEHICLE_INFO?.isCompact?.(entryRouteSipp) || false;
+  const isLuxury = window.DT_VEHICLE_INFO?.isLuxury?.(entryRouteSipp) || false;
+  const dest = mileageRouteDestination(mileage, isCompact, isLuxury);
+  if (!dest) { el.classList.add("u-hidden"); el.innerHTML = ""; return; }
+  const note = usingTyped ? "" : ` <span class="ern-note">(last known mileage)</span>`;
+  el.classList.remove("u-hidden");
+  el.innerHTML = `Belongs in <span class="ern-dest">${dest}</span>${note}`;
+}
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("mileage")?.addEventListener("input", renderEntryRouteHint);
+});
 
 // Replace the first option's label with the prior value when one exists,
 // otherwise restore the original default label.
@@ -5985,9 +6726,15 @@ function setInputPlaceholderHint(id, defaultPlaceholder, lastVal) {
 function clearEntryCurrentState() {
   const el = document.getElementById("entryCurrentState");
   if (el) { el.style.display = "none"; el.innerHTML = ""; }
+  const infoEl = document.getElementById("entryVehicleInfo");
+  if (infoEl) infoEl.innerHTML = "";
   setSelectPlaceholderHint("destination", "-- LOCATION --", "");
   setSelectPlaceholderHint("fuelLevel",   "-- FUEL --",     "");
-  setInputPlaceholderHint("mileage", "optional", "");
+  setInputPlaceholderHint("mileage", "000000", "");
+  entryRouteMileageHint = null;
+  entryRouteSipp = "";
+  const hintEl = document.getElementById("entryRouteHint");
+  if (hintEl) { hintEl.classList.add("u-hidden"); hintEl.innerHTML = ""; }
   // Drop any carried-over conditions so the next VIN doesn't inherit them.
   selectedCxrConditions = [];
   if (typeof renderCxrConditions === "function") renderCxrConditions();

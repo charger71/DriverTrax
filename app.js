@@ -2424,6 +2424,7 @@ async function runVinSuggest(val) {
     .from("vehicles")
     .select("serial_id")
     .ilike("serial_id", `${val}%`)
+    .is("archived_at", null)
     .limit(VIN_SUGGEST_LIMIT);
   // A newer keystroke (or a closed/retargeted keypad) superseded this
   // response — drop it rather than let a slow early reply clobber a later one.
@@ -3061,6 +3062,7 @@ async function renderFuzzyResults(term) {
     sb.from("vehicles")
       .select("serial_id,current_status,current_status_other,current_destination,current_destination_other,section_id,section_name,last_lat,last_lng,last_seen_at,vin_data,entered_inventory_at,plate,plate_state,sipp")
       .or(`serial_id.ilike.%${upTerm}%,plate.ilike.%${plateTerm}%,sipp.ilike.${upTerm}%,vin_data->>make.ilike.%${safe}%,vin_data->>model.ilike.%${safe}%,vin_data->>year.ilike.%${safe}%`)
+      .is("archived_at", null)
       .order("last_seen_at", { ascending: false, nullsFirst: false })
       .limit(100)
   ]);
@@ -5450,6 +5452,7 @@ async function onPlateLookupSubmit(e) {
     .from("vehicles")
     .select("serial_id,plate,plate_state,vin_data")
     .ilike("plate", `%${plateVal}%`)
+    .is("archived_at", null)
     .limit(10);
 
   submitBtn.disabled = false;

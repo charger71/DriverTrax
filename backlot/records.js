@@ -803,6 +803,20 @@
   // ---------- vehicle-history full page (#section-vin) ----------
   const VIN_HISTORY_LIMIT = 100;
 
+  function updateVinHeaderActions(serial, veh) {
+    const a = $("blVinArchiveBtn"), d = $("blVinDeleteBtn");
+    if (a) {
+      a.hidden = !veh;
+      a.textContent = veh?.archived_at ? "Unarchive" : "Archive";
+      a.dataset.serial = serial;
+      a.dataset.archived = veh?.archived_at ? "1" : "0";
+    }
+    if (d) {
+      d.hidden = !veh || !BL_AUTH.isAdmin?.();
+      d.dataset.serial = serial;
+    }
+  }
+
   async function openVinHistory(serial) {
     if (!serial) return;
     // Swap to the VIN page immediately with a "loading" body so the click
@@ -811,20 +825,27 @@
     $("blVinPageTitle").textContent = serial;
     $("blVinPageSub").textContent = "Loading history…";
     $("blVinBody").innerHTML = `<div class="bl-empty">Loading history…</div>`;
+    updateVinHeaderActions(serial, null);
     if (window.BL_NAV) BL_NAV.show("vin");
 
-    const { data, error } = await sb.from("records")
-      .select(REC_COLS)
-      .eq("serial_id", serial)
-      .order("ts", { ascending: false })
-      .limit(VIN_HISTORY_LIMIT);
-    if (error) {
-      $("blVinBody").innerHTML = `<div class="bl-empty">Load failed: ${esc(error.message)}</div>`;
+    // Fetch records + the vehicles row in parallel. A vehicle with zero
+    // records (an Inventory Import placeholder, or any other non-scan
+    // path) has nothing to show in the timeline but is still a real row —
+    // fall back to it instead of dead-ending on "No records for X".
+    const [recRes, vehRes] = await Promise.all([
+      sb.from("records").select(REC_COLS).eq("serial_id", serial).order("ts", { ascending: false }).limit(VIN_HISTORY_LIMIT),
+      sb.from("vehicles").select("*").eq("serial_id", serial).maybeSingle(),
+    ]);
+    if (recRes.error) {
+      $("blVinBody").innerHTML = `<div class="bl-empty">Load failed: ${esc(recRes.error.message)}</div>`;
       return;
     }
-    const rows = data || [];
+    const rows = recRes.data || [];
+    const veh = vehRes.data || null;
+
     if (!rows.length) {
-      $("blVinBody").innerHTML = `<div class="bl-empty">No records for <b>${esc(serial)}</b>.</div>`;
+      if (veh) { renderVinHistoryVehicleOnly(serial, veh); return; }
+      $("blVinBody").innerHTML = `<div class="bl-empty">No records or vehicle found for <b>${esc(serial)}</b>.</div>`;
       return;
     }
     // Backfill any driver names we don't already have cached so the timeline
@@ -834,10 +855,45 @@
       const { data: profs } = await sb.from("profiles").select("id,display_name").in("id", missing);
       (profs || []).forEach((p) => { profilesMap[p.id] = p.display_name || "(no name)"; });
     }
-    renderVinHistory(serial, rows);
+    renderVinHistory(serial, rows, veh);
   }
 
-  function renderVinHistory(serial, rows) {
+  // Fallback render for a vehicle with a vehicles row but zero records —
+  // reuses only existing .bl-vin-*/.bl-card/.bl-empty classes, no new CSS.
+  function renderVinHistoryVehicleOnly(serial, veh) {
+    updateVinHeaderActions(serial, veh);
+    const vd = veh.vin_data || {};
+    const nameLine = [vd.year, vd.make, vd.model].filter(Boolean).map(esc).join(" ");
+    $("blVinPageTitle").textContent = serial;
+    $("blVinPageSub").textContent = nameLine || "—";
+
+    const archivedLine = veh.archived_at
+      ? `<div class="bl-vin-eyebrow-row"><span class="bl-disabled-pill">Archived</span>
+          <span class="bl-vin-seen">${esc(fmt.date(veh.archived_at))}${veh.archived_by ? " by " + esc(driverName(veh.archived_by)) : ""}</span></div>`
+      : "";
+    const infoRows = [
+      veh.plate ? ["Plate", (veh.plate_state ? veh.plate_state + "-" : "") + veh.plate] : null,
+      veh.sipp ? ["SIPP", veh.sipp] : null,
+      veh.current_status ? ["Status", label(veh.current_status) || veh.current_status] : null,
+      veh.mileage != null ? ["Mileage", veh.mileage.toLocaleString() + " mi"] : null,
+      veh.description ? ["Description", veh.description] : null,
+      (veh.hold_codes && veh.hold_codes.length) ? ["Hold codes", veh.hold_codes.join(", ")] : null,
+      veh.imported_at ? ["Imported", fmt.date(veh.imported_at)] : null,
+    ].filter(Boolean);
+
+    $("blVinBody").innerHTML = `
+      <div class="bl-vin-header">${archivedLine}
+        <div class="bl-vin-vin">${esc(serial)}</div>
+        ${nameLine ? `<div class="bl-vin-vehicle"><b>${nameLine}</b></div>` : ""}
+      </div>
+      <div class="bl-empty">No scan history yet — this vehicle was added via Inventory Import (or another non-scan path) and hasn't been scanned by a driver.</div>
+      ${infoRows.length ? `<div class="bl-card"><div class="bl-card-body">
+        ${infoRows.map(([k, v]) => `<div class="bl-vin-meter"><span class="label">${esc(k)}</span><span class="val val--text">${esc(String(v))}</span></div>`).join("")}
+      </div></div>` : ""}`;
+  }
+
+  function renderVinHistory(serial, rows, veh) {
+    updateVinHeaderActions(serial, veh);
     const latest = rows[0];
     const oldest = rows[rows.length - 1];
     const vd = latest.vin_data || {};
@@ -978,6 +1034,7 @@
         ${vehicleBlock}
         <div class="bl-vin-pill-row">
           <span class="bl-vin-status-pill${statusPillMod}">${esc(statusText)}</span>
+          ${veh?.archived_at ? `<span class="bl-disabled-pill">Archived</span>` : ""}
         </div>
         ${metersHtml}
       </div>
@@ -1119,6 +1176,20 @@
     // timeline clicks + open-full-record drill into the record modal.
     $("blVinBack")?.addEventListener("click", () => { if (window.BL_NAV) BL_NAV.back(); });
     $("blVinBody")?.addEventListener("click", onVinHistoryClick);
+    $("blVinArchiveBtn")?.addEventListener("click", async function () {
+      const serial = this.dataset.serial;
+      if (!serial) return;
+      const wasArchived = this.dataset.archived === "1";
+      const ok = wasArchived ? await BL_VEHICLES?.unarchive(serial) : await BL_VEHICLES?.archive(serial);
+      if (ok) openVinHistory(serial); // re-fetch + re-render with the fresh archived state
+    });
+    $("blVinDeleteBtn")?.addEventListener("click", function () {
+      const serial = this.dataset.serial;
+      if (!serial) return;
+      // The vehicle's gone once deleted — leave the now-dead page rather
+      // than re-fetch it into a "not found" state.
+      BL_VEHICLES?.openDeleteModal(serial, { onDeleted: () => BL_NAV?.back() });
+    });
 
     // Modal keyboard: Escape closes the record detail modal; arrow keys
     // step through the current records page while the modal is open.

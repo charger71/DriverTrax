@@ -163,13 +163,16 @@
 
     return {
       lineNo, vin,
-      sippCode: get("sipp").slice(0, 20) || null,
+      // plate/sipp normalization matches vehicle-info.js's normalizePlate()
+      // exactly, so a value written by import and one typed into that
+      // editor look identical (same charset, same case, same length cap).
+      sipp: get("sipp").slice(0, 20).toUpperCase() || null,
       unitNumber: get("unit").slice(0, 20) || null,
       make: get("make").slice(0, 40),
       model: get("model").slice(0, 40),
       odometer: odo.value,
-      licensePlate: get("lp").slice(0, 20) || null,
-      registrationState: get("state").slice(0, 2).toUpperCase() || null,
+      plate: sanitizeSerial(get("lp").toUpperCase().replace(/\s+/g, "")).slice(0, 10) || null,
+      plateState: get("state").slice(0, 2).toUpperCase() || null,
       holdCodes,
       description: sanitizeNotes(get("description")) || null,
       lastLocationNote: sanitizeNotes(get("lastLocationNote")) || null,
@@ -264,8 +267,10 @@
       serial_id: r.vin,
       current_status: r.currentStatus,
       current_destination: (plan.sheetType === "maintenance" && r.offLot) ? "VENDOR: " + r.vendor : null,
-      sipp_code: r.sippCode, unit_number: r.unitNumber, mileage: r.odometer,
-      license_plate: r.licensePlate, registration_state: r.registrationState,
+      // plate / plate_state / sipp are vehicle-info.js's columns (see
+      // vehicle-plate-sipp-schema.sql) — reused rather than duplicated.
+      plate: r.plate, plate_state: r.plateState, sipp: r.sipp,
+      unit_number: r.unitNumber, mileage: r.odometer,
       hold_codes: r.holdCodes.length ? r.holdCodes : null,
       description: r.description, last_location_note: r.lastLocationNote,
       expected_return: r.expectedReturn,
@@ -288,8 +293,14 @@
       current_destination: (plan.sheetType === "maintenance" && r.offLot) ? "VENDOR: " + r.vendor : existing.current_destination,
       current_destination_other: existing.current_destination_other,
       current_conditions: existing.current_conditions,
-      sipp_code: r.sippCode, unit_number: r.unitNumber, mileage: r.odometer,
-      license_plate: r.licensePlate, registration_state: r.registrationState,
+      // Fill-if-blank, not always-overwrite: unlike current_status (which the
+      // sheet genuinely owns), plate/state/SIPP are static facts a human may
+      // have already corrected via vehicle-info.js's own editor — a stale
+      // sheet re-import shouldn't clobber a manual fix.
+      plate: existing.plate || r.plate,
+      plate_state: existing.plate_state || r.plateState,
+      sipp: existing.sipp || r.sipp,
+      unit_number: r.unitNumber, mileage: r.odometer,
       hold_codes: r.holdCodes.length ? r.holdCodes : null,
       description: r.description, last_location_note: r.lastLocationNote,
       expected_return: r.expectedReturn,

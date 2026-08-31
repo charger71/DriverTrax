@@ -127,6 +127,13 @@
     return out;
   }
 
+  // A row's DB identity: the sheet's short VIN, unless it resolved (exact or
+  // suffix match, see buildPlan) to an existing row with a different real id.
+  function resolveSerialId(r, plan) {
+    const existing = plan.existingVehicles.get(r.vin);
+    return existing ? existing.serial_id : r.vin;
+  }
+
   // -------- row validation --------
 
   function buildRow(sheetType, fieldMap, rawRow, lineNo) {
@@ -215,6 +222,30 @@
       (data || []).forEach(v => existingVehicles.set(v.serial_id, v));
     }
 
+    // A sheet's short VIN (the real VIN's last 8 characters — position 10
+    // model year + 11 plant + 12-17 serial) may already be a full 17-char
+    // row from a real driver scan that happened before this car ever showed
+    // up on an Enterprise sheet. Match onto that real row (keyed by the
+    // short code here, same as an exact match) rather than creating a
+    // second, disconnected placeholder — the reverse direction (placeholder
+    // first, real scan later) is handled server-side in
+    // fn_records_sync_vehicle(), see vehicle-vin-suffix-reconcile-schema.sql.
+    // Only applies when no exact 8-char row already exists; a placeholder
+    // that's already coexisting with a real row is a pre-existing duplicate
+    // this pass doesn't try to auto-heal.
+    const unmatched = vins.filter(v => !existingVehicles.has(v));
+    for (const chunk of chunkArray(unmatched, 50)) {
+      if (!chunk.length) continue;
+      const orClause = chunk.map(v => `serial_id.like.%${v}`).join(",");
+      const { data, error } = await sb.from("vehicles").select("*").or(orClause);
+      if (error) throw new Error("Vehicle suffix lookup failed: " + error.message);
+      (data || []).forEach(v => {
+        if (v.serial_id.length !== 17) return;
+        const suffix = v.serial_id.slice(-8);
+        if (chunk.includes(suffix)) existingVehicles.set(suffix, v);
+      });
+    }
+
     const vendorMap = new Map();
     const newVendorNames = [];
     const existingJobs = new Map();
@@ -229,7 +260,12 @@
         if (!vendorMap.has(key) && !seen.has(key)) { seen.add(key); newVendorNames.push(r.vendor); }
       });
 
-      for (const chunk of chunkArray(vins, BATCH_SIZE)) {
+      // Job lookups use the resolved real serial_id too, so a car already
+      // carrying a full-VIN identity gets matched on that VIN, not the
+      // sheet's short code (jobs live on whichever id vehicles ended up
+      // keyed by for this car).
+      const jobVins = [...new Set(vins.map(v => (existingVehicles.get(v) || { serial_id: v }).serial_id))];
+      for (const chunk of chunkArray(jobVins, BATCH_SIZE)) {
         const { data, error } = await sb.from("service_jobs").select("*").in("serial_id", chunk).neq("state", "CLOSED");
         if (error) throw new Error("Service job lookup failed: " + error.message);
         (data || []).forEach(j => existingJobs.set(j.serial_id + "|" + j.job_type, j));
@@ -238,8 +274,9 @@
 
     const newVehicles = good.filter(r => !existingVehicles.has(r.vin));
     const updatedVehicles = good.filter(r => existingVehicles.has(r.vin));
-    const newJobs = sheetType === "maintenance" ? good.filter(r => !existingJobs.has(r.vin + "|" + r.currentStatus)) : [];
-    const updatedJobs = sheetType === "maintenance" ? good.filter(r => existingJobs.has(r.vin + "|" + r.currentStatus)) : [];
+    const jobKey = r => resolveSerialId(r, { existingVehicles }) + "|" + r.currentStatus;
+    const newJobs = sheetType === "maintenance" ? good.filter(r => !existingJobs.has(jobKey(r))) : [];
+    const updatedJobs = sheetType === "maintenance" ? good.filter(r => existingJobs.has(jobKey(r))) : [];
 
     // Flag codes absent from DriverTrax's own status vocabulary — not codes
     // that merely lack a friendly STATUS_LABELS entry (e.g. CLEAN has none
@@ -287,7 +324,7 @@
   function buildVehicleUpdatePayload(r, plan, userId, now) {
     const existing = plan.existingVehicles.get(r.vin);
     return {
-      serial_id: r.vin,
+      serial_id: existing.serial_id,
       current_status: r.currentStatus,
       current_status_other: existing.current_status_other,
       current_destination: (plan.sheetType === "maintenance" && r.offLot) ? "VENDOR: " + r.vendor : existing.current_destination,
@@ -317,7 +354,7 @@
 
   function buildJobInsertPayload(r, plan, userId, now) {
     return {
-      serial_id: r.vin, job_type: r.currentStatus,
+      serial_id: resolveSerialId(r, plan), job_type: r.currentStatus,
       performed_by: r.offLot ? "vendor" : "in_house",
       vendor_id: r.vendor ? (plan.vendorMap.get(r.vendor.toLowerCase()) || null) : null,
       state: r.offLot ? "SENT_OUT" : "OPEN",
@@ -332,7 +369,7 @@
   // the given columns are set), so omitting opened_by/opened_at/returned_*/
   // close_* is safe and doesn't need the echo-back treatment.
   function buildJobUpdatePayload(r, plan, now) {
-    const existing = plan.existingJobs.get(r.vin + "|" + r.currentStatus);
+    const existing = plan.existingJobs.get(resolveSerialId(r, plan) + "|" + r.currentStatus);
     const payload = {
       mileage: r.odometer,
       vendor_id: r.vendor ? (plan.vendorMap.get(r.vendor.toLowerCase()) || existing.vendor_id) : existing.vendor_id,
@@ -371,7 +408,7 @@
       if (error) throw new Error("Creating service jobs failed: " + error.message);
     }
     for (const r of plan.updatedJobs) {
-      const existing = plan.existingJobs.get(r.vin + "|" + r.currentStatus);
+      const existing = plan.existingJobs.get(resolveSerialId(r, plan) + "|" + r.currentStatus);
       const { error } = await sb.from("service_jobs").update(buildJobUpdatePayload(r, plan, now)).eq("id", existing.id);
       if (error) throw new Error("Updating service job failed: " + error.message);
     }

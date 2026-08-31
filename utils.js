@@ -303,8 +303,22 @@
       .limit(50);
     if (error) console.warn("[DT_MEDIA] latestMileageFuel", error);
     const rows = data || [];
-    const mileage = rows.find(r => Number.isFinite(r.mileage))?.mileage ?? null;
-    const fuel    = rows.find(r => r.fuel_level)?.fuel_level ?? null;
+    let mileage = rows.find(r => Number.isFinite(r.mileage))?.mileage ?? null;
+    const fuel  = rows.find(r => r.fuel_level)?.fuel_level ?? null;
+    // No driver-submitted mileage yet — fall back to the odometer reading
+    // inventory-import.js seeded onto the vehicles row. Imported cars sit
+    // under just their VIN's last 8 characters until a real scan is saved
+    // (see vehicle-vin-suffix-reconcile-schema.sql), so try the full VIN
+    // first, then that short suffix. There's no vehicles-level fallback for
+    // fuel — the sheets this app imports from don't carry a fuel reading.
+    if (mileage === null) {
+      const key = String(vin || "").toUpperCase();
+      let { data: v } = await sb.from("vehicles").select("mileage").eq("serial_id", key).maybeSingle();
+      if (!v && key.length === 17) {
+        ({ data: v } = await sb.from("vehicles").select("mileage").eq("serial_id", key.slice(-8)).maybeSingle());
+      }
+      if (Number.isFinite(v?.mileage)) mileage = v.mileage;
+    }
     return { mileage, fuel };
   }
 

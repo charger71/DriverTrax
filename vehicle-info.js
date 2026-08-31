@@ -116,11 +116,23 @@
     const key = String(vin || "").toUpperCase();
     if (!key || _schemaMissing) return null;
     if (!opts?.force && _cache.has(key)) return _cache.get(key);
-    const { data, error } = await sb
+    let { data, error } = await sb
       .from("vehicles")
       .select("serial_id,plate,plate_state,sipp")
       .eq("serial_id", key)
       .maybeSingle();
+    // Imported cars are seeded under just their VIN's last 8 characters until
+    // a real scan gets saved and the DB trigger folds the placeholder into a
+    // full-VIN row (see vehicle-vin-suffix-reconcile-schema.sql) — fall back
+    // to the short code so a freshly-imported car's first scan still shows
+    // its plate/SIPP instead of an empty "+ Add plate & class".
+    if (!error && !data && key.length === 17) {
+      ({ data, error } = await sb
+        .from("vehicles")
+        .select("serial_id,plate,plate_state,sipp")
+        .eq("serial_id", key.slice(-8))
+        .maybeSingle());
+    }
     if (error) {
       // 42703 = undefined_column. Anything else is transient — don't cache it.
       if (error.code === "42703") {

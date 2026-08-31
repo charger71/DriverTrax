@@ -6568,6 +6568,20 @@ document.addEventListener("dt-vin-scanned", (e) => {
 let entryRouteMileageHint = null;
 let entryRouteSipp = "";
 
+// An imported car (see inventory-import.js) is seeded under just its VIN's
+// last 8 characters until a real scan gets saved and the DB trigger folds
+// the placeholder into a full-VIN row (vehicle-vin-suffix-reconcile-schema.sql).
+// An exact match on the full 17-char VIN misses until then, which made a
+// freshly-imported car's first scan look like "New to inventory" even though
+// it was already known — fall back to the short code so this banner (and
+// vehicle-info.js's chip, which does the same fallback in its own load())
+// reflects what was imported instead of claiming there's no history.
+async function fetchVehicleRow(sb, vin, columns) {
+  const exact = await sb.from("vehicles").select(columns).eq("serial_id", vin).maybeSingle();
+  if (exact.data || exact.error || vin.length !== 17) return exact;
+  return sb.from("vehicles").select(columns).eq("serial_id", vin.slice(-8)).maybeSingle();
+}
+
 // Render a read-only banner of the vehicle's current state (status, destination,
 // last mileage / fuel) under the scan area, and pre-fill the Destination select.
 // Status stays blank intentionally so the user has to make a deliberate pick.
@@ -6592,9 +6606,7 @@ async function renderEntryCurrentState(vin) {
   // to other users — we surface that as "no history yet" rather than letting
   // the rejection break the page or noise up the console.
   const [vehRes, latestRecRes, latestMF, vehicleInfo] = await Promise.all([
-    sb.from("vehicles")
-      .select("current_status,current_status_other,current_destination,current_destination_other,last_seen_at,vin_data,current_conditions,needs_new_tag")
-      .eq("serial_id", vin).maybeSingle()
+    fetchVehicleRow(sb, vin, "current_status,current_status_other,current_destination,current_destination_other,last_seen_at,vin_data,current_conditions,needs_new_tag")
       .then(r => r, () => ({ data: null })),
     sb.from("records")
       .select("status,status_other,destination,destination_other,ts")

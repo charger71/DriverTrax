@@ -576,10 +576,10 @@
        rather than flexed to fill the sheet — a real keyboard sizes to its
        keys, it doesn't stretch to cover the screen. */
     display: grid; grid-template-columns: repeat(20, 1fr);
-    grid-template-rows: repeat(5, 56px);
+    grid-template-rows: repeat(5, 44px);
     gap: var(--space-2);
   }
-  .vin-keypad-funcs .vin-key { height: 56px; }
+  .vin-keypad-funcs .vin-key { height: 44px; }
   .vin-key {
     color: var(--text);
     border: 1px solid var(--border); border-radius: 8px;
@@ -622,7 +622,6 @@
     font-size: 28px;
   }
   .vin-key.vin-key-arrow:active { background: #c2410c !important; color: #fff !important; }
-  .vin-keypad-funcs .vin-key.vin-key-arrow { height: 56px; }
   .vin-key.vin-key-func {
     background: var(--warn); color: #1a1a1a;
     font-size: var(--font-base); letter-spacing: 1px;

@@ -116,23 +116,11 @@
     const key = String(vin || "").toUpperCase();
     if (!key || _schemaMissing) return null;
     if (!opts?.force && _cache.has(key)) return _cache.get(key);
-    let { data, error } = await sb
+    const { data, error } = await sb
       .from("vehicles")
       .select("serial_id,plate,plate_state,sipp")
       .eq("serial_id", key)
       .maybeSingle();
-    // Imported cars are seeded under just their VIN's last 8 characters until
-    // a real scan gets saved and the DB trigger folds the placeholder into a
-    // full-VIN row (see vehicle-vin-suffix-reconcile-schema.sql) — fall back
-    // to the short code so a freshly-imported car's first scan still shows
-    // its plate/SIPP instead of an empty "+ Add plate & class".
-    if (!error && !data && key.length === 17) {
-      ({ data, error } = await sb
-        .from("vehicles")
-        .select("serial_id,plate,plate_state,sipp")
-        .eq("serial_id", key.slice(-8))
-        .maybeSingle());
-    }
     if (error) {
       // 42703 = undefined_column. Anything else is transient — don't cache it.
       if (error.code === "42703") {
@@ -143,9 +131,30 @@
       }
       return null;
     }
-    const info = data
+    let info = data
       ? { plate: data.plate || "", plateState: data.plate_state || "", sipp: data.sipp || "" }
       : { ...EMPTY };
+    // Imported cars are seeded under just their VIN's last 8 characters. The
+    // DB trigger only merges that placeholder into a full-VIN row if the
+    // placeholder already existed at real-scan time — a placeholder created
+    // by a *later* import for an already-scanned car is never retroactively
+    // merged, so the real row can exist but still be missing plate/SIPP.
+    // Fill whatever's still blank from the placeholder without overwriting
+    // anything the real row already has.
+    if (key.length === 17 && (!info.plate || !info.sipp)) {
+      const { data: ph } = await sb
+        .from("vehicles")
+        .select("plate,plate_state,sipp")
+        .eq("serial_id", key.slice(-8))
+        .maybeSingle();
+      if (ph) {
+        info = {
+          plate: info.plate || ph.plate || "",
+          plateState: info.plateState || ph.plate_state || "",
+          sipp: info.sipp || ph.sipp || ""
+        };
+      }
+    }
     _cache.set(key, info);
     return info;
   }

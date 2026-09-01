@@ -306,18 +306,22 @@
     let mileage = rows.find(r => Number.isFinite(r.mileage))?.mileage ?? null;
     const fuel  = rows.find(r => r.fuel_level)?.fuel_level ?? null;
     // No driver-submitted mileage yet — fall back to the odometer reading
-    // inventory-import.js seeded onto the vehicles row. Imported cars sit
-    // under just their VIN's last 8 characters until a real scan is saved
-    // (see vehicle-vin-suffix-reconcile-schema.sql), so try the full VIN
-    // first, then that short suffix. There's no vehicles-level fallback for
-    // fuel — the sheets this app imports from don't carry a fuel reading.
+    // inventory-import.js seeded onto the vehicles row. Try the full VIN's
+    // own row first; if it exists but has no mileage (the DB trigger only
+    // merges a placeholder that already existed at real-scan time, so a
+    // placeholder imported *after* the car was first scanned never gets
+    // folded in), fall back to the short 8-char suffix placeholder itself
+    // (see vehicle-vin-suffix-reconcile-schema.sql). There's no
+    // vehicles-level fallback for fuel — the imported sheets don't carry one.
     if (mileage === null) {
       const key = String(vin || "").toUpperCase();
-      let { data: v } = await sb.from("vehicles").select("mileage").eq("serial_id", key).maybeSingle();
-      if (!v && key.length === 17) {
-        ({ data: v } = await sb.from("vehicles").select("mileage").eq("serial_id", key.slice(-8)).maybeSingle());
+      const { data: v } = await sb.from("vehicles").select("mileage").eq("serial_id", key).maybeSingle();
+      if (Number.isFinite(v?.mileage)) {
+        mileage = v.mileage;
+      } else if (key.length === 17) {
+        const { data: ph } = await sb.from("vehicles").select("mileage").eq("serial_id", key.slice(-8)).maybeSingle();
+        if (Number.isFinite(ph?.mileage)) mileage = ph.mileage;
       }
-      if (Number.isFinite(v?.mileage)) mileage = v.mileage;
     }
     return { mileage, fuel };
   }

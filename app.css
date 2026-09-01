@@ -569,10 +569,14 @@
   }
   .vin-keypad-grid {
     flex: 1; min-height: 0;
-    display: grid; grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: repeat(10, minmax(0, 1fr));
-    gap: var(--space-4);
+    display: flex; flex-direction: column;
+    gap: var(--space-2);
   }
+  .vin-key-row {
+    flex: 1; min-height: 0;
+    display: flex; gap: var(--space-2);
+  }
+  .vin-key-row .vin-key { flex: 1; min-width: 0; }
   .vin-keypad-funcs .vin-key { height: 56px; }
   .vin-key {
     color: var(--text);
@@ -591,8 +595,9 @@
     background: var(--card-soft);
     color: var(--text);
   }
-  .vin-key.vin-key-zero-tall {
-    grid-column: 4; grid-row: 1 / span 3;
+  .vin-key:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
   }
   .vin-key.vin-key-delete {
     background: var(--danger); color: #fff;
@@ -625,9 +630,9 @@
     background: var(--warn-soft) !important; color: #1a1a1a !important;
   }
   .vin-key.vin-key-done {
+    flex: 1; min-height: 0;
     background: var(--success, var(--accent)); color: var(--text-on-status, var(--text-on-accent));
     font-size: var(--font-lg); letter-spacing: 1px;
-    grid-column: 1 / -1;
     border-color: var(--success, var(--accent));
   }
   .vin-key.vin-key-done:active { background: var(--success-strong, var(--accent-pressed)) !important; }

@@ -516,7 +516,7 @@
   .vin-keypad-overlay.open { display: flex; }
   .vin-keypad {
     background: var(--header-bg); width: 100%; max-width: 600px;
-    height: 100dvh; max-height: 100dvh;
+    max-height: 90dvh;
     display: flex; flex-direction: column;
     border-radius: 18px 18px 0 0;
     padding: max(env(safe-area-inset-top), var(--space-3)) var(--space-3) calc(12px + env(safe-area-inset-bottom));
@@ -568,20 +568,22 @@
     margin-bottom: var(--space-4);
   }
   .vin-keypad-grid {
-    flex: 1; min-height: 0;
-    display: flex; flex-direction: column;
+    /* 20 columns so every key is a 2-column "unit" regardless of which row
+       it's in — see the VIN_KEYPAD_ROWS comment in app.js for why that's
+       what makes the home row inset and the bottom row bookend correctly
+       instead of every row's keys stretching to fill their own row. Rows
+       are a fixed key height (matching .vin-keypad-funcs .vin-key below)
+       rather than flexed to fill the sheet — a real keyboard sizes to its
+       keys, it doesn't stretch to cover the screen. */
+    display: grid; grid-template-columns: repeat(20, 1fr);
+    grid-template-rows: repeat(5, 56px);
     gap: var(--space-2);
   }
-  .vin-key-row {
-    flex: 1; min-height: 0;
-    display: flex; gap: var(--space-2);
-  }
-  .vin-key-row .vin-key { flex: 1; min-width: 0; }
   .vin-keypad-funcs .vin-key { height: 56px; }
   .vin-key {
     color: var(--text);
     border: 1px solid var(--border); border-radius: 8px;
-    font-size: clamp(20px, 5vh, 32px); font-weight: 800; font-family: 'Courier New', monospace;
+    font-size: var(--font-xl); font-weight: 800; font-family: 'Courier New', monospace;
     min-height: 0; height: auto; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     transition: background 0.1s, transform 0.05s;
@@ -630,7 +632,6 @@
     background: var(--warn-soft) !important; color: #1a1a1a !important;
   }
   .vin-key.vin-key-done {
-    flex: 1; min-height: 0;
     background: var(--success, var(--accent)); color: var(--text-on-status, var(--text-on-accent));
     font-size: var(--font-lg); letter-spacing: 1px;
     border-color: var(--success, var(--accent));

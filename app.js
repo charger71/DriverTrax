@@ -2164,19 +2164,32 @@ function toggleEditClearBtn() {
 // ============================
 // VIN KEYPAD
 // ============================
-// Row layout mirrors a standard QWERTY keyboard (digit row on top, then the
-// three letter rows) instead of a flat alphabetical grid — the old A-Z order
-// was slow to scan under pressure. I/O/Q are real keys here, not omitted;
-// applyVinKeypadRestriction() disables them only when the active target is a
-// genuine VIN field (see VIN_SUGGEST_TARGETS below), since a VIN never
-// contains them but other targets — e.g. the RECORDS search box, which also
-// matches make/model/notes — still need the full alphabet.
+// Shaped like a real iOS/Android keyboard — a digit row added on top, then
+// QWERTYUIOP full-width, ASDFGHJKL inset/centered, and ZXCVBNM bookended by
+// DELETE on the right (there's no shift key to occupy the left bookend since
+// a VIN is always uppercase, so that space is just left empty) — rather than
+// a flat alphabetical grid, which was slow to scan under pressure.
+//
+// Every row is placed on a shared 20-column grid (see .vin-keypad-grid in
+// app.css) so a "key unit" is always 2 columns wide no matter which row it's
+// in — that's what makes the home row's inset and the bottom row's bookend
+// line up the way they do on a real keyboard, instead of every row's keys
+// being stretched to fill their own row's width. startCol is where each
+// row's first key begins; shorter rows start further in to center/inset.
+const VIN_KEYPAD_COLS = 20;
+const VIN_KEY_SPAN = 2;
+const VIN_KEY_DELETE_SPAN = 3;
 const VIN_KEYPAD_ROWS = [
-  ["1","2","3","4","5","6","7","8","9","0"],
-  ["Q","W","E","R","T","Y","U","I","O","P"],
-  ["A","S","D","F","G","H","J","K","L"],
-  ["Z","X","C","V","B","N","M"]
+  { row: 1, startCol: 1, keys: ["1","2","3","4","5","6","7","8","9","0"] },
+  { row: 2, startCol: 1, keys: ["Q","W","E","R","T","Y","U","I","O","P"] },
+  { row: 3, startCol: 2, keys: ["A","S","D","F","G","H","J","K","L"] },
+  { row: 4, startCol: 4, keys: ["Z","X","C","V","B","N","M"] }
 ];
+// I/O/Q are real keys here, not omitted; applyVinKeypadRestriction() disables
+// them only when the active target is a genuine VIN field (see
+// VIN_SUGGEST_TARGETS below), since a VIN never contains them but other
+// targets — e.g. the RECORDS search box, which also matches make/model/notes
+// — still need the full alphabet.
 const VIN_RESTRICTED_KEYS = new Set(["I","O","Q"]);
 
 // Tracks which input the keypad is currently typing into
@@ -2191,30 +2204,28 @@ function buildVinKeypad() {
   if (!grid) return;
   if (grid.dataset.built === "1") return;
 
-  // Layout (each row is its own flex container, see .vin-key-row in app.css):
-  //   1  2  3  4  5  6  7  8  9  0
-  //   Q  W  E  R  T  Y  U  I  O  P
-  //   A  S  D  F  G  H  J  K  L
-  //   Z  X  C  V  B  N  M  DELETE
-  //   [        DONE (full width)        ]
-  const keyBtn = (k) => {
+  const keyBtn = (k, row, col, span) => {
     const typeClass = /[0-9]/.test(k) ? "vin-key-num" : "vin-key-alpha";
     const restrictAttr = VIN_RESTRICTED_KEYS.has(k) ? ' data-restricted="1"' : "";
-    return `<button class="vin-key ${typeClass}" type="button" onclick="vinKeypadType('${k}')"${restrictAttr}>${k}</button>`;
+    const style = `grid-row:${row};grid-column:${col} / span ${span};`;
+    return `<button class="vin-key ${typeClass}" type="button" style="${style}" onclick="vinKeypadType('${k}')"${restrictAttr}>${k}</button>`;
   };
 
   let html = "";
-  VIN_KEYPAD_ROWS.forEach((row, i) => {
-    html += '<div class="vin-key-row">';
-    row.forEach((k) => { html += keyBtn(k); });
-    if (i === VIN_KEYPAD_ROWS.length - 1) {
-      html += `<button class="vin-key vin-key-delete" type="button" onclick="vinKeypadBackspace()" aria-label="Delete">`
+  VIN_KEYPAD_ROWS.forEach(({ row, startCol, keys }) => {
+    let col = startCol;
+    keys.forEach((k) => {
+      html += keyBtn(k, row, col, VIN_KEY_SPAN);
+      col += VIN_KEY_SPAN;
+    });
+    if (row === 4) {
+      const delCol = VIN_KEYPAD_COLS - VIN_KEY_DELETE_SPAN + 1;
+      html += `<button class="vin-key vin-key-delete" type="button" style="grid-row:4;grid-column:${delCol} / span ${VIN_KEY_DELETE_SPAN};" onclick="vinKeypadBackspace()" aria-label="Delete">`
            +  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 5H8l-7 7 7 7h13a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>`
            +  `DEL</button>`;
     }
-    html += '</div>';
   });
-  html += `<button class="vin-key vin-key-done" type="button" onclick="closeVinKeypad()">DONE</button>`;
+  html += `<button class="vin-key vin-key-done" type="button" style="grid-row:5;grid-column:1 / span ${VIN_KEYPAD_COLS};" onclick="closeVinKeypad()">DONE</button>`;
   grid.innerHTML = html;
   grid.dataset.built = "1";
 }
